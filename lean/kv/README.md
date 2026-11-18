@@ -198,8 +198,7 @@ They cover forbidden map-view refreshes, wrong global values/presence/revisions,
 `replayer/check-fixtures.sh` replays each base trace, which must be accepted, and each diff applied with `git apply --unidiff-zero`, which must produce its named status.
 It also requires replay to be deterministic, every failure to carry a diagnostic, and every rejection to identify the failing record.
 `Tests/Replay.lean` checks serial projection, direct model execution of interleaved traces, metadata-only steps, reported-observation rejection, trace ID reuse, and exact uint64 decoding.
-`Tests/Model.lean` imports only the model and executes overlapping transactions, multiple stores, nonreplicating publication, conflict dependencies, reusable live references, rollback identities, lazy acquisition across rollback, and per-map global frames without any trace records.
-Both run with `#eval` when their modules are built.
+These trace-validation self-tests run with `#eval` when the module is built.
 Other positive implementation schedules come from the focused C++ tests and concurrent fuzzer.
 
 ## Recorded finding
@@ -231,7 +230,7 @@ lake check --inadvisably-no-sandbox
 ```
 
 These are the same checks as the [disaster-recovery validation](../disaster-recovery/README.md#validation), which describes each of them and the package's linter options.
-The build runs the self-tests in `Tests/Replay.lean` and `Tests/Model.lean`, and `check-fixtures.sh` replays the [fixtures](#fixtures) with the built `kv-replay`.
+The build runs the trace-validation self-tests in `Tests/Replay.lean`, and `check-fixtures.sh` replays the [fixtures](#fixtures) with the built `kv-replay`.
 The shared `lake exe check-imports` checks import coverage and layering, as described in the [common package](../common/README.md#architecture-checks).
 
 To check C++ traces against the model, build the replayer and pass it to CMake as described in [Reproducing a run](../../doc/build_apps/kv/semantics.rst).
