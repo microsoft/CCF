@@ -97,6 +97,8 @@ Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readine
 
 Its Virtual A, B, and C jobs use the same pool distribution as the main continuous integration workflow.
 
+Each job sets `PATH` on its container, because the Azure Linux 4 image does not declare one and the runner would otherwise replace `PATH` with only the directories added through `GITHUB_PATH`, such as the one added by the Lean action.
+
 File: `ci-al4.yml`
 3rd party dependencies: elan
 
