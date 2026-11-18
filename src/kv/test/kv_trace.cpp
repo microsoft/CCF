@@ -340,15 +340,7 @@ TEST_CASE("KV trace compaction rollback")
     CHECK(retained->get("key") == "rolled back");
     rolled_back_store.rollback({0, 0}, 1);
     CHECK(retained->get("key") == "rolled back");
-    auto late = waiting.rw(a);
-    CHECK_FALSE(late->get("key").has_value());
-    CHECK_FALSE(late->get_globally_committed("key").has_value());
-    CHECK_FALSE(late->get_version_of_previous_write("key").has_value());
-    CHECK_FALSE(late->has("key"));
-    CHECK(late->size() == 0);
-    late->put("key", "staged");
-    CHECK(late->get("key") == "staged");
-    CHECK(waiting.ro(a) == late);
+    CHECK_THROWS_AS(waiting.rw(a), ccf::kv::CompactedVersionConflict);
   }
 
   for (const bool replace : {false, true})
@@ -378,17 +370,9 @@ TEST_CASE("KV trace compaction rollback")
       REQUIRE(writer.commit() == Result::SUCCESS);
       surviving_store.compact(2);
     }
-    auto late = waiting.rw(a);
-    CHECK(late->get("key") == (replace ? "replacement" : "survives"));
-    CHECK(
-      late->get_globally_committed("key") ==
-      (replace ? std::make_optional<std::string>("replacement") :
-                 std::nullopt));
-    CHECK(late->get_version_of_previous_write("key") == (replace ? 2 : 1));
+    CHECK_THROWS_AS(waiting.rw(a), ccf::kv::CompactedVersionConflict);
     CHECK(retained->get("key") == "discarded");
     CHECK(waiting.ro(b)->get("key") == "unchanged");
-    late->put("key", "new branch");
-    CHECK(waiting.commit() == Result::SUCCESS);
     retained->put("key", "stale branch");
     CHECK(before_rollback.commit() == Result::FAIL_CONFLICT);
   }
