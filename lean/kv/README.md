@@ -197,6 +197,8 @@ They cover forbidden map-view refreshes, wrong global values/presence/revisions,
 
 `replayer/check-fixtures.sh` replays each base trace, which must be accepted, and each diff applied with `git apply --unidiff-zero`, which must produce its named status.
 It also requires replay to be deterministic, every failure to carry a diagnostic, and every rejection to identify the failing record.
+For every rejected fixture, it independently executes the translated model actions and compares their computed outputs without `guardEvent`, requiring rejection at the same record.
+The two callback-visitation fixtures are explicitly adapter-only and must remain accepted by this model-only check.
 `Tests/Replay.lean` checks serial projection, direct model execution of interleaved traces, metadata-only steps, reported-observation rejection, trace ID reuse, and exact uint64 decoding.
 These trace-validation self-tests run with `#eval` when the module is built.
 Other positive implementation schedules come from the focused C++ tests and concurrent fuzzer.

@@ -16,6 +16,7 @@ Checker self-tests that cannot be expressed as trace fixtures, run at build time
 between the projected serial history and actual replay, and exact uint64 decoding. Accepted,
 rejected, invalid and unsupported traces are fixtures under `replayer/fixtures/`, checked by
 `replayer/check-fixtures.sh`.
+The fixture runner also checks model-only verdicts without the adapter's diagnostic guards.
 -/
 
 namespace Kv.Tests.Replay
@@ -129,6 +130,49 @@ private def assertStutters (initial : World) (events : List Event) : IO World :=
   if ((modelInputs initial records).toOption.map List.isEmpty) != some true then
     throw (IO.userError "metadata-only replay accumulated model inputs")
   return current
+
+private def modelRejection (path : System.FilePath) : IO (Option Nat) := do
+  let mut w : World := {}
+  for line in ← IO.FS.lines path do
+    let record ←
+      match (parseLine line).bind decode with
+      | .ok record => pure record
+      | .error message => throw (IO.userError s!"{path}: {message}")
+    match executeActions w.model (actions w record.event) with
+    | none => return some record.seq
+    | some (next, output) =>
+        if !reportedMatches record.event output then
+          return some record.seq
+        w := { model := next, recording := metadata w.recording record.event output }
+  return none
+
+/-- Checks rejected fixtures without `guardEvent`; callback visitation remains adapter-only. -/
+def checkModelFixtures (directory : System.FilePath) : IO Unit := do
+  let mut modelFailures := 0
+  let mut callbackFailures := 0
+  for entry in ← directory.readDir do
+    let report ← checkFile entry.path
+    let some rejectedAt := report.seq?
+    | throw (IO.userError s!"{entry.fileName}: missing rejection record")
+    if report.status != "rejected" then
+      throw (IO.userError s!"{entry.fileName}: expected rejection, got {report.status}")
+    let adapterOnly :=
+      entry.fileName == "iteration.rejected.duplicate-iteration-entry.ndjson"
+      || entry.fileName == "iteration.rejected.incomplete-iteration.ndjson"
+    let rejectedByModel ← modelRejection entry.path
+    let expected := if adapterOnly then none else some rejectedAt
+    if rejectedByModel != expected then
+      throw
+        (IO.userError
+          s!"{entry.fileName}: model rejection expected {repr expected}, got {repr rejectedByModel}")
+    if adapterOnly then
+      callbackFailures := callbackFailures + 1
+    else
+      modelFailures := modelFailures + 1
+  if modelFailures == 0 || callbackFailures != 2 then
+    throw (IO.userError "missing model or callback-protocol rejection fixtures")
+  IO.println
+    s!"{modelFailures}/{modelFailures + callbackFailures} rejected traces independently rejected by model; {callbackFailures} adapter-only callback rejections"
 
 private def run : IO Unit := do
   assertProjection
