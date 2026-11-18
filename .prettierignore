@@ -11,13 +11,11 @@ cft_tests.md
 tests/cft_scenarios
 *.pyc
 __pycache__/
-sphinx/build/
 tests/Testing/
 doxygen/
 obj/
 *.retry
 tests/env/
-sphinx/env/
 html/
 latex/
 env/

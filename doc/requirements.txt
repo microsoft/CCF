@@ -1,9 +1,7 @@
 breathe
-# sphinx-multiversion 0.2.4 uses the pre-Sphinx 9 configuration API.
-sphinx>=7.4,<9
+sphinx>=7.4
 sphinx-autobuild
 sphinx-pele==0.1.0
-sphinx-multiversion
 sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-design

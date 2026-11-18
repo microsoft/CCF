@@ -1,16 +1,29 @@
-name: "Doc"
+name: Documentation
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
-permissions: read-all
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    name: Build
+    name: Build documentation
+    if: >-
+      github.ref == 'refs/heads/main' ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'merge_group' && github.event.merge_group.base_ref == 'refs/heads/main')
     runs-on: ubuntu-26.04
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -26,57 +39,35 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
       - name: Install dependencies
         uses: ./.github/actions/install-ci-dependencies
         with:
-          python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt
+          python-requirements: doc/requirements.txt
 
-      - name: Setup Pages
-        id: pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
-      # conf.py builds the recovery trace viewer's replayer with lake.
       - name: Install Lean
-        run: |
-          set -euo pipefail
-          curl --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
-            -o /tmp/elan-init.sh
-          sh /tmp/elan-init.sh -y --default-toolchain none
-          rm /tmp/elan-init.sh
-          export PATH="${HOME}/.elan/bin:${PATH}"
-          elan toolchain install "$(cat lean/lean-toolchain)"
-          echo "${HOME}/.elan/bin" >> "$GITHUB_PATH"
-        shell: bash
+        uses: ./.github/actions/install-lean
 
       - name: Build Documentation
         run: |
-          set -x
+          set -euxo pipefail
           python3 -m venv --without-pip env
           source env/bin/activate
-          uv pip install -e ./python
-          uv pip install -r doc/requirements.txt
-          uv pip install -r doc/historical_ccf_requirements.txt
-          python3 scripts/build-docs.py -D smv_remote_whitelist=origin doc build/html
-        shell: bash
-
-      - name: Set up top-level directory
-        run: |
-          set -x
-          cd build/html
-          touch .nojekyll
-          cp ../../doc/index.html .
+          uv pip install -e ./python -r doc/requirements.txt
+          python -m sphinx --fail-on-warning -b html -d build/doc-doctrees doc build/html/main
+          cp doc/index.html build/html/index.html
         shell: bash
 
       - name: Upload pages
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: build/html
 
   deploy:
     name: Deploy
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-26.04
     permissions:
