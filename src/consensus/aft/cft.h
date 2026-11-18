@@ -2233,6 +2233,7 @@ namespace aft
     {
       ProposeRequestVote prv{.term = state->current_view};
       CFT_INFO_FMT("Proposing that {} becomes candidate", successor);
+      trace::send_propose_request_vote(*state, prv, successor.value());
       channels->send_consensus_message(successor, prv);
     }
 

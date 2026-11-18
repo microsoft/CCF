@@ -50,7 +50,7 @@ private def position : Reduction Nat :=
   liftM (m := CCF.Parsec.Parser Event)
     ((fun input => .success input input.position) : CCF.Parsec.Parser Event Nat)
 
-/-- Native sends among the events consumed since `start`, and proposals nominations imply. -/
+/-- Native sends among the events consumed since `start`. -/
 private def extractSends (start : Nat) : Reduction (List NativeSend) := do
   let events ←
     liftM (m := CCF.Parsec.Parser Event)
@@ -61,13 +61,6 @@ private def extractSends (start : Nat) : Reduction (List NativeSend) := do
       let packet ←
         if event.function.startsWith "send_" then
           some <$> readJson event event.message (field · "packet")
-        else if event.function == "step_down_and_nominate_successor" then
-          -- Native then sends an untraced proposal in its current view.
-          let term ← readJson event event.state (nat · "current_view")
-          pure
-            (some
-              (Json.mkObj
-                [("msg", toJson "propose_request_vote"), ("term", toJson term)]))
         else
           pure none
       packet.mapM
@@ -82,6 +75,11 @@ private def event (source : Event) (name : String) : Reduction Unit := do
   liftExcept next do
     require (next.node == source.node) s!"expected event on node {source.node}"
   discard CCF.Parsec.take
+
+/-- A leader steps down and proposes that its successor becomes candidate. -/
+private def nominate (source : Event) : Reduction Unit := do
+  event source "step_down_and_nominate_successor"
+  event source "send_propose_request_vote"
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
   liftExcept event ((← get).header.nodeId name)
@@ -198,7 +196,7 @@ private def ruleAppend : Reduction Unit := do
       readReplicateEntry next
   optional_ do
     event head "commit"
-    optional_ (event head "step_down_and_nominate_successor")
+    optional_ (nominate head)
   -- emit
   emitObserve head "append"
   unless entries.isEmpty do
@@ -228,7 +226,7 @@ private def ruleRecvAppendEntries : Reduction Unit := do
             many_ (event head "send_append_entries"))
       <|> (do
             event head "commit"
-            optional_ (event head "step_down_and_nominate_successor")))
+            optional_ (nominate head)))
   optional_ (event head "send_append_entries_response")
   -- emit
   emitObserve head "recv-append-entries"
@@ -244,7 +242,7 @@ private def ruleRecvAppendEntriesResponse : Reduction Unit := do
   optional_ (event head "become_follower")
   optional_ do
     event head "commit"
-    optional_ (event head "step_down_and_nominate_successor")
+    optional_ (nominate head)
   -- emit
   emitObserve head "recv-append-entries-response"
   emitAction head "recv-append-entries-response" action
@@ -275,7 +273,7 @@ private def ruleRecvProposeRequestVote : Reduction Unit := do
       event head "become_leader"
       optional_ do
         event head "commit"
-        optional_ (event head "step_down_and_nominate_successor")
+        optional_ (nominate head)
       many_ (event head "send_append_entries")
     many_ (event head "send_request_vote")
   -- emit
@@ -297,14 +295,14 @@ private def ruleRecvRequestVoteResponse : Reduction Unit := do
               event head "become_leader"
               optional_ do
                 event head "commit"
-                optional_ (event head "step_down_and_nominate_successor")
+                optional_ (nominate head)
               many_ (event head "send_append_entries")
             many_ (event head "send_request_vote"))
       <|> (do
             event head "become_leader"
             optional_ do
               event head "commit"
-              optional_ (event head "step_down_and_nominate_successor")
+              optional_ (nominate head)
             many_ (event head "send_append_entries")))
   -- emit
   emitObserve head "recv-request-vote-response"
@@ -324,7 +322,7 @@ private def ruleTick : Reduction Unit := do
         event head "become_leader"
         optional_ do
           event head "commit"
-          optional_ (event head "step_down_and_nominate_successor")
+          optional_ (nominate head)
         many_ (event head "send_append_entries")
       many_ (event head "send_request_vote")
     many_ (event head "send_request_vote")
@@ -355,7 +353,7 @@ private def ruleNomination : Reduction Unit := do
   -- consume
   let start ← position
   event head "nomination"
-  let nominated ← CCF.Parsec.optionalRule (event head "step_down_and_nominate_successor")
+  let nominated ← CCF.Parsec.optionalRule (nominate head)
   -- emit
   emitObserve head "nomination"
   if nominated.isSome then
