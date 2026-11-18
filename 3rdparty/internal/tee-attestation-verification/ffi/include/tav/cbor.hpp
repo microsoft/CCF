@@ -3,8 +3,7 @@
 
 #pragma once
 
-// RAII wrapper over the CBOR C ABI. This is the supported interface; the ABI
-// in <tav/internal/cbor_abi.h> is internal to this header.
+// RAII wrapper over the public CBOR C ABI in <tav/cbor.h>.
 //
 // Handle ownership:
 // - Every Value is independently owned and releases its handle on destruction.
@@ -20,20 +19,38 @@
 //   views returned by as_bytes and as_string must not outlive their payload
 //   storage.
 //
-// Failures throw CborError: DecodeError from parsing and from reads that do
-// not match the value, EncodeError from construction and serialization.
+// Failures throw tav::Exception with the C ABI's tav::ErrorCode and message.
 //
-// Nesting:
-// - MAX_DEPTH limits parsing and serialization, not builders. Callers must
-//   bound the depth they build. Copying, materializing, or destroying an
-//   extremely deep Value can exhaust the process stack and abort.
+// Limits:
+// - max_depth defaults to DEFAULT_MAX_DEPTH for parsing and serialization, and
+//   can be raised to MAX_DEPTH, the hard cap. Neither limits builders.
+//   Callers must bound the depth they build. Copying, materializing, or
+//   destroying an extremely deep Value can exhaust the process stack and
+//   abort.
+// - nondet_parse rejects maps with more than MAX_MAP_ENTRIES entries and maps
+//   inside map keys. det_parse and serialization apply neither.
+//
+// Untrusted input:
+// - Keep the default depth, and bound the length of the input before parsing
+//   it, since no parser does. A larger depth makes parsing more expensive.
+// - Parsing can cost time proportional to max_depth times the input length:
+//   expect a document nested to MAX_DEPTH to take up to four times as long as
+//   one nested to DEFAULT_MAX_DEPTH.
+// - Every nondet parse allocates and zeroes
+//   3 * (max_depth + 1) * MAX_MAP_ENTRIES size_t words of scratch, whatever
+//   the input length: about 52 KB at DEFAULT_MAX_DEPTH on a 64-bit target,
+//   and about 0.2 MB at MAX_DEPTH.
+// - A parsed document takes about 40 bytes for every item on a 64-bit target,
+//   so input made of one-byte items takes about 40 times its length in
+//   memory.
 
-#include <tav/internal/cbor_abi.h>
+#include <tav/cbor.h>
+#include <tav/byte_buffer.hpp>
+#include <tav/errors.hpp>
 
 #include <cstddef>
 #include <cstdint>
 #include <span>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -41,19 +58,15 @@
 
 namespace tav::cbor
 {
-/// Ceiling on nesting depth for parsing and serialization.
+/// Hard cap on nesting depth for parsing and serialization.
 constexpr size_t MAX_DEPTH = TAV_CBOR_MAX_DEPTH;
 
-/// Failure statuses of the C ABI.
-enum class Error : int
-{
-    OK = TAV_CBOR_OK,
-    DECODE_FAILED = TAV_CBOR_DECODE_FAILED,
-    KEY_NOT_FOUND = TAV_CBOR_KEY_NOT_FOUND,
-    OUT_OF_BOUND = TAV_CBOR_OUT_OF_BOUND,
-    TYPE_MISMATCH = TAV_CBOR_TYPE_MISMATCH,
-    ENCODE_FAILED = TAV_CBOR_ENCODE_FAILED,
-};
+/// Nesting depth parsing and serialization allow unless told otherwise,
+/// recommended for untrusted input.
+constexpr size_t DEFAULT_MAX_DEPTH = TAV_CBOR_DEFAULT_MAX_DEPTH;
+
+/// Key/value pairs nondet_parse allows in any one map.
+constexpr size_t MAX_MAP_ENTRIES = TAV_CBOR_MAX_MAP_ENTRIES;
 
 /// Value kinds. INVALID is reported for an empty Value.
 enum class Kind : int
@@ -77,37 +90,6 @@ enum SimpleValue : uint8_t
     Undefined = 23,
 };
 
-class CborError : public std::runtime_error
-{
-public:
-    CborError(Error err, const std::string& what) :
-      std::runtime_error(what),
-      error_(err)
-    {}
-
-    [[nodiscard]] Error error_code() const
-    {
-        return error_;
-    }
-
-private:
-    Error error_;
-};
-
-/// Thrown by parsing, and by reads that do not match the value.
-class DecodeError : public CborError
-{
-public:
-    using CborError::CborError;
-};
-
-/// Thrown by construction and serialization.
-class EncodeError : public CborError
-{
-public:
-    using CborError::CborError;
-};
-
 inline bool simple_to_boolean(uint8_t value)
 {
     switch (value)
@@ -117,8 +99,8 @@ inline bool simple_to_boolean(uint8_t value)
         case SimpleValue::True:
             return true;
         default:
-            throw DecodeError(
-              Error::TYPE_MISMATCH, "Simple value cannot be matched to boolean");
+            throw tav::Exception(
+              tav::ErrorCode::CBOR_TYPE_MISMATCH, "Simple value cannot be matched to boolean");
     }
 }
 
@@ -181,14 +163,14 @@ public:
     [[nodiscard]] int64_t as_signed() const
     {
         int64_t out = 0;
-        check(tav_cbor_as_signed(handle_, &out), "as_signed");
+        tav::check(tav_cbor_as_signed(handle_, &out));
         return out;
     }
 
     [[nodiscard]] uint8_t as_simple() const
     {
         uint8_t out = 0;
-        check(tav_cbor_as_simple(handle_, &out), "as_simple");
+        tav::check(tav_cbor_as_simple(handle_, &out));
         return out;
     }
 
@@ -197,7 +179,7 @@ public:
     {
         const uint8_t* data = nullptr;
         size_t len = 0;
-        check(tav_cbor_as_bytes(handle_, &data, &len), "as_bytes");
+        tav::check(tav_cbor_as_bytes(handle_, &data, &len));
         return {data, len};
     }
 
@@ -206,14 +188,14 @@ public:
     {
         const char* data = nullptr;
         size_t len = 0;
-        check(tav_cbor_as_string(handle_, &data, &len), "as_string");
+        tav::check(tav_cbor_as_string(handle_, &data, &len));
         return {data, len};
     }
 
     [[nodiscard]] uint64_t as_tag() const
     {
         uint64_t out = 0;
-        check(tav_cbor_as_tag(handle_, &out), "as_tag");
+        tav::check(tav_cbor_as_tag(handle_, &out));
         return out;
     }
 
@@ -221,53 +203,53 @@ public:
     [[nodiscard]] size_t size() const
     {
         size_t out = 0;
-        check(tav_cbor_size(handle_, &out), "size");
+        tav::check(tav_cbor_size(handle_, &out));
         return out;
     }
 
     [[nodiscard]] Value array_at(size_t index) const
     {
         TavCborHandle* out = nullptr;
-        check(tav_cbor_array_at(handle_, index, &out), "array_at");
-        return adopt(out, "array_at");
+        tav::check(tav_cbor_array_at(handle_, index, &out));
+        return Value(out);
     }
 
     [[nodiscard]] Value map_at(const Value& key) const
     {
         TavCborHandle* out = nullptr;
-        check(tav_cbor_map_at(handle_, key.handle_, &out), "map_at");
-        return adopt(out, "map_at");
+        tav::check(tav_cbor_map_at(handle_, key.handle_, &out));
+        return Value(out);
     }
 
     [[nodiscard]] Value tag_at(uint64_t tag) const
     {
         TavCborHandle* out = nullptr;
-        check(tav_cbor_tag_at(handle_, tag, &out), "tag_at");
-        return adopt(out, "tag_at");
+        tav::check(tav_cbor_tag_at(handle_, tag, &out));
+        return Value(out);
     }
 
     [[nodiscard]] Value map_key_at(size_t index) const
     {
         TavCborHandle* out = nullptr;
-        check(tav_cbor_map_key_at(handle_, index, &out), "map_key_at");
-        return adopt(out, "map_key_at");
+        tav::check(tav_cbor_map_key_at(handle_, index, &out));
+        return Value(out);
     }
 
     [[nodiscard]] Value map_value_at(size_t index) const
     {
         TavCborHandle* out = nullptr;
-        check(tav_cbor_map_value_at(handle_, index, &out), "map_value_at");
-        return adopt(out, "map_value_at");
+        tav::check(tav_cbor_map_value_at(handle_, index, &out));
+        return Value(out);
     }
 
     [[nodiscard]] std::vector<uint8_t> nondet_serialize(
-      size_t max_depth = MAX_DEPTH) const
+      size_t max_depth = DEFAULT_MAX_DEPTH) const
     {
         return encode(tav_cbor_nondet_serialize, max_depth);
     }
 
     /// Deterministic encoding.
-    [[nodiscard]] std::vector<uint8_t> det_serialize(size_t max_depth = MAX_DEPTH) const
+    [[nodiscard]] std::vector<uint8_t> det_serialize(size_t max_depth = DEFAULT_MAX_DEPTH) const
     {
         return encode(tav_cbor_det_serialize, max_depth);
     }
@@ -286,51 +268,6 @@ private:
     friend Value deep_copy(const Value&);
     friend Value nondet_parse(std::span<const uint8_t>, size_t);
     friend Value det_parse(std::span<const uint8_t>, size_t);
-
-    /// Owns a buffer returned by the ABI, so it is released even if a C++
-    /// allocation below throws.
-    class Buffer
-    {
-    public:
-        Buffer() = default;
-        Buffer(const Buffer&) = delete;
-        Buffer& operator=(const Buffer&) = delete;
-        Buffer(Buffer&&) = delete;
-        Buffer& operator=(Buffer&&) = delete;
-
-        ~Buffer()
-        {
-            tav_cbor_buffer_free(ptr_, len_);
-        }
-
-        uint8_t** ptr()
-        {
-            return &ptr_;
-        }
-
-        size_t* len()
-        {
-            return &len_;
-        }
-
-        [[nodiscard]] std::vector<uint8_t> to_vector() const
-        {
-            return {ptr_, ptr_ + len_};
-        }
-
-        [[nodiscard]] std::string to_string(const char* fallback) const
-        {
-            if (ptr_ == nullptr || len_ == 0)
-            {
-                return fallback;
-            }
-            return {reinterpret_cast<const char*>(ptr_), len_};
-        }
-
-    private:
-        uint8_t* ptr_{nullptr};
-        size_t len_{0};
-    };
 
     /// Holds handles being handed to a container constructor.
     ///
@@ -376,40 +313,24 @@ private:
         std::vector<TavCborHandle*> handles_;
     };
 
-    static Value adopt(TavCborHandle* handle, const char* what)
+    template<class Builder>
+    static Value construct(Builder builder)
     {
-        if (handle == nullptr)
-        {
-            throw EncodeError(Error::ENCODE_FAILED, what);
-        }
-        return Value(handle);
-    }
-
-    static void check(int status, const char* what)
-    {
-        if (status != TAV_CBOR_OK)
-        {
-            throw DecodeError(static_cast<Error>(status), what);
-        }
+        TavCborHandle* out = nullptr;
+        tav::check(builder(&out));
+        return Value(out);
     }
 
     using Encoder =
-      int (*)(const TavCborHandle*, size_t, uint8_t**, size_t*, uint8_t**, size_t*);
+      TavError* (*)(const TavCborHandle*, size_t, TavByteBuffer**);
     using Parser =
-      int (*)(const uint8_t*, size_t, size_t, TavCborHandle**, uint8_t**, size_t*);
+      TavError* (*)(const uint8_t*, size_t, size_t, TavCborHandle**);
 
     static Value parse_with(Parser parser, std::span<const uint8_t> raw, size_t max_depth)
     {
         TavCborHandle* out = nullptr;
-        Buffer err;
-        const int status =
-          parser(raw.data(), raw.size(), max_depth, &out, err.ptr(), err.len());
-        if (status != TAV_CBOR_OK)
-        {
-            throw DecodeError(
-              static_cast<Error>(status), err.to_string("Parsing failed"));
-        }
-        return Value::adopt(out, "parse");
+        tav::check(parser(raw.data(), raw.size(), max_depth, &out));
+        return Value(out);
     }
 
     explicit Value(TavCborHandle* handle) : handle_(handle) {}
@@ -421,16 +342,12 @@ private:
 
     [[nodiscard]] std::vector<uint8_t> encode(Encoder encoder, size_t max_depth) const
     {
-        Buffer out;
-        Buffer err;
-        const int status =
-          encoder(handle_, max_depth, out.ptr(), out.len(), err.ptr(), err.len());
-        if (status != TAV_CBOR_OK)
-        {
-            throw EncodeError(
-              static_cast<Error>(status), err.to_string("Serialization failed"));
-        }
-        return out.to_vector();
+        TavByteBuffer* out = nullptr;
+        TavError* error = encoder(handle_, max_depth, &out);
+        const auto buffer = tav::ByteBuffer::adopt(out);
+        tav::check(error);
+        const auto bytes = buffer.bytes();
+        return {bytes.begin(), bytes.end()};
     }
 
     TavCborHandle* handle_ = nullptr;
@@ -438,24 +355,28 @@ private:
 
 inline Value make_signed(int64_t value)
 {
-    return Value::adopt(tav_cbor_make_signed(value), "make_signed");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_make_signed(value, out); });
 }
 
 inline Value make_simple(uint8_t value)
 {
-    return Value::adopt(tav_cbor_make_simple(value), "make_simple");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_make_simple(value, out); });
 }
 
 /// Borrows data, which must outlive the returned value.
 inline Value make_bytes(std::span<const uint8_t> data)
 {
-    return Value::adopt(tav_cbor_make_bytes(data.data(), data.size()), "make_bytes");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_make_bytes(data.data(), data.size(), out); });
 }
 
 /// Borrows data, which must outlive the returned value and be valid UTF-8.
 inline Value make_string(std::string_view data)
 {
-    return Value::adopt(tav_cbor_make_string(data.data(), data.size()), "make_string");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_make_string(data.data(), data.size(), out); });
 }
 
 inline Value make_array(std::vector<Value>&& items)
@@ -466,12 +387,12 @@ inline Value make_array(std::vector<Value>&& items)
     {
         batch.add(std::move(item));
     }
-    return Value::adopt(tav_cbor_make_array(batch.data(), batch.size()), "make_array");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_make_array(batch.data(), batch.size(), out); });
 }
 
-/// Keys must be unique and must not be arrays, maps or tagged values, so that
-/// every key a map holds can also be passed to map_at. Duplicate keys are
-/// unsupported: construction may succeed, but serialization throws EncodeError.
+/// Keys may be any supported CBOR value and must be unique. Duplicate keys are
+/// unsupported: construction may succeed, but serialization throws tav::Exception.
 inline Value make_map(std::vector<MapItem>&& entries)
 {
     const size_t pair_count = entries.size();
@@ -482,7 +403,8 @@ inline Value make_map(std::vector<MapItem>&& entries)
         batch.add(std::move(entry.first));
         batch.add(std::move(entry.second));
     }
-    return Value::adopt(tav_cbor_make_map(batch.data(), pair_count), "make_map");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_make_map(batch.data(), pair_count, out); });
 }
 
 inline Value make_tagged(uint64_t tag, Value&& payload)
@@ -490,20 +412,23 @@ inline Value make_tagged(uint64_t tag, Value&& payload)
     Value::Batch batch;
     batch.reserve(1);
     batch.add(std::move(payload));
-    return Value::adopt(tav_cbor_make_tagged(tag, batch.data()), "make_tagged");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_make_tagged(tag, batch.data(), out); });
 }
 
 /// Borrows raw, which must outlive the returned value.
 ///
-/// A document that keys a map entry on a container is rejected, so a parsed
-/// map holds only keys map_at can look up.
-inline Value nondet_parse(std::span<const uint8_t> raw, size_t max_depth = MAX_DEPTH)
+/// Rejects maps with more than MAX_MAP_ENTRIES entries and maps inside map
+/// keys. Map keys use RFC 8949 equivalence. For untrusted input, bound
+/// raw.size() and keep the default depth; see the notes at the top of this
+/// header.
+inline Value nondet_parse(std::span<const uint8_t> raw, size_t max_depth = DEFAULT_MAX_DEPTH)
 {
     return Value::parse_with(tav_cbor_nondet_parse, raw, max_depth);
 }
 
 /// Borrows raw, and requires deterministic encoding.
-inline Value det_parse(std::span<const uint8_t> raw, size_t max_depth = MAX_DEPTH)
+inline Value det_parse(std::span<const uint8_t> raw, size_t max_depth = DEFAULT_MAX_DEPTH)
 {
     return Value::parse_with(tav_cbor_det_parse, raw, max_depth);
 }
@@ -516,7 +441,8 @@ inline Value det_parse(std::span<const uint8_t> raw, size_t max_depth = MAX_DEPT
 /// outlive the result.
 inline Value shallow_copy(const Value& value)
 {
-    return Value::adopt(tav_cbor_shallow_copy(value.handle_), "shallow_copy");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_shallow_copy(value.handle_, out); });
 }
 
 /// Copy a value, copying every payload, so the result borrows nothing.
@@ -525,24 +451,25 @@ inline Value shallow_copy(const Value& value)
 /// `auto text = deep_copy(value).as_string();` leaves `text` dangling.
 inline Value deep_copy(const Value& value)
 {
-    return Value::adopt(tav_cbor_deep_copy(value.handle_), "deep_copy");
+    return Value::construct(
+      [&](auto out) { return tav_cbor_deep_copy(value.handle_, out); });
 }
 
-/// Run f, prefixing msg onto any DecodeError it raises.
+/// Run f, prefixing msg onto any tav::Exception while preserving its code.
 decltype(auto) rethrow_with_msg(auto&& f, std::string_view msg = {})
 {
     try
     {
         return f();
     }
-    catch (const DecodeError& err)
+    catch (const tav::Exception& err)
     {
         if (msg.empty())
         {
             throw;
         }
-        throw DecodeError(
-          err.error_code(), std::string(msg) + ": " + err.what());
+        throw tav::Exception(
+          err.code(), std::string(msg) + ": " + err.what());
     }
 }
 }
