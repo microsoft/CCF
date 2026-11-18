@@ -1,5 +1,4 @@
 bucket_a:
-  docs
   tls_groups_test
   lts_compatibility
 
