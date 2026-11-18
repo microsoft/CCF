@@ -3880,11 +3880,16 @@ TEST_CASE("CommittableTx guards")
     const auto baseline_txid = kv_store.current_txid();
 
     auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
-    reserved.rw(map)->put("k", "from_reserved");
-
-    // Roll the store back, invalidating the rollback_count that `reserved`
-    // captured when it was created.
-    kv_store.rollback(baseline_txid, 3);
+    SUBCASE("Handle acquired before rollback")
+    {
+      reserved.rw(map)->put("k", "from_reserved");
+      kv_store.rollback(baseline_txid, 3);
+    }
+    SUBCASE("Handle acquired after rollback")
+    {
+      kv_store.rollback(baseline_txid, 3);
+      reserved.rw(map)->put("k", "from_reserved");
+    }
 
     const auto info = reserved.commit_reserved();
     REQUIRE(info.success == ccf::kv::CommitResult::FAIL_NO_REPLICATE);

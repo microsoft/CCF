@@ -251,6 +251,30 @@ TEST_CASE("KV trace iteration")
   }
 }
 
+TEST_CASE("KV trace rollback map acquisition")
+{
+  TraceStore store;
+  store.initialise_term(1);
+  Map a("trace.a");
+  Map b("trace.b");
+  for (const auto* value : {"old", "new"})
+  {
+    auto writer = store.create_tx();
+    writer.rw(a)->put("key", value);
+    writer.rw(b)->put("key", value);
+    REQUIRE(writer.commit() == Result::SUCCESS);
+  }
+  REQUIRE(store.current_version() == 2);
+
+  auto reader = store.create_tx();
+  REQUIRE(reader.ro(a)->get("key") == "new");
+  store.rollback({1, 1}, 2);
+  REQUIRE(store.current_version() == 1);
+  CHECK_THROWS_AS(reader.ro(b), ccf::kv::CompactedVersionConflict);
+  CHECK(reader.ro(a)->get("key") == "new");
+  CHECK(reader.commit() == Result::SUCCESS);
+}
+
 TEST_CASE("KV trace compaction rollback")
 {
   TraceStore store;
