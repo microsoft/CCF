@@ -27,6 +27,8 @@ structure ReductionState where
   header : Header
   nextRequestId : ReqID := 1
   instructions : Array Instruction := #[]
+  /-- The node, if its events start by bootstrapping the network. -/
+  bootstrap : Option String := none
 
 abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
@@ -104,9 +106,12 @@ Genesis runs asynchronously after the first node becomes leader, so bare ticks m
 it, as may nominations; the model starts after genesis, so they are not observed.
 `replicate` flushes a genesis entry over the append entries size limit. The node has no peers
 yet, so the flush sends nothing.
+Only a node's first events bootstrap the network.
 -/
-def ruleBootstrap : Reduction String := do
+private def ruleBootstrap : Reduction Unit := do
   let head ← peek
+  unless (← position) == 0 do
+    failure s!"{head.record.location}: expected the node's first event"
   -- consume
   event head "become_leader"
   many_ (event head "tick" <|> event head "nomination")
@@ -114,7 +119,7 @@ def ruleBootstrap : Reduction String := do
   event head "replicate_entry"
   event head "add_configuration"
   optional_ (event head "batch_flush")
-  return head.node
+  modify fun s => { s with bootstrap := some head.node }
 
 private def readAppendContent (head : Event) (config : Option Event)
     (retirements : List Event)
@@ -405,6 +410,7 @@ def ruleStep : Reduction Unit := do
   <|> attempt ruleRecvProposeRequestVote
   <|> attempt ruleRecvRequestVoteResponse
   -- Async rules
+  <|> attempt ruleBootstrap
   <|> attempt ruleInitAsBackup
   <|> attempt ruleAppend
   <|> attempt ruleTick

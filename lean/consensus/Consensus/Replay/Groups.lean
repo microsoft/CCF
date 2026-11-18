@@ -19,7 +19,7 @@ namespace Consensus.Replay
 
 open Reducer
 
-/-- One rule's instructions as a group; a drop or a snapshot hook emits none. -/
+/-- One rule's instructions as a group; bootstrap, a drop or a snapshot hook emits none. -/
 private def group : Reduction (Option Group) := do
   let some head ← CCF.Parsec.peek | CCF.Parsec.failure "unexpected end of input"
   ruleStep
@@ -40,16 +40,12 @@ private def group : Reduction (Option Group) := do
       instructions := state.instructions
     }
 
-/--
-One node's events: bootstrap, if this node starts the network, then groups.
-Every event is consumed; an ungrouped event is never a stutter.
--/
-private def node : Reduction (Option String × List Group) := do
-  let leader ← CCF.Parsec.optionalRule (CCF.Parsec.attempt ruleBootstrap)
+/-- One node's events. Every event is consumed; an ungrouped event is never a stutter. -/
+private def node : Reduction (List Group) := do
   let groups ← CCF.Parsec.many group
   if let some event ← CCF.Parsec.peek then
     CCF.Parsec.failure s!"{event.record.location}: ungrouped event {event.function}"
-  return (leader, groups.filterMap id)
+  return groups.filterMap id
 
 /-- Prepared initialization and each process's groups for direct model replay. -/
 structure Reduced where
@@ -58,7 +54,7 @@ structure Reduced where
 
 /--
 Prepare replay identities, reduce each node's events and queue each process's groups in
-`h_ts` order. Request IDs continue across nodes, so they are unique in the trace.
+`m_ts` order. Request IDs continue across nodes, so they are unique in the trace.
 A process that traces several nodes, as `cft_driver` does, runs them on one thread, so its
 groups must not overlap.
 -/
@@ -69,7 +65,7 @@ def reduce (streams : Array (Array Event)) (declared : List String)
   let mut groups := #[]
   let mut nextRequestId := 1
   for events in streams do
-    let ((leader, found), state) ←
+    let (found, state) ←
       (CCF.Parsec.run events (node.run { header, nextRequestId })).mapError
         fun error =>
           match events.back? with
@@ -79,7 +75,7 @@ def reduce (streams : Array (Array Event)) (declared : List String)
               else
                 error
           | none => error
-    if let some leader := leader then
+    if let some leader := state.bootstrap then
       if let some other := bootstrap then
         throw s!"nodes '{other}' and '{leader}' both bootstrap the network"
       bootstrap := some leader
