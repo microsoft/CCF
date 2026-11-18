@@ -909,11 +909,6 @@ namespace ccf::tls
       {
         alive = false;
       }
-      if (input.force_close)
-      {
-        // Shutdown and idle expiry do not wait for buffered output to drain.
-        alive = false;
-      }
       if (!alive && conn->ssl != nullptr)
       {
         ERR_clear_error();

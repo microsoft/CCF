@@ -46,7 +46,7 @@ EXTENSIONS=(
 # - Prose documentation (md, rst, txt): human-authored prose where non-ASCII
 #   is legitimate. Agent instruction Markdown is included explicitly below.
 # - Binary / generated / vendored data (committed, cose, pem, png, pdf, ico,
-#   lock, csv, numbered CCF consensus protocol scenarios, everything under 3rdparty/):
+#   lock, csv, everything under 3rdparty/):
 #   not human-edited source, so an ASCII check is meaningless or harmful.
 
 # SHA-256 hashes of existing Unicode lines, excluding their line endings.
@@ -54,7 +54,6 @@ EXTENSIONS=(
 # Do not expand this baseline to allow new Unicode outside Lean.
 declare -A LEGACY_NON_ASCII_LINES=(
   ["python/src/ccf/ledger_viz.py"]="da452fa6d2ee3717bf92ca53b9225a3aa53ba66e838e39decba2d50edc539855"
-  ["js/ccf-app/doc/theme/partials/analytics.hbs"]="d22a72116e0f20860074017113d763917f4516d95a566d9ab90464f60ec7f144"
 )
 
 globs=(

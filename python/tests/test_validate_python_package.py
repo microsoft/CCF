@@ -2,17 +2,45 @@
 # Licensed under the Apache 2.0 License.
 
 import importlib.util
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
 import pytest
 
 SCRIPT_PATH = Path(__file__).parents[2] / "scripts" / "validate_python_package.py"
+VERSION_SCRIPT = str(SCRIPT_PATH.with_name("derive_python_version.py"))
 SPEC = importlib.util.spec_from_file_location("validate_python_package", SCRIPT_PATH)
 assert SPEC is not None
 assert SPEC.loader is not None
 VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
+
+
+@pytest.mark.parametrize(
+    "tag, expected",
+    [
+        ("ccf-7.0.25", "7.0.25"),
+        ("refs/tags/ccf-8.0.0-dev10", "8.0.0.dev10"),
+        ("ccf-8.0.0-rc0", "8.0.0rc0"),
+        ("refs/heads/main", None),
+        ("ccf-invalid", None),
+        ("ccf-7.0.25-1-gabc1234", None),  # Local versions cannot be published.
+    ],
+)
+def test_derive_python_version(tag: str, expected: str | None) -> None:
+    result = subprocess.run(
+        [sys.executable, VERSION_SCRIPT, tag],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if expected is None:
+        assert result.returncode == 2, result.stderr
+    else:
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == expected
 
 
 def create_wheel(tmp_path: Path, *, name: str = "ccf", version: str = "1.2.3") -> Path:

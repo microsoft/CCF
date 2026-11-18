@@ -15,6 +15,7 @@ lake build --wfail consensus-replay
 ```
 
 To generate captures, build the native driver and run the existing scenario test.
+The driver links the [scenarios](../../../tests/cft_scenarios/README.md), which are Lean programs, so CMake must find `lake`.
 Use a fresh build directory to avoid replaying stale captures from earlier runs.
 This needs Python `msgpack` available to CTest:
 
@@ -34,6 +35,7 @@ The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `
 ## Replay contract
 
 Every protocol event must match a named rule; bootstrap selects the initial singleton membership.
+Bootstrap accepts bare ticks before genesis, which native code runs asynchronously after the first node becomes leader, and a flush of the genesis entry.
 Rules group related protocol events and read action inputs from those events; only top-level alternatives backtrack.
 Actions must be enabled by the model.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
@@ -44,7 +46,6 @@ A receive delivers any queued model envelope from its sender whose rendered pack
 It delivers the queued **model payload**, not reconstructing unrecorded native bytes; if matching envelopes differ in payload, for example in AppendEntries entries, which packets omit, replay fails with an ambiguous delivery.
 An envelope that is never delivered stays queued, which models loss, so `drop_pending_to` emits no observation or action.
 After each rule's actions, the envelopes they queued must equal the rule's native sends, as a multiset of target and rendered packet.
-Native code does not trace the `propose_request_vote` send that follows `step_down_and_nominate_successor`, so replay counts each `step_down_and_nominate_successor` as that send.
 
 ## Source and checks
 

@@ -5,6 +5,7 @@ Replication failures follow a two-node history with a committed signature, membe
 The [valid control](valid/replication.ndjson) continues through follower catch-up, acknowledgement and commit.
 Its snapshot installation hooks directly follow the leader's `replicate` batch and include a bare tick, both of which replay must accept.
 The [rejected replicate](valid/rejected-replicate.ndjson) control is a `replicate` call that CCF rejected at its first entry, so it traces no `replicate_entry` and appends nothing.
+The [bootstrap](valid/bootstrap.ndjson) control starts like a real node: bare ticks before genesis, then a flush of the genesis entry.
 
 | Fixture                                                                 | Expected failure                                        |
 | ----------------------------------------------------------------------- | ------------------------------------------------------- |
@@ -21,6 +22,8 @@ The [rejected replicate](valid/rejected-replicate.ndjson) control is a `replicat
 | [Retirement non-adjacent](invalid/retirement-nonadjacent.ndjson)        | An event separates `replicate_entry` and its retirement |
 | [Orphan retirement](invalid/retirement-orphan.ndjson)                   | Retirement without a `replicate_entry`                  |
 | [Uncommitted snapshot](invalid/uncommitted-snapshot.ndjson)             | Joiner initializes at an uncommitted signature          |
+| [Bootstrap event](invalid/bootstrap-event.ndjson)                       | Non-tick event before genesis                           |
+| [Bootstrap flush send](invalid/bootstrap-flush-send.ndjson)             | Send from the genesis flush, which must send nothing    |
 
 From `lean/consensus`, inspect a failure directly (exit status 1 is expected):
 

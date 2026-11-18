@@ -1,6 +1,7 @@
 module
 
 public import CCF.Execution
+public import CCF.Proofs.Seq
 
 import Std.Tactic.BVDecide.Normalize.Prop
 
@@ -142,5 +143,102 @@ theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
             simpa [← beforeEq] using step
   · rintro ⟨trace, member⟩
     exact trace.reachable member
+
+/-- Each recorded action leads from the previous state to the state paired with it. -/
+def StepsFrom (system : TransitionSystem)
+    : system.State -> List (system.Action × system.State) -> Prop
+  | _, [] => True
+  | before, (action, after) :: rest =>
+      system.step before action = some after /\ StepsFrom system after rest
+
+/-- Indexed transitions in a valid list of recorded steps. -/
+theorem stepsFrom_getElem? {system : TransitionSystem}
+    : forall (initial : system.State) (steps : List (system.Action × system.State)),
+        StepsFrom system initial steps
+        -> forall (n : Nat) (before : system.State) (action : system.Action),
+            (initial :: steps.map Prod.snd)[n]? = some before
+            -> (steps.map Prod.fst)[n]? = some action
+            -> system.step before action = (steps.map Prod.snd)[n]?
+  | _, [], _, _, _, _, _, chosen => by simp at chosen
+  | _, (_, _) :: _, ⟨step, _⟩, 0, _, _, first, chosen => by
+      simp only [List.map_cons, List.getElem?_cons_zero, Option.some.injEq] at first chosen ⊢
+      subst first chosen
+      exact step
+  | _, (_, after) :: rest, ⟨_, valid⟩, n + 1, before, action, first, chosen => by
+      simp only [List.map_cons, List.getElem?_cons_succ] at first chosen ⊢
+      exact stepsFrom_getElem? after rest valid n before action first chosen
+
+/-- The finite trace that starts at `initial` and records `steps`. -/
+def ofSteps {system : TransitionSystem} (initial : system.State)
+    (steps : List (system.Action × system.State)) (initialized : system.init initial)
+    (valid : StepsFrom system initial steps)
+    : Trace system :=
+  ⟨
+    { init := initial, steps := CCF.Seq.ofList steps },
+    initialized,
+    by
+      intro n before action first chosen
+      simp only [CCF.Seq.map_get?, CCF.Seq.ofList_get?] at chosen ⊢
+      rw [← List.getElem?_map] at chosen ⊢
+      refine stepsFrom_getElem? initial steps valid n before action ?_ chosen
+      cases n <;>
+        simpa only [CCF.Seq.get?_cons_zero, CCF.Seq.get?_cons_succ,
+          CCF.Seq.map_get?, CCF.Seq.ofList_get?, List.getElem?_cons_zero,
+          List.getElem?_cons_succ, List.getElem?_map] using first
+  ⟩
+
+/-- The states of a finite recorded trace, indexed from its initial state. -/
+theorem ofSteps_stateAt {system : TransitionSystem} {initial : system.State}
+    {steps : List (system.Action × system.State)} {initialized : system.init initial}
+    {valid : StepsFrom system initial steps} (n : Nat)
+    : (ofSteps initial steps initialized valid).stateAt n
+      = (initial :: steps.map Prod.snd)[n]? := by
+  cases n <;>
+    simp only [ofSteps, Trace.stateAt, Trace.states,
+      CCF.Seq.get?_cons_zero, CCF.Seq.get?_cons_succ, CCF.Seq.map_get?,
+      CCF.Seq.ofList_get?, List.getElem?_cons_zero, List.getElem?_cons_succ,
+      List.getElem?_map]
+
+/-- The actions of a finite recorded trace. -/
+theorem ofSteps_actionAt {system : TransitionSystem} {initial : system.State}
+    {steps : List (system.Action × system.State)} {initialized : system.init initial}
+    {valid : StepsFrom system initial steps} (n : Nat)
+    : (ofSteps initial steps initialized valid).actionAt n
+      = (steps.map Prod.fst)[n]? := by
+  simp only [ofSteps, Trace.actionAt, Trace.actions,
+    CCF.Seq.map_get?, CCF.Seq.ofList_get?, List.getElem?_map]
+
+/-- Membership in a finite recorded trace is membership in its list of states. -/
+theorem mem_ofSteps {system : TransitionSystem} {initial : system.State}
+    {steps : List (system.Action × system.State)} {initialized : system.init initial}
+    {valid : StepsFrom system initial steps} {state : system.State}
+    : state ∈ ofSteps initial steps initialized valid
+      <-> state ∈ initial :: steps.map Prod.snd := by
+  rw [Trace.mem_iff_exists_stateAt]
+  simp only [ofSteps_stateAt]
+  constructor
+  · rintro ⟨n, found⟩
+    exact List.mem_of_getElem? found.symm
+  · intro member
+    obtain ⟨n, bound, rfl⟩ := List.getElem_of_mem member
+    exact ⟨n, (List.getElem?_eq_getElem bound).symm⟩
+
+/-- Append an enabled transition at the end of a valid list of recorded steps. -/
+theorem steps_snoc {system : TransitionSystem} (start before after : system.State)
+    (steps : List (system.Action × system.State)) (action : system.Action)
+    (valid : StepsFrom system start steps)
+    (last : (start :: steps.map Prod.snd)[steps.length]? = some before)
+    (enabled : system.step before action = some after)
+    : StepsFrom system start (steps ++ [(action, after)]) := by
+  induction steps generalizing start with
+  | nil =>
+      simp only [List.map_nil, List.length_nil, List.getElem?_cons_zero,
+        Option.some.injEq] at last
+      subst start
+      exact ⟨enabled, trivial⟩
+  | cons pair rest ih =>
+      obtain ⟨first, valid⟩ := valid
+      refine ⟨first, ih pair.2 valid ?_⟩
+      simpa using last
 
 end CCF.Execution

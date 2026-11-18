@@ -1,5 +1,7 @@
 module
 
+import CCF.Proofs.Function
+
 public import Consensus.Model
 
 import all Init.Control.State
@@ -1016,8 +1018,10 @@ open CCF
 open Model.Node
 open Consensus.Proofs.Ledger
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private abbrev actor : NodeID := c.tr.actor
@@ -2840,8 +2844,7 @@ open Ledger (
     maxCommittableIndexUpTo_le_length maxCommittableIndexUpToPositiveIsSignature
   )
 section AppendEntries
-variable {self : NodeID} {state : NodeState}
-  {request : AppendEntriesRequest}
+variable {self : NodeID} {state : NodeState} {request : AppendEntriesRequest}
 
 private theorem CommitFrontier.fromLeader (frontier : CommitFrontier state)
     : CommitFrontier (handleAppendEntiresFromPrimary self state request).1 := by
@@ -3170,8 +3173,7 @@ open Consensus.Proofs.Config
 open CCF CCF.MultiNodeTransitionSystem Concrete
 open Model.Node
 section AppendEntries
-variable {self : NodeID} {state : NodeState}
-  {request : AppendEntriesRequest}
+variable {self : NodeID} {state : NodeState} {request : AppendEntriesRequest}
 
 private theorem Extends.fromLeader
     : Extends state (handleAppendEntiresFromPrimary self state request).1 := by
@@ -4842,8 +4844,12 @@ open Consensus.Proofs.Config
 open Model (initialNodeState BOOTSTRAP_TERM)
 variable [Config.InitialConfiguration]
 section Initial
-variable {nodes : List NodeID} {initial : Model.State}
-  (initialized : (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes).init initial)
+variable
+  {nodes : List NodeID} {initial : Model.State} (initialized
+                                                  : (Model.transitionSystem
+                                                      Config.INITIAL_CONFIGURATION
+                                                      nodes).init
+                                                      initial)
 include initialized
 
 private theorem initial_state {node : NodeID} {state : NodeState}
@@ -5444,8 +5450,10 @@ open CCF
 open Model.Node
 open Consensus.Proofs.Ledger
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private theorem sum : Summary c.actor c.pre c.event c.post c.sent := c.tr.summary
@@ -5684,7 +5692,7 @@ private theorem vals_upToDate {state : NodeState} (term : Nat)
       (Nat.max_le.mpr ⟨frontier, maxCommittableIndexBounded state.log⟩)
   rcases Nat.lt_or_eq_of_le mono with lt | eq
   · exact Or.inl lt
-  · exact Or.inr ⟨eq.symm, Nat.le_max_right _ _⟩
+  · exact Or.inr ⟨eq, Nat.le_max_right _ _⟩
 
 end Consensus.Proofs.Safety
 
@@ -5695,8 +5703,10 @@ open CCF
 open Model.Node
 open Consensus.Proofs.Ledger
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private theorem anchors : Everywhere Anchor (before :: rest) := c.all Inv.anchor
@@ -6137,7 +6147,7 @@ private theorem doomed_absurd {term commit : Nat} {log : List Entry}
     exact termAt_mono (grantInv.sorted voter granting grantingMem)
       (signatureIndex_le_maxCommittableIndex signed) (maxCommittableIndexBounded _)
   have requestTerm := lowTerm (max commit (maxCommittableIndex log))
-  simp only [voteLogUpToDate, vals] at upToDate
+  simp only [voteLogUpToDate, CCF.TxID.le, vals] at upToDate
   omega
 
 /-- The actor's committed prefix is committed no later than `bound`, or a later
@@ -6389,7 +6399,7 @@ private theorem core {small large : History} (within : small <:+ large)
     rw [termAt_of_prefix inGranting (Nat.le_of_eq partLength.symm), partTerm] at this
     exact this
   -- The election's last committable position.
-  simp only [voteLogUpToDate, vals] at upToDate
+  simp only [voteLogUpToDate, CCF.TxID.le, vals] at upToDate
   generalize jEq : max commit (maxCommittableIndex log) = j at upToDate ⊢
   have two : 2 <= term := by
     have := leaderLed.two_le
@@ -6397,7 +6407,7 @@ private theorem core {small large : History} (within : small <:+ large)
   have jBound : j <= log.length := jEq ▸ Nat.max_le.mpr ⟨frontier, maxCommittableIndexBounded log⟩
   have termGe : term <= termAt log j :=
     upToDate.elim (fun gt => Nat.le_trans maxTermGe (Nat.le_of_lt gt))
-      (fun eq => Nat.le_trans maxTermGe (Nat.le_of_eq eq.1.symm))
+      (fun eq => Nat.le_trans maxTermGe (Nat.le_of_eq eq.1))
   have jPos : 0 < j := by
     rcases Nat.eq_zero_or_pos j with zero | positive
     · rw [zero, termAt_zero] at termGe
@@ -6528,8 +6538,10 @@ open Consensus.Proofs.Ledger
 open Consensus.Proofs.Config
 open Model (BOOTSTRAP_TERM)
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private theorem termMonos : Everywhere TermMono (after :: before :: rest) :=
@@ -6961,8 +6973,10 @@ open CCF
 open Model.Node
 open Consensus.Proofs.Ledger
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private theorem pre_led (leader : c.pre.role = .primary)

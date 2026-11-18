@@ -3,7 +3,7 @@
 
 module
 
-public import Kv.Model
+public import Kv.TraceValidation.Transitions
 public import Lean.Data.Json
 
 public section

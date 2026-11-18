@@ -566,14 +566,15 @@ install(
 
 install(
   FILES
+    ${TAV_INCLUDE_DIR}/tav/byte_buffer.h
+    ${TAV_INCLUDE_DIR}/tav/byte_buffer.hpp
+    ${TAV_INCLUDE_DIR}/tav/cbor.h
     ${TAV_INCLUDE_DIR}/tav/cbor.hpp
+    ${TAV_INCLUDE_DIR}/tav/errors.h
+    ${TAV_INCLUDE_DIR}/tav/errors.hpp
     ${TAV_INCLUDE_DIR}/tav/snp.h
     ${TAV_INCLUDE_DIR}/tav/utils.h
   DESTINATION include/3rdparty/tav
-)
-install(
-  FILES ${TAV_INCLUDE_DIR}/tav/internal/cbor_abi.h
-  DESTINATION include/3rdparty/tav/internal
 )
 
 # Install all private CCF headers, which may still be needed
@@ -642,29 +643,6 @@ install(TARGETS verify_attestation DESTINATION bin)
 
 if(BUILD_TESTS)
   enable_testing()
-
-  set(
-    DOCS_PYTHON
-    ""
-    CACHE FILEPATH
-    "Python interpreter for the optional documentation test"
-  )
-  if(DOCS_PYTHON)
-    add_test(
-      NAME docs
-      COMMAND
-        "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
-        "${CCF_DIR}/doc/html"
-    )
-    # Its runner has no Lean; the Lean workflow checks the trace viewer's dumps.
-    set_tests_properties(
-      docs
-      PROPERTIES
-        LABELS "bucket_a;docs"
-        WORKING_DIRECTORY "${CCF_DIR}"
-        ENVIRONMENT "SKIP_TRACE_VIEWER=ON"
-    )
-  endif()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
@@ -1221,24 +1199,83 @@ if(BUILD_TESTS)
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
 
-    # Consensus driver and scenario test
-    add_executable(
-      cft_driver
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-    )
-    add_san(cft_driver)
-    add_warning_checks(cft_driver)
-    enable_coverage(cft_driver)
-    target_link_libraries(cft_driver PRIVATE ccfcrypto ccf_tasks)
-    target_include_directories(cft_driver PRIVATE src/consensus/aft)
+    # Consensus driver and scenario test. The scenarios are Lean programs,
+    # which lake compiles to a static library defining main. The driver binds
+    # the commands they call, so it can only be built with Lean installed.
+    set(CFT_SCENARIOS_DIR ${CMAKE_SOURCE_DIR}/tests/cft_scenarios)
+    find_program(LAKE lake HINTS $ENV{HOME}/.elan/bin)
+    if(LAKE)
+      execute_process(
+        COMMAND ${LAKE} env printenv LEAN_SYSROOT
+        WORKING_DIRECTORY ${CFT_SCENARIOS_DIR}
+        OUTPUT_VARIABLE LEAN_SYSROOT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY
+      )
+      set_property(
+        DIRECTORY
+        APPEND
+        PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/lean/lean-toolchain
+      )
+
+      # lake tracks the scenario sources itself, so always run it
+      set(
+        CFT_SCENARIOS_LIBRARY
+        ${CFT_SCENARIOS_DIR}/.lake/build/lib/libcft_Scenarios.a
+      )
+      add_custom_target(
+        cft_scenarios
+        COMMAND ${LAKE} build Scenarios:static
+        WORKING_DIRECTORY ${CFT_SCENARIOS_DIR}
+        BYPRODUCTS ${CFT_SCENARIOS_LIBRARY}
+        COMMENT "Building consensus scenarios"
+        VERBATIM
+      )
+
+      add_executable(
+        cft_driver
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+      )
+      add_dependencies(cft_driver cft_scenarios)
+      add_san(cft_driver)
+      add_warning_checks(cft_driver)
+      enable_coverage(cft_driver)
+      # The Lean runtime exports its own unwinder. Unless libgcc_s precedes
+      # it, the C++ exceptions thrown by the driver terminate the process.
+      target_link_libraries(
+        cft_driver
+        PRIVATE
+          ${CFT_SCENARIOS_LIBRARY}
+          ccfcrypto
+          ccf_tasks
+          gcc_s
+          ${LEAN_SYSROOT}/lib/lean/libleanshared.so
+      )
+      target_include_directories(cft_driver PRIVATE src/consensus/aft)
+      target_include_directories(
+        cft_driver
+        SYSTEM
+        PRIVATE ${LEAN_SYSROOT}/include
+      )
+    else()
+      message(
+        WARNING
+        "lake not found: cft_driver will not be built, and cft_scenario_test is disabled. Install Lean (https://lean-lang.org/install/) to enable them."
+      )
+    endif()
 
     add_test(
       NAME cft_scenario_test
       COMMAND
         ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/cft_scenarios_runner.py ./cft_driver
-        ${CMAKE_SOURCE_DIR}/tests/cft_scenarios/
+        ${CFT_SCENARIOS_DIR}/Scenarios/
     )
-    add_test_target(cft_scenario_test cft_driver)
+    if(LAKE)
+      add_test_target(cft_scenario_test cft_driver)
+    else()
+      add_test_target(cft_scenario_test)
+      set_tests_properties(cft_scenario_test PROPERTIES DISABLED TRUE)
+    endif()
     add_test_label(cft_scenario_test cft_scenario bucket_c)
 
     if(COVERAGE)

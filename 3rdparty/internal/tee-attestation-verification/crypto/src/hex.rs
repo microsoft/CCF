@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#![forbid(unsafe_code)]
+
 fn nibble_to_hex(nibble: u8) -> char {
     const ASCII_0: u8 = b'0';
     const ASCII_A: u8 = b'a';

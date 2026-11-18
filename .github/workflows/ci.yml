@@ -23,7 +23,7 @@ env:
 
 jobs:
   vmss-virtual-a:
-    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
+    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Unit tests, e2e (bucket_a)
     runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -44,8 +44,6 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
-        with:
-          python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt,tests/requirements.txt
 
       - name: "Install development dependencies"
         shell: bash
@@ -60,8 +58,7 @@ jobs:
           ./scripts/ci-checks.sh
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON \
-            -DDOCS_PYTHON="$GITHUB_WORKSPACE/env/bin/python" ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
           ninja
         shell: bash
 
@@ -87,15 +84,10 @@ jobs:
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
 
-      - name: "Build docs and run e2e tests (bucket_a)"
+      - name: "Run e2e tests (bucket_a)"
         shell: bash
         run: |
           set -ex
-          source env/bin/activate
-          uv pip install -e ./python
-          uv pip install -r doc/requirements.txt
-          uv pip install -r doc/historical_ccf_requirements.txt
-
           cd build
           ./tests.sh --timeout 360 --output-on-failure -L bucket_a -j2
 
@@ -204,6 +196,10 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
 
       - name: "Build Debug"
         run: |
