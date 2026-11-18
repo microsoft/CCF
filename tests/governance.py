@@ -10,7 +10,6 @@ import tempfile
 import time
 from datetime import UTC, datetime
 from hashlib import sha256
-from urllib.parse import quote
 
 import e2e_logging
 import governance_api
@@ -1043,11 +1042,6 @@ def did_key_identities(args):
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
             r = c.get(f"/gov/members/proposals/{member.service_id}")
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
-            # A did:key is used as it is in a path, including before an action
-            # suffix. Percent-encoded colons are also accepted.
-            for own_id in (member.service_id, quote(member.service_id, safe="")):
-                r = c.post(f"/gov/members/state-digests/{own_id}:update")
-                assert r.status_code == http.HTTPStatus.OK, r
         member.ack(primary)
         member.get_and_decrypt_recovery_share(primary)
         network.consortium.vote_using_majority(
@@ -1159,8 +1153,6 @@ def did_key_identities(args):
             body = c.get(f"/gov/service/users/{did_user_id}").body.json()
             assert "certificate" not in body, body
             assert body["userData"] == {"migrated": True}, body
-            r = c.get(f"/gov/service/users/{quote(did_user_id, safe='')}")
-            assert r.body.json() == body, r
             # Unauthenticated lookups only check the syntax of an ID, without
             # decoding or validating the key in a did:key
             r = c.get("/gov/service/users/did:key:z0")

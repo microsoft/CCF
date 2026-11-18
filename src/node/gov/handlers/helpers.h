@@ -68,10 +68,7 @@ namespace ccf::gov::endpoints::detail
     std::string member_id_str;
     std::string error;
     if (!ccf::endpoints::get_path_param(
-          rpc_ctx->get_decoded_request_path_params(),
-          "memberId",
-          member_id_str,
-          error))
+          rpc_ctx->get_request_path_params(), "memberId", member_id_str, error))
     {
       detail::set_gov_error(
         rpc_ctx,
@@ -132,10 +129,7 @@ namespace ccf::gov::endpoints::detail
     std::string user_id_str;
     std::string error;
     if (!ccf::endpoints::get_path_param(
-          rpc_ctx->get_decoded_request_path_params(),
-          "userId",
-          user_id_str,
-          error))
+          rpc_ctx->get_request_path_params(), "userId", user_id_str, error))
     {
       detail::set_gov_error(
         rpc_ctx,
@@ -239,10 +233,7 @@ namespace ccf::gov::endpoints::detail
     std::string node_id_str;
     std::string error;
     if (!ccf::endpoints::get_path_param(
-          rpc_ctx->get_decoded_request_path_params(),
-          "nodeId",
-          node_id_str,
-          error))
+          rpc_ctx->get_request_path_params(), "nodeId", node_id_str, error))
     {
       detail::set_gov_error(
         rpc_ctx,

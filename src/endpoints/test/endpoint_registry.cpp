@@ -148,14 +148,11 @@ TEST_CASE("Templates can contain the literal which follows them")
   // can precede an action suffix
   const std::string did =
     "did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv";
-  const std::string encoded =
-    "did%3Akey%3AzDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv";
   for (const std::string action : {"update", "ack", "submit", "recover"})
   {
     require_template_parsing(
       "/members/{memberId}:" + action,
       {{"/members/" + did + ":" + action, {did}},
-       {"/members/" + encoded + ":" + action, {encoded}},
        {"/members/a:" + action + ":" + action, {"a:" + action}}},
       {"/members/" + did + ":invalid",
        "/members/" + did,
