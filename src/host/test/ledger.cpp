@@ -20,6 +20,7 @@
 #include <cstring>
 #include <doctest/doctest.h>
 #include <fcntl.h>
+#include <future>
 #include <limits>
 #include <random>
 #include <string>
@@ -3339,6 +3340,136 @@ TEST_CASE("Ledger init reclassifies later committed files as mutable")
   ledger.init(1);
   REQUIRE(ledger.is_in_committed_file(1));
   REQUIRE_FALSE(ledger.is_in_committed_file(2));
+}
+
+// Pause a real mutation under state_lock, at a point where its on-disk name
+// and its published boundary alone would give different answers.
+struct ScopedLedgerPause
+{
+  struct Logger : public ccf::logger::AbstractLogger
+  {
+    ScopedLedgerPause& pause;
+
+    explicit Logger(ScopedLedgerPause& pause) : pause(pause) {}
+
+    void write(const ccf::logger::LogLine& line) override
+    {
+      if (line.msg.starts_with(pause.message))
+      {
+        pause.reached.set_value();
+        pause.released_in_time =
+          pause.resume.get_future().wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready;
+      }
+    }
+  };
+
+  std::string message;
+  std::promise<void> reached;
+  std::promise<void> resume;
+  bool released_in_time = false;
+
+  explicit ScopedLedgerPause(std::string message) : message(std::move(message))
+  {
+    ccf::logger::config::loggers().emplace_back(
+      std::make_unique<Logger>(*this));
+  }
+
+  ~ScopedLedgerPause()
+  {
+    ccf::logger::config::loggers().pop_back();
+  }
+};
+
+TEST_CASE("Canonical chunk discovery does not wait for a ledger mutation")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  Ledger ledger(ledger_dir);
+  TestEntrySubmitter submitter(ledger, 1024);
+  submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+  ledger.commit(1);
+  submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+  const auto first = fs::path(ledger_dir) / "ledger_1-1.committed";
+  const auto second = fs::path(ledger_dir) / "ledger_2-2.committed";
+
+  const auto check_during = [&](std::string message, size_t init, auto mutate) {
+    ScopedLedgerPause pause(std::move(message));
+    auto writer = std::async(std::launch::async, mutate);
+    REQUIRE(
+      pause.reached.get_future().wait_for(std::chrono::seconds(5)) ==
+      std::future_status::ready);
+    CHECK(fs::is_regular_file(second));
+    CHECK(ledger.committed_ledger_path_with_idx(1) == first);
+    CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
+    CHECK(ledger.get_init_idx() == init);
+    pause.resume.set_value();
+    writer.get();
+    CHECK(pause.released_in_time);
+  };
+
+  SUBCASE("New name exists but the commit has not yet published its boundary")
+  {
+    check_during("Committed ledger file ledger_2-2.committed", 0, [&]() {
+      ledger.commit(2);
+    });
+    CHECK(ledger.committed_ledger_path_with_idx(2) == second);
+  }
+  SUBCASE("Replay boundary is lowered before removing the old name")
+  {
+    ledger.commit(2);
+    check_during(
+      "Remove committed suffix from ledger file ledger_2-2.", 1, [&]() {
+        ledger.init(1);
+      });
+    CHECK_FALSE(fs::exists(second));
+    CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
+  }
+}
+
+TEST_CASE("Canonical chunk discovery observes restores in the main directory")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto ro = AutoDeleteFolder(ledger_dir_read_only);
+  fs::create_directory(ledger_dir_read_only);
+  write_test_ledger_file(ledger_dir_read_only, 1, 3, true);
+
+  Ledger ledger(ledger_dir, 0, {ledger_dir_read_only});
+  const auto path = fs::path(ledger_dir) / "ledger_1-3.committed";
+  const auto archived = fs::path(ledger_dir_read_only) / path.filename();
+  for (const auto* name :
+       {"ledger_1-3",
+        "ledger_1-3.committed.recovery",
+        "ledger_1-3.committed.ignored",
+        "ledger_1-3.committed_prefix",
+        "junk_1-3.committed",
+        "ledger_1-3a.committed"})
+  {
+    fs::copy_file(archived, fs::path(ledger_dir) / name);
+  }
+  fs::create_directory(path);
+  CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
+  fs::remove(path);
+  fs::copy_file(archived, path);
+  for (size_t idx = 1; idx <= 3; ++idx)
+  {
+    CHECK(ledger.committed_ledger_path_with_idx(idx) == path);
+  }
+  fs::remove(path);
+  CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
+}
+
+TEST_CASE("Failed chunk rename does not publish a committed boundary")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  Ledger ledger(ledger_dir);
+  TestEntrySubmitter submitter(ledger, 1024);
+  const auto initial_fds = number_open_fd();
+  submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+  fs::remove(fs::path(ledger_dir) / "ledger_1");
+  ledger.commit(1);
+  CHECK(number_open_fd() == initial_fds);
+  CHECK_FALSE(ledger.is_in_committed_file(1));
+  CHECK_FALSE(ledger.committed_ledger_path_with_idx(1).has_value());
 }
 
 TEST_CASE("Reads of committed recovery chunks are ordered with open")
