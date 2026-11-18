@@ -1118,8 +1118,10 @@ open CCF
 open Model.Node
 open Safety (History Now Canon CanonNow Exec Everywhere Ctx MessageOK)
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 /-- Every current log is a prefix of a leader log, so is `LogOK`. -/

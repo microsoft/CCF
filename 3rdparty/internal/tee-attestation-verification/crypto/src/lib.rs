@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#![deny(unsafe_op_in_unsafe_fn)]
+
 //! Cryptographic backend for certificate and signature verification.
 //!
 //! Supports crypto backends via feature flags:
@@ -12,6 +14,12 @@ use std::time::Duration;
 
 pub mod base64;
 pub mod hex;
+// OpenSSL enforces its own path policy. Keep the shared policy tests on all backends.
+#[cfg(any(
+    test,
+    crypto_backend = "crypto_windows",
+    crypto_backend = "crypto_webcrypto"
+))]
 mod x509_policy;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;

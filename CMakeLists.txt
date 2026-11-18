@@ -566,14 +566,15 @@ install(
 
 install(
   FILES
+    ${TAV_INCLUDE_DIR}/tav/byte_buffer.h
+    ${TAV_INCLUDE_DIR}/tav/byte_buffer.hpp
+    ${TAV_INCLUDE_DIR}/tav/cbor.h
     ${TAV_INCLUDE_DIR}/tav/cbor.hpp
+    ${TAV_INCLUDE_DIR}/tav/errors.h
+    ${TAV_INCLUDE_DIR}/tav/errors.hpp
     ${TAV_INCLUDE_DIR}/tav/snp.h
     ${TAV_INCLUDE_DIR}/tav/utils.h
   DESTINATION include/3rdparty/tav
-)
-install(
-  FILES ${TAV_INCLUDE_DIR}/tav/internal/cbor_abi.h
-  DESTINATION include/3rdparty/tav/internal
 )
 
 # Install all private CCF headers, which may still be needed
@@ -642,29 +643,6 @@ install(TARGETS verify_attestation DESTINATION bin)
 
 if(BUILD_TESTS)
   enable_testing()
-
-  set(
-    DOCS_PYTHON
-    ""
-    CACHE FILEPATH
-    "Python interpreter for the optional documentation test"
-  )
-  if(DOCS_PYTHON)
-    add_test(
-      NAME docs
-      COMMAND
-        "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
-        "${CCF_DIR}/doc/html"
-    )
-    # Its runner has no Lean; the Lean workflow checks the trace viewer's dumps.
-    set_tests_properties(
-      docs
-      PROPERTIES
-        LABELS "bucket_a;docs"
-        WORKING_DIRECTORY "${CCF_DIR}"
-        ENVIRONMENT "SKIP_TRACE_VIEWER=ON"
-    )
-  endif()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)

@@ -74,7 +74,7 @@ extends:
                   contents: "**/*.whl"
                   targetFolder: $(Pipeline.Workspace)/esrp_dist
                   flattenFolders: true
-              - task: EsrpRelease@10
+              - task: EsrpRelease@14
                 displayName: ESRP release to PyPI
                 inputs:
                   connectedservicename: $(ESRP_SERVICE_CONNECTION)

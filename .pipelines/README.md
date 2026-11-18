@@ -40,9 +40,10 @@ If publication is incomplete, do not republish the wheel or move or recreate the
 Before publication, the pipeline verifies that:
 
 - It was queued from a `ccf-*` tag.
-- The tag version matches `python/pyproject.toml` after Python version normalization, including prereleases such as `ccf-8.0.0-dev10` and `ccf-8.0.0-rc0`.
+- The tag can be converted to a public Python version, including prereleases such as `ccf-8.0.0-dev10` and `ccf-8.0.0-rc0`.
 - Exactly one `ccf` wheel is built.
 - The wheel name and version match the tag.
 - The wheel installs in a clean environment.
 
-The publishing preflight checks the tag against SDK metadata directly and does not require a matching changelog section or access to change descriptions.
+Before building the wheel, `uv version` writes the normalized tag to the static `project.version` field in the pipeline's copy of `python/pyproject.toml`.
+No version-bump commit or matching changelog section is needed.
