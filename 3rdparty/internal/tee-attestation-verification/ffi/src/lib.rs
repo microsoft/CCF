@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#![deny(unsafe_op_in_unsafe_fn)]
+
 //! External C and WebAssembly bindings for TEE attestation verification.
 //!
 //! Rust consumers should use the domain crates directly. This crate owns the
@@ -8,7 +10,7 @@
 //!
 //! See `README.md` for consumer-facing docs.
 
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 use std::ffi::CString;
 
 use attestation::snp::verify::VerificationError;
@@ -18,7 +20,7 @@ use wasm_bindgen::prelude::*;
 
 /// Shared error codes returned by the public C ABI error accessors.
 ///
-/// The numeric values must match `ffi/include/tav/utils.h`.
+/// The numeric values must match `ffi/include/tav/errors.h`.
 ///
 /// This is also the single source of truth for the wasm API's error codes:
 /// on wasm targets this same enum is exported to JS (as `ErrorCode`, via
@@ -61,6 +63,12 @@ pub enum TavErrorCode {
     CaciSignature = 304,
     CaciMeasurement = 305,
     CaciPolicy = 306,
+
+    CborDecodeFailed = 401,
+    CborKeyNotFound = 402,
+    CborOutOfBound = 403,
+    CborTypeMismatch = 404,
+    CborEncodeFailed = 405,
 }
 
 impl From<&VerificationError> for TavErrorCode {
@@ -78,14 +86,14 @@ impl From<&VerificationError> for TavErrorCode {
 }
 
 /// Shared error handle returned by public C ABI functions.
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 #[derive(Debug)]
 pub struct TavError {
     pub(crate) code: TavErrorCode,
     pub(crate) message: CString,
 }
 
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 impl TavError {
     pub fn new(code: TavErrorCode, message: impl Into<String>) -> Self {
         Self {
@@ -112,19 +120,19 @@ impl TavError {
     }
 }
 
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 fn c_string(message: String) -> CString {
     CString::new(message.replace('\0', "\\0")).expect("NUL bytes were replaced")
 }
 
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 impl std::fmt::Display for TavError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message())
     }
 }
 
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 impl std::error::Error for TavError {}
 
 // The native C ABI (`into_result`, below) relies on `std::panic::catch_unwind`
@@ -155,7 +163,7 @@ compile_error!(
 /// is always `abort` regardless of profile settings, so `catch_unwind` cannot
 /// catch anything there; a panicking wasm export instead traps, which the JS
 /// caller observes as a thrown `RuntimeError`.
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 pub fn into_result(f: impl FnOnce() -> Result<(), TavError>) -> *mut TavError {
     let result =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|payload| {
@@ -167,7 +175,7 @@ pub fn into_result(f: impl FnOnce() -> Result<(), TavError>) -> *mut TavError {
     }
 }
 
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
     let message = payload
         .downcast_ref::<&str>()
@@ -189,7 +197,7 @@ mod tests {
 
     #[test]
     fn c_header_error_codes_match_rust_enum() {
-        let header = include_str!("../include/tav/utils.h");
+        let header = include_str!("../include/tav/errors.h");
 
         let error_code_map = [
             ("TAV_ERROR_OK", TavErrorCode::Ok as i32),
@@ -251,13 +259,33 @@ mod tests {
                 TavErrorCode::CaciMeasurement as i32,
             ),
             ("TAV_ERROR_CACI_POLICY", TavErrorCode::CaciPolicy as i32),
+            (
+                "TAV_ERROR_CBOR_DECODE_FAILED",
+                TavErrorCode::CborDecodeFailed as i32,
+            ),
+            (
+                "TAV_ERROR_CBOR_KEY_NOT_FOUND",
+                TavErrorCode::CborKeyNotFound as i32,
+            ),
+            (
+                "TAV_ERROR_CBOR_OUT_OF_BOUND",
+                TavErrorCode::CborOutOfBound as i32,
+            ),
+            (
+                "TAV_ERROR_CBOR_TYPE_MISMATCH",
+                TavErrorCode::CborTypeMismatch as i32,
+            ),
+            (
+                "TAV_ERROR_CBOR_ENCODE_FAILED",
+                TavErrorCode::CborEncodeFailed as i32,
+            ),
         ];
 
         for (name, value) in error_code_map {
             assert_eq!(
                 c_header_enum_value(header, name),
                 Some(value),
-                "{name} in include/tav/utils.h must match Rust TavErrorCode"
+                "{name} in include/tav/errors.h must match Rust TavErrorCode"
             );
         }
 
@@ -270,9 +298,11 @@ mod tests {
             .collect();
         let mapped_names: std::collections::BTreeSet<&str> =
             error_code_map.iter().map(|(name, _)| *name).collect();
+        assert_eq!(header_names.len(), c_header_error_codes(header).len());
+        assert_eq!(mapped_names.len(), error_code_map.len());
         assert_eq!(
             header_names, mapped_names,
-            "include/tav/utils.h TAV_ERROR_ codes must exactly match the checked set"
+            "include/tav/errors.h TAV_ERROR_ codes must exactly match the checked set"
         );
     }
 

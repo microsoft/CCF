@@ -1,5 +1,42 @@
 # Changelog
 
+## [2.0.0]
+
+[2.0.0]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-2.0.0
+
+### Added
+
+- C++ RAII wrapper for SNP attestation verification: `<tav/snp.hpp>` (`tav::snp::Report`), `<tav/errors.hpp>` (`tav::Exception`), and `<tav/byte_buffer.hpp>` (`tav::ByteBuffer`). (#160)
+- `CborValue::parse_with_limits`, which takes the map entry limit explicitly, with `MAX_CBOR_MAP_ENTRIES` (128) as the default. The C ABI and the C++ wrapper apply the default and publish it as `TAV_CBOR_MAX_MAP_ENTRIES` and `tav::cbor::MAX_MAP_ENTRIES`. The defaults are the recommended limits for untrusted input: larger ones make it more expensive to parse. (#174, #175)
+- `TAV_CBOR_DEFAULT_MAX_DEPTH` (16) in the C ABI and `tav::cbor::DEFAULT_MAX_DEPTH` in the C++ wrapper, matching `MAX_CBOR_NESTING_DEPTH`. (#174)
+
+### Changed
+
+- **Breaking:** non-deterministic CBOR parsing, and so `CborValue::parse_nondet`, `tav_cbor_nondet_parse`, `tav::cbor::nondet_parse`, the C# and WASM parsers, and the COSE and CACI parsers, rejects maps with more than 128 key/value pairs and maps anywhere inside a map key. It validates through EverCBOR's single-pass bounded validator with sort-based duplicate detection, so validation costs time bounded by the input length and the limits. Deterministic parsing and serialization are unchanged. Existing `CborValue` and FFI parser signatures are unchanged. (#174)
+- **Breaking:** explicit Rust `Nondet` parsing limits must allow `max_depth + 1` and `3 * (max_depth + 1) * max_map_entries` scratch words to fit in `usize`; `usize::MAX` is not an unlimited-depth sentinel. Overflow returns `"CBOR limits too large"`, and scratch-allocation failures are reported separately from malformed input. (#174)
+- **Breaking:** the public, doc-hidden Rust `Backend::parse` trait method now takes `max_depth` and `max_map_entries` and returns `Result` instead of `Option`. External backend implementations must update. (#174)
+- **Breaking:** the default nesting depth for CBOR parsing and serialization, `MAX_CBOR_NESTING_DEPTH`, is 16 instead of 64. It applies to `CborValue::parse_nondet`, `parse_det`, `to_bytes_det` and `to_bytes_nondet`, the C# and WASM `CborValue`, and the COSE and CACI parsers. Rust, C and C++ callers can ask for a deeper limit; C# and WASM callers cannot. (#174)
+- **Breaking:** the C ABI's hard cap on nesting depth, `TAV_CBOR_MAX_DEPTH`, is 64 instead of 256. A larger `max_depth` is clamped to it. (#174)
+- **Breaking:** the C++ CBOR wrapper's parsers and serializers default `max_depth` to `tav::cbor::DEFAULT_MAX_DEPTH` (16), the depth the Rust, C# and WASM APIs use, instead of the `MAX_DEPTH` hard cap. Pass a larger `max_depth`, up to `MAX_DEPTH` (64), for deeper documents. (#174)
+- Bump EverCBOR (`cborrs`/`cborrs-nondet`) to the merge of project-everest/everparse#364. (#174)
+- The CBOR crate vendors the EverCBOR sources instead of depending on the EverParse git repository, so it can be published to crates.io. Its licence is now `MIT AND Apache-2.0`. (#179)
+- The CBOR parsers and COSE and CACI verification leave input sizes unchecked: callers bound the length of untrusted input, since parsing CBOR can cost time proportional to the nesting depth times the input length. The C ABI and C# accept input buffers of any length, where they rejected ones longer than 1 GiB. (#178)
+- Native CBOR, COSE, and CACI use `TavCborHandle` and the generic API in `tav/cbor.h`. C++ CBOR failures use `tav::Exception` and `tav::ErrorCode`. (#159)
+- C# CBOR bindings use the C API's `TavCborHandle` handles while preserving owned input. CBOR failures now report generic CBOR error codes instead of COSE codes. COSE verification retains its COSE error codes. (#159)
+- SNP verification rejects reports that are not VCEK-signed (VLEK, `None`, or reserved `SIGNING_KEY`), requires the hardware ID extension in the VCEK, and matches TCB and hardware ID extension values against exact DER INTEGER, raw, or OCTET STRING encodings only. (#147)
+
+### Removed
+
+- **Breaking:** the `kds` feature of `tee-attestation-verification-lib`, with `SevVerifier`, `AmdCertificates`, the `verify-attestation` CLI, and the KDS-backed WASM `verify_attestation_report`. We recommend manually fetching the VCEK and ASK from AMD KDS and pass them to `snp::verify`. (#184)
+- **Breaking:** removed the deprecated native `tav_cbor_value_*` functions, `TavCborValue` alias, and `TavCborKind` enum. COSE validation and verification and the independent WASM CBOR API remain supported. (#159)
+
+### Fixed
+
+- `ChainVerification::WithProvidedArk` verifies the provided ARK's self-signature against the pinned ARK and rejects a corrupted ARK with `InvalidRootCertificate`. (#145)
+- `tav_verify_snp_attestation` copies the report before verification and returns that verified copy, so the returned handle never holds bytes that were not verified. (#151)
+- WASM `verify_caci_attestation` copies its report, UVM endorsement, and policy inputs before it returns. Freeing a handle while the returned promise was pending made the verification read freed memory. (#182)
+- The OpenSSL backend's `from_pem` and `from_pem_chain` return an error for input longer than `INT_MAX` bytes. (#178)
+
 ## [1.0.8]
 
 [1.0.8]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-1.0.8

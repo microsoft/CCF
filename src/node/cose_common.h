@@ -49,12 +49,12 @@ namespace ccf::cose
       {
         hdr.cty = std::string(cty.as_string());
       }
-      catch (const DecodeError&)
+      catch (const tav::Exception&)
       {
         hdr.cty = cty.as_signed();
       }
     }
-    catch (const DecodeError& err)
+    catch (const tav::Exception& err)
     {
       std::ignore = err; // optional field
     }

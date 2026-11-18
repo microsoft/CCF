@@ -154,7 +154,7 @@ fn sig_structure(phdr: &[u8], payload: &[u8]) -> Result<Vec<u8>, String> {
 /// contains an `alg`, it must match `algorithm`; if it omits `alg`, the caller's
 /// algorithm context is used. Unsupported algorithms, key/algorithm mismatches,
 /// malformed signatures, and failed signature verification are returned as
-/// errors.
+/// errors. Input sizes are unchecked: bound untrusted input before calling.
 #[cfg(sync_crypto)]
 pub fn cose_verify1(
     key: &<crypto::Crypto as CryptoBackend>::Key,
@@ -506,6 +506,27 @@ mod tests {
         assert_eq!(
             cose_verify1(&key, algorithm, P256_PHDR, b"", &[0u8; 3]).unwrap_err(),
             "Expected 64 byte ECDSA signature, got 3"
+        );
+    }
+
+    #[test]
+    #[cfg(sync_crypto)]
+    fn cose_verify1_decodes_a_large_protected_header() {
+        let algorithm = SignatureKeyAlgorithm::Ec(EcSignatureKeyAlgorithm::P256);
+        let key = key(P256_SPKI, algorithm);
+
+        // `{1: -7, "pad": h'00...'}` in `LEN` bytes.
+        const LEN: usize = (1 << 20) + 1;
+        let mut phdr = vec![0xa2, 0x01, 0x26, 0x63, b'p', b'a', b'd', 0x5a];
+        phdr.extend_from_slice(&((LEN - 12) as u32).to_be_bytes());
+        phdr.resize(LEN, 0);
+
+        // The header is decoded whatever its size, so verification reaches
+        // the signature, which was made over a different header.
+        let err = cose_verify1(&key, algorithm, &phdr, PAYLOAD, P256_SIG).unwrap_err();
+        assert!(
+            err.contains("signature verification failed"),
+            "unexpected error: {err}"
         );
     }
 }

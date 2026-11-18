@@ -166,7 +166,7 @@ namespace
       {
         payload = payload_item.as_bytes();
       }
-      catch (const tav::cbor::DecodeError&)
+      catch (const tav::Exception&)
       {
         // as_bytes() fails when payload is CBOR null (detached)
         if (payload_item.as_simple() != tav::cbor::SimpleValue::Null)
