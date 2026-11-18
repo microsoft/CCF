@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools >= 77.0, < 85", "packaging >= 25, < 27"]
+requires = ["setuptools >= 77.0, < 85"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccf"
-dynamic = ["version"]
+version = "0.0.0.dev0"
 authors = [
   { name="CCF Team", email="CCF-Sec@microsoft.com" },
 ]
@@ -33,17 +33,6 @@ pythonVersion = "3.12"
 script-files = [
     "utils/keygenerator.sh",
     "utils/submit_recovery_share.sh",
-]
-
-[tool.setuptools.dynamic]
-version = {attr = "ccf._versionifier.sdk_version"}
-
-[tool.uv]
-cache-keys = [
-    {file = "pyproject.toml"},
-    {file = "src/ccf/_versionifier.py"},
-    {git = {commit = true, tags = true}},
-    {env = "CCF_PYTHON_PACKAGE_VERSION"},
 ]
 
 [project.urls]

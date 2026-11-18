@@ -17,6 +17,8 @@ runs:
     - name: Configure RPM package cache
       id: configure
       shell: bash
+      env:
+        PYTHON_INPUT_HASH: ${{ hashFiles('scripts/install_uv.sh', 'python/pyproject.toml', inputs.python-requirements) }}
       run: |
         set -euo pipefail
 
@@ -84,6 +86,7 @@ runs:
         echo "package-manager=$package_manager" >> "$GITHUB_OUTPUT"
         echo "setup-script=$setup_script" >> "$GITHUB_OUTPUT"
         echo "uv-cache-dir=$uv_cache_dir" >> "$GITHUB_OUTPUT"
+        echo "python-input-hash=$PYTHON_INPUT_HASH" >> "$GITHUB_OUTPUT"
 
         echo "UV_CACHE_DIR=$uv_cache_dir" >> "$GITHUB_ENV"
 
@@ -106,9 +109,9 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.configure.outputs.uv-cache-dir }}
-        key: azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ hashFiles('scripts/install_uv.sh', 'python/pyproject.toml', inputs.python-requirements) }}-${{ steps.configure.outputs.cache-week }}
+        key: azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ steps.configure.outputs.python-input-hash }}-${{ steps.configure.outputs.cache-week }}
         restore-keys: |
-          azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ hashFiles('scripts/install_uv.sh', 'python/pyproject.toml', inputs.python-requirements) }}-
+          azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-${{ steps.configure.outputs.python-input-hash }}-
           azure-linux-${{ steps.configure.outputs.package-manager }}-python-packages-${{ runner.arch }}-
     # Cache inputs are re-evaluated during post-job cleanup, after tests have
     # modified the workspace, so snapshot the hash before running them.
@@ -139,3 +142,12 @@ runs:
         set -euo pipefail
         "$PACKAGE_MANAGER" clean metadata
         bash "$SETUP_SCRIPT"
+
+    - name: Set Python SDK version for this checkout
+      if: inputs.cache-python-packages == 'true'
+      shell: bash
+      run: |
+        set -eu
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        version=$(uv run --no-project --with packaging python scripts/python_release_version.py)
+        uv version --project python --frozen "$version"

@@ -8,7 +8,6 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from ccf._versionifier import sdk_version
 
 SCRIPT_PATH = Path(__file__).parents[2] / "scripts" / "validate_python_package.py"
 RELEASE_VERSION_SCRIPT = SCRIPT_PATH.with_name("python_release_version.py")
@@ -44,13 +43,7 @@ def test_reject_non_release_version(ref: str) -> None:
         )
 
 
-def test_sdk_version_from_checkout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("CCF_PYTHON_PACKAGE_VERSION", raising=False)
-    sdk = tmp_path / "python"
-    sdk.mkdir()
-
+def test_sdk_version_from_checkout(tmp_path: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(
             [
@@ -72,11 +65,13 @@ def test_sdk_version_from_checkout(
     git("init", "--quiet")
     git("commit", "--allow-empty", "-m", "release")
     git("tag", "ccf-7.0.25")
-    assert sdk_version(sdk) == "7.0.25"
+    command = [sys.executable, str(RELEASE_VERSION_SCRIPT)]
+    assert subprocess.check_output(command, cwd=tmp_path, text=True).strip() == "7.0.25"
 
     git("commit", "--allow-empty", "-m", "development")
     git("tag", "ccf-0.0.0-test")
-    assert sdk_version(sdk) == f"7.0.25.post1+g{git('rev-parse', '--short', 'HEAD')}"
+    expected = f"7.0.25.post1+g{git('rev-parse', '--short', 'HEAD')}"
+    assert subprocess.check_output(command, cwd=tmp_path, text=True).strip() == expected
 
 
 def create_wheel(tmp_path: Path, *, name: str = "ccf", version: str = "1.2.3") -> Path:

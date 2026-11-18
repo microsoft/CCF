@@ -43,9 +43,9 @@ Historical changelog validation does not require its first version to match the 
 
 Tag the reviewed release commit directly; no Python SDK version bump is needed.
 The OneBranch PyPI build derives the SDK version from the selected tag, for example ``8.0.0.dev10`` for ``ccf-8.0.0-dev10`` and ``8.0.0rc0`` for ``ccf-8.0.0-rc0``, and verifies the version in the built wheel.
-Local and CI SDK builds use the nearest reachable ``ccf-*`` tag, excluding ``ccf-0.0.0*`` pipeline test tags.
-An exact tag gives the normalized release version; four commits after ``ccf-7.0.25``, for example, a build might report ``7.0.25.post4+g3a0b00f5d``.
-Fetch release tags and their history when building from a checkout.
+CI writes the version into its checkout of ``python/pyproject.toml`` before building; the edit is never committed.
+Ordinary CI builds use the nearest reachable ``ccf-*`` tag, excluding ``ccf-0.0.0*`` pipeline test tags.
+For example, four commits after ``ccf-7.0.25``, the version might be ``7.0.25.post4+g3a0b00f5d``.
 
 The workflow generates a release-notes artifact, including on dry runs for a tagged commit, and uses it when creating the draft GitHub release.
 The collector does not assign versions, commit, tag, or publish.

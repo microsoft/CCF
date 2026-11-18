@@ -6,6 +6,16 @@ For more information, please find the CCF documentation at https://microsoft.git
 
 Package sources are available at https://github.com/microsoft/CCF/tree/main/python.
 
+Direct installs use the static development version `0.0.0.dev0` without needing Git.
+To use the same version as CI, fetch the release tags and their history, then run this from the repository root before installing:
+
+```bash
+version=$(uv run --no-project --with packaging python scripts/python_release_version.py) &&
+  uv version --project python --frozen "$version"
+```
+
+This changes only `project.version` in your working copy of `python/pyproject.toml`; do not commit the edit.
+
 Run `scripts/python-types-checks.sh` from the repository root to check the SDK, tutorial, and SDK tests with Pyright.
 The configuration in `python/pyproject.toml` checks against Python 3.12 and resolves SDK imports from the local sources.
 Every package module and the tutorial use Pyright's strict checks, including ledger parsing and verification.

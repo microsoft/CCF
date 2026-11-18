@@ -45,4 +45,5 @@ Before publication, the pipeline verifies that:
 - The wheel name and version match the tag.
 - The wheel installs in a clean environment.
 
-The build passes the normalized tag version to setuptools without modifying any source files; no version-bump commit or matching changelog section is needed.
+Before building the wheel, `uv version` writes the normalized tag to the static `project.version` field in the pipeline's copy of `python/pyproject.toml`.
+No version-bump commit or matching changelog section is needed.

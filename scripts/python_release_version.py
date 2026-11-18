@@ -3,6 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -13,12 +14,22 @@ from ccf._versionifier import to_python_version
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Print the Python package version for a CCF release tag."
+        description="Print the Python package version for a release tag or the current checkout."
     )
     parser.add_argument(
-        "tag", help="CCF release tag, optionally prefixed with refs/tags/."
+        "tag",
+        nargs="?",
+        help="Explicit PyPI release tag, optionally prefixed with refs/tags/.",
     )
     args = parser.parse_args()
+
+    if args.tag is None:
+        description = subprocess.check_output(
+            ["git", "describe", "--tags", "--match=ccf-*", "--exclude=ccf-0.0.0*"],
+            text=True,
+        ).strip()
+        print(to_python_version(description))
+        return
 
     tag = args.tag.removeprefix("refs/tags/")
     if not tag.startswith("ccf-"):
