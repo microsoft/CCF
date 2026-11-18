@@ -461,18 +461,21 @@ VERSION_SUBSTITUTIONS = {}
 
 
 def read_ccf_version(root_dir: pathlib.Path):
-    # Read the CCF release version of the documented sources from the Python
-    # SDK version, which is bumped with each release. This is read relative to
-    # the source directory so that each sphinx-multiversion build uses the
-    # version of its own branch.
-    pyproject_path = root_dir / "python" / "pyproject.toml"
-    if pyproject_path.is_file():
-        match = re.search(
-            r'^version\s*=\s*"([^"]+)"', pyproject_path.read_text(), re.MULTILINE
-        )
-        if match:
-            return match.group(1)
-    return None
+    # Multi-version builds document git archives, not working trees.
+    tag = subprocess.check_output(
+        [
+            "git",
+            "describe",
+            "--tags",
+            "--abbrev=0",
+            "--match=ccf-*",
+            "--exclude=ccf-0.0.0*",
+            os.environ.get("CCF_DOCS_GIT_REVISION", "HEAD"),
+        ],
+        cwd=os.environ.get("CCF_DOCS_GIT_ROOT", root_dir),
+        text=True,
+    ).strip()
+    return tag.removeprefix("ccf-")
 
 
 def make_version_substitutions(ccf_version: str):
@@ -503,10 +506,6 @@ def setup(app):
 
     # |ccf_version| and |ccf_major_version| tokens in documentation sources
     ccf_version = read_ccf_version(root_dir)
-    if ccf_version is None:
-        raise RuntimeError(
-            f"Could not read CCF version from {root_dir / 'python' / 'pyproject.toml'}"
-        )
     VERSION_SUBSTITUTIONS.update(make_version_substitutions(ccf_version))
     app.connect("source-read", substitute_versions)
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccf"
-version = "7.0.24"
+dynamic = ["version"]
 authors = [
   { name="CCF Team", email="CCF-Sec@microsoft.com" },
 ]
@@ -34,6 +34,9 @@ script-files = [
     "utils/keygenerator.sh",
     "utils/submit_recovery_share.sh",
 ]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
 
 [project.urls]
 Homepage = "https://github.com/microsoft/ccf"

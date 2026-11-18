@@ -49,9 +49,15 @@ def main():
         workspace = Path(directory)
         for index, (name, data) in enumerate(metadata.items()):
             checkout = workspace / str(index)
+            commit = subprocess.check_output(
+                ["git", "rev-parse", f"refs/{data['source']}/{name}"],
+                cwd=root,
+                text=True,
+            ).strip()
+            data["commit"] = commit
             with tempfile.TemporaryFile() as archive:
                 subprocess.run(
-                    ["git", "archive", f"refs/{data['source']}/{name}"],
+                    ["git", "archive", commit],
                     cwd=root,
                     stdout=archive,
                     check=True,
@@ -107,6 +113,8 @@ def main():
                 env={
                     **os.environ,
                     "PATH": f"{environment / 'bin'}:{os.environ['PATH']}",
+                    "CCF_DOCS_GIT_ROOT": str(root),
+                    "CCF_DOCS_GIT_REVISION": data["commit"],
                 },
                 check=True,
             )

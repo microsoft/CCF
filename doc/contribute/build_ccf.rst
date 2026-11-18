@@ -88,6 +88,7 @@ The published multi-version documentation is built with:
 
 Each version is built from its own sources and configuration in a separate Python environment.
 This keeps older releases' documentation dependencies compatible while sharing version-selector metadata across all builds.
+Fetch release tags and their history before building documentation: versioned examples use the nearest CCF release tag reachable from the documented revision.
 
 HTML builds also build the :ref:`trace viewer <operations/recovery:Trace viewer>`, which needs ``lake``; ``SKIP_TRACE_VIEWER=ON`` skips it.
 See :ref:`architecture/verification:Running locally` for installing Lean and ``lake``.

@@ -2,17 +2,45 @@
 # Licensed under the Apache 2.0 License.
 
 import importlib.util
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
 import pytest
 
 SCRIPT_PATH = Path(__file__).parents[2] / "scripts" / "validate_python_package.py"
+RELEASE_VERSION_SCRIPT = SCRIPT_PATH.with_name("python_release_version.py")
 SPEC = importlib.util.spec_from_file_location("validate_python_package", SCRIPT_PATH)
 assert SPEC is not None
 assert SPEC.loader is not None
 VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
+
+
+@pytest.mark.parametrize(
+    "tag, expected",
+    [("7.0.25", "7.0.25"), ("8.0.0-dev10", "8.0.0.dev10"), ("8.0.0-rc0", "8.0.0rc0")],
+)
+def test_python_release_version(tag: str, expected: str) -> None:
+    version = subprocess.check_output(
+        [
+            sys.executable,
+            str(RELEASE_VERSION_SCRIPT),
+            f"refs/tags/ccf-{tag}",
+        ],
+        text=True,
+    )
+    assert version.strip() == expected
+
+
+@pytest.mark.parametrize("ref", ["refs/heads/main", "ccf-8.0.0-unknown"])
+def test_reject_non_release_version(ref: str) -> None:
+    with pytest.raises(subprocess.CalledProcessError):
+        subprocess.run(
+            [sys.executable, str(RELEASE_VERSION_SCRIPT), ref],
+            check=True,
+        )
 
 
 def create_wheel(tmp_path: Path, *, name: str = "ccf", version: str = "1.2.3") -> Path:
