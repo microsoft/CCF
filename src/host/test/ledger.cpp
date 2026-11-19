@@ -18,6 +18,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <condition_variable>
 #include <cstring>
+#include <dirent.h>
+#include <dlfcn.h>
 #include <doctest/doctest.h>
 #include <fcntl.h>
 #include <future>
@@ -3342,6 +3344,46 @@ TEST_CASE("Ledger init reclassifies later committed files as mutable")
   REQUIRE_FALSE(ledger.is_in_committed_file(2));
 }
 
+namespace
+{
+  struct PausedChunkListing
+  {
+    std::promise<void> listed;
+    std::promise<void> resume;
+    bool resumed_in_time = false;
+  };
+
+  thread_local PausedChunkListing* pause_listing = nullptr;
+}
+
+// Interpose only in ledger_test. Hold the old entry in the lookup's directory
+// stream while the writer replays into a chunk with a different name.
+extern "C" dirent* readdir(DIR* __dirp)
+{
+  static const auto real_readdir =
+    reinterpret_cast<decltype(&readdir)>(dlsym(RTLD_NEXT, "readdir"));
+  if (real_readdir == nullptr)
+  {
+    ccf::logger::write_fatal_diagnostic(
+      "Failed to resolve readdir in ledger_test");
+    std::abort();
+  }
+  auto* entry = real_readdir(__dirp);
+  if (
+    pause_listing != nullptr && entry != nullptr &&
+    std::string_view(entry->d_name) == "ledger_2-2.committed")
+  {
+    const int saved_errno = errno;
+    auto* pause = std::exchange(pause_listing, nullptr);
+    pause->listed.set_value();
+    pause->resumed_in_time =
+      pause->resume.get_future().wait_for(std::chrono::seconds(5)) ==
+      std::future_status::ready;
+    errno = saved_errno;
+  }
+  return entry;
+}
+
 // Pause a real mutation under state_lock, at a point where its on-disk name
 // and its published boundary alone would give different answers.
 struct ScopedLedgerPause
@@ -3423,6 +3465,27 @@ TEST_CASE("Canonical chunk discovery does not wait for a ledger mutation")
       });
     CHECK_FALSE(fs::exists(second));
     CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
+  }
+  SUBCASE("Lookup retries after replay restores the same boundary")
+  {
+    ledger.commit(2);
+    PausedChunkListing pause;
+    auto lookup = std::async(std::launch::async, [&]() {
+      pause_listing = &pause;
+      return ledger.committed_ledger_path_with_idx(2);
+    });
+    REQUIRE(
+      pause.listed.get_future().wait_for(std::chrono::seconds(5)) ==
+      std::future_status::ready);
+
+    ledger.init(0);
+    TestEntrySubmitter replay(ledger, 1024);
+    replay.write(true);
+    replay.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+    ledger.commit(2);
+    pause.resume.set_value();
+    REQUIRE(lookup.get() == fs::path(ledger_dir) / "ledger_1-2.committed");
+    CHECK(pause.resumed_in_time);
   }
 }
 
