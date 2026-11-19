@@ -31,11 +31,14 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data);
 
   using UserCerts = ccf::kv::RawCopySerialisedMap<UserId, ccf::crypto::Pem>;
+  using UserPublicKeys =
+    ccf::kv::RawCopySerialisedMap<UserId, std::vector<uint8_t>>;
   using UserInfo = ServiceMap<UserId, UserDetails>;
 
   namespace Tables
   {
     static constexpr auto USER_CERTS = "public:ccf.gov.users.certs";
+    static constexpr auto USER_PUBLIC_KEYS = "public:ccf.gov.users.public_keys";
     static constexpr auto USER_INFO = "public:ccf.gov.users.info";
   }
 }
