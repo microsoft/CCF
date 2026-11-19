@@ -63,7 +63,7 @@ Each replayer consumes traces produced by existing C++ tests:
 * **Consensus**: the ``cft_scenario_test`` test runs :ccf_repo:`tests/cft_scenarios_runner.py`, which executes each scenario in :ccf_repo:`tests/cft_scenarios/Scenarios/` with the ``cft_driver`` binary.
   The scenarios are Lean programs, which drive the implementation through the bindings in :ccf_repo:`tests/cft_scenarios/CftDriver.lean` and :ccf_repo:`src/consensus/aft/test/driver.cpp`; see :ccf_repo:`tests/cft_scenarios/README.md`.
   The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as NDJSON traces to ``consensus/raw/`` in the build directory.
-  The ``cft_model_test`` test, built with ``-DCFT_MODEL_DRIVER=ON``, runs the same scenarios with ``cft_model_driver``, which links the driver with the replayer and replays each trace in the process which records it; see :ccf_repo:`tests/cft_model/README.md`.
+  The ``cft_model_test`` test, built with ``-DCFT_MODEL_DRIVER=ON``, runs the same scenarios with ``cft_model_driver``, which binds their commands to the model and not to the implementation, and writes what the model did as traces to ``consensus/model/``; see :ccf_repo:`tests/cft_model/README.md`.
 * **KV**: building with ``-DCCF_KV_TRACING=ON`` enables test-only trace capture in ``kv_test``.
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.
   Tracing is disabled in normal builds.
@@ -81,7 +81,7 @@ The :ccf_repo:`Lean workflow <.github/workflows/lean.yml>` runs on pull requests
 
 * A package job for each of ``common``, ``consensus``, ``consistency``, ``disaster-recovery`` and ``kv`` runs the kernel and axiom check (``lake check``), import coverage and architecture checks, formatting and linting, and, where applicable, the package's replay fixtures.
 * Separate capture jobs build CCF and record consensus, KV and consistency traces from the tests described above.
-  The consensus capture job also runs ``cft_model_test``.
+  The consensus capture job also runs ``cft_model_test``, in which the assertions of each scenario must hold of the model.
 * Replay jobs build each replayer and validate every captured trace.
 * A final ``Lean models and proofs`` job succeeds only if all of the above succeed.
 

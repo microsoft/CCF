@@ -1291,13 +1291,13 @@ if(BUILD_TESTS)
       )
     endif()
 
-    # Consensus model driver: the scenario driver, linked also with the Lean
-    # model of the protocol, which replays the trace of a scenario in the
-    # process which runs it. Opt-in, because lake then builds the model, and
-    # fetches the formatter which the package of the model requires.
+    # Consensus model driver: the consensus scenarios, with their commands bound
+    # to the Lean model of the protocol, and so without the implementation.
+    # Opt-in, because lake then builds the model, and fetches the formatter
+    # which the package of the model requires.
     option(
       CFT_MODEL_DRIVER
-      "Build cft_model_driver, which runs consensus scenarios with the Lean model"
+      "Build cft_model_driver, which runs consensus scenarios on the Lean model"
       OFF
     )
     if(CFT_MODEL_DRIVER)
@@ -1328,33 +1328,28 @@ if(BUILD_TESTS)
       # lake builds the scenarios for this package too, so never at once
       add_dependencies(cft_model cft_scenarios)
 
-      add_executable(
-        cft_model_driver
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-      )
+      add_executable(cft_model_driver ${CFT_MODEL_DIR}/shim.c)
       add_dependencies(cft_model_driver cft_model)
-      add_san(cft_model_driver)
-      add_warning_checks(cft_model_driver)
-      # As for cft_driver. The model driver library comes first, so that its
-      # main is linked, and not that of the scenario library.
+      # The model driver library comes first, so that its main is linked, and
+      # not that of the scenario library.
       target_link_libraries(
         cft_model_driver
         PRIVATE
           ${CFT_MODEL_LIBRARIES}
           ${CFT_SCENARIOS_LIBRARY}
-          ccfcrypto
-          ccf_tasks
-          gcc_s
           ${LEAN_SYSROOT}/lib/lean/libleanshared.so
       )
-      target_include_directories(cft_model_driver PRIVATE src/consensus/aft)
       target_include_directories(
         cft_model_driver
         SYSTEM
         PRIVATE ${LEAN_SYSROOT}/include
       )
 
-      add_test(NAME cft_model_test COMMAND cft_model_driver --all)
+      # Writes the trace of each scenario to consensus/model/
+      add_test(
+        NAME cft_model_test
+        COMMAND cft_model_driver --all consensus/model
+      )
       add_test_target(cft_model_test cft_model_driver)
     endif()
 

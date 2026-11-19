@@ -227,27 +227,8 @@ def scenario (name : String) (steps : IO Unit) : IO Unit :=
 @[extern "cft_start"]
 private opaque start (fluentd : @& List String) : IO Unit
 
-/--
-Start the driver, as `run` does before a scenario, and keep the trace in memory for
-`takeTrace`. A process can start the driver once.
--/
-@[extern "cft_start_capture"]
-opaque startCapture : IO Unit
-
-/--
-The trace records emitted since the last call, in order.
-Each is JSON, like a line of a trace which the scenario test writes.
-Only after `startCapture`.
--/
-@[extern "cft_take_trace"]
-opaque takeTrace : IO (Array String)
-
-/--
-Confirm that the network can still make progress, as `run` does after a scenario, and
-stop the driver. After `startCapture`, `takeTrace` then returns the rest of the trace.
--/
 @[extern "cft_finish"]
-opaque finish : IO Unit
+private opaque finish : IO Unit
 
 /--
 Run the scenario named by the first argument.

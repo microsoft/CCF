@@ -85,8 +85,8 @@ jobs:
           retention-days: 1
           overwrite: true
 
-      # cft_model_driver also links the consensus model, which lake builds.
-      - name: Run scenarios with the consensus model
+      # cft_model_driver links the consensus model, which lake builds, and not the implementation.
+      - name: Run scenarios on the consensus model
         run: |
           set -euo pipefail
           cmake --build "$RUNNER_TEMP/cft-build" --target cft_model_test --parallel "$(( ($(nproc) + 1) >> 1 ))"
