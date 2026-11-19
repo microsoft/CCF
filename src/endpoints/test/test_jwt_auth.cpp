@@ -55,7 +55,6 @@ namespace
     }
     return std::make_shared<::http::HttpRpcContext>(
       std::make_shared<SessionContext>(0, std::vector<uint8_t>{}),
-      HttpVersion::HTTP1,
       HTTP_GET,
       "/",
       ccf::http::HeaderMap{

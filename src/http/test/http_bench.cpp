@@ -16,8 +16,7 @@ struct NullRequestProcessor : public http::RequestProcessor
     llhttp_method,
     const std::string_view&,
     ccf::http::HeaderMap&&,
-    std::vector<uint8_t>&&,
-    int32_t) override
+    std::vector<uint8_t>&&) override
   {
     ++count;
   }

@@ -1507,9 +1507,7 @@ def run_reconfiguration_partitions(args):
 def run_sessions(args):
     with partitioned_network(args) as network:
         test_invalidated_blocking_calls(network, args)
-        # RawSocketClient uses HTTP/1.1.
-        if not args.http2:
-            test_direct_session_view_changes(network, args)
+        test_direct_session_view_changes(network, args)
 
 
 def run_recovery_elections(args):
