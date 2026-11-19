@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
-import copy
 import hashlib
 import http
 import json
@@ -11,7 +10,6 @@ import re
 import socket
 import ssl
 import subprocess
-import threading
 import time
 import urllib.parse
 from collections import defaultdict
@@ -215,6 +213,7 @@ def test_illegal(network, args):
                 response.status,
                 response_body,
             )
+        return response_body
 
     initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
     send_bad_raw_content(b"\x01")
@@ -224,6 +223,14 @@ def test_illegal(network, args):
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
     # Tests non-UTF8 encoding in OData
     send_bad_raw_content(b"POST /node/\xff HTTP/9.9\r\n\r\n")
+
+    for whitespace in (b"", b" ", b"\t", b" \t"):
+        response_body = send_bad_raw_content(
+            b"GET /node/state HTTP/1.1\r\nTransfer-Encoding:"
+            + whitespace
+            + b"\r\nContent-Length: 0\r\n\r\n"
+        )
+        assert b"HPE_INVALID_TRANSFER_ENCODING" in response_body, response_body
 
     for _ in range(40):
         content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 2)))
@@ -1508,118 +1515,45 @@ def escaped_query_tests(c, endpoint):
         assert r.body.data() == "&".join(raw).encode(), r.body.data()
 
 
-@reqs.description("Testing forwarding on member and user frontends")
+@reqs.description("Testing chunked POSTs to the primary")
 @reqs.supports_methods("/app/log/private")
-@reqs.at_least_n_nodes(2)
 @app.scoped_txs()
-def test_forwarding_frontends(network, args):
-    backup = network.find_any_backup()
-
-    with backup.client() as c:
-        check_commit = infra.checker.Checker(c)
-        ack = network.consortium.get_any_active_member().ack(backup)
-        check_commit(ack)
-
-    msg = "forwarded_msg"
-    log_id = 7
-    network.txs.issue(
-        network,
-        number_txs=1,
-        on_backup=True,
-        idx=log_id,
-        send_public=False,
-        msg=msg,
-    )
-
-    if args.package.startswith("samples/apps/logging/logging"):
-        with backup.client("user0") as c:
-            escaped_query_tests(c, "request_query")
-
-    return network
-
-
-@reqs.description("Testing forwarding on user frontends without actor app prefix")
-@reqs.at_least_n_nodes(2)
-def test_forwarding_frontends_without_app_prefix(network, args):
-    msg = "forwarded_msg"
-    log_id = 7
-    network.txs.issue(
-        network,
-        number_txs=1,
-        on_backup=True,
-        idx=log_id,
-        send_public=False,
-        msg=msg,
-        private_url="/log/private",
-    )
-
-    return network
-
-
-@reqs.description("Testing forwarding on long-lived connection")
-@reqs.supports_methods("/app/log/private")
-@reqs.at_least_n_nodes(2)
-def test_long_lived_forwarding(network, args):
+def test_chunked_requests(network, args):
     primary, _ = network.find_primary()
+    path = f"/app/log/private?scope={network.txs.scope}"
+    log_id = 0
+    msg = "Chunked message\r\nwith a null: \x00 and Unicode: \u2603"
+    body = json.dumps({"id": log_id, "msg": msg}).encode()
+    chunks = (body[:1], body[1:16], body[16:31], body[31:])
+    encoded_body = (
+        b"".join(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n" for chunk in chunks)
+        + b"0\r\n\r\n"
+    )
 
-    # Create a new node
-    new_node = network.create_node()
-
-    # Message limit must be high enough that the hard limit will not be reached
-    # by the combined work of all threads. Note that each thread produces multiple
-    # node-to-node messages - a forwarded write and response, Raft AEs. If these
-    # arrive too fast, they will trigger the hard cap and the node-to-node keys
-    # will be reset, potentially invalidating in-flight messages and causing client
-    # requests to time out. This margin depends on client request rate, so must
-    # stay comfortably above the concurrent in-flight message burst produced by
-    # n_threads clients sending as fast as the network allows.
-    n_threads = 5
-    message_limit = 90
-
-    new_node_args = copy.deepcopy(args)
-    new_node_args.node_to_node_message_limit = message_limit
-    network.join_node(new_node, args.package, new_node_args, from_snapshot=False)
-    network.trust_node(new_node, new_node_args)
-
-    # Send many messages to new node over long-lived connections,
-    # to confirm that forwarding continues to work during
-    # node-to-node channel key rotations
-    def fn(worker_id, request_count, should_log):
-        with new_node.client("user0") as c:
-            msg = "Will be forwarded"
-            log_id = 42
-            for i in range(request_count):
-                logs = []
-                if should_log and i % 10 == 0:
-                    LOG.info(f"Sending {i} / {request_count}")
-                    logs = None
-                r = c.post(
-                    f"/app/log/private?scope=long-lived-forwarding-{worker_id}",
-                    {"id": log_id, "msg": msg},
-                    log_capture=logs,
-                )
-                assert r.status_code == http.HTTPStatus.OK, r
-
-    threads = []
-    current_thread_name = threading.current_thread().name
-    for i in range(n_threads):
-        threads.append(
-            threading.Thread(
-                target=fn,
-                args=(i, 3 * message_limit, i == 0),
-                name=f"{current_thread_name}:worker-{i}",
-            )
+    with primary.client("user0", impl_type=infra.clients.RawSocketClient) as c:
+        sock = c.client_impl.socket
+        sock.settimeout(infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC)
+        # Send the wire body directly, without an automatic Content-Length.
+        infra.clients.RawSocketClient._send_request(
+            ssl_socket=sock,
+            verb="POST",
+            path=path,
+            headers={
+                "host": primary.get_public_rpc_address(),
+                "transfer-encoding": "chunked",
+                "content-type": "application/json",
+            },
+            content=encoded_body,
         )
+        r = infra.clients.Response.from_socket(sock)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() is True, r.body.json()
 
-    for thread in threads:
-        thread.start()
-
-    for thread in threads:
-        thread.join()
-
-    # Remove temporary new node
-    network.retire_node(primary, new_node)
-    new_node.stop()
+    with primary.client("user0") as c:
+        c.wait_for_commit(r)
+        r = c.get(f"{path}&id={log_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == {"msg": msg}, r.body.json()
 
     return network
 
@@ -1975,6 +1909,81 @@ def test_random_receipts(
                         view += 1
                         if view > max_view:
                             assert False, rc
+
+    return network
+
+
+@reqs.description("Receipts stay valid after a range query spanning a view change")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
+@reqs.at_least_n_nodes(2)
+def test_historical_receipts_across_views(network, args):
+    idx = 20000
+    service_key = get_service_key(network)
+    primary, backup = network.find_primary_and_any_backup()
+
+    # Add a node so that the remaining nodes can elect a replacement primary
+    new_node = network.create_node()
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args)
+
+    first_tx = network.txs.issue(network, number_txs=1, idx=idx, send_private=False)
+
+    # Retiring the primary forces a view change. The successor only learns
+    # that the final transactions of the old view are committed once it has
+    # signed in the new view, so its first signature's Merkle tree still
+    # covers them, and a range query uses that later signature to produce
+    # receipts for those old-view transactions.
+    network.retire_node(primary, primary, timeout=15)
+    primary.stop()
+    network.wait_for_new_primary(primary, nodes=[backup])
+
+    second_tx = network.txs.issue(network, number_txs=1, idx=idx, send_private=False)
+    assert second_tx.view > first_tx.view, (first_tx, second_tx)
+
+    with backup.client("user0") as c:
+        r = c.get("/node/commit?view_history=true")
+        assert r.status_code == http.HTTPStatus.OK, r
+        view_starts = [TxID.from_str(s) for s in r.body.json()["view_history"]]
+
+        def view_of(seqno):
+            return max(tx_id.view for tx_id in view_starts if tx_id.seqno <= seqno)
+
+        def check_receipts():
+            for seqno in range(first_tx.seqno, second_tx.seqno + 1):
+                tx_id = TxID(view_of(seqno), seqno)
+                end_time = time.time() + 3.0
+                while True:
+                    rc = c.get(f"/node/receipt/cose?transaction_id={tx_id}")
+                    if rc.status_code != http.HTTPStatus.ACCEPTED:
+                        break
+                    assert time.time() < end_time, f"Timed out fetching {tx_id}"
+                    time.sleep(0.1)
+                if rc.status_code == http.HTTPStatus.NOT_FOUND:
+                    # Signature transactions have no COSE receipt
+                    continue
+                assert rc.status_code == http.HTTPStatus.OK, rc
+                receipt_bytes = rc.body.data()
+                # Leaf of the inclusion proof, as [write set digest, commit
+                # evidence, claims digest]. Governance transactions carry
+                # claims, so the digest is taken from the leaf rather than
+                # assumed, but the commit evidence must name this transaction
+                _, uhdr, _, _ = cbor2.loads(receipt_bytes).value
+                leaf = cbor2.loads(uhdr[396][-1][0])[1]
+                assert leaf[1].startswith(f"ce:{tx_id}:"), (tx_id, leaf[1])
+                ccf.receipt.verify_cose(receipt_bytes, service_key, leaf[2])
+
+        # Each of these point queries creates a historical request on the
+        # backup which outlives this call, keeping the transaction's cached
+        # state (and receipt) alive
+        check_receipts()
+
+        # Range query over the same transactions, including both views
+        network.txs.verify_range_for_idx(
+            idx, node=backup, from_seqno=first_tx.seqno, to_seqno=second_tx.seqno
+        )
+
+        # Cached receipts must still verify
+        check_receipts()
 
     return network
 
@@ -2554,10 +2563,11 @@ def do_main_tests(network, args):
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
 
-    test_forwarding_frontends(network, args)
-    test_forwarding_frontends_without_app_prefix(network, args)
-    if not os.getenv("TSAN_OPTIONS"):
-        test_long_lived_forwarding(network, args)
+    test_chunked_requests(network, args)
+    if args.package.startswith("samples/apps/logging/logging"):
+        primary, _ = network.find_primary()
+        with primary.client("user0") as c:
+            escaped_query_tests(c, "request_query")
     test_user_data_ACL(network, args)
     test_cert_prefix(network, args)
     test_anonymous_caller(network, args)
@@ -2594,6 +2604,9 @@ def do_main_tests(network, args):
     is_cose_only_from_genesis = args.package.endswith("_cose_only")
     if is_cose_only_from_genesis:
         test_cose_set_member(network, args)
+
+    # Last, as it retires the primary
+    test_historical_receipts_across_views(network, args)
 
 
 def run_parsing_errors(args):

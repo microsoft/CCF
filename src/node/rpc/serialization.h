@@ -6,7 +6,6 @@
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/tables/code_id.h"
 #include "node/rpc/call_types.h"
-#include "node/rpc/ringbuffer_messages.h"
 
 namespace ccf
 {
@@ -34,15 +33,18 @@ namespace ccf
     startup_seqno);
   DECLARE_JSON_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::In,
+    id_format,
     certificate_signing_request,
     node_data,
     sealing_recovery_data,
     code_transparent_statement,
     ledger_sign_mode,
-    join_fetch_count);
+    join_fetch_count,
+    mldsa_supported);
 
-  DECLARE_JSON_TYPE(NetworkIdentity);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NetworkIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key);
+  DECLARE_JSON_OPTIONAL_FIELDS(NetworkIdentity, pq_cert, pq_priv_key);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo);
@@ -83,9 +85,10 @@ namespace ccf
     service_data,
     snp_security_policy,
     snp_uvm_endorsements,
-    sealing_recovery_data);
+    sealing_recovery_data,
+    pq_service_cert);
 
-  DECLARE_JSON_TYPE(GetNetworkInfo::Out);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetNetworkInfo::Out);
   DECLARE_JSON_REQUIRED_FIELDS(
     GetNetworkInfo::Out,
     service_status,
@@ -95,6 +98,7 @@ namespace ccf
     recovery_count,
     service_data,
     current_service_create_txid);
+  DECLARE_JSON_OPTIONAL_FIELDS(GetNetworkInfo::Out, pq_service_certificate);
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(

@@ -78,7 +78,7 @@ static CoseSign1Components decompose(const std::vector<uint8_t>& envelope)
   {
     payload = env.array_at(2).as_bytes();
   }
-  catch (const tav::cbor::DecodeError&)
+  catch (const tav::Exception&)
   {
     if (env.array_at(2).as_simple() != tav::cbor::SimpleValue::Null)
     {
@@ -149,6 +149,7 @@ const std::vector<int> sizes = {10};
 #define PICO_SUFFIX() iterations(sizes)
 
 PICOBENCH_SUITE("cose sign secp256r1");
+
 namespace COSE_SIGN_SECP256R1
 {
   auto sign_256r1_1byte = benchmark_cose_sign<CurveID::SECP256R1, 1>;
@@ -162,6 +163,7 @@ namespace COSE_SIGN_SECP256R1
 }
 
 PICOBENCH_SUITE("cose sign secp384r1");
+
 namespace COSE_SIGN_SECP384R1
 {
   auto sign_384r1_1byte = benchmark_cose_sign<CurveID::SECP384R1, 1>;
@@ -175,6 +177,7 @@ namespace COSE_SIGN_SECP384R1
 }
 
 PICOBENCH_SUITE("cose verify secp256r1");
+
 namespace COSE_VERIFY_SECP256R1
 {
   auto verify_256r1_1byte = benchmark_cose_verify<CurveID::SECP256R1, 1>;
@@ -188,6 +191,7 @@ namespace COSE_VERIFY_SECP256R1
 }
 
 PICOBENCH_SUITE("cose verify secp384r1");
+
 namespace COSE_VERIFY_SECP384R1
 {
   auto verify_384r1_1byte = benchmark_cose_verify<CurveID::SECP384R1, 1>;

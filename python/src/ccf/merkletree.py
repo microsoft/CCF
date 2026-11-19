@@ -4,36 +4,98 @@
 import struct
 from hashlib import sha256
 
+_HASH_SIZE = 32  # SHA-256 digest size
+
 
 class MerkleTree:
     """
     Basic Merkle Tree implementation where leaves comprise of hashed transactions.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.reset_tree()
 
-    def reset_tree(self):
-        self._levels = [[]]
-        self._root = None
+    def reset_tree(self) -> None:
+        """Reset the tree to an empty set of leaves."""
+        self._levels: list[list[bytes]] = [[]]
+        self._root: bytes | None = None
         self._num_flushed = 0
 
-    def add_leaf(self, values: bytes, do_hash=True):
+    def add_leaf(self, values: bytes, do_hash: bool = True) -> None:
+        """Append a leaf, hashing its value unless it is already a digest.
+
+        Raises:
+            ValueError: If do_hash is False and values is not a SHA-256 digest.
+        """
         digest = values
         if do_hash:
             digest = sha256(values).digest()
+        elif len(digest) != _HASH_SIZE:
+            raise ValueError(
+                f"Leaf digest must be {_HASH_SIZE} bytes, got {len(digest)}"
+            )
         self._levels[0].append(digest)
         self._root = None  # Need to recalculate
 
     @property
-    def leaves(self):
-        return self._levels[0]
+    def _first_unflushed_offset(self) -> int:
+        """Position of the first unflushed leaf in _levels[0].
+
+        When _num_flushed is odd, _levels[0][0] is the flushed left sibling
+        of the first unflushed leaf, retained to recompute the root.
+        """
+        return self._num_flushed & 1
+
+    @property
+    def leaves(self) -> list[bytes]:
+        """Return the retained leaves, excluding flushed subtree roots.
+
+        leaves[0] is the first unflushed leaf, so once the tree has been
+        flushed, leaves[i] is not get_leaf(i), which takes an absolute index.
+        """
+        return self._levels[0][self._first_unflushed_offset :]
 
     def get_leaf(self, index: int) -> bytes:
-        return self.leaves[index]
+        """Return a leaf by absolute index, raising IndexError if unavailable."""
+        if index < self._num_flushed or index >= self.get_leaf_count():
+            raise IndexError("Leaf index out of bounds")
+        return self._levels[0][index - self._num_flushed + self._first_unflushed_offset]
 
     def get_leaf_count(self) -> int:
-        return len(self.leaves)
+        """Return the total number of leaves, including flushed leaves."""
+        return self._num_flushed + len(self._levels[0]) - self._first_unflushed_offset
+
+    def flush(self, index: int) -> None:
+        """Discard leaves before an absolute index without changing the root.
+
+        The leaf at index is retained and new leaves can still be appended.
+        Flushing to an already flushed index is a no-op.
+
+        Raises:
+            IndexError: If index is negative or beyond the last leaf.
+        """
+        if index < 0:
+            raise IndexError("Leaf index out of bounds")
+        if index <= self._num_flushed:
+            return
+        if index >= self.get_leaf_count():
+            raise IndexError("Leaf index out of bounds")
+
+        self.get_merkle_root()
+        for level_idx, level in enumerate(self._levels):
+            old_start = self._level_start(self._num_flushed, level_idx)
+            new_start = self._level_start(index, level_idx)
+            del level[: new_start - old_start]
+        self._num_flushed = index
+
+    @staticmethod
+    def _level_start(num_flushed: int, level: int) -> int:
+        """Absolute index of the first node retained at level.
+
+        Rounded down to even, so that when the path to the first unflushed
+        leaf goes right, its left sibling is kept to recompute the root.
+        """
+        return (num_flushed >> level) & ~1
 
     def get_merkle_root(self) -> bytes:
         if self._root is None:
@@ -50,75 +112,64 @@ class MerkleTree:
 
         return self._root
 
-    def _recalculate_level(self, prev_level, current_level):
+    @staticmethod
+    def _recalculate_level(
+        prev_level: list[bytes], level: list[bytes], start: int
+    ) -> None:
         """
-        Compute the next level of hashes from the previous level.
-        Reuses already-computed hashes where possible.
+        Extend level with the hashes of prev_level, in place.
+        Reuses already-computed hashes, so the cost is proportional to the
+        number of new entries rather than the size of the level.
 
         Args:
             prev_level: List of hashes from the previous (lower) level
-            current_level: List of already-computed hashes at this level
-
-        Returns:
-            Updated list of computed hashes for this level
+            level: Level to update. level[:start] holds a preserved flushed
+                hash, and level[start:] holds previously computed hashes.
+            start: Number of preserved entries at the start of level (0 or 1)
         """
-        # Handle solo leaf: if last entry was a promoted solo, pop it for recalc
-        if current_level:
-            current_level.pop(-1)
+        # The last computed entry may be a promoted solo node, so recompute it
+        if len(level) > start:
+            level.pop()
 
         # Determine how many pairs are already computed
-        done = len(current_level)
+        done = len(level) - start
 
         # Handle odd count on input level
-        number_of_leaves_on_prev_level = len(prev_level)
-        solo_leaf = None
-        if number_of_leaves_on_prev_level % 2 == 1:
-            solo_leaf = prev_level[-1]
-            number_of_leaves_on_prev_level -= 1
+        number_of_nodes_on_prev_level = len(prev_level)
+        solo_node = None
+        if number_of_nodes_on_prev_level % 2 == 1:
+            solo_node = prev_level[-1]
+            number_of_nodes_on_prev_level -= 1
 
         # Compute new pairs starting after 'done' existing pairs
-        for left_node, right_node in zip(
-            prev_level[done * 2 : number_of_leaves_on_prev_level : 2],
-            prev_level[done * 2 + 1 : number_of_leaves_on_prev_level : 2],
-        ):
-            current_level.append(sha256(left_node + right_node).digest())
+        for i in range(done * 2, number_of_nodes_on_prev_level, 2):
+            level.append(sha256(prev_level[i] + prev_level[i + 1]).digest())
 
-        if solo_leaf is not None:
-            current_level.append(solo_leaf)
+        if solo_node is not None:
+            level.append(solo_node)
 
-        return current_level
-
-    def _make_tree(self):
+    def _make_tree(self) -> None:
         if self.get_leaf_count() == 0:
             return
 
-        # Build tree from leaves. After deserialize, _levels[i] contains:
+        # Build tree from leaves. After deserialise or flush, _levels[i]
+        # contains:
         # - Flushed hash at [0] if bit i of num_flushed is set
         # - Followed by any previously computed hashes
-        # We read from _levels[level_idx] and write computed hashes to _levels[level_idx+1].
+        # We read from _levels[level_idx] and update _levels[level_idx+1] in
+        # place. Copying levels here would make each root computation O(N).
         it = self._num_flushed
         level_idx = 0
 
         while len(self._levels[level_idx]) > 1 or it != 0:
-            prev_level = self._levels[level_idx]
-
             # Ensure next level exists
             if level_idx + 1 >= len(self._levels):
                 self._levels.append([])
 
-            # Check if next level has a flushed hash at [0] that we must preserve
+            # Preserve a flushed hash at [0] of the next level, if present
             next_level = self._levels[level_idx + 1]
-            next_has_flushed = (it >> 1) & 0x01 and next_level
-
-            # Compute next level, reusing hashes after the flushed one
-            skip = 1 if next_has_flushed else 0
-            computed = self._recalculate_level(prev_level, next_level[skip:])
-
-            # Store result, preserving flushed hash at [0] if present
-            if next_has_flushed:
-                self._levels[level_idx + 1] = [next_level[0]] + computed
-            else:
-                self._levels[level_idx + 1] = computed
+            start = 1 if (it >> 1) & 0x01 and next_level else 0
+            self._recalculate_level(self._levels[level_idx], next_level, start)
 
             it >>= 1
             level_idx += 1
@@ -140,7 +191,6 @@ class MerkleTree:
         Returns:
             The new position in the buffer after deserialisation
         """
-        HASH_SIZE = 32  # SHA-256 hash size
 
         # Helper function to read bytes and advance position
         def read_bytes(pos: int, size: int) -> tuple[bytes, int]:
@@ -169,7 +219,7 @@ class MerkleTree:
 
         # Read leaf hashes into _levels[0]
         for _ in range(num_leaf_nodes):
-            leaf_hash, position = read_bytes(position, HASH_SIZE)
+            leaf_hash, position = read_bytes(position, _HASH_SIZE)
             self._levels[0].append(leaf_hash)
 
         # Read flushed subtree hashes into their conceptual levels.
@@ -180,7 +230,7 @@ class MerkleTree:
 
         while it != 0:
             if it & 0x01:
-                flushed_hash, position = read_bytes(position, HASH_SIZE)
+                flushed_hash, position = read_bytes(position, _HASH_SIZE)
                 if level == 0:
                     # Flushed leaf - insert at beginning of level 0
                     self._levels[0].insert(0, flushed_hash)

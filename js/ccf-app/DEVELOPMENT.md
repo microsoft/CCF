@@ -10,8 +10,7 @@ npm install
 
 ## Code
 
-**Relative imports**:
-Every relative import of another TypeScript module **must** end with `.js` (yes, not `.ts`).
+**Relative imports**: Every relative import of another TypeScript module **must** end with `.js` (yes, not `.ts`).
 The extension is the **target** extension and all TypeScript-related tooling understands this.
 Omitting extensions will lead to omitted extensions in the transpiled `.js` files which may cause import issues depending on the module loader used in the consuming environment.
 
@@ -49,17 +48,7 @@ npm run docs:watch
 TypeDoc and its supported TypeScript 6 compiler are isolated in `doc/package.json`, while application builds use the TypeScript version in the root `package.json`.
 The documentation toolchain is installed automatically by the commands above.
 
-TypeDoc's default theme is extended in `doc/theme` to add a backlink to CCF's main docs and add a version selector.
-
-When this package's docs are built within CCF's multi-version Sphinx-based documentation then additional environment variables are set to enable the version selector.
-
-A dummy CCF version configuration can be simulated as follows to show the version selector without running Sphinx:
-
-```sh
-export SMV_CURRENT_VERSION=ccf-0.19.1
-export SMV_METADATA_PATH=$(pwd)/doc/theme/helpers/versions.sample.json
-npm run docs:watch
-```
+The [CCF documentation build](../../doc/contribute/build_ccf.rst#update-the-documentation) includes this TypeDoc output.
 
 ## Packaging
 

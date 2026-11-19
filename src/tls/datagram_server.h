@@ -68,8 +68,7 @@ namespace ccf::tls
     // Datagrams handled per readable event. The handler runs inline on the
     // loop thread, so an unbounded drain would let a UDP flood starve every
     // other handle on the loop. The socket stays level-triggered, so any
-    // remainder is picked up on the next iteration. This replaces the read
-    // quota the previous ringbuffer-based UDP transport applied.
+    // remainder is picked up on the next iteration.
     static constexpr size_t max_datagrams_per_event = 64;
 
     uv_loop_t* loop = nullptr;

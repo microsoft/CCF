@@ -4,12 +4,16 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../node_inbound_message.h"
 
+#include "node/recovered_service_opening_task.h"
 #include "tasks/job_board.h"
 #include "tasks/worker.h"
 
 #include <atomic>
 #include <doctest/doctest.h>
+#include <functional>
+#include <latch>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -23,6 +27,7 @@ namespace
     std::optional<ccf::NodeId> last_from;
     std::vector<uint8_t> last_payload;
     size_t call_count = 0;
+    bool reject_consensus = false;
 
     void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
@@ -31,10 +36,44 @@ namespace
       ++call_count;
     }
 
+    void recv_message(
+      const ccf::NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> payload = {})
+    {
+      recv_message(from, message.data(), message.size());
+      last_payload.insert(last_payload.end(), payload.begin(), payload.end());
+    }
+
     void recv_channel_message(
       const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
       recv_message(from, data, size);
+    }
+
+    std::pair<std::span<const uint8_t>, std::span<const uint8_t>>
+    recv_consensus_message(
+      const ccf::NodeId& from, const uint8_t* data, size_t size)
+    {
+      recv_message(from, data, size);
+      if (reject_consensus)
+      {
+        throw std::runtime_error("Rejected consensus authentication");
+      }
+      const auto payload = std::span<const uint8_t>(data, size).subspan(1);
+      return {payload.first(1), payload.subspan(1)};
+    }
+  };
+
+  // Exercises retry scheduling, not NodeState's opening/rollback policy,
+  // which is covered by recovery e2e tests.
+  struct StubRecoveryNode
+  {
+    std::function<bool()> attempt;
+
+    bool open_recovered_service_if_primary()
+    {
+      return attempt();
     }
   };
 
@@ -45,6 +84,106 @@ namespace
       task->do_task();
     }
   }
+}
+
+TEST_CASE(
+  "Recovery opening delayed retry" * doctest::test_suite("recovery_retry"))
+{
+  using namespace std::chrono_literals;
+  ccf::tasks::JobBoard board;
+  auto node = std::make_shared<StubRecoveryNode>();
+  bool retry = true;
+  size_t calls = 0;
+  node->attempt = [&]() {
+    ++calls;
+    return retry;
+  };
+  auto task =
+    std::make_shared<ccf::RecoveredServiceOpeningTask<StubRecoveryNode>>(
+      node, board, 10ms);
+  std::weak_ptr<decltype(task)::element_type> weak_task = task;
+  board.add_delayed_task(task, 10ms);
+  task.reset();
+  board.tick(9ms);
+  run_all(board);
+  REQUIRE(calls == 0);
+  board.tick(1ms);
+  run_all(board);
+  REQUIRE(calls == 1);
+  board.tick(37ms);
+  run_all(board);
+  REQUIRE(calls == 2);
+
+  SUBCASE("Completion or inapplicable recovery stops and releases the task")
+  {
+    retry = false;
+    board.tick(10ms);
+    run_all(board);
+    REQUIRE(calls == 3);
+    REQUIRE(weak_task.expired());
+  }
+  SUBCASE("Owner destruction stops without accessing it")
+  {
+    std::weak_ptr<StubRecoveryNode> weak_node = node;
+    node.reset();
+    REQUIRE(weak_node.expired());
+    board.tick(10ms);
+    run_all(board);
+    REQUIRE(calls == 2);
+    REQUIRE(weak_task.expired());
+  }
+  SUBCASE("Shutdown discards the outstanding retry")
+  {
+    board.shutdown();
+    REQUIRE(weak_task.expired());
+  }
+  board.tick(100ms);
+  run_all(board);
+  REQUIRE(board.get_summary().pending_tasks == 0);
+}
+
+TEST_CASE(
+  "Recovery retry is scheduled after its running attempt" *
+  doctest::test_suite("recovery_retry"))
+{
+  using namespace std::chrono_literals;
+  ccf::tasks::JobBoard board;
+  auto node = std::make_shared<StubRecoveryNode>();
+  std::latch started{1}, release{1};
+  size_t calls = 0;
+  node->attempt = [&]() {
+    ++calls;
+    if (calls == 1)
+    {
+      started.count_down();
+      release.wait();
+      return true;
+    }
+    return false;
+  };
+  board.add_delayed_task(
+    std::make_shared<ccf::RecoveredServiceOpeningTask<StubRecoveryNode>>(
+      node, board, 10ms),
+    10ms);
+  board.tick(10ms);
+  auto first = board.get_task();
+  REQUIRE(first != nullptr);
+  std::thread worker([&]() { first->do_task(); });
+  started.wait();
+  board.tick(100ms);
+  const auto queued_while_running = board.get_task();
+  release.count_down();
+  worker.join();
+  REQUIRE(queued_while_running == nullptr);
+  REQUIRE(calls == 1);
+  board.tick(9ms);
+  run_all(board);
+  REQUIRE(calls == 1);
+  board.tick(1ms);
+  run_all(board);
+  REQUIRE(calls == 2);
+  board.tick(100ms);
+  REQUIRE(board.get_task() == nullptr);
 }
 
 TEST_CASE(
@@ -129,7 +268,7 @@ TEST_CASE(
     REQUIRE(consensus.call_count == 0);
   }
 
-  SUBCASE("Consensus messages dispatch to consensus")
+  SUBCASE("Consensus receives only the normalized channel view")
   {
     StubHandler forwarder;
     StubHandler channels;
@@ -146,9 +285,61 @@ TEST_CASE(
 
     REQUIRE(consensus.call_count == 1);
     REQUIRE(consensus.last_from == from);
-    REQUIRE(consensus.last_payload == payload);
+    REQUIRE(consensus.last_payload == std::vector<uint8_t>{2, 3, 4, 5});
     REQUIRE(forwarder.call_count == 0);
+    REQUIRE(channels.call_count == 1);
+    REQUIRE(channels.last_from == from);
+    REQUIRE(channels.last_payload == payload);
+  }
+
+  SUBCASE("Authentication failure prevents consensus dispatch")
+  {
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
+    channels.reject_consensus = true;
+
+    REQUIRE_THROWS_AS(
+      ccf::recv_node_inbound_message(
+        ccf::consensus_msg,
+        from,
+        payload.data(),
+        payload.size(),
+        &forwarder,
+        &channels,
+        &consensus),
+      std::runtime_error);
+    REQUIRE(channels.call_count == 1);
+    REQUIRE(consensus.call_count == 0);
+    REQUIRE(forwarder.call_count == 0);
+  }
+
+  SUBCASE("Missing consensus or channels prevents dispatch")
+  {
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
+    auto* channels_ptr = &channels;
+    auto* consensus_ptr = &consensus;
+    SUBCASE("Missing channels")
+    {
+      channels_ptr = nullptr;
+    }
+    SUBCASE("Missing consensus")
+    {
+      consensus_ptr = nullptr;
+    }
+    ccf::recv_node_inbound_message(
+      ccf::consensus_msg,
+      from,
+      payload.data(),
+      payload.size(),
+      &forwarder,
+      channels_ptr,
+      consensus_ptr);
     REQUIRE(channels.call_count == 0);
+    REQUIRE(consensus.call_count == 0);
+    REQUIRE(forwarder.call_count == 0);
   }
 
   SUBCASE("Unknown message types are rejected")
@@ -246,6 +437,35 @@ TEST_CASE("Node ingress lane" * doctest::test_suite("node_inbound_message"))
       ccf::tasks::try_do_task(*task);
     }
     REQUIRE(processed == 1);
+  }
+
+  SUBCASE("Channel rejection drops one message and permits the next")
+  {
+    ccf::tasks::JobBoard job_board;
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
+    channels.reject_consensus = true;
+    ccf::NodeIngress ingress(
+      job_board,
+      [&](
+        ccf::NodeMsgType type,
+        const ccf::NodeId& from,
+        const uint8_t* data,
+        size_t size) {
+        ccf::recv_node_inbound_message(
+          type, from, data, size, &forwarder, &channels, &consensus);
+      });
+    ingress.recv_node_inbound(
+      ccf::consensus_msg, peer, std::vector<uint8_t>{0, 1});
+    ingress.submit("accept", [&]() { channels.reject_consensus = false; });
+    ingress.recv_node_inbound(
+      ccf::consensus_msg, peer, std::vector<uint8_t>{0, 2});
+    run_all(job_board);
+    REQUIRE(channels.call_count == 2);
+    REQUIRE(consensus.call_count == 1);
+    REQUIRE(consensus.last_from == peer);
+    REQUIRE(consensus.last_payload == std::vector<uint8_t>{2});
   }
 
   SUBCASE("Work is rejected after stop and discarded at board shutdown")

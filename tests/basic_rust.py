@@ -2,9 +2,9 @@
 # Licensed under the Apache 2.0 License.
 
 import http
-import threading
 import time
 
+import infra.concurrency
 import infra.e2e_args
 import infra.network
 import suite.test_requirements as reqs
@@ -98,7 +98,7 @@ def test_compaction_conflict_is_retried(network, args):
                 "/app/compaction/slow", timeout=SLOW_REQUEST_TIMEOUT_S
             )
 
-    slow = threading.Thread(target=slow_write)
+    slow = infra.concurrency.Thread(target=slow_write)
     slow.start()
 
     # The endpoint reads the marker map before sleeping. Advance and compact a

@@ -78,7 +78,16 @@ namespace ccf
             "Ignoring consensus node message: consensus not initialised");
           return;
         }
-        consensus->recv_message(from, payload_data, payload_size);
+        if (n2n_channels == nullptr)
+        {
+          LOG_FAIL_FMT(
+            "Ignoring consensus node message: node-to-node channels not "
+            "initialised");
+          return;
+        }
+        const auto [message, payload] = n2n_channels->recv_consensus_message(
+          from, payload_data, payload_size);
+        consensus->recv_message(from, message, payload);
         return;
       }
       default:
@@ -89,8 +98,8 @@ namespace ccf
     }
   }
 
-  // Serial execution domain for node ingress. Inbound peer frames, node ticks
-  // and stop notices are executed in submission order on one OrderedTasks
+  // Serial execution domain for node ingress. Inbound peer frames and stop
+  // notices are executed in submission order on one OrderedTasks
   // lane, so they are mutually exclusive regardless of which worker runs them.
   // The lane is an ordinary task, so it queues behind other ready tasks and
   // waits for a free worker. Must outlive the execution of its lane.

@@ -19,6 +19,7 @@ namespace ccf::gov::endpoints
       ccf::MemberId member_id;
       std::string state_digest;
     };
+
     DECLARE_JSON_TYPE(StateDigest);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       StateDigest, member_id, "memberId", state_digest, "stateDigest");

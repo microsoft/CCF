@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -117 +117 @@
+-{"entries":[{"key":"00","value":"11"},{"key":"01","value":"aa"},{"key":"0100","value":"cc"}],"from":null,"map":"a","seq":117,"store":5,"to":null,"tx":42,"type":"range"}
++{"entries":[{"key":"00","value":"11"},{"key":"01","value":"aa"}],"from":null,"map":"a","seq":117,"store":5,"to":null,"tx":42,"type":"range"}

@@ -8,11 +8,13 @@
 #include "ccf/ds/hex.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
+#include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/node_transport.h"
 #include "node/node_types.h"
 
 #include <algorithm>
+#include <barrier>
 #include <cstring>
 #include <mutex>
 #include <queue>
@@ -248,6 +250,186 @@ NodeOutboundMsg<MsgType> get_first(
   auto msg = outbound_msgs[0];
   REQUIRE(msg.type == msg_type);
   return msg;
+}
+
+TEST_CASE_FIXTURE(
+  TransportsFixture, "Legacy consensus authentication and normalization")
+{
+  auto service_key = ccf::crypto::make_ec_key_pair(default_curve);
+  auto service = generate_self_signed_cert(service_key, "CN=Service");
+  auto key1 = ccf::crypto::make_ec_key_pair(default_curve);
+  auto key2 = ccf::crypto::make_ec_key_pair(default_curve);
+  NodeToNodeChannelManager sender(transport1);
+  NodeToNodeChannelManager receiver(transport2);
+  sender.initialize(
+    nid1,
+    service,
+    key1,
+    generate_endorsed_cert(key1, "CN=Node1", service_key, service));
+  receiver.initialize(
+    nid2,
+    service,
+    key2,
+    generate_endorsed_cert(key2, "CN=Node2", service_key, service));
+
+  const auto bytes = [](const auto& msg) {
+    const auto* p = reinterpret_cast<const uint8_t*>(&msg);
+    return std::vector<uint8_t>(p, p + sizeof(msg));
+  };
+  const auto initial = bytes(aft::RequestVote{});
+  REQUIRE(sender.send_consensus_message(nid2, initial.data(), initial.size()));
+  const auto exchange_handshake =
+    [&](RecordingTransport& source, auto& target, const NodeId& from) {
+      for (auto& op : source.take())
+      {
+        const auto* send = std::get_if<RecordingTransport::Send>(&op);
+        REQUIRE(send != nullptr);
+        if (send->type == channel_msg)
+        {
+          REQUIRE(target.recv_channel_message(
+            from, send->payload.data(), send->payload.size()));
+        }
+        else
+        {
+          const auto [header, body] = target.recv_consensus_message(
+            from, send->payload.data(), send->payload.size());
+          REQUIRE(std::equal(
+            header.begin(), header.end(), initial.begin(), initial.end()));
+          REQUIRE(body.empty());
+        }
+      }
+    };
+  exchange_handshake(host1, receiver, nid1);
+  exchange_handshake(host2, sender, nid2);
+  exchange_handshake(host1, receiver, nid1);
+  REQUIRE(sender.channel_open(nid2));
+  REQUIRE(receiver.channel_open(nid1));
+
+  struct ConsensusReceiver
+  {
+    size_t calls = 0;
+    const uint8_t* data = nullptr;
+    const uint8_t* body_data = nullptr;
+    std::vector<uint8_t> payload;
+
+    void recv_message(
+      const NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> ledger_payload = {})
+    {
+      CHECK(from == nid1);
+      ++calls;
+      data = message.data();
+      body_data = ledger_payload.data();
+      payload.assign(message.begin(), message.end());
+      payload.insert(
+        payload.end(), ledger_payload.begin(), ledger_payload.end());
+    }
+
+    void recv_message(const NodeId& from, const uint8_t* d, size_t n)
+    {
+      recv_message(from, {d, n});
+    }
+  } consensus;
+
+  // Forwarded messages are not used by this test.
+  auto* forwarder = &consensus;
+  const auto dispatch = [&](std::vector<uint8_t>& wire) {
+    ccf::recv_node_inbound_message(
+      consensus_msg,
+      nid1,
+      wire.data(),
+      wire.size(),
+      forwarder,
+      &receiver,
+      &consensus);
+  };
+
+  for (const auto& header :
+       {bytes(aft::AppendEntries{}),
+        bytes(aft::AppendEntriesResponse{}),
+        bytes(aft::RequestVote{}),
+        bytes(aft::RequestVoteResponse{}),
+        bytes(aft::RequestPreVote{}),
+        bytes(aft::RequestPreVoteResponse{}),
+        bytes(aft::ProposeRequestVote{})})
+  {
+    REQUIRE(sender.send_consensus_message(nid2, header.data(), header.size()));
+    auto ops = host1.take();
+    REQUIRE(ops.size() == 1);
+    const auto& send = std::get<RecordingTransport::Send>(ops.front());
+    auto wire = send.payload;
+    REQUIRE(wire.size() == header.size() + GcmHdr::serialised_size());
+    const auto calls_before = consensus.calls;
+
+    for (size_t length = 0; length < wire.size(); ++length)
+    {
+      INFO("Truncation length: ", length);
+      auto truncated =
+        std::vector<uint8_t>(wire.begin(), wire.begin() + length);
+      CHECK_THROWS(dispatch(truncated));
+      CHECK(std::equal(
+        truncated.begin(),
+        truncated.end(),
+        wire.begin(),
+        wire.begin() + length));
+    }
+    for (const auto offset :
+         {header.size() - 1, header.size(), wire.size() - 1})
+    {
+      INFO("Corruption offset: ", offset);
+      auto corrupted = wire;
+      corrupted[offset] ^= 1;
+      const auto before = corrupted;
+      CHECK_THROWS_AS(dispatch(corrupted), NodeToNode::DroppedMessageException);
+      CHECK(corrupted == before);
+    }
+    CHECK(consensus.calls == calls_before);
+
+    auto expected = header;
+    const uint8_t* header_data = header.data();
+    auto header_size = header.size();
+    if (
+      serialized::peek<aft::CftMsgType>(header_data, header_size) ==
+      aft::append_entries)
+    {
+      // The host appends ledger bytes outside the channel authentication.
+      // A non-uniform body catches accidental shifts or overwrites.
+      std::vector<uint8_t> ledger_bytes(1024 * 1024);
+      for (size_t i = 0; i < ledger_bytes.size(); ++i)
+      {
+        ledger_bytes[i] = static_cast<uint8_t>(i);
+      }
+      wire.insert(wire.end(), ledger_bytes.begin(), ledger_bytes.end());
+      expected.insert(expected.end(), ledger_bytes.begin(), ledger_bytes.end());
+    }
+    auto replay = wire;
+    auto* const allocation = wire.data();
+    const auto capacity = wire.capacity();
+    const auto wire_size = wire.size();
+    const auto* const ledger_start =
+      wire.data() + header.size() + GcmHdr::serialised_size();
+    dispatch(wire);
+    CHECK(consensus.calls == calls_before + 1);
+    CHECK(consensus.payload == expected);
+    CHECK(wire.data() == allocation);
+    CHECK(wire.capacity() == capacity);
+    CHECK(wire.size() == wire_size);
+    CHECK(consensus.data == allocation);
+    CHECK(consensus.body_data == ledger_start);
+    CHECK(wire == replay);
+    CHECK_THROWS_AS(dispatch(replay), NodeToNode::DroppedMessageException);
+    CHECK(consensus.calls == calls_before + 1);
+  }
+
+  const auto calls_before = consensus.calls;
+  for (const auto type :
+       {aft::append_entries_signed_response, static_cast<aft::CftMsgType>(255)})
+  {
+    auto invalid = bytes(type);
+    CHECK_THROWS_AS(dispatch(invalid), std::runtime_error);
+  }
+  CHECK(consensus.calls == calls_before);
 }
 
 TEST_CASE_FIXTURE(TransportsFixture, "Client/Server key exchange")
@@ -894,7 +1076,9 @@ TEST_CASE_FIXTURE(TransportsFixture, "Full NodeToNode test")
               }
               case NodeMsgType::forwarded_msg:
               default:
+              {
                 REQUIRE(false);
+              }
             }
           }
 
@@ -1689,6 +1873,150 @@ TEST_CASE_FIXTURE(TransportsFixture, "Key rotation")
 
   equal_modulo_holes(tc1.received_results, expected_received_by_1);
   equal_modulo_holes(tc2.received_results, expected_received_by_2);
+}
+
+TEST_CASE_FIXTURE(
+  TransportsFixture, "Channel manager owns its periodic maintenance")
+{
+  using namespace std::chrono_literals;
+  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+  auto node_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto node_cert =
+    generate_endorsed_cert(node_kp, "CN=Node1", network_kp, service_cert);
+  ccf::tasks::JobBoard job_board;
+  auto manager = std::make_shared<NodeToNodeChannelManager>(transport1);
+  manager->register_periodic_tasks(job_board, 10ms);
+  manager->set_idle_timeout(25ms);
+  const auto run_all = [&]() {
+    while (auto task = job_board.get_task())
+    {
+      task->do_task();
+    }
+  };
+  job_board.tick(10ms);
+  run_all();
+  REQUIRE_FALSE(manager->have_channel(nid2));
+
+  manager->initialize(nid1, service_cert, node_kp, node_cert);
+  MsgType message{};
+  REQUIRE(manager->send_authenticated(
+    nid2, NodeMsgType::consensus_msg, message.data(), message.size()));
+  job_board.tick(9ms);
+  run_all();
+  REQUIRE(manager->have_channel(nid2));
+  job_board.tick(1ms);
+  run_all();
+  REQUIRE(manager->have_channel(nid2));
+  job_board.tick(17ms);
+  run_all();
+  REQUIRE_FALSE(manager->have_channel(nid2));
+
+  job_board.tick(10ms);
+  SUBCASE("Board shutdown cancels maintenance while the manager is alive")
+  {
+    job_board.shutdown();
+  }
+  SUBCASE("Queued tasks do not retain the manager")
+  {
+    std::weak_ptr<NodeToNodeChannelManager> weak_manager = manager;
+    manager.reset();
+    REQUIRE(weak_manager.expired());
+  }
+  run_all();
+  job_board.tick(100ms);
+  run_all();
+  REQUIRE(job_board.get_summary().pending_tasks == 0);
+}
+
+TEST_CASE_FIXTURE(
+  TransportsFixture,
+  "Channel maintenance and authenticated traffic concurrency smoke")
+{
+  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+  auto kp1 = ccf::crypto::make_ec_key_pair(default_curve);
+  auto cert1 =
+    generate_endorsed_cert(kp1, "CN=Node1", network_kp, service_cert);
+  auto kp2 = ccf::crypto::make_ec_key_pair(default_curve);
+  auto cert2 =
+    generate_endorsed_cert(kp2, "CN=Node2", network_kp, service_cert);
+  NodeToNodeChannelManager channels1(transport1), channels2(transport2);
+  channels1.initialize(nid1, service_cert, kp1, cert1);
+  channels2.initialize(nid2, service_cert, kp2, cert2);
+  channels2.set_idle_timeout(std::chrono::milliseconds(1000));
+  MsgType message{};
+  REQUIRE(channels1.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, message.data(), message.size()));
+  REQUIRE(channels2.recv_channel_message(
+    nid1, get_first(host1, NodeMsgType::channel_msg).data()));
+  REQUIRE(channels1.recv_channel_message(
+    nid2, get_first(host2, NodeMsgType::channel_msg).data()));
+  REQUIRE(channels2.recv_channel_message(
+    nid1, get_first(host1, NodeMsgType::channel_msg).data()));
+  REQUIRE(channels2.channel_open(nid1));
+  host1.take();
+  host2.take();
+  constexpr size_t iterations = 100;
+  for (size_t i = 0; i < iterations; ++i)
+  {
+    REQUIRE(channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, message.data(), message.size()));
+  }
+  const auto messages = read_outbound_msgs<MsgType>(host1);
+  REQUIRE(messages.size() == iterations);
+  size_t received = 0, sent = 0;
+  // Exercise real authenticated traffic under TSAN without promising a
+  // particular lock interleaving. Idle eviction has separate boundary tests.
+  std::barrier start{4};
+  std::thread maintenance([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      channels2.tick(std::chrono::milliseconds(1));
+    }
+  });
+  std::thread inbound([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      const auto& msg = messages[i];
+      const auto* data = msg.payload.data();
+      auto size = msg.payload.size();
+      if (channels2.recv_authenticated(nid1, msg.authenticated_hdr, data, size))
+      {
+        ++received;
+      }
+    }
+  });
+  std::thread outbound([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      if (channels2.send_authenticated(
+            nid1, NodeMsgType::consensus_msg, message.data(), message.size()))
+      {
+        ++sent;
+      }
+    }
+  });
+  start.arrive_and_wait();
+  maintenance.join();
+  inbound.join();
+  outbound.join();
+
+  REQUIRE(received == iterations);
+  REQUIRE(sent == iterations);
+  REQUIRE(channels2.channel_open(nid1));
+  const auto responses = read_outbound_msgs<MsgType>(host2);
+  REQUIRE(responses.size() == iterations);
+  for (const auto& response : responses)
+  {
+    const auto* data = response.payload.data();
+    auto size = response.payload.size();
+    REQUIRE(channels1.recv_authenticated(
+      nid2, response.authenticated_hdr, data, size));
+  }
 }
 
 TEST_CASE_FIXTURE(TransportsFixture, "Timeout idle channels")

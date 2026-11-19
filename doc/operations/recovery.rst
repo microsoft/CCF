@@ -42,7 +42,12 @@ Each node will then immediately restore the public entries of its ledger (``ledg
 
 At startup, the host discovers the latest committed chunk end across all configured ledger directories before restoring mutable chunks. Mutable chunks whose reconstructed end is at or before this committed frontier, including incomplete chunks without an end index in their filename, are renamed with an ``.ignored`` suffix rather than reused for new appends. Chunks which overlap the committed history but extend beyond that frontier are retained.
 
-Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration. When the recovery service is created, the recovery transaction deletes all previous-service node entries and their associated endorsed certificates and local-sealing records. These nodes do not pass through the normal ``Retired`` and ``retired_committed`` states because the previous service does not participate in the new service's consensus. Consequently, previous-service nodes are absent from both :http:GET:`/node/network/nodes` and :http:GET:`/node/network/removable_nodes` after recovery. See :ref:`architecture/consensus/index:Retirement details` for the normal live-service retirement sequence.
+Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration.
+When the recovery service is created, the recovery transaction deletes all previous-service node entries and their associated endorsed certificates and local-sealing records.
+These nodes do not pass through the normal ``Retired`` and ``retired_committed`` states because the previous service does not participate in the new service's consensus.
+Consequently, previous-service nodes are absent from both :http:GET:`/node/network/nodes` and :http:GET:`/node/network/removable_nodes` after recovery.
+Once the recovery transaction is globally committed, they are also absent from :http:GET:`/node/consensus` on every node, including nodes which joined from a snapshot taken before the recovery, and are no longer contacted.
+See :ref:`architecture/consensus/index:Retirement details` for the normal live-service retirement sequence.
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.
 
@@ -129,6 +134,9 @@ Recovery Decision Protocol
 At a high level, the recovery decision protocol allows recovering nodes to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
 The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to unseal and recover the private ledger.
 
+Recovery traffic must be isolated between services, or protocol messages must include and validate a distinct per-service identifier.
+Without one of these protections, nodes from different services with identical attestations may be aliased as participants in the same recovery decision.
+
 The protocol uses three phases to ensure that so long as the hosts and network between them is sufficiently healthy, forks are prevented and the most up-to-date ledger is recovered.
 Specifically, the protocol ensures this so long as: all nodes restart, have full network connectivity and a majority of nodes' on-disk ledger contains every committed transaction.
 This is a strong, but reasonable requirement, and greatly simplifies the protocol.
@@ -214,6 +222,24 @@ This failover path is illustrated below.
 
 If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
 
+Trace viewer
+^^^^^^^^^^^^
+
+The `trace viewer <../trace-viewer/index.html>`__ steps through recovery decision protocol traces as the protocol's Lean model replays them.
+For each step, it shows the nodes' records beside the model state that they lead to, and, when the model does not explain a trace, the step that fails and why.
+The published viewer shows the replayer's fixtures: recorded traces, and invalid traces that the replayer must reject.
+
+Nodes trace the protocol when started with the ``CCF_RECOVERY_TRACE`` environment variable set, for example to ``1``, and log each step as an ``RDP_TRACE`` record.
+To view other traces, put each node's log in a directory as a ``.out`` file, with a ``scenario.json`` like those of the replayer's :ccf_repo:`fixtures </lean/disaster-recovery/replayer/fixtures>`.
+Then build the replayer with ``lake``, which `elan <https://lean-lang.org/install/>`__ installs, and serve the viewer at ``http://localhost:8000/``:
+
+.. code-block:: bash
+
+    cd lean/disaster-recovery
+    lake build disaster-recovery-replay
+    python3 replayer/viewer/build.py --logs DIR
+    python3 -m http.server --bind 127.0.0.1 8000 --directory replayer/viewer
+
 Local Sealing
 ~~~~~~~~~~~~~
 
@@ -244,13 +270,13 @@ The following diagram illustrates the key hierarchy and encryption relationships
 
         subgraph KG["Key Generation"]
             subgraph Sealing Key
-                SK["Sealing Key<br/>(HKDF)"]
-                Label["Label: <br/>CCF AMD Local Sealing Key"]
+                SK["Sealing Key (HKDF)"]
+                Label["Label: CCF AMD Local Sealing Key"]
                 DK -->|ikm| SK
                 Label -->|info| SK
             end
             
-            RSA["Recovery Key<br/>(RSA Key Pair)"]
+            RSA["Recovery Key (RSA Key Pair)"]
             PubKey["Public Key"]
             PrivKey["Private Key"]
             RSA --> PubKey
@@ -261,7 +287,7 @@ The following diagram illustrates the key hierarchy and encryption relationships
         end
 
         subgraph Sealed["Store: nodes.sealed_recovery_keys"]
-            SPK["Sealed Private Key<br/>(AES-GCM encrypted)"]
+            SPK["Sealed Private Key (AES-GCM encrypted)"]
             SK -->|key| SPK
             PrivKey --> SPK
 
@@ -271,11 +297,11 @@ The following diagram illustrates the key hierarchy and encryption relationships
 
 
         subgraph Shares["Store: internal.sealed_shares table"]
-            WLS["Wrapped Ledger Secret<br/>(AES-GCM encrypted)"]
+            WLS["Wrapped Ledger Secret (AES-GCM encrypted)"]
             LSWK -->|key| WLS
             LS --> WLS
 
-            EWK["Encrypted Wrapping Key<br/>(per-node, RSA-OAEP encrypted)"]
+            EWK["Encrypted Wrapping Key (per-node, RSA-OAEP encrypted)"]
             StoredPubKey -->|key| EWK
             LSWK --> EWK
         end

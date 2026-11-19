@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/did_key.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -16,8 +18,9 @@
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "crypto/cose.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "pal/uvm_endorsements.h"
@@ -42,6 +45,7 @@ namespace ccf
     return ccf::TxID{
       .view = txid.view - aft::starting_view_change, .seqno = txid.seqno - 1};
   }
+
   inline ccf::TxID next_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{
@@ -57,6 +61,28 @@ namespace ccf
   class InternalTablesAccess
   {
   private:
+    static std::string check_identity_enrollment(
+      const ccf::crypto::Pem& cert, const std::optional<std::string>& did_key)
+    {
+      if (did_key.has_value())
+      {
+        if (!cert.empty())
+        {
+          throw std::logic_error("did_key enrollment must not include cert");
+        }
+        // Validates that the DID decodes to a supported public key
+        ccf::crypto::public_key_der_from_did_key(*did_key);
+        return *did_key;
+      }
+      if (cert.empty())
+      {
+        throw std::logic_error(
+          "Enrollment requires a legacy cert or a certificate-free did_key");
+      }
+      auto cert_der = ccf::crypto::make_verifier(cert)->cert_der();
+      return ccf::crypto::Sha256Hash(cert_der).hex_str();
+    }
+
     static void remove_nodes(ccf::kv::Tx& tx, const std::set<NodeId>& node_ids)
     {
       auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
@@ -191,14 +217,15 @@ namespace ccf
       ccf::kv::Tx& tx, const NewMember& member_pub_info)
     {
       auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
+      auto* member_keys =
+        tx.rw<ccf::MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS);
       auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
 
-      auto member_cert_der =
-        ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
-      auto id = ccf::crypto::Sha256Hash(member_cert_der).hex_str();
+      MemberId id = check_identity_enrollment(
+        member_pub_info.cert, member_pub_info.did_key);
 
       auto member = member_certs->get(id);
-      if (member.has_value())
+      if (member.has_value() || member_keys->has(id))
       {
         // No effect if member already exists
         return id;
@@ -215,7 +242,7 @@ namespace ccf
               "Member {} cannot be added as recovery_role has a value set but "
               "no "
               "encryption public key is specified",
-              id));
+              id.value()));
           }
         }
         else
@@ -228,13 +255,22 @@ namespace ccf
               "Recovery member {} cannot be added as with recovery role value "
               "of "
               "{}",
-              id,
+              id.value(),
               member_recovery_role));
           }
         }
       }
 
-      member_certs->put(id, member_pub_info.cert);
+      if (member_pub_info.did_key.has_value())
+      {
+        member_keys->put(
+          id,
+          ccf::crypto::public_key_der_from_did_key(*member_pub_info.did_key));
+      }
+      else
+      {
+        member_certs->put(id, member_pub_info.cert);
+      }
       member_info->put(
         id,
         {MemberStatus::ACCEPTED,
@@ -354,18 +390,54 @@ namespace ccf
     static void create_service(
       ccf::kv::Tx& tx,
       const ccf::crypto::Pem& service_cert,
+      const std::optional<ccf::crypto::Pem>& pq_service_cert,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
     {
       auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+      const auto prev_service_info = service->get();
+      auto* signing_identities =
+        tx.rw<SigningIdentities>(Tables::SIGNING_IDENTITIES);
+
+      const auto service_key = ccf::crypto::COSEKey::from_der_cert(
+        ccf::crypto::cert_pem_to_der(service_cert));
+      if (service_key.ec_public_key() == nullptr)
+      {
+        throw std::logic_error(
+          "Classical service signing key must be an EC key");
+      }
+      const auto signing_identity = signing_identity_from_key(service_key);
+
+      // Builds with ML-DSA always hold a PQ identity, and a service which has
+      // one never loses it
+      const bool prev_service_has_pq_cert =
+        prev_service_info.has_value() && prev_service_info->pq_cert.has_value();
+      const bool pq_identity_required = ccf::crypto::mldsa_supported() ||
+        signing_identities->has(IdentityType::PQ) || prev_service_has_pq_cert;
+      if (pq_identity_required && !pq_service_cert.has_value())
+      {
+        throw std::logic_error("An ML-DSA service certificate is required");
+      }
+
+      std::optional<Identity> pq_signing_identity;
+      if (pq_service_cert.has_value())
+      {
+        const auto pq_service_key = ccf::crypto::COSEKey::from_der_cert(
+          ccf::crypto::cert_pem_to_der(pq_service_cert.value()));
+        if (pq_service_key.mldsa_public_key() == nullptr)
+        {
+          throw std::logic_error(
+            "PQ service signing key must be an ML-DSA key");
+        }
+        pq_signing_identity = signing_identity_from_key(pq_service_key);
+      }
 
       size_t recovery_count = 0;
       std::optional<ccf::kv::Version> prev_service_created_at = std::nullopt;
 
       if (service->has())
       {
-        const auto prev_service_info = service->get();
         if (!prev_service_info.has_value())
         {
           throw std::logic_error("Failed to get previous service info");
@@ -408,21 +480,23 @@ namespace ccf
         recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
       }
 
-      const auto service_cert_der = ccf::crypto::cert_pem_to_der(service_cert);
-      // Current contract is to keep the existing service key for signing.
-      tx.wo<SigningIdentities>(Tables::SIGNING_IDENTITIES)
-        ->put(
-          IdentityType::CLASSICAL,
-          {IdentityKind::X509_SPKI_DER,
-           ccf::crypto::public_key_der_from_cert(service_cert_der)});
+      // Publish the keys atomically with their service certificates.
+      signing_identities->put(IdentityType::CLASSICAL, signing_identity);
+      if (pq_signing_identity.has_value())
+      {
+        signing_identities->put(IdentityType::PQ, pq_signing_identity.value());
+      }
 
-      service->put(
-        {service_cert,
-         recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-         prev_service_created_at,
-         recovery_count,
-         service_data,
-         create_txid});
+      const ServiceInfo service_info{
+        .cert = service_cert,
+        .pq_cert = pq_service_cert,
+        .status =
+          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
+        .previous_service_identity_version = prev_service_created_at,
+        .recovery_count = recovery_count,
+        .service_data = service_data,
+        .current_service_create_txid = create_txid};
+      service->put(service_info);
     }
 
     static bool is_service_created(
@@ -434,14 +508,25 @@ namespace ccf
         service_info->cert == expected_service_cert;
     }
 
-    static bool endorse_previous_identity(
-      ccf::kv::Tx& tx, const ccf::crypto::ECKeyPair_OpenSSL& service_key)
+  private:
+    // Endorsement, signed with the service key of identity_type, of the key
+    // which signed the previous endorsement of that type if back_endorse, or
+    // else of the service key itself. Returns nullopt, already logged, if it
+    // cannot be signed.
+    template <typename KeyPair>
+    static std::optional<ccf::CoseEndorsement>
+    sign_previous_identity_endorsement(
+      ccf::kv::Tx& tx,
+      IdentityType identity_type,
+      const KeyPair& service_key,
+      bool back_endorse,
+      int64_t iat)
     {
       auto* service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();
 
       auto* previous_identity_endorsement =
-        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+        tx.ro<ccf::PreviousServiceIdentityEndorsement>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
 
       ccf::CoseEndorsement endorsement{};
@@ -450,10 +535,10 @@ namespace ccf
 
       endorsement.endorsing_key = service_key.public_key_der();
 
-      if (previous_identity_endorsement->has(IdentityType::CLASSICAL))
+      if (back_endorse)
       {
         const auto prev_endorsement =
-          previous_identity_endorsement->get(IdentityType::CLASSICAL);
+          previous_identity_endorsement->get(identity_type);
         if (!prev_endorsement.has_value())
         {
           throw std::logic_error("Failed to get previous endorsement");
@@ -477,7 +562,7 @@ namespace ccf
 
         endorsement.previous_version =
           previous_identity_endorsement->get_version_of_previous_write(
-            IdentityType::CLASSICAL);
+            identity_type);
 
         key_to_endorse = prev_endorsement->endorsing_key;
 
@@ -487,17 +572,19 @@ namespace ccf
         if (!previous_service_last_signed_root->has())
         {
           LOG_FAIL_FMT(
-            "Failed to sign previous service identity: no last signed root");
-          return false;
+            "Failed to sign previous {} service identity: no last signed root",
+            identity_type);
+          return std::nullopt;
         }
 
         auto root_opt = previous_service_last_signed_root->get();
         if (!root_opt.has_value())
         {
           LOG_FAIL_FMT(
-            "Failed to sign previous service identity: no last signed root "
-            "value");
-          return false;
+            "Failed to sign previous {} service identity: no last signed root "
+            "value",
+            identity_type);
+          return std::nullopt;
         }
         const auto root = root_opt.value();
         previous_root.assign(root.h.begin(), root.h.end());
@@ -521,6 +608,18 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
+      // Checks the published identity of this type against its certificate
+      const auto signing_identity =
+        get_service_signing_identity(tx, identity_type);
+      if (
+        !signing_identity.has_value() ||
+        !is_same_key(signing_identity.value(), endorsement.endorsing_key))
+      {
+        throw std::logic_error(fmt::format(
+          "Endorsing key is not the {} service signing identity",
+          identity_type));
+      }
+
       auto from_txid = endorsement.endorsement_epoch_begin.to_str();
       std::string to_txid{};
       if (endorsement.endorsement_epoch_end)
@@ -528,29 +627,97 @@ namespace ccf
         to_txid = endorsement.endorsement_epoch_end->to_str();
       }
 
-      const auto time_since_epoch =
-        std::chrono::duration_cast<std::chrono::seconds>(
-          std::chrono::system_clock::now().time_since_epoch())
-          .count();
-
       try
       {
         endorsement.endorsement = cose::sign_endorsement(
-          service_key,
-          time_since_epoch,
-          from_txid,
-          to_txid,
-          previous_root,
-          key_to_endorse);
+          service_key, iat, from_txid, to_txid, previous_root, key_to_endorse);
       }
       catch (const std::exception& error)
       {
         LOG_FAIL_FMT(
-          "Failed to sign previous service identity: {}", error.what());
+          "Failed to sign previous {} service identity: {}",
+          identity_type,
+          error.what());
+        return std::nullopt;
+      }
+
+      return endorsement;
+    }
+
+  public:
+    // Endorses, with the service key of each identity type, the previous
+    // service identity of that type, or the service key itself if there is
+    // none. pq_service_key is nullptr for a service without a PQ identity.
+    // Writes the endorsements of every type or none, and returns false if they
+    // cannot be signed (already logged).
+    static bool endorse_previous_identity(
+      ccf::kv::Tx& tx,
+      const ccf::crypto::ECKeyPair_OpenSSL& service_key,
+      const ccf::crypto::MLDSAKeyPairPtr& pq_service_key)
+    {
+      auto* previous_identity_endorsement =
+        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+
+      const auto iat = std::chrono::duration_cast<std::chrono::seconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+
+      const auto classical_endorsement = sign_previous_identity_endorsement(
+        tx,
+        IdentityType::CLASSICAL,
+        service_key,
+        previous_identity_endorsement->has(IdentityType::CLASSICAL),
+        iat);
+      if (!classical_endorsement.has_value())
+      {
         return false;
       }
 
-      previous_identity_endorsement->put(IdentityType::CLASSICAL, endorsement);
+      std::optional<ccf::CoseEndorsement> pq_endorsement = std::nullopt;
+      if (pq_service_key != nullptr)
+      {
+        // The PQ chain continues only from a PQ endorsement written with the
+        // previous CLASSICAL one, by the opening of the previous service, so
+        // that the PQ back-endorsement has the same epochs and previous root
+        // as the CLASSICAL one. Otherwise the previous service, if any, had no
+        // PQ identity, and the PQ chain starts with a self-endorsement.
+        const auto previous_pq_version =
+          previous_identity_endorsement->get_version_of_previous_write(
+            IdentityType::PQ);
+        const bool continue_pq_chain = previous_pq_version.has_value() &&
+          previous_pq_version ==
+            previous_identity_endorsement->get_version_of_previous_write(
+              IdentityType::CLASSICAL);
+        if (previous_pq_version.has_value() && !continue_pq_chain)
+        {
+          LOG_INFO_FMT(
+            "Previous PQ service identity endorsement at {} was not written by "
+            "the previous service, starting a new PQ endorsement chain",
+            previous_pq_version.value());
+        }
+
+        pq_endorsement = sign_previous_identity_endorsement(
+          tx, IdentityType::PQ, *pq_service_key, continue_pq_chain, iat);
+        if (!pq_endorsement.has_value())
+        {
+          return false;
+        }
+      }
+      else if (get_service_signing_identity(tx, IdentityType::PQ).has_value())
+      {
+        throw std::logic_error(
+          "No ML-DSA service key for the published PQ service signing "
+          "identity");
+      }
+
+      previous_identity_endorsement->put(
+        IdentityType::CLASSICAL, classical_endorsement.value());
+      if (pq_endorsement.has_value())
+      {
+        previous_identity_endorsement->put(
+          IdentityType::PQ, pq_endorsement.value());
+      }
       return true;
     }
 
@@ -635,6 +802,25 @@ namespace ccf
       return service_status.has_value() &&
         (service_status.value() == ServiceStatus::RECOVERING ||
          service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES);
+    }
+
+    /// Prevents a downgrade: recovering a ledger whose service has an ML-DSA
+    /// identity on a build without ML-DSA would silently drop that identity.
+    /// @throws std::logic_error in that case
+    static void check_service_identity_supported(ccf::kv::ReadOnlyTx& tx)
+    {
+      if (ccf::crypto::mldsa_supported())
+      {
+        return;
+      }
+      const auto active_service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
+      if (active_service.has_value() && active_service->pq_cert.has_value())
+      {
+        throw std::logic_error(
+          "Cannot recover a ledger whose service has an ML-DSA identity with "
+          "a build without ML-DSA support. Use a build with OpenSSL 3.5 or "
+          "newer to recover this ledger.");
+      }
     }
 
     static void trust_node(

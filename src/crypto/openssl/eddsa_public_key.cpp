@@ -53,6 +53,10 @@ namespace ccf::crypto
     }
   }
 
+  EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    key(pkey.release())
+  {}
+
   EdDSAPublicKey_OpenSSL::~EdDSAPublicKey_OpenSSL()
   {
     if (key != nullptr)
@@ -99,15 +103,21 @@ namespace ccf::crypto
     switch (gid)
     {
       case CurveID::CURVE25519:
+      {
         return EVP_PKEY_ED25519;
+      }
       case CurveID::X25519:
+      {
         return EVP_PKEY_X25519;
+      }
       case CurveID::NONE:
       case CurveID::SECP384R1:
       case CurveID::SECP256R1:
       case CurveID::SECP521R1:
+      {
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
+      }
     }
     return NID_undef;
   }
@@ -118,11 +128,17 @@ namespace ccf::crypto
     switch (nid)
     {
       case NID_ED25519:
+      {
         return CurveID::CURVE25519;
+      }
       case NID_X25519:
+      {
         return CurveID::X25519;
+      }
       default:
+      {
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+      }
     }
     return CurveID::NONE;
   }
@@ -133,7 +149,8 @@ namespace ccf::crypto
     JsonWebKeyEdDSAPublic jwk;
     std::vector<uint8_t> raw_pub(EVP_PKEY_size(key));
     size_t raw_pub_len = raw_pub.size();
-    EVP_PKEY_get_raw_public_key(key, raw_pub.data(), &raw_pub_len);
+    OpenSSL::CHECK1(
+      EVP_PKEY_get_raw_public_key(key, raw_pub.data(), &raw_pub_len));
     raw_pub.resize(raw_pub_len);
     jwk.x = b64url_from_raw(raw_pub, false);
     jwk.crv = curve_id_to_jwk_eddsa_curve(get_curve_id());

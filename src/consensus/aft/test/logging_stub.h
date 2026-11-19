@@ -4,8 +4,8 @@
 
 #include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
-#include "consensus/aft/raft.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft.h"
+#include "consensus/aft/cft_types.h"
 
 #include <map>
 #include <optional>
@@ -195,13 +195,9 @@ namespace aft
     // and the message is not captured.
     bool fail_sends = false;
 
-    // When set, recv_authenticated() reports that a message failed
-    // authentication, as a real channel does for a message it cannot verify.
-    bool fail_recv_authentication = false;
-
     ChannelStubProxy() {}
 
-    size_t count_messages_with_type(RaftMsgType type)
+    size_t count_messages_with_type(CftMsgType type)
     {
       size_t count = 0;
       for (const auto& [nid, m] : messages)
@@ -209,7 +205,7 @@ namespace aft
         const uint8_t* data = m.data();
         size_t size = m.size();
 
-        if (serialized::peek<RaftMsgType>(data, size) == type)
+        if (serialized::peek<CftMsgType>(data, size) == type)
         {
           ++count;
         }
@@ -219,7 +215,7 @@ namespace aft
     }
 
     std::optional<std::vector<uint8_t>> pop_first(
-      RaftMsgType type, ccf::NodeId target)
+      CftMsgType type, ccf::NodeId target)
     {
       for (auto it = messages.begin(); it != messages.end(); ++it)
       {
@@ -227,7 +223,7 @@ namespace aft
         const uint8_t* data = m.data();
         size_t size = m.size();
 
-        if (serialized::peek<RaftMsgType>(data, size) == type)
+        if (serialized::peek<CftMsgType>(data, size) == type)
         {
           if (target == nid)
           {
@@ -260,15 +256,6 @@ namespace aft
       messages.emplace_back(to, std::move(m));
       return true;
     }
-
-    bool recv_authenticated(
-      const ccf::NodeId& from_node,
-      std::span<const uint8_t> cb,
-      const uint8_t*& data,
-      size_t& size) override
-    {
-      return !fail_recv_authentication;
-    }
   };
 
   enum class ReplicatedDataType
@@ -288,6 +275,7 @@ namespace aft
     ReplicatedDataType type;
     std::vector<uint8_t> data;
   };
+
   DECLARE_JSON_TYPE(ReplicatedData);
   DECLARE_JSON_REQUIRED_FIELDS(ReplicatedData, type, data);
 
@@ -330,6 +318,29 @@ namespace aft
       }
 
       consensus->add_configuration(version, configuration);
+    }
+  };
+
+  class RetiredCommittedHook : public ccf::kv::ConsensusHook
+  {
+    std::vector<ccf::kv::NodeId> node_ids;
+    ccf::kv::Version version;
+
+  public:
+    RetiredCommittedHook(
+      const ccf::kv::Configuration::Nodes& retired_committed,
+      ccf::kv::Version version_) :
+      version(version_)
+    {
+      for (const auto& [node_id, _] : retired_committed)
+      {
+        node_ids.push_back(node_id);
+      }
+    }
+
+    void call(ccf::kv::ConfigurableConsensus* consensus) override
+    {
+      consensus->trace_retired_committed_tx(version, node_ids);
     }
   };
 
@@ -464,9 +475,7 @@ namespace aft
 
     LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
 
-    // compact and rollback emulate the behaviour of the retired_committed hook
-    // in the real store through the retired_committed_entries vector, see
-    // node_state.h, circa line 2147
+    // Emulate NodeState::on_nodes_global_commit with transaction versions.
     virtual void compact(Index i) override
     {
       for (auto& [version, configuration] : retired_committed_entries)
@@ -478,7 +487,7 @@ namespace aft
           {
             retired_committed_node_ids.push_back(node_id);
           }
-          set_retired_committed_hook(i, retired_committed_node_ids);
+          set_retired_committed_hook(version, retired_committed_node_ids);
         }
         else
         {
@@ -489,7 +498,7 @@ namespace aft
         std::remove_if(
           retired_committed_entries.begin(),
           retired_committed_entries.end(),
-          [i](const auto& entry) { return entry.first < i; }),
+          [i](const auto& entry) { return entry.first <= i; }),
         retired_committed_entries.end());
     }
 
@@ -530,6 +539,8 @@ namespace aft
         ccf::kv::Configuration::Nodes configuration =
           nlohmann::json::parse(r.data);
         retired_committed_entries.emplace_back(version, configuration);
+        hooks.push_back(
+          std::make_unique<aft::RetiredCommittedHook>(configuration, version));
       }
 
       return std::make_unique<ExecutionWrapper>(

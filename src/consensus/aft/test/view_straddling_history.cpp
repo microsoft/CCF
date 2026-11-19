@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// A transaction which consensus is going to reject must never be published
+// A transaction which CFT is going to reject must never be published
 // to the ledger history. Readers of the history, for instance
 // set_root_on_proposals(), take no Store lock, so a transiently appended
 // digest would give them a root which is in neither the KV nor the ledger.
@@ -17,7 +17,7 @@
 // - Tx A passes Store::commit()'s view check under version_lock, which is
 //   then released.
 // - An election rolls the Store and the ledger history back to seqno 1.
-// - A appends its digest to the history, then consensus rejects it.
+// - A appends its digest to the history, then CFT rejects it.
 
 #include "node/history.h"
 #include "view_straddling_common.h"
@@ -128,7 +128,7 @@ TEST_CASE(
   fixture.history->pause.release();
   stale_worker.join();
 
-  INFO("Consensus rejects A, and history, KV and ledger agree");
+  INFO("cft rejects A, and history, KV and ledger agree");
   REQUIRE(stale_result.has_value());
   CHECK(stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
   {
@@ -138,6 +138,6 @@ TEST_CASE(
     CHECK(final_root == baseline_root);
   }
   CHECK(fixture.store->current_txid().seqno == 1);
-  CHECK(fixture.raft->get_last_idx() == 1);
-  CHECK(fixture.raft->ledger->ledger.size() == 1);
+  CHECK(fixture.cft->get_last_idx() == 1);
+  CHECK(fixture.cft->ledger->ledger.size() == 1);
 }

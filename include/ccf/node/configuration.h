@@ -4,9 +4,12 @@
 
 #include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/mldsa_parameter_set.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/entity_id.h"
+#include "ccf/fluentd_config.h"
+#include "ccf/identity_id_format.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
@@ -34,6 +37,7 @@ namespace ccf
     std::optional<std::string> encryption_public_key_file = std::nullopt;
     std::optional<std::string> data_json_file = std::nullopt;
     std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
+    std::optional<std::string> did_key = std::nullopt;
 
     bool operator==(const ParsedMemberInfo&) const = default;
   };
@@ -56,13 +60,22 @@ namespace ccf
 
   struct CCFConfig
   {
-    // One more worker than configured is started, in addition to the dispatch
-    // thread. A configured value of 0 logs a warning (see
+    // One more worker than configured is started, in addition to the
+    // coordination thread. A configured value of 0 logs a warning (see
     // validate_and_coerce_worker_threads in src/host/run.cpp).
     size_t worker_threads = 1;
 
     // 2**24.5 as per RFC8446 Section 5.5
     size_t node_to_node_message_limit = 23'726'566;
+
+    struct NodeToNode
+    {
+      std::optional<ccf::ds::SizeString> max_message_size = std::nullopt;
+
+      bool operator==(const NodeToNode&) const = default;
+    };
+
+    NodeToNode node_to_node = {};
 
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
@@ -81,10 +94,12 @@ namespace ccf
       std::string subject_name = "CN=CCF Node";
       std::vector<std::string> subject_alt_names;
       ccf::crypto::CurveID curve_id = ccf::crypto::CurveID::SECP384R1;
+      IdentityIdFormat id_format = IdentityIdFormat::SHA256;
       size_t initial_validity_days = 1;
 
       bool operator==(const NodeCertificateInfo&) const = default;
     };
+
     NodeCertificateInfo node_certificate = {};
 
     struct Ledger
@@ -93,9 +108,13 @@ namespace ccf
       std::vector<std::string> read_only_directories;
       ccf::ds::SizeString chunk_size = {"5MB"};
       ccf::ds::SizeString max_transaction_size = {"32MB"};
+      std::optional<ccf::ds::SizeString> max_read_size = std::nullopt;
+      std::optional<ccf::ds::SizeString> max_pending_append_bytes =
+        std::nullopt;
 
       bool operator==(const Ledger&) const = default;
     };
+
     Ledger ledger = {};
 
     struct LedgerSignatures
@@ -105,6 +124,7 @@ namespace ccf
 
       bool operator==(const LedgerSignatures&) const = default;
     };
+
     LedgerSignatures ledger_signatures = {};
 
     struct JWT
@@ -114,6 +134,7 @@ namespace ccf
 
       bool operator==(const JWT&) const = default;
     };
+
     JWT jwt = {};
 
     struct Attestation
@@ -133,10 +154,12 @@ namespace ccf
 
         bool operator==(const Environment&) const = default;
       };
+
       Environment environment = {};
 
       bool operator==(const Attestation&) const = default;
     };
+
     Attestation attestation = {};
 
     struct Snapshots
@@ -157,10 +180,12 @@ namespace ccf
 
         bool operator==(const BackupFetch&) const = default;
       };
+
       BackupFetch backup_fetch = {};
 
       bool operator==(const Snapshots&) const = default;
     };
+
     Snapshots snapshots = {};
 
     struct FilesCleanup
@@ -171,6 +196,7 @@ namespace ccf
 
       bool operator==(const FilesCleanup&) const = default;
     };
+
     FilesCleanup files_cleanup = {};
 
     struct IdentityHistoryFetch
@@ -180,7 +206,21 @@ namespace ccf
 
       bool operator==(const IdentityHistoryFetch&) const = default;
     };
+
     IdentityHistoryFetch identity_history_fetch = {};
+
+    struct Observability
+    {
+      using Fluentd = FluentdConfig;
+
+      // Empty means the feature is off: no thread ever opens a socket.
+      std::vector<Fluentd> fluentd;
+
+      bool operator==(const Observability&) const = default;
+    };
+
+    Observability observability = {};
+
     ccf::ds::TimeString tick_interval = {"10ms"};
     ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
@@ -201,6 +241,7 @@ namespace ccf
 
       bool operator==(const OutputFiles&) const = default;
     };
+
     OutputFiles output_files = {};
 
     struct Logging
@@ -209,6 +250,7 @@ namespace ccf
 
       bool operator==(const Logging&) const = default;
     };
+
     Logging logging = {};
 
     struct Memory
@@ -219,12 +261,33 @@ namespace ccf
 
       bool operator==(const Memory&) const = default;
     };
+
     Memory memory = {};
+
+    // Keep explicit new values distinct from defaults so legacy aliases only
+    // supply limits which have not been configured under their new names.
+    [[nodiscard]] size_t get_max_ledger_read_size() const
+    {
+      return ledger.max_read_size.value_or(memory.max_msg_size).count_bytes();
+    }
+
+    [[nodiscard]] size_t get_max_pending_append_bytes() const
+    {
+      return ledger.max_pending_append_bytes.value_or(memory.circuit_size)
+        .count_bytes();
+    }
+
+    [[nodiscard]] size_t get_node_to_node_max_message_size() const
+    {
+      return node_to_node.max_message_size.value_or(memory.max_msg_size)
+        .count_bytes();
+    }
 
     struct Command
     {
       StartType type = StartType::Start;
       std::string service_certificate_file = "service_cert.pem";
+      std::string pq_service_certificate_file = "pq_service_cert.pem";
 
       struct Start
       {
@@ -233,10 +296,13 @@ namespace ccf
         ccf::ServiceConfiguration service_configuration;
         size_t initial_service_certificate_validity_days = 1;
         std::string service_subject_name = "CN=CCF Service";
+        ccf::crypto::MLDSAParameterSet service_mldsa_parameter_set =
+          ccf::crypto::MLDSAParameterSet::ML_DSA_65;
         ccf::COSESignaturesConfig cose_signatures;
 
         bool operator==(const Start&) const = default;
       };
+
       Start start = {};
 
       struct Join
@@ -253,18 +319,27 @@ namespace ccf
 
         bool operator==(const Join&) const = default;
       };
+
       Join join = {};
 
       struct Recover
       {
         size_t initial_service_certificate_validity_days = 1;
+        ccf::crypto::MLDSAParameterSet service_mldsa_parameter_set =
+          ccf::crypto::MLDSAParameterSet::ML_DSA_65;
         std::string previous_service_identity_file;
         bool operator==(const Recover&) const = default;
       };
+
       Recover recover = {};
     };
+
     Command command = {};
   };
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeToNode);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeToNode);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::NodeToNode, max_message_size);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo);
@@ -273,6 +348,7 @@ namespace ccf
     subject_name,
     subject_alt_names,
     curve_id,
+    id_format,
     initial_validity_days);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Ledger);
@@ -282,7 +358,9 @@ namespace ccf
     directory,
     read_only_directories,
     chunk_size,
-    max_transaction_size);
+    max_transaction_size,
+    max_read_size,
+    max_pending_append_bytes);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::LedgerSignatures);
@@ -345,6 +423,27 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::IdentityHistoryFetch, max_attempts, retry_interval);
 
+  DECLARE_JSON_ENUM(
+    FluentdConfig::Delivery,
+    {{FluentdConfig::Delivery::BUFFERED_BEST_EFFORT, "buffered-best-effort"},
+     {FluentdConfig::Delivery::UNBUFFERED_NON_BLOCKING,
+      "unbuffered-non-blocking"}});
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability::Fluentd);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability::Fluentd, host, port);
+  DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
+    CCFConfig::Observability::Fluentd,
+    queue_capacity,
+    "queue_capacity",
+    delivery,
+    "delivery",
+    tag_prefix_allow_list,
+    "tag-prefix-allow-list");
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::Observability, fluentd);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
     RecoveryDecisionProtocolConfig, expected_locations);
@@ -360,12 +459,14 @@ namespace ccf
     LogFormat, {{LogFormat::TEXT, "Text"}, {LogFormat::JSON, "Json"}});
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParsedMemberInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo, certificate_file);
+  DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo);
   DECLARE_JSON_OPTIONAL_FIELDS(
     ParsedMemberInfo,
+    certificate_file,
     encryption_public_key_file,
     data_json_file,
-    recovery_role);
+    recovery_role,
+    did_key);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::OutputFiles);
@@ -393,6 +494,7 @@ namespace ccf
     service_configuration,
     initial_service_certificate_validity_days,
     service_subject_name,
+    service_mldsa_parameter_set,
     cose_signatures);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command::Join);
@@ -412,12 +514,18 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::Command::Recover,
     initial_service_certificate_validity_days,
+    service_mldsa_parameter_set,
     previous_service_identity_file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Command, service_certificate_file, start, join, recover);
+    CCFConfig::Command,
+    service_certificate_file,
+    pq_service_certificate_file,
+    start,
+    join,
+    recover);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network, command);
@@ -434,8 +542,10 @@ namespace ccf
     files_cleanup,
     pending_node_timeout,
     node_to_node_message_limit,
+    node_to_node,
     historical_cache_soft_limit,
     identity_history_fetch,
+    observability,
     tick_interval,
     slow_io_logging_threshold,
     node_client_interface,

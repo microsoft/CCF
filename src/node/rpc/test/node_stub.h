@@ -85,11 +85,6 @@ namespace ccf
       return {};
     }
 
-    size_t get_jwt_attempts() override
-    {
-      return 0;
-    }
-
     QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,

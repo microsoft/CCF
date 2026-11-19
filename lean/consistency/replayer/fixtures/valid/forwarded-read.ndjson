@@ -1,0 +1,6 @@
+{"action":"RwTxRequestAction","type":"RwTxRequest","tx":0}
+{"action":"RwTxExecuteAction","type":"RwTxExecute","tx":0,"tx_id":[2,10]}
+{"action":"RwTxResponseAction","type":"RwTxResponse","tx":0,"tx_id":[2,10]}
+{"action":"StatusCommittedResponseAction","type":"TxStatusReceived","tx_id":[2,10],"status":"CommittedStatus"}
+{"action":"RoTxRequestAction","type":"RoTxRequest","tx":1}
+{"action":"RoTxResponseAction","type":"RoTxResponse","tx":1,"tx_id":[2,10]}

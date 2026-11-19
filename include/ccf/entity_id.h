@@ -13,10 +13,8 @@ namespace ccf
   struct EntityId
   {
   public:
-    // The underlying value type should be blit-serialisable so that it can be
-    // written to and read from the ring buffer
-    static constexpr size_t LENGTH = 64; // hex-encoded SHA-256 hash
-    using Value = std::string; // < hex-encoded hash
+    static constexpr size_t LENGTH = 64; // Legacy hex-encoded SHA-256 hash
+    using Value = std::string;
 
   private:
     Value id;
@@ -24,9 +22,13 @@ namespace ccf
   public:
     EntityId() = default;
     EntityId(const EntityId& id_) = default;
+
     EntityId(const Value& id_) : id(id_) {}
+
     EntityId(Value&& id_) : id(std::move(id_)) {}
+
     EntityId(EntityId&& id_) noexcept : id(std::move(id_)) {}
+
     EntityId& operator=(EntityId&& other) = default;
 
     operator std::string() const
@@ -102,7 +104,7 @@ namespace ccf
     else
     {
       throw ccf::JsonParseError(fmt::format(
-        "{} should be hex-encoded string: {}",
+        "{} should be an identity string: {}",
         FmtExtender::ID_LABEL,
         j.dump()));
     }
@@ -122,12 +124,8 @@ namespace ccf
   {
     schema["type"] = "string";
 
-    // According to the spec, "format is an open value, so you can use any
-    // formats, even not those defined by the OpenAPI Specification"
-    // https://swagger.io/docs/specification/data-models/data-types/#format
-    schema["format"] = "hex";
-    schema["pattern"] =
-      fmt::format("^[a-f0-9]{{{}}}$", EntityId<FmtExtender>::LENGTH);
+    schema["pattern"] = "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$";
+    schema["maxLength"] = 104;
   }
 
   struct MemberIdFormatter
@@ -139,6 +137,7 @@ namespace ccf
 
     static constexpr auto ID_LABEL = "MemberId";
   };
+
   using MemberId = EntityId<MemberIdFormatter>;
 
   struct UserIdFormatter
@@ -150,6 +149,7 @@ namespace ccf
 
     static constexpr auto ID_LABEL = "UserId";
   };
+
   using UserId = EntityId<UserIdFormatter>;
 
   struct NodeIdFormatter
@@ -161,6 +161,7 @@ namespace ccf
 
     static constexpr auto ID_LABEL = "NodeId";
   };
+
   using NodeId = EntityId<NodeIdFormatter>;
 }
 
@@ -191,9 +192,11 @@ namespace std
     }
   };
 }
+
 // NOLINTEND(cert-dcl58-cpp)
 
 FMT_BEGIN_NAMESPACE
+
 template <typename FmtExtender>
 struct formatter<ccf::EntityId<FmtExtender>>
 {
@@ -211,6 +214,7 @@ struct formatter<ccf::EntityId<FmtExtender>>
     return format_to(ctx.out(), "{}", ss.str());
   }
 };
+
 FMT_END_NAMESPACE
 
 namespace ccf::kv::serialisers

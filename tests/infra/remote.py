@@ -517,6 +517,7 @@ class CCFRemote:
         identity_history_fetch_max_attempts=None,
         identity_history_fetch_retry_interval=None,
         host_data_transparent_statement_path=None,
+        node_id_format="sha256",
         **kwargs,
     ):
         """
@@ -555,7 +556,9 @@ class CCFRemote:
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id
+        self.node_id_format = node_id_format
         self.pem = f"{local_node_id}.pem"
+        self.pq_service_cert_file = "pq_service_cert.pem"
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
@@ -671,14 +674,30 @@ class CCFRemote:
             )
             with open(config_file, encoding="utf-8") as f:
                 config = json.load(f)
+            self.node_id_format = config.get("node_certificate", {}).get(
+                "id_format", "sha256"
+            )
             self.pem = config.get("node_certificate_file", "nodecert.pem")
             self.node_address_file = config.get("node_address_file")
             self.rpc_addresses_file = config.get("rpc_addresses_file")
+            self.pq_service_cert_file = config.get("command", {}).get(
+                "pq_service_certificate_file", self.pq_service_cert_file
+            )
 
         elif major_version is None or major_version > 1:
             loader = FileSystemLoader(binary_dir)
             t_env = Environment(loader=loader, autoescape=select_autoescape())
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
+
+            # Older binaries ship their own template with only the shared limit.
+            legacy_max_message_size = kwargs.get("max_msg_size_bytes") or "64MB"
+            ledger_read_size = (
+                kwargs.get("ledger_max_read_bytes") or legacy_max_message_size
+            )
+            node_frame_size = (
+                kwargs.get("node_to_node_max_message_bytes") or legacy_max_message_size
+            )
+            kwargs["max_msg_size_bytes"] = legacy_max_message_size
 
             output = t.render(
                 start_type=start_type.name.title(),
@@ -694,6 +713,7 @@ class CCFRemote:
                 read_only_snapshots_dir=self.read_only_snapshots_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
+                node_id_format=node_id_format,
                 host_log_level=log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 pending_node_timeout=pending_node_timeout,
@@ -742,6 +762,24 @@ class CCFRemote:
                 # Parse and re-emit output to produce consistently formatted (indented) JSON.
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
+                self.pq_service_cert_file = j["command"].get(
+                    "pq_service_certificate_file", self.pq_service_cert_file
+                )
+
+                if "memory" in j and "max_read_size" not in j.get("ledger", {}):
+                    from infra.e2e_args import _convert_size_string_to_bytes
+
+                    if _convert_size_string_to_bytes(
+                        ledger_read_size
+                    ) != _convert_size_string_to_bytes(node_frame_size):
+                        raise ValueError(
+                            "This binary's configuration template cannot represent "
+                            "independent ledger and node-to-node size limits"
+                        )
+                    j["memory"]["circuit_size"] = (
+                        kwargs.get("ledger_max_pending_append_bytes") or "16MB"
+                    )
+                    j["memory"]["max_msg_size"] = ledger_read_size
 
                 # Releases before 7.0.16 reject this unknown HTTP configuration field.
                 if v is not None and v < Version("7.0.16"):
@@ -810,7 +848,10 @@ class CCFRemote:
             if not members_info:
                 raise ValueError("no members info for start node")
             for mi in members_info:
-                data_files += [os.path.join(self.common_dir, mi["certificate_file"])]
+                if mi.get("certificate_file"):
+                    data_files += [
+                        os.path.join(self.common_dir, mi["certificate_file"])
+                    ]
                 if mi["encryption_public_key_file"]:
                     data_files += [
                         os.path.join(self.common_dir, mi["encryption_public_key_file"])
@@ -862,6 +903,9 @@ class CCFRemote:
             self.remote.get(self.rpc_addresses_file, dst_path, timeout=timeout)
         if self.start_type in {StartType.start, StartType.recover}:
             self.remote.get("service_cert.pem", dst_path, timeout=timeout)
+
+    def get_pq_service_certificate_file(self, dst_path, timeout=FILE_TIMEOUT_S):
+        self.remote.get(self.pq_service_cert_file, dst_path, timeout=timeout)
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()

@@ -7,10 +7,12 @@
 #include "ds/ccf_assert.h"
 #include "node/node_to_node.h"
 #include "node/node_transport.h"
+#include "tasks/periodic_task_owner.h"
 
 namespace ccf
 {
-  class NodeToNodeChannelManager : public NodeToNode
+  class NodeToNodeChannelManager : public NodeToNode,
+                                   public ccf::tasks::PeriodicTaskOwner
   {
   private:
     std::shared_ptr<AbstractNodeTransport> transport;
@@ -31,6 +33,7 @@ namespace ccf
       ccf::crypto::ECKeyPairPtr node_kp;
       std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     };
+
     std::unique_ptr<ThisNode> this_node; //< Not available at construction, only
                                          // after calling initialize()
 
@@ -103,6 +106,16 @@ namespace ccf
       std::shared_ptr<AbstractNodeTransport> transport_) :
       transport(std::move(transport_))
     {}
+
+    void register_periodic_tasks(
+      ccf::tasks::JobBoard& job_board, std::chrono::milliseconds period)
+    {
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed) { tick(elapsed); },
+        "Node channel maintenance");
+    }
 
     void initialize(
       const NodeId& self_id,

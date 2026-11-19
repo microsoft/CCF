@@ -144,6 +144,39 @@ static void benchmark_aes_gcm_encrypt(picobench::state& s)
 }
 
 template <size_t NContents, bool ReuseContext>
+static void benchmark_aes_gcm_encrypt_span(picobench::state& s)
+{
+  const std::vector<uint8_t> key(GCM_DEFAULT_KEY_SIZE, 0x42);
+  const auto contents = make_contents<NContents>();
+  auto aes_gcm_key = make_key_aes_gcm(key);
+  auto context = aes_gcm_key->make_context();
+  StandardGcmHeader header;
+  std::vector<uint8_t> cipher(contents.size());
+  uint64_t iv = 0;
+
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    memcpy(header.iv.data(), &iv, sizeof(iv));
+    ++iv;
+    if constexpr (ReuseContext)
+    {
+      context->encrypt(
+        header.get_iv(), contents, {}, std::span<uint8_t>(cipher), header.tag);
+    }
+    else
+    {
+      aes_gcm_key->encrypt(
+        header.get_iv(), contents, {}, std::span<uint8_t>(cipher), header.tag);
+    }
+    do_not_optimize(cipher);
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+template <size_t NContents, bool ReuseContext>
 static void benchmark_aes_gcm_decrypt(picobench::state& s)
 {
   const std::vector<uint8_t> key(GCM_DEFAULT_KEY_SIZE, 0x42);
@@ -214,6 +247,7 @@ const std::vector<int> sizes = {10};
 #define PICO_HASH_SUFFIX() iterations(sizes)
 
 PICOBENCH_SUITE("create ec keypairs");
+
 namespace CREATE_KEYPAIRS
 {
   auto create_256r1 = benchmark_create<ECKeyPair_OpenSSL, CurveID::SECP256R1>;
@@ -224,6 +258,7 @@ namespace CREATE_KEYPAIRS
 }
 
 PICOBENCH_SUITE("sign secp384r1");
+
 namespace SIGN_SECP384R1
 {
   auto sign_384_ossl_1byte =
@@ -240,6 +275,7 @@ namespace SIGN_SECP384R1
 }
 
 PICOBENCH_SUITE("sign secp256r1");
+
 namespace SIGN_SECP256R1
 {
   auto sign_256r1_ossl_1byte =
@@ -256,6 +292,7 @@ namespace SIGN_SECP256R1
 }
 
 PICOBENCH_SUITE("verify secp384r1");
+
 namespace SECP384R1
 {
   auto verify_384_ossl_1byte = benchmark_verify<
@@ -281,6 +318,7 @@ namespace SECP384R1
 }
 
 PICOBENCH_SUITE("verify secp256r1");
+
 namespace SECP256R1
 {
   auto verify_256r1_ossl_1byte = benchmark_verify<
@@ -306,6 +344,7 @@ namespace SECP256R1
 }
 
 PICOBENCH_SUITE("sign RSA-2048");
+
 namespace SIGN_RSA2048
 {
   template <typename P, size_t KSZ, size_t NContents>
@@ -336,6 +375,7 @@ namespace SIGN_RSA2048
 }
 
 PICOBENCH_SUITE("verify RSA-2048");
+
 namespace VERIFY_RSA2048
 {
   template <typename P, size_t KSZ, size_t NContents>
@@ -376,6 +416,7 @@ namespace VERIFY_RSA2048
 }
 
 PICOBENCH_SUITE("hash");
+
 namespace Hashes
 {
   auto sha_384_ossl_1byte =
@@ -476,6 +517,7 @@ DEFINE_SHA256_BENCH(14)
 DEFINE_SHA256_BENCH(16)
 
 PICOBENCH_SUITE("base64");
+
 namespace Base64_bench
 {
   template <size_t size>
@@ -520,6 +562,7 @@ namespace Base64_bench
 }
 
 PICOBENCH_SUITE("hmac");
+
 namespace HMAC_bench
 {
   auto openssl_hmac_sha256_32 = benchmark_hmac<MDType::SHA256, 32>;
@@ -530,6 +573,7 @@ namespace HMAC_bench
 }
 
 PICOBENCH_SUITE("aes gcm encrypt 64 bytes");
+
 namespace AES_GCM_ENCRYPT_64
 {
   auto aes_gcm_encrypt_new_context = benchmark_aes_gcm_encrypt<64, false>;
@@ -537,9 +581,18 @@ namespace AES_GCM_ENCRYPT_64
 
   auto aes_gcm_encrypt_reused_context = benchmark_aes_gcm_encrypt<64, true>;
   PICOBENCH(aes_gcm_encrypt_reused_context).iterations({100000});
+
+  auto aes_gcm_encrypt_new_context_span =
+    benchmark_aes_gcm_encrypt_span<64, false>;
+  PICOBENCH(aes_gcm_encrypt_new_context_span).iterations({100000});
+
+  auto aes_gcm_encrypt_reused_context_span =
+    benchmark_aes_gcm_encrypt_span<64, true>;
+  PICOBENCH(aes_gcm_encrypt_reused_context_span).iterations({100000});
 }
 
 PICOBENCH_SUITE("aes gcm encrypt 1024 bytes");
+
 namespace AES_GCM_ENCRYPT_1024
 {
   auto aes_gcm_encrypt_new_context = benchmark_aes_gcm_encrypt<1024, false>;
@@ -550,6 +603,7 @@ namespace AES_GCM_ENCRYPT_1024
 }
 
 PICOBENCH_SUITE("aes gcm decrypt 64 bytes");
+
 namespace AES_GCM_DECRYPT_64
 {
   auto aes_gcm_decrypt_new_context = benchmark_aes_gcm_decrypt<64, false>;
@@ -560,6 +614,7 @@ namespace AES_GCM_DECRYPT_64
 }
 
 PICOBENCH_SUITE("aes gcm decrypt 1024 bytes");
+
 namespace AES_GCM_DECRYPT_1024
 {
   auto aes_gcm_decrypt_new_context = benchmark_aes_gcm_decrypt<1024, false>;
@@ -572,6 +627,7 @@ namespace AES_GCM_DECRYPT_1024
 std::vector<ccf::crypto::sharing::Share> shares;
 
 PICOBENCH_SUITE("share");
+
 namespace SHARE_bench
 {
   template <size_t nshares, size_t threshold>

@@ -121,9 +121,13 @@ namespace
       case '`':
       case '|':
       case '~':
+      {
         return true;
+      }
       default:
+      {
         return false;
+      }
     }
   }
 
@@ -168,11 +172,15 @@ namespace
     {
 #define XX(code, name, string) \
   case code: \
-    return true;
+  { \
+    return true; \
+  }
       HTTP_STATUS_MAP(XX)
 #undef XX
       default:
+      {
         return false;
+      }
     }
   }
 
@@ -376,12 +384,18 @@ namespace
       switch (auth)
       {
         case CCF_RUST_AUTH_NONE:
+        {
           break;
+        }
         case CCF_RUST_AUTH_USER_CERT:
+        {
           policies = {ccf::user_cert_auth_policy};
           break;
+        }
         default:
+        {
           throw std::logic_error("Unsupported Rust authentication policy");
+        }
       }
 
       if (read_only)

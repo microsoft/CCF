@@ -4,6 +4,7 @@
 
 #include "ccf/cose_signatures_config.h"
 #include "ccf/ds/json_schema.h"
+#include "ccf/identity_id_format.h"
 #include "ccf/node/ledger_sign_mode.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/local_sealing.h"
@@ -16,7 +17,6 @@
 #include "ccf/service/tables/service.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
-#include "node/rpc/ringbuffer_messages.h"
 #include "pal/uvm_endorsements.h"
 
 #include <nlohmann/json.hpp>
@@ -72,6 +72,7 @@ namespace ccf
       ccf::crypto::Pem node_endorsed_certificate;
       ccf::crypto::Pem public_key;
       ccf::crypto::Pem service_cert;
+      std::optional<ccf::crypto::Pem> pq_service_cert = std::nullopt;
       QuoteInfo quote_info;
       ccf::crypto::Pem public_encryption_key;
       pal::PlatformAttestationMeasurement measurement;
@@ -101,6 +102,7 @@ namespace ccf
   {
     struct In
     {
+      IdentityIdFormat id_format = IdentityIdFormat::SHA256;
       NodeInfoNetwork node_info_network;
       QuoteInfo quote_info;
       ccf::crypto::Pem public_encryption_key;
@@ -116,6 +118,9 @@ namespace ccf
       // Incremented by the joiner each time it retries a join request after
       // receiving a StartupSeqnoIsOld response.
       std::optional<uint32_t> join_fetch_count = std::nullopt;
+      // Whether the joiner can hold an ML-DSA service identity. Absent on
+      // nodes that predate the field, which cannot.
+      std::optional<bool> mldsa_supported = std::nullopt;
     };
 
     struct Out

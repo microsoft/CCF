@@ -216,7 +216,7 @@ namespace ccf::node
                      recovery_decision_protocol::GossipRequest>(
           recovery_decision_protocol_gossip, node_context, "gossip_accepted")),
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .set_openapi_hidden(true)
       .set_locally_committed_function(trace_on_commit)
       .install();
@@ -243,7 +243,7 @@ namespace ccf::node
                      recovery_decision_protocol::TaggedWithNodeInfo>(
           recovery_decision_protocol_vote, node_context, "vote_accepted")),
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .set_openapi_hidden(true)
       .set_locally_committed_function(trace_on_commit)
       .install();
@@ -318,7 +318,7 @@ namespace ccf::node
           node_context,
           "iamopen_accepted")),
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .set_openapi_hidden(true)
       .set_locally_committed_function(trace_on_commit)
       .install();
@@ -402,7 +402,7 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(recovery_decision_protocol_timeout),
         {std::make_shared<NodeCertAuthnPolicy>()})
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .set_openapi_hidden(true)
       .set_locally_committed_function(trace_on_commit)
       .install();

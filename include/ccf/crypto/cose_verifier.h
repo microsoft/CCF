@@ -48,6 +48,7 @@ namespace ccf::crypto
     std::string from_txid;
     std::string to_txid;
   };
+
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg);
 }

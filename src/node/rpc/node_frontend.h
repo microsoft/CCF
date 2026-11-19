@@ -63,6 +63,7 @@ namespace ccf
 
   struct Attestation : public Quote
   {};
+
   DECLARE_JSON_TYPE_WITH_BASE(Attestation, Quote);
   DECLARE_JSON_REQUIRED_FIELDS(Attestation);
 
@@ -316,7 +317,8 @@ namespace ccf
       }
 
       auto pubk_der = ccf::crypto::public_key_der_from_cert(node_der);
-      NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
+      NodeId joining_node_id =
+        compute_node_id_from_pubk_der(pubk_der, in.id_format);
 
       pal::PlatformAttestationMeasurement measurement;
 
@@ -472,6 +474,25 @@ namespace ccf
     {
       const auto in = params.get<JoinNetworkNodeToNode::In>();
 
+      try
+      {
+        // Reject keys which cannot be identified in the requested format
+        // before any further processing
+        compute_node_id_from_cert_der(
+          args.rpc_ctx->get_session_context()->caller_cert, in.id_format);
+      }
+      catch (const std::exception& e)
+      {
+        // Covers both keys outside the did:key profile and key types the
+        // certificate parser does not support.
+        const std::string payload = fmt::format(
+          "Node public key cannot be identified in the requested format: {}",
+          e.what());
+        LOG_INFO_FMT("Join request rejected: {}", payload);
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, payload);
+      }
+
       // Not part of network => Internal error
       if (
         !this->node_operation.is_part_of_network() &&
@@ -499,6 +520,20 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           payload);
+      }
+
+      // Every node of a service with an ML-DSA identity must be able to hold
+      // it, so reject incapable joiners before they are recorded anywhere.
+      if (
+        active_service->pq_cert.has_value() &&
+        !in.mldsa_supported.value_or(false))
+      {
+        const std::string payload =
+          "This service has an ML-DSA identity and only accepts nodes built "
+          "with ML-DSA support (OpenSSL 3.5 or newer).";
+        LOG_INFO_FMT("Join request rejected: {}", payload);
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, payload);
       }
 
       auto* current_consensus = get_consensus();
@@ -965,6 +1000,7 @@ namespace ccf
         const auto& service_value = service_state.value();
         out.service_status = service_value.status;
         out.service_certificate = service_value.cert;
+        out.pq_service_certificate = service_value.pq_cert;
         out.recovery_count = service_value.recovery_count.value_or(0);
         out.service_data = service_value.service_data;
         out.current_service_create_txid =
@@ -1516,7 +1552,12 @@ namespace ccf
       }
 
       InternalTablesAccess::create_service(
-        ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
+        ctx.tx,
+        in.service_cert,
+        in.pq_service_cert,
+        in.create_txid,
+        in.service_data,
+        recovering);
 
       if (recovering)
       {
@@ -1842,7 +1883,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.8";
+      openapi_info.document_version = "5.0.10";
     }
 
     void init_handlers() override
@@ -1858,7 +1899,7 @@ namespace ccf
         return this->accept(args, params);
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_openapi_hidden(true)
         .install();
 
@@ -1871,7 +1912,7 @@ namespace ccf
         HTTP_POST,
         json_adapter(remove_expired_pending),
         {self_cert_auth_policy})
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_openapi_hidden(true)
         .install();
 
@@ -1895,7 +1936,7 @@ namespace ccf
       make_read_only_endpoint(
         "/state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
         .set_auto_schema<GetState>()
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_quote = [this](
@@ -1909,7 +1950,7 @@ namespace ccf
         json_read_only_adapter(get_quote),
         no_auth_required)
         .set_auto_schema<void, Quote>()
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .install();
       make_read_only_endpoint(
         "/attestations/self",
@@ -1917,7 +1958,7 @@ namespace ccf
         json_read_only_adapter(get_quote),
         no_auth_required)
         .set_auto_schema<void, Attestation>()
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_quotes = [this](
@@ -2031,7 +2072,7 @@ namespace ccf
         HTTP_GET,
         json_command_adapter(get_self_signed_certificate),
         no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_auto_schema<void, SelfSignedNodeCertificateInfo>()
         .install();
 
@@ -2059,7 +2100,7 @@ namespace ccf
         json_read_only_adapter(get_self_node),
         no_auth_required)
         .set_auto_schema<void, GetNode::Out>()
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_primary_node = [this](
@@ -2081,7 +2122,7 @@ namespace ccf
         };
       make_read_only_endpoint(
         "/primary", HTTP_HEAD, head_primary, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .add_openapi_response(
           HTTP_STATUS_PERMANENT_REDIRECT,
           "Redirect to the current primary node.")
@@ -2092,14 +2133,14 @@ namespace ccf
       };
       make_read_only_endpoint(
         "/primary", HTTP_GET, get_primary, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_backup = [this](ccf::endpoints::ReadOnlyEndpointContext& args) {
         this->get_backup(args);
       };
       make_read_only_endpoint("/backup", HTTP_GET, get_backup, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .install();
 
       auto consensus_config = [this](
@@ -2113,7 +2154,7 @@ namespace ccf
         HTTP_GET,
         json_command_adapter(consensus_config),
         no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_auto_schema<void, ConsensusConfig>()
         .install();
 
@@ -2128,7 +2169,7 @@ namespace ccf
         HTTP_GET,
         json_command_adapter(consensus_state),
         no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_auto_schema<void, ConsensusConfigDetails>()
         .install();
 
@@ -2138,7 +2179,7 @@ namespace ccf
 
       make_command_endpoint(
         "/metrics", HTTP_GET, node_metrics, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_auto_schema<void, NodeMetrics>()
         .install();
 
@@ -2164,7 +2205,7 @@ namespace ccf
 
       make_command_endpoint(
         "/version", HTTP_GET, json_command_adapter(version), no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_auto_schema<GetVersion>()
         .install();
 
@@ -2213,7 +2254,7 @@ namespace ccf
         HTTP_GET,
         json_adapter(service_config_handler),
         no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_auto_schema<void, ServiceConfiguration>()
         .install();
 
@@ -2228,7 +2269,7 @@ namespace ccf
         HTTP_GET,
         json_adapter(list_indexing_strategies),
         no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .set_auto_schema<void, nlohmann::json>()
         .install();
 
@@ -2241,7 +2282,7 @@ namespace ccf
         .add_openapi_response(
           HTTP_STATUS_SERVICE_UNAVAILABLE,
           "The application frontend is not ready.")
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_ready_gov = [this](ccf::endpoints::CommandEndpointContext& ctx) {
@@ -2253,7 +2294,7 @@ namespace ccf
         .add_openapi_response(
           HTTP_STATUS_SERVICE_UNAVAILABLE,
           "The governance frontend is not ready.")
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .install();
 
       auto create_snapshot =
@@ -2266,7 +2307,7 @@ namespace ccf
         json_adapter(create_snapshot),
         no_auth_required)
         .set_auto_schema<void, void>()
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(endpoints::RedirectionStrategy::None)
         .require_operator_feature(endpoints::OperatorFeature::SnapshotCreate)
         .install();
 

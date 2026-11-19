@@ -31,7 +31,6 @@ MAX_DIFF_LINES = 40
 DIRECTORY_ALIASES = {
     ("nlohmann", "json"): "nlohmann",
     ("project-everest", "everparse"): "evercbor",
-    ("thelink2012", "SmallVector"): "small_vector",
     ("microsoft", "TEE-Attestation-Verification"): "tee-attestation-verification",
 }
 

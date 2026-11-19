@@ -15,6 +15,7 @@ enum class Stage
   ShuttingDown,
   Terminated,
 };
+
 template <typename TState>
 struct LoopingThread
 {

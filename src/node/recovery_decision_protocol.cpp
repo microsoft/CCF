@@ -424,9 +424,11 @@ namespace ccf
         break;
       }
       default:
+      {
         throw std::logic_error(fmt::format(
           "Unknown recovery-decision-protocol state: {}",
           static_cast<int>(sm_state)));
+      }
     }
 
     // Advance timeout SM
@@ -435,18 +437,24 @@ namespace ccf
       switch (timeout_state)
       {
         case recovery_decision_protocol::StateMachine::GOSSIPING:
+        {
           LOG_TRACE_FMT("Advancing timeout SM to VOTING");
           put_timeout_state(recovery_decision_protocol::StateMachine::VOTING);
           break;
+        }
         case recovery_decision_protocol::StateMachine::VOTING:
+        {
           LOG_TRACE_FMT("Advancing timeout SM to OPENING");
           put_timeout_state(recovery_decision_protocol::StateMachine::OPENING);
           break;
+        }
         case recovery_decision_protocol::StateMachine::OPENING:
         case recovery_decision_protocol::StateMachine::JOINING:
         case recovery_decision_protocol::StateMachine::OPEN:
         default:
+        {
           LOG_TRACE_FMT("Timeout SM complete");
+        }
       }
     }
   }
@@ -502,8 +510,10 @@ namespace ccf
         switch (sm_state)
         {
           case recovery_decision_protocol::StateMachine::GOSSIPING:
+          {
             send_gossip_unsafe(tx);
             break;
+          }
           case recovery_decision_protocol::StateMachine::VOTING:
           {
             auto* node_info_handle =
@@ -531,16 +541,22 @@ namespace ccf
             break;
           }
           case recovery_decision_protocol::StateMachine::OPENING:
+          {
             send_iamopen_unsafe(tx);
             break;
+          }
           case recovery_decision_protocol::StateMachine::JOINING:
           case recovery_decision_protocol::StateMachine::OPEN:
+          {
             stop_timers();
             return;
+          }
           default:
+          {
             throw std::logic_error(fmt::format(
               "Unknown recovery-decision-protocol state: {}",
               static_cast<int>(sm_state)));
+          }
         }
       },
       "RecoveryDecisionProtocolRetry");

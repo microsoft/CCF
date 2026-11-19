@@ -7,9 +7,9 @@
 #include "ccf/node/start_type.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
+#include "common/create_node_status.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
-#include "ds/oversized.h"
 #include "ds/work_beacon.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
@@ -17,6 +17,7 @@
 #include "js/interpreter_cache.h"
 #include "kv/ledger_chunker.h"
 #include "node/commit_callback_subsystem.h"
+#include "node/commit_point_subsystem.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_inbound_message.h"
@@ -32,7 +33,6 @@
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
-#include "node/rpc/ringbuffer_messages.h"
 #include "node/rpc/rpc_connection_manager.h"
 #include "node/rpc/rpc_map.h"
 #include "node/rpc/user_frontend.h"
@@ -45,8 +45,7 @@ namespace ccf
   class Enclave
   {
   private:
-    std::unique_ptr<ringbuffer::Circuit> circuit;
-    ccf::ds::WorkBeaconPtr work_beacon;
+    ccf::ds::WorkBeacon work_beacon;
     ccf::AbstractRuntimeControl& runtime_control;
     ccf::NetworkState network;
     std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem =
@@ -55,8 +54,7 @@ namespace ccf
     std::shared_ptr<NodeIngress> node_ingress = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCConnectionManager> rpcsessions;
-    std::unique_ptr<ccf::NodeState> node;
-    std::chrono::high_resolution_clock::time_point last_tick_time;
+    std::shared_ptr<ccf::NodeState> node;
     std::atomic<bool> stop_requested = false;
     std::atomic<bool> stop_notice_requested = false;
 
@@ -82,42 +80,48 @@ namespace ccf
     std::shared_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
 
   public:
+    struct StartupInfo
+    {
+      std::vector<uint8_t> node_cert;
+      std::vector<uint8_t> service_cert;
+      std::vector<uint8_t> pq_service_cert;
+      std::vector<uint8_t> rpc_addresses;
+    };
+
     Enclave(
-      std::unique_ptr<ringbuffer::Circuit> circuit_,
-      size_t sig_tx_interval,
-      size_t sig_ms_interval,
-      std::chrono::milliseconds tick_interval,
-      size_t chunk_threshold,
-      size_t max_transaction_size,
-      const ccf::consensus::Configuration& consensus_config,
-      const ccf::crypto::CurveID& curve_id,
-      ccf::ds::WorkBeaconPtr work_beacon_,
+      const ccf::CCFConfig& config,
       ccf::AbstractRuntimeControl& runtime_control_,
       const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem,
       const std::shared_ptr<AbstractNodeTransport>& node_transport) :
-      circuit(std::move(circuit_)),
-      work_beacon(std::move(work_beacon_)),
       runtime_control(runtime_control_),
       ledger_subsystem(ledger_subsystem),
       node_transport(node_transport),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCConnectionManager>(rpc_map))
     {
+      if (ledger_subsystem == nullptr || node_transport == nullptr)
+      {
+        throw std::invalid_argument(
+          "A ledger subsystem and node transport must be provided");
+      }
+
       LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
 
       network.tables->set_chunker(
-        std::make_shared<ccf::kv::LedgerChunker>(chunk_threshold));
-      network.tables->set_max_transaction_size(max_transaction_size);
+        std::make_shared<ccf::kv::LedgerChunker>(config.ledger.chunk_size));
+      network.tables->set_max_transaction_size(
+        config.ledger.max_transaction_size);
 
       LOG_TRACE_FMT("Creating node");
-      node = std::make_unique<ccf::NodeState>(
+      node = std::make_shared<ccf::NodeState>(
         this->node_transport,
         network,
         rpcsessions,
-        curve_id,
+        config.node_certificate.curve_id,
         runtime_control,
-        this->ledger_subsystem);
+        this->ledger_subsystem,
+        config.node_certificate.id_format);
 
       LOG_TRACE_FMT("Creating context");
       context = std::make_unique<NodeContext>(node->get_node_id());
@@ -126,10 +130,13 @@ namespace ccf
       historical_state_cache = std::make_shared<ccf::historical::StateCache>(
         *network.tables, network.ledger_secrets, this->ledger_subsystem);
       context->install_subsystem(historical_state_cache);
+      context->install_subsystem(
+        std::make_shared<ccf::CommitPointSubsystem>(node));
 
       indexer = std::make_shared<ccf::indexing::Indexer>(
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
-          historical_state_cache));
+          historical_state_cache),
+        *context);
       context->install_subsystem(indexer);
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
@@ -182,22 +189,60 @@ namespace ccf
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
+    }
 
-      LOG_TRACE_FMT("Initialize node");
+    // The launcher must join all runtime threads before destroying the node.
+    // This also handles failed startup, before the event loop has run.
+    ~Enclave()
+    {
+      request_stop();
+      node_transport->set_inbound_handler(nullptr);
+      rpcsessions->stop(ccf::tls::OpenSSLServer::LoopState::NotRunning);
+      // Accepted writes must reach disk before queued tasks are discarded.
+      ledger_subsystem->shutdown();
+      ccf::tasks::get_main_job_board().shutdown();
+      node->shutdown();
+      // Frontends borrow the context and must be released before it.
+      rpc_map->frontends().clear();
+      LOG_TRACE_FMT("Shutting down enclave");
+    }
+
+    void request_stop()
+    {
+      if (node_ingress != nullptr)
+      {
+        node_ingress->stop();
+      }
+      stop_requested.store(true);
+      work_beacon.notify_work_available_coalesced();
+      ccf::tasks::get_main_job_board().stop_waiters();
+    }
+
+    void request_stop_notice()
+    {
+      stop_notice_requested.store(true);
+      work_beacon.notify_work_available_coalesced();
+    }
+
+    StartupInfo initialise(ccf::CCFConfig ccf_config_)
+    {
+      start_type = ccf_config_.command.type;
+      StartupInfo result;
+      const auto tick_interval =
+        std::chrono::milliseconds(ccf_config_.tick_interval);
       auto& job_board = ccf::tasks::get_main_job_board();
+      indexer->register_periodic_tasks(job_board, tick_interval);
       node->initialize(
-        consensus_config,
+        ccf_config_.consensus,
         rpc_map,
         rpcsessions,
-        commit_callbacks,
-        signature_cache,
-        sig_tx_interval,
-        sig_ms_interval,
+        context->get_subsystem<ccf::CommitCallbackSubsystem>(),
+        context->get_subsystem<ccf::SignatureCacheSubsystem>(),
+        ccf_config_.ledger_signatures.tx_count,
+        ccf_config_.ledger_signatures.delay.count_ms(),
         job_board,
         tick_interval);
-
       historical_state_cache->start_periodic_tick(job_board, tick_interval);
-
       node_ingress = std::make_shared<NodeIngress>(
         job_board,
         [this](
@@ -205,38 +250,7 @@ namespace ccf
           const NodeId& from,
           const uint8_t* data,
           size_t size) { node->recv_node_inbound(type, from, data, size); });
-      this->node_transport->set_inbound_handler(node_ingress);
-    }
-
-    ~Enclave()
-    {
-      node_ingress->stop();
-      node_transport->set_inbound_handler(nullptr);
-      LOG_TRACE_FMT("Shutting down enclave");
-    }
-
-    void request_stop()
-    {
-      node_ingress->stop();
-      stop_requested.store(true);
-      work_beacon->notify_work_available_coalesced();
-      ccf::tasks::get_main_job_board().stop_waiters();
-    }
-
-    void request_stop_notice()
-    {
-      stop_notice_requested.store(true);
-      work_beacon->notify_work_available_coalesced();
-    }
-
-    CreateNodeStatus create_new_node(
-      StartType start_type_,
-      ccf::CCFConfig ccf_config_,
-      std::vector<uint8_t>& node_cert,
-      std::vector<uint8_t>& service_cert,
-      std::vector<uint8_t>& rpc_addresses)
-    {
-      start_type = start_type_;
+      node_transport->set_inbound_handler(node_ingress);
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);
 
@@ -320,7 +334,7 @@ namespace ccf
           resolved_rpc_addresses[name] = interface.bind_address;
         }
         const auto dumped = resolved_rpc_addresses.dump();
-        rpc_addresses.assign(dumped.begin(), dumped.end());
+        result.rpc_addresses.assign(dumped.begin(), dumped.end());
       }
 
       node->set_n2n_message_limit(ccf_config_.node_to_node_message_limit);
@@ -332,21 +346,12 @@ namespace ccf
         context->get_subsystem<ccf::NetworkIdentitySubsystem>();
       if (network_identity_subsystem == nullptr)
       {
-        LOG_FAIL_FMT(
+        throw std::logic_error(
           "NetworkIdentitySubsystem is not installed; cannot start "
           "network identity fetching");
-        return CreateNodeStatus::InternalError;
       }
-      try
-      {
-        network_identity_subsystem->start_with_config(
-          ccf_config_.identity_history_fetch);
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT("Failed to start network identity fetching: {}", e.what());
-        return CreateNodeStatus::InternalError;
-      }
+      network_identity_subsystem->start_with_config(
+        ccf_config_.identity_history_fetch);
 
       // If we haven't heard from a node for multiple elections, then cleanup
       // their node-to-node channel
@@ -354,125 +359,54 @@ namespace ccf
         std::chrono::milliseconds(ccf_config_.consensus.election_timeout) * 4;
       node->set_n2n_idle_timeout(idle_timeout);
 
-      ccf::NodeCreateInfo create_info;
-      try
-      {
-        LOG_TRACE_FMT(
-          "Creating node with start_type {}", start_type_to_str(start_type));
-        create_info = node->create(start_type, ccf_config_);
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT("Error starting node: {}", e.what());
-        return CreateNodeStatus::InternalError;
-      }
+      LOG_TRACE_FMT(
+        "Creating node with start_type {}", start_type_to_str(start_type));
+      const auto create_info = node->create(start_type, ccf_config_);
 
       // Copy node and service certs out
-      node_cert = create_info.self_signed_node_cert.raw();
+      result.node_cert = create_info.self_signed_node_cert.raw();
 
       if (start_type == StartType::Start || start_type == StartType::Recover)
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
-        service_cert = create_info.service_cert.raw();
+        result.service_cert = create_info.service_cert.raw();
+        if (create_info.pq_service_cert.has_value())
+        {
+          result.pq_service_cert = create_info.pq_service_cert->raw();
+        }
       }
 
-      return CreateNodeStatus::OK;
+      return result;
     }
 
     bool run_main()
     {
       LOG_DEBUG_FMT("Running main thread");
 
+      while (!stop_requested.load())
       {
-        messaging::BufferProcessor bp("Enclave");
-
-        // reconstruct oversized messages sent to the enclave
-        oversized::FragmentReconstructor fr(bp.get_dispatcher());
-
-        last_tick_time = decltype(last_tick_time)::clock::now();
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          AdminMessage::tick,
-          [this, &disp = bp.get_dispatcher()](const uint8_t*, size_t) {
-            const auto time_now = decltype(last_tick_time)::clock::now();
-
-            const auto elapsed_ms =
-              std::chrono::duration_cast<std::chrono::milliseconds>(
-                time_now - last_tick_time);
-            if (elapsed_ms.count() > 0)
-            {
-              last_tick_time += elapsed_ms;
-
-              // Ordered with inbound node messages, as when both were read
-              // from the ringbuffer by this thread
-              node_ingress->submit("Node tick", [this, elapsed_ms]() {
-                node->tick(elapsed_ms);
-                // Indexing strategies follow the commit point, which is only
-                // meaningful once the node is part of the network
-                const auto committed = node->get_committed_txid();
-                if (committed.has_value())
-                {
-                  indexer->update_strategies(elapsed_ms, committed.value());
-                }
-              });
-            }
-          });
-
-        // Maximum number of inbound ringbuffer messages which will be
-        // processed in a single iteration
-        static constexpr size_t max_messages = 256;
-
-        bool should_wait_for_work = true;
-        while (!stop_requested.load())
+        work_beacon.wait_for_work();
+        if (stop_requested.load())
         {
-          if (should_wait_for_work)
-          {
-            // Wait until the host indicates that some ringbuffer messages are
-            // available, but wake at least every 100ms.
-            work_beacon->wait_for_work_with_timeout(
-              std::chrono::milliseconds(100));
-          }
-
-          if (stop_requested.load())
-          {
-            break;
-          }
-
-          if (stop_notice_requested.exchange(false))
-          {
-            node_ingress->submit(
-              "Node stop notice", [this]() { node->stop_notice(); });
-          }
-
-          // Read some messages from the ringbuffer. This thread is dedicated
-          // to ingress dispatch; task execution, including node ingress,
-          // happens on worker threads (see run_worker), so that opaque,
-          // potentially-blocking tasks never stall this thread.
-          auto read = bp.read_n(max_messages, circuit->read_from_outside());
-
-          // Hitting the read budget may leave queued messages behind.
-          // Continue immediately rather than consuming the only coalesced
-          // wake and then sleeping with unread ringbuffer messages.
-          should_wait_for_work = read < max_messages;
-
-          // If no messages were read from the ringbuffer, idle
-          if (read == 0)
-          {
-            std::this_thread::yield();
-          }
+          break;
         }
 
-        LOG_INFO_FMT("Stopping RPC transports");
-        // The host is still running the libuv loop at this point.
-        rpcsessions->stop(ccf::tls::OpenSSLServer::LoopState::Running);
-
-        LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
-        runtime_control.report_stopped();
-
-        return true;
+        if (stop_notice_requested.exchange(false))
+        {
+          node_ingress->submit(
+            "Node stop notice", [this]() { node->stop_notice(); });
+        }
       }
+
+      LOG_INFO_FMT("Stopping RPC transports");
+      // The host is still running the libuv loop at this point.
+      rpcsessions->stop(ccf::tls::OpenSSLServer::LoopState::Running);
+
+      LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
+      runtime_control.report_stopped();
+
+      return true;
     }
 
     bool run_worker()

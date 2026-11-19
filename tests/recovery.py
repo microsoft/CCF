@@ -11,8 +11,9 @@ import shutil
 import subprocess
 import tempfile
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import cbor2
 import ccf.ledger
 import ccf.signatures
 import ccf.tx_id
@@ -82,6 +83,26 @@ def query_endorsements_chain(node, txid):
     return response
 
 
+def validate_endorsement_schema(endorsement, *, temp_dir):
+    with tempfile.NamedTemporaryFile(
+        mode="wb",
+        dir=temp_dir,
+        prefix="prev_service_identity_endorsement_",
+        suffix=".cose",
+    ) as endorsement_file:
+        endorsement_file.write(endorsement)
+        endorsement_file.flush()
+        subprocess.run(
+            [
+                "cddl",
+                "../cddl/ccf-cose-endorsement-service-identity.cddl",
+                "v",
+                endorsement_file.name,
+            ],
+            check=True,
+        )
+
+
 def verify_endorsements_chain(primary, endorsements, pubkey, *, temp_dir):
     for endorsement in endorsements:
         phdr, _, payload = verify_cose_sign1_with_key(pubkey, endorsement)
@@ -99,26 +120,120 @@ def verify_endorsements_chain(primary, endorsements, pubkey, *, temp_dir):
         last_five_minutes = 5 * 60
         assert time.time() - phdr[CWT_KEY][IAT_CWT_LABEL] < last_five_minutes, phdr
 
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=temp_dir,
-            prefix="prev_service_identity_endorsement_",
-            suffix=".cose",
-        ) as endorsement_file:
-            endorsement_file.write(endorsement)
-            endorsement_file.flush()
-            subprocess.run(
-                [
-                    "cddl",
-                    "../cddl/ccf-cose-endorsement-service-identity.cddl",
-                    "v",
-                    endorsement_file.name,
-                ],
-                check=True,
-            )
+        validate_endorsement_schema(endorsement, temp_dir=temp_dir)
 
         next_key_bytes = payload
         pubkey = infra.crypto.pub_key_der_to_pem(next_key_bytes).encode("ascii")
+
+
+PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT_TABLE = (
+    "public:ccf.internal.previous_service_identity_endorsement"
+)
+# Keys of previous_service_identity_endorsement: identity types, as
+# little-endian 64-bit unsigned integers
+CLASSICAL_IDENTITY_KEY = (0).to_bytes(8, "little")
+PQ_IDENTITY_KEY = (1).to_bytes(8, "little")
+COSE_SIGN1_TAG = 18
+COSE_ALG_LABEL = 1
+
+
+def verify_mldsa_cose_endorsement(endorsing_key_der, endorsement):
+    """Verify a COSE endorsement signed with pure ML-DSA (RFC 9964), and return
+    its protected header and payload."""
+    from cryptography.hazmat.primitives.asymmetric import mldsa
+
+    algorithms = {
+        mldsa.MLDSA44PublicKey: -48,
+        mldsa.MLDSA65PublicKey: -49,
+        mldsa.MLDSA87PublicKey: -50,
+    }
+    envelope = cbor2.loads(endorsement)
+    assert envelope.tag == COSE_SIGN1_TAG, envelope.tag
+    phdr_bytes, uhdr, payload, signature = envelope.value
+    assert uhdr == {}, uhdr
+    phdr = cbor2.loads(phdr_bytes)
+    key = serialization.load_der_public_key(endorsing_key_der)
+    expected_alg = next(
+        alg for key_type, alg in algorithms.items() if isinstance(key, key_type)
+    )
+    assert phdr[COSE_ALG_LABEL] == expected_alg, phdr
+    key.verify(signature, cbor2.dumps(["Signature1", phdr_bytes, b"", payload]))
+    return phdr, payload
+
+
+def verify_pq_endorsement_chain(ledger_paths, pq_service_cert, *, temp_dir):
+    """Verify the PQ previous service identity endorsements written in a ledger,
+    and return their number. Each is written with a CLASSICAL endorsement, by
+    the opening of a service. The first is a self-endorsement, and each later
+    one endorses the key of the one before over the epochs, and with the
+    protected header except alg, of the CLASSICAL endorsement. The last is
+    signed by the key of pq_service_cert, which is None for a service without
+    a PQ identity."""
+    ledger = ccf.ledger.Ledger(
+        ledger_paths, committed_only=False, contiguous_suffix=True
+    )
+    service_create_txid = None
+    pq_endorsements = []
+    for tx in ledger.transactions():
+        public_domain = tx.get_public_domain()
+        seqno = public_domain.get_seqno()
+        tables = public_domain.get_tables()
+        service_info = tables.get(ccf.ledger.SERVICE_INFO_TABLE_NAME, {}).get(
+            ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+        )
+        if service_info is not None:
+            service_create_txid = json.loads(service_info).get(
+                "current_service_create_txid"
+            )
+        writes = tables.get(PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT_TABLE, {})
+        if PQ_IDENTITY_KEY not in writes:
+            # Once started, the PQ chain is extended at every service opening
+            assert not writes or not pq_endorsements, seqno
+            continue
+        assert CLASSICAL_IDENTITY_KEY in writes, seqno
+        classical = json.loads(writes[CLASSICAL_IDENTITY_KEY])
+        pq = json.loads(writes[PQ_IDENTITY_KEY])
+        endorsing_key = base64.b64decode(pq["endorsing_key"])
+        endorsement = base64.b64decode(pq["endorsement"])
+        phdr, payload = verify_mldsa_cose_endorsement(endorsing_key, endorsement)
+        if not pq_endorsements:
+            assert "endorsement_epoch_end" not in pq, pq
+            assert "previous_version" not in pq, pq
+            assert pq["endorsement_epoch_begin"] == service_create_txid, pq
+            assert payload == endorsing_key
+        else:
+            previous_seqno, previous = pq_endorsements[-1]
+            assert pq["previous_version"] == previous_seqno, pq
+            assert payload == base64.b64decode(previous["endorsing_key"])
+            for field in (
+                "endorsement_epoch_begin",
+                "endorsement_epoch_end",
+                "previous_version",
+            ):
+                assert pq.get(field) == classical.get(field), (field, pq, classical)
+            classical_phdr = cbor2.loads(
+                cbor2.loads(base64.b64decode(classical["endorsement"])).value[0]
+            )
+            assert {k: v for k, v in phdr.items() if k != COSE_ALG_LABEL} == {
+                k: v for k, v in classical_phdr.items() if k != COSE_ALG_LABEL
+            }, (phdr, classical_phdr)
+        validate_endorsement_schema(endorsement, temp_dir=temp_dir)
+        pq_endorsements.append((seqno, pq))
+
+    if pq_service_cert is None:
+        assert not pq_endorsements, pq_endorsements
+    else:
+        assert pq_endorsements
+        _, newest = pq_endorsements[-1]
+        pq_service_key = load_pem_x509_certificate(
+            pq_service_cert.encode("ascii")
+        ).public_key()
+        assert base64.b64decode(newest["endorsing_key"]) == pq_service_key.public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    LOG.info(f"Verified {len(pq_endorsements)} PQ service identity endorsement(s)")
+    return len(pq_endorsements)
 
 
 def restart_network(old_network, args, current_ledger_dir, committed_ledger_dirs):
@@ -145,56 +260,45 @@ def get_replacement_package(args):
     )
 
 
-def wait_for_recovery_ledger_chunks_renamed(node, timeout=10):
-    """Wait until the node's host has renamed the ledger chunks written during
-    recovery. They keep a .recovery suffix, and are skipped by ledger reads that
-    exclude recovery files, until the host completes recovery. It does so
-    asynchronously, after the node sees the service opening commit, so this can
-    happen after the node reports that transaction as committed."""
-    ledger_dir = node.remote.current_ledger_path()
-    end_time = time.time() + timeout
-    while True:
-        recovery_chunks = [
-            f
-            for f in os.listdir(ledger_dir)
-            if f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
-        ]
-        if not recovery_chunks:
-            return
-        if time.time() > end_time:
-            raise TimeoutError(
-                f"Node {node.node_id} still has recovery ledger chunks after "
-                f"{timeout}s: {recovery_chunks}"
-            )
-        time.sleep(0.1)
-
-
-def find_service_open_seqnos(node, from_seqno):
-    """Return the seqnos after from_seqno, in the node's ledger, of the
+def find_service_open_txids(node, from_seqno):
+    """Return the committed txids after from_seqno, in the node's ledger, of the
     transactions which set the service status to Open."""
-    ledger = ccf.ledger.Ledger(
-        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    open_seqnos = []
-    for chunk in ledger:
-        _, chunk_end_seqno = chunk.get_seqnos()
-        if chunk_end_seqno is not None and chunk_end_seqno <= from_seqno:
-            continue
-        for tx in chunk:
-            public_domain = tx.get_public_domain()
-            seqno = public_domain.get_seqno()
-            tables = public_domain.get_tables()
-            if seqno <= from_seqno or ccf.ledger.SERVICE_INFO_TABLE_NAME not in tables:
-                continue
-            service_info = tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-            ]
-            if (
-                service_info is not None
-                and json.loads(service_info)["status"] == "Open"
-            ):
-                open_seqnos.append(seqno)
-    return open_seqnos
+    with node.client() as c:
+        r = c.get("/node/commit")
+        assert r.status_code == http.HTTPStatus.OK, r
+        target_seqno = ccf.tx_id.TxID.from_str(r.body.json()["transaction_id"]).seqno
+
+    open_txids = []
+    with node.download_ledger(
+        target_seqno,
+        local_only=True,
+        include_committed_prefix=True,
+    ) as ledger_paths:
+        for path in ledger_paths:
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            chunk_path = path.removesuffix(infra.node.COMMITTED_PREFIX_FILE_SUFFIX)
+            if chunk_path != path:
+                os.rename(path, chunk_path)
+            path = chunk_path
+            # END SDK 7.0.18 compatibility.
+            for tx in ccf.ledger.LedgerChunk(path):
+                public_domain = tx.get_public_domain()
+                seqno = public_domain.get_seqno()
+                tables = public_domain.get_tables()
+                if (
+                    not from_seqno < seqno <= target_seqno
+                    or ccf.ledger.SERVICE_INFO_TABLE_NAME not in tables
+                ):
+                    continue
+                service_info = tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+                    ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+                ]
+                if (
+                    service_info is not None
+                    and json.loads(service_info)["status"] == "Open"
+                ):
+                    open_txids.append(tx.get_txid())
+    return open_txids
 
 
 def recover_with_primary_dying(args, recovered_network, after_backups_recovered=False):
@@ -325,8 +429,9 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
     recovered_network.wait_for_all_nodes_to_commit(primary=primary)
     open_seqno = None
     for node in recovered_network.get_joined_nodes():
-        wait_for_recovery_ledger_chunks_renamed(node)
-        open_seqnos = find_service_open_seqnos(node, create_seqno)
+        open_seqnos = [
+            txid.seqno for txid in find_service_open_txids(node, create_seqno)
+        ]
         assert (
             len(open_seqnos) == 1
         ), f"Node {node.node_id} ledger opens the service at {open_seqnos}"
@@ -535,7 +640,7 @@ def run_reconfiguration_before_recovery_shares(args):
                 timeout=args.ledger_recovery_timeout,
             )
 
-            valid_from = datetime.now(timezone.utc)
+            valid_from = datetime.now(UTC)
             recovered_network.consortium.trust_node(
                 primary,
                 new_node.node_id,
@@ -674,7 +779,7 @@ def test_recover_service_with_stale_incomplete_ledger(
     network, args, recovered_networks=None
 ):
     primary, _ = network.find_primary()
-    network.create_and_wait_for_ledger_chunk(primary)
+    committed_seqno = network.create_and_wait_for_ledger_chunk(primary)
     snapshot_trigger = primary.trigger_snapshot()
     snapshots_dir = network.get_committed_snapshots(
         primary,
@@ -686,17 +791,17 @@ def test_recover_service_with_stale_incomplete_ledger(
     snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
 
     stale_entries = None
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
-    for chunk in ledger:
-        _, end_seqno = chunk.get_seqnos()
-        if end_seqno is None or end_seqno >= snapshot_seqno:
-            continue
-        entries = [
-            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
-        ]
-        if len(entries) > 1:
-            stale_entries = entries[:-1]
-            break
+    with primary.get_ledger_from_api(committed_seqno) as ledger:
+        for chunk in ledger:
+            _, end_seqno = chunk.get_seqnos()
+            if end_seqno is None or end_seqno >= snapshot_seqno:
+                continue
+            entries = [
+                (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
+            ]
+            if len(entries) > 1:
+                stale_entries = entries[:-1]
+                break
     assert stale_entries is not None, "No old committed chunk for the stale fixture"
 
     network.txs.issue(network, number_txs=2)
@@ -710,7 +815,6 @@ def test_recover_service_with_stale_incomplete_ledger(
     )
 
     primary, _ = network.find_primary()
-    wait_for_recovery_ledger_chunks_renamed(primary)
     ignored_path = os.path.join(
         primary.remote.current_ledger_path(),
         f"ledger_{stale_entries[0][0]}{ccf.ledger.IGNORED_FILE_SUFFIX}",
@@ -721,12 +825,9 @@ def test_recover_service_with_stale_incomplete_ledger(
     with open(ignored_path, "rb") as ignored_file:
         assert ignored_file.read() == expected_stale_bytes
 
-    opening_seqnos = find_service_open_seqnos(primary, snapshot_seqno)
-    assert len(opening_seqnos) == 1, opening_seqnos
-    ledger = ccf.ledger.Ledger(
-        primary.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    opening_txid = ledger.get_transaction(opening_seqnos[0]).get_txid()
+    opening_txids = find_service_open_txids(primary, snapshot_seqno)
+    assert len(opening_txids) == 1, opening_txids
+    opening_txid = opening_txids[0]
     network.wait_for_all_nodes_to_commit(tx_id=opening_txid)
     for node in network.get_joined_nodes():
         with node.client() as c:
@@ -948,6 +1049,21 @@ def _recover_service(
         }
         unexpected_removable_node_ids = old_node_ids & removable_node_ids
         assert not unexpected_removable_node_ids, unexpected_removable_node_ids
+
+    # Nodes recovered from a snapshot taken before the recovery initially know
+    # the previous service's nodes, and must forget them once their deletion
+    # is committed, or would keep contacting them if later elected primary.
+    recovered_network.wait_for_all_nodes_to_commit(primary=new_primary)
+    for node in recovered_network.get_joined_nodes():
+        with node.client() as c:
+            r = c.get("/node/consensus")
+            assert r.status_code == http.HTTPStatus.OK, r
+            acked_node_ids = set(r.body.json()["details"]["acks"].keys())
+            unexpected_acked_node_ids = old_node_ids & acked_node_ids
+            assert not unexpected_acked_node_ids, (
+                node.node_id,
+                unexpected_acked_node_ids,
+            )
 
     return recovered_network
 
@@ -1309,6 +1425,7 @@ def run_recover_service_from_files(
     expected_recovery_count,
     test_receipts_at=None,
     test_cose_receipts_at=None,
+    snapshots_with_json_receipts=False,
 ):
     service_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "testdata", directory
@@ -1343,10 +1460,17 @@ def run_recover_service_from_files(
             old_common, "service_cert.pem"
         )
 
+        # Snapshots written by releases before 7.0 carry JSON receipts, which
+        # nodes reject. Operators remove them before recovering, so such a
+        # service is recovered from its ledger alone.
         network.start_in_recovery(
             args,
             committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
-            snapshots_dir=os.path.join(service_dir, "snapshots"),
+            snapshots_dir=(
+                None
+                if snapshots_with_json_receipts
+                else os.path.join(service_dir, "snapshots")
+            ),
             common_dir=new_common,
         )
 
@@ -1420,6 +1544,15 @@ def run_recover_service_from_files(
                         ), f"Failed to get COSE receipt for tx {view}.{seqno} with response {r.status_code} {r.body.text()}"
                 else:
                     assert False, f"Failed to get a receipt for tx {view}.{seqno}"
+
+        pq_service_cert = network.get_pq_service_certificate()
+
+    # These services had no PQ identity, so a recovery on a build with ML-DSA
+    # starts the PQ chain with a self-endorsement
+    pq_endorsements = verify_pq_endorsement_chain(
+        primary.remote.ledger_paths(), pq_service_cert, temp_dir=new_common
+    )
+    assert pq_endorsements == (0 if pq_service_cert is None else 1), pq_endorsements
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
@@ -1784,31 +1917,14 @@ def run_corrupted_ledger(args):
 
 
 def find_recovery_tx_seqno(node):
-    min_recovery_seqno = 0
     with node.client() as c:
         r = c.get("/node/state").body.json()
         if "last_recovered_seqno" not in r:
             return None
         min_recovery_seqno = r["last_recovered_seqno"]
 
-    ledger = ccf.ledger.Ledger(
-        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    for chunk in ledger:
-        _, chunk_end_seqno = chunk.get_seqnos()
-        if chunk_end_seqno < min_recovery_seqno:
-            continue
-        for tx in chunk:
-            tables = tx.get_public_domain().get_tables()
-            seqno = tx.get_public_domain().get_seqno()
-            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
-                service_status = json.loads(
-                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-                    ]
-                )["status"]
-                if service_status == "Open":
-                    return seqno
+    for txid in find_service_open_txids(node, min_recovery_seqno):
+        return txid.seqno
     return None
 
 
@@ -1840,7 +1956,11 @@ def run(args, ipv6=False):
         txs=txs,
         ipv6=ipv6,
     ) as network:
-        network.start_and_open(args)
+        # Multi-RDN subject, which each recovery must copy from the previous identity
+        network.start_and_open(
+            args, service_subject_name="CN=https://this.test.service,O=CCF User"
+        )
+        service_subject = network.cert.subject.public_bytes()
         primary, _ = network.find_primary()
 
         if ipv6:
@@ -1899,6 +2019,10 @@ def run(args, ipv6=False):
 
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
+
+            assert (
+                network.cert.subject.public_bytes() == service_subject
+            ), network.cert.subject
 
             check_snapshots(args, network)
             ref_msg = get_and_verify_historical_receipt(network, ref_msg)
@@ -1970,6 +2094,7 @@ def run_recovery_from_files(args):
         expected_recovery_count=args.expected_recovery_count,
         test_receipts_at=args.test_receipts_at,
         test_cose_receipts_at=args.test_cose_receipts_at,
+        snapshots_with_json_receipts=args.snapshots_with_json_receipts,
     )
 
 
@@ -2243,9 +2368,7 @@ def run_recover_snapshot_from_expired_node_certificate(args):
         recovered_network = None
         try:
             valid_from = str(
-                infra.crypto.datetime_to_X509time(
-                    datetime.now(timezone.utc) - timedelta(days=2)
-                )
+                infra.crypto.datetime_to_X509time(datetime.now(UTC) - timedelta(days=2))
             )
             validity_period_days = 1
             primary.verify_ca_by_default = False
@@ -2262,7 +2385,7 @@ def run_recover_snapshot_from_expired_node_certificate(args):
             _, valid_to = infra.crypto.get_validity_period_from_pem_cert(
                 primary.get_tls_certificate_pem()
             )
-            assert valid_to < datetime.now(timezone.utc), valid_to
+            assert valid_to < datetime.now(UTC), valid_to
 
             recovered_network = test_recover_service(
                 network,
@@ -2366,10 +2489,10 @@ def run_recovery_with_stale_incomplete_ledger(args):
             network.wait_for_all_nodes_to_commit(tx_id=post_opening_txid)
             primary, _ = network.find_primary()
             network.create_and_wait_for_ledger_chunk(primary)
-            ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
-            post_opening_bytes = ledger.get_transaction(
-                post_opening_txid.seqno
-            ).get_raw_tx()
+            with primary.get_ledger_chunk_from_api(post_opening_txid.seqno) as ledger:
+                post_opening_bytes = ledger.get_transaction(
+                    post_opening_txid.seqno
+                ).get_raw_tx()
 
             network = test_recover_service(
                 network,
@@ -3314,6 +3437,74 @@ def run_recovery_partial_when_ledger_gap(args):
             shutil.rmtree(backup_dir, ignore_errors=True)
 
 
+def run_pq_endorsement_chain(args):
+    """Recovers a service from its ledger, then from a snapshot signed by the
+    identity before, and verifies that each service endorses the previous one
+    with its PQ key."""
+    txs = app.LoggingTxs("user0")
+    recovered_networks = []
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        try:
+            network.start_and_open(args)
+            primary, _ = network.find_primary()
+            snapshot_trigger = primary.trigger_snapshot()
+            committed_snapshots_dir = network.get_committed_snapshots(
+                primary,
+                target_seqno=snapshot_trigger.seqno,
+                wait_for_target_seqno=True,
+            )
+            first_service_snapshots_dir = os.path.join(
+                network.common_dir, "pq_endorsement_chain_snapshots"
+            )
+            os.makedirs(first_service_snapshots_dir)
+            shutil.copy(
+                os.path.join(
+                    committed_snapshots_dir,
+                    ccf.ledger.latest_snapshot(committed_snapshots_dir),
+                ),
+                first_service_snapshots_dir,
+            )
+
+            network = test_recover_service(
+                network,
+                args,
+                from_snapshot=False,
+                recovered_networks=recovered_networks,
+            )
+            # The snapshot is verified with the endorsements written after it,
+            # which include the PQ ones
+            network = test_recover_service(
+                network,
+                args,
+                snapshots_dir=first_service_snapshots_dir,
+                recovered_networks=recovered_networks,
+            )
+            primary, _ = network.find_primary()
+            assert primary.check_log_for_error_message(
+                "Validated 1 recovery snapshot endorsement(s) in memory"
+            )
+            pq_service_cert = network.get_pq_service_certificate()
+            network.stop_all_nodes()
+        finally:
+            for recovered_network in reversed(recovered_networks):
+                recovered_network.stop_all_nodes(
+                    skip_verification=True,
+                    check_file_invariants=False,
+                    skip_verify_chunking=True,
+                )
+
+    pq_endorsements = verify_pq_endorsement_chain(
+        primary.remote.ledger_paths(), pq_service_cert, temp_dir=network.common_dir
+    )
+    assert pq_endorsements == (0 if pq_service_cert is None else 3), pq_endorsements
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -3393,22 +3584,30 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=30,
     )
 
-    for directory, expected_recovery_count, test_receipts_at, test_cose_receipts_at in (
-        ("expired_service", 2, [(2, 3)], None),
+    # Releases before 7.0 wrote snapshots with JSON receipts, which nodes reject
+    for (
+        directory,
+        expected_recovery_count,
+        test_receipts_at,
+        test_cose_receipts_at,
+        snapshots_with_json_receipts,
+    ) in (
+        ("expired_service", 2, [(2, 3)], None, True),
         # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
         # This is used to test recovery from SGX to SNP.
-        ("sgx_service", 4, None, None),
+        ("sgx_service", 4, None, None, True),
         # double_sealed_service is a regression test for the issue described in #6906
         (
             "double_sealed_service",
             2,
             [(2, 3), (4, 498), (5, 504), (7, 506)],
             [(2, 3), (4, 498), (5, 504), (7, 506)],
+            False,
         ),
         # cose_flipflop_service is a regression test for the issue described in #7002
-        ("cose_flipflop_service", 0, None, None),
+        ("cose_flipflop_service", 0, None, None, False),
         # acme_containing_service is a compatibility test for acme-containing ledgers
-        ("acme_containing_service", 0, [(2, 3)], [(2, 3)]),
+        ("acme_containing_service", 0, [(2, 3)], [(2, 3)], False),
     ):
         cr.add(
             f"recovery_from_{directory}",
@@ -3421,6 +3620,7 @@ checked. Note that the key for each logging message is unique (per table).
             expected_recovery_count=expected_recovery_count,
             test_receipts_at=test_receipts_at,
             test_cose_receipts_at=test_cose_receipts_at,
+            snapshots_with_json_receipts=snapshots_with_json_receipts,
             gov_api_version="2024-07-01",
         )
 
@@ -3548,6 +3748,15 @@ checked. Note that the key for each logging message is unique (per table).
         run_recovery_partial_when_ledger_gap,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
+    )
+
+    cr.add(
+        "recovery_pq_endorsement_chain",
+        run_pq_endorsement_chain,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
     )

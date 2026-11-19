@@ -6,7 +6,6 @@
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/rsa_public_key.h"
-#include "ccf/ds/locking.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/jwt.h"
@@ -89,7 +88,6 @@ namespace ccf
     static constexpr size_t DEFAULT_MAX_KEYS = 10;
 
     using DER = std::vector<uint8_t>;
-    ccf::ds::Mutex keys_lock;
 
     using PublicKey =
       std::variant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::ECPublicKeyPtr>;
@@ -104,8 +102,6 @@ namespace ccf
       size_t signature_size,
       const DER& der)
     {
-      std::lock_guard<ccf::ds::Mutex> guard(keys_lock);
-
       auto it = keys.find(der);
       if (it == keys.end())
       {
@@ -153,9 +149,10 @@ namespace ccf
     }
   };
 
-  JwtAuthnPolicy::JwtAuthnPolicy() :
-    keys_cache(std::make_unique<PublicKeysCache>())
-  {}
+  thread_local std::unique_ptr<PublicKeysCache> JwtAuthnPolicy::keys_cache =
+    std::make_unique<PublicKeysCache>();
+
+  JwtAuthnPolicy::JwtAuthnPolicy() = default;
 
   JwtAuthnPolicy::~JwtAuthnPolicy() = default;
 

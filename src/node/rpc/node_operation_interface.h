@@ -49,7 +49,6 @@ namespace ccf
     virtual ccf::kv::Version get_startup_snapshot_seqno() = 0;
 
     virtual SessionMetrics get_session_metrics() = 0;
-    virtual size_t get_jwt_attempts() = 0;
 
     virtual QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,

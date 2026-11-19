@@ -37,7 +37,7 @@ On a given node, the possible transitions between states are described in the fo
         Pending --> Committed
         Pending --> Invalid
 
-It is possible that intermediate states are not visible (e.g. a transition from ``Unknown`` to ``Committed`` may never publically show a ``Pending`` result). Nodes may disagree on the current state due to communication delays, but will never disagree on transitions (in other words, they may believe a ``COMMITTED`` transaction is still ``Unknown`` or ``Pending``, but will never report it as ``Invalid``). A transition from ``Pending`` to ``Unknown`` can only occur immediately after an election, while the node is confirming where the new view starts, and will usually resolve to ``Committed`` or ``Pending`` quickly afterwards.
+It is possible that intermediate states are not visible (e.g. a transition from ``Unknown`` to ``Committed`` may never publicly show a ``Pending`` result). Nodes may disagree on the current state due to communication delays, but will never disagree on transitions (in other words, they may believe a ``COMMITTED`` transaction is still ``Unknown`` or ``Pending``, but will never report it as ``Invalid``). A transition from ``Pending`` to ``Unknown`` can only occur immediately after an election, while the node is confirming where the new view starts, and will usually resolve to ``Committed`` or ``Pending`` quickly afterwards.
 
 Note that transaction IDs are uniquely assigned by the service - once a request has been assigned an ID, this ID will never be associated with a different write transaction. In normal operation, the next requests will be given versions 2.19, then 2.20, and so on, and after a short delay ``2.18`` will be committed. If requests are submitted in parallel, they will be applied in a consistent order indicated by their assigned versions.
 
@@ -47,6 +47,14 @@ Write Receipts
 --------------
 
 Once a transaction has been committed, it is possible to get a cryptographic receipt over the entry produced in the ledger. That receipt can be verified offline.
+
+CCF implements `write` receipts, which are signed proofs associated with a transaction.
+They serve two main purposes:
+
+1. :ref:`Endorse <use_apps/verify_tx:Application Claims>` claims made by the application logic, i.e., a signed statement of fact, verifiable offline and by third parties, equivalent to "this transaction produced this outcome at this position in the ledger".
+2. Together with a copy of the ledger, or other receipts, they can be used to :ref:`audit <audit/receipts:Receipts>` the service and hold the consortium to account.
+
+Internally, receipts are also used to establish the validity of ledger snapshots.
 
 To obtain a receipt, a user needs to call a :http:GET:`/app/receipt` for a particular :term:`Transaction ID`. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
 This means that the request may return ``202 Accepted`` at first, with a suggested ``Retry-After`` header. A subsequent call will return the actual receipt, for example:
@@ -109,7 +117,23 @@ Verifying a receipt consists of the following steps:
   4. Verify ``signature`` over the ``root`` using the certificate of the node identified by ``node_id`` and ``cert``. See :py:func:`ccf.receipt.verify` for a reference implementation.
   5. Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. See :py:func:`ccf.receipt.check_endorsements` for a reference implementation.
 
-Note that since a receipt is a committment by a service to a transaction, a verifier must know the :term:`Service Identity`, and provide it as an input to step 5.
+Note that since a receipt is a commitment by a service to a transaction, a verifier must know the :term:`Service Identity`, and provide it as an input to step 5.
+
+COSE Receipt Verification
+-------------------------
+
+The Python :py:func:`ccf.receipt.verify_cose` API verifies inclusion receipts against the caller's trusted service public key and independently computed SHA-256 claims digest.
+It validates the receipt and proof structures according to `CCF Profile for COSE Receipts, draft -06 <https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html>`_, rejects duplicate map keys and trailing CBOR data, and accepts an empty inclusion path for a single-entry tree.
+Every inclusion proof must cover the supplied digest, and all supplied inclusion and consistency proofs must reconstruct the same signed root.
+Checking accompanying consistency proofs against that root does not establish consistency with a previously trusted checkpoint; this inclusion API does not take an older root.
+The deprecated :py:func:`ccf.cose.verify_receipt` entry point retains its existing behavior and does not apply these additional checks.
+Callers should migrate to :py:func:`ccf.receipt.verify_cose` to use the stricter verification.
+
+For SCITT statements, the application must compute the claims digest over the registered Signed Statement, not the Transparent Statement containing receipts.
+:cpp:func:`ccf::cose::edit::set_unprotected_header` preserves all input bytes outside the unprotected header, including non-preferred length encodings, and encodes an empty replacement header as ``0xa0``.
+This permits stripping and reinserting receipts without changing the registered components.
+The editor accepts definite-length, tagged COSE_Sign1 messages and rejects malformed or unsupported encodings.
+Applications should use the same preimage convention when registering and verifying statements; historical receipts bind the representation actually registered and cannot recover bytes discarded by earlier normalization.
 
 Application Claims
 ------------------
@@ -139,5 +163,6 @@ The ``commit_evidence`` field in receipts fulfills two purposes:
 1. It exposes the full :term:`Transaction ID` in a format that is easy for a user to extract, and does not require parsing the ledger entry.
 2. Because it cannot be extracted from the ledger without access to the ledger secrets, it guarantees the transaction is committed.
 
-Entries are written out to the ledger as early as possible, to relieve memory pressure inside the enclave. If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
-By including a committment to the digest of ``commit_evidence`` as a leaf component in the Merkle Tree, which is effectively a nonce derived from ledger secrets and TxID, we ensure that only receipts produced by nodes that can reveal this nonce are verifiable.
+Entries are written out to the ledger as early as possible, to relieve memory pressure on the node.
+If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
+By including a commitment to the digest of ``commit_evidence`` as a leaf component in the Merkle Tree, which is effectively a nonce derived from ledger secrets and TxID, we ensure that only receipts produced by nodes that can reveal this nonce are verifiable.

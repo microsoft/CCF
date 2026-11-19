@@ -3,29 +3,60 @@
 # Licensed under the Apache 2.0 License.
 
 # Checks (and optionally fixes) all tracked Lean files via leanfmt.
-# Pass -f to auto-fix formatting issues.
+# Pass -f to auto-fix formatting issues. Pass package names under lean/ to
+# check only those packages; the default checks every package except
+# mathlib-equivalence, which needs Mathlib and has its own workflow.
 
 set -euo pipefail
 
 FORMAT_ARGS=(--check)
 if [ "${1:-}" == "-f" ]; then
   FORMAT_ARGS=()
+  shift
 fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT_DIR=$( dirname "$SCRIPT_DIR" )
-cd "$ROOT_DIR/lean/disaster-recovery"
 
 if ! command -v lake >/dev/null 2>&1; then
   echo "lake is required. Install Lean via elan: https://lean-lang.org/install/" >&2
   exit 1
 fi
 
-# leanfmt loads imported modules to parse project-specific syntax.
-lake build DisasterRecovery
+declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [consensus]=Consensus [consistency]=consistency [kv]=Kv [mathlib-equivalence]=MathlibEquivalence)
+PACKAGES=("$@")
+if [ ${#PACKAGES[@]} -eq 0 ]; then
+  PACKAGES=(disaster-recovery consensus consistency kv)
+fi
 
-git -C "$ROOT_DIR" ls-files -z -- '*.lean' |
-  while IFS= read -r -d '' file; do
-    printf '%s\0' "$ROOT_DIR/$file"
-  done |
-  xargs -0 -r lake exe fmt --jobs "$(( ($(nproc) + 1) >> 1 ))" "${FORMAT_ARGS[@]}"
+for package in "${PACKAGES[@]}"; do
+  library="${LIBRARIES[$package]:-}"
+  if [ -z "$library" ]; then
+    echo "Unknown Lean package: $package" >&2
+    exit 1
+  fi
+  # The disaster recovery package also checks Lean files outside lean/.
+  if [ "$package" == "disaster-recovery" ]; then
+    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*" ":(exclude)lean/mathlib-equivalence/*")
+  else
+    PATHSPEC=("lean/$package/*.lean")
+  fi
+  (
+    cd "$ROOT_DIR/lean/$package"
+    # leanfmt loads imported modules to parse project-specific syntax.
+    if [ "$package" == "disaster-recovery" ]; then
+      lake build ccf_common/+CCF
+    fi
+    lake build "$library"
+    # The consensus scenarios are a package outside lean/, without leanfmt.
+    if [ "$package" == "disaster-recovery" ]; then
+      lake --dir "$ROOT_DIR/tests/cft_scenarios" build
+      export LEAN_PATH="$ROOT_DIR/tests/cft_scenarios/.lake/build/lib/lean"
+    fi
+    git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
+      while IFS= read -r -d '' file; do
+        printf '%s\0' "$ROOT_DIR/$file"
+      done |
+      xargs -0 -r lake exe fmt --jobs "$(( ($(nproc) + 1) >> 1 ))" "${FORMAT_ARGS[@]}"
+  )
+done

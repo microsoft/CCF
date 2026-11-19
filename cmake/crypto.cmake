@@ -4,6 +4,7 @@
 set(
   CCFCRYPTO_SRC
   ${CCF_DIR}/src/crypto/base64.cpp
+  ${CCF_DIR}/src/crypto/did_key.cpp
   ${CCF_DIR}/src/crypto/entropy.cpp
   ${CCF_DIR}/src/crypto/hash.cpp
   ${CCF_DIR}/src/crypto/public_key.cpp
@@ -18,6 +19,7 @@ set(
   ${CCF_DIR}/src/crypto/cose.cpp
   ${CCF_DIR}/src/crypto/cose_key.cpp
   ${CCF_DIR}/src/crypto/openssl/symmetric_key.cpp
+  ${CCF_DIR}/src/crypto/openssl/csr.cpp
   ${CCF_DIR}/src/crypto/openssl/ec_public_key.cpp
   ${CCF_DIR}/src/crypto/openssl/ec_key_pair.cpp
   ${CCF_DIR}/src/crypto/openssl/eddsa_public_key.cpp

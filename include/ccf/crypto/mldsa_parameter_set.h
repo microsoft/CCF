@@ -2,11 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <openssl/opensslv.h>
+#include "ccf/ds/json.h"
 
-#if OPENSSL_VERSION_PREREQ(3, 5)
-
-#  include <cstdint>
+#include <cstdint>
 
 namespace ccf::crypto
 {
@@ -16,5 +14,10 @@ namespace ccf::crypto
     ML_DSA_65,
     ML_DSA_87
   };
+
+  DECLARE_JSON_ENUM(
+    MLDSAParameterSet,
+    {{MLDSAParameterSet::ML_DSA_44, "ML-DSA-44"},
+     {MLDSAParameterSet::ML_DSA_65, "ML-DSA-65"},
+     {MLDSAParameterSet::ML_DSA_87, "ML-DSA-87"}});
 }
-#endif // OPENSSL_VERSION_PREREQ

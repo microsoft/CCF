@@ -185,14 +185,14 @@ def verify_cose_root_signature(service_cert: str, root: bytes, cose_sign1: bytes
         ) from exc
 
 
-def _verify_cose_root_signature_with_key(
+def verify_cose_root_signature_with_key(
     service_key_pem: bytes, root: bytes, cose_sign1: bytes
-):
+) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
     """Verify a COSE Sign1 signature over a Merkle root against the service key.
 
     The key-taking counterpart of :func:`verify_cose_root_signature`, for callers
     holding the service public key rather than its certificate. Returns the
-    decoded protected headers, and raises
+    decoded protected headers, unprotected headers, and payload, and raises
     :class:`InvalidRootCoseSignatureException` if verification fails.
     """
     try:
@@ -205,6 +205,10 @@ def _verify_cose_root_signature_with_key(
             + f"\nKey: {service_key_pem.decode()}"
             + f"\nRoot: {root!r}"
         ) from exc
+
+
+# Retain the former internal name for existing callers.
+_verify_cose_root_signature_with_key = verify_cose_root_signature_with_key
 
 
 def _verify_root(computed_root: bytes, existing_root: bytes) -> None:
@@ -313,7 +317,7 @@ def is_signature_transaction(tx_tables: Container[str]) -> bool:
     return any(name in tx_tables for name in SIGNATURE_TABLE_NAMES)
 
 
-def _verify_all_root_signatures(
+def verify_all_root_signatures(
     tx_tables: Mapping[str, Any],
     computed_root: bytes,
     collateral: RootSignatureCollateral,
@@ -343,3 +347,7 @@ def _verify_all_root_signatures(
             + ", ".join(f"{s.value}={t}" for s, t in verified)
         )
     return schemes, txids[0]
+
+
+# Retain the former internal name for existing callers.
+_verify_all_root_signatures = verify_all_root_signatures

@@ -1,10 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/node/node_configuration_interface.h"
+#include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
 #include "kv/null_encryptor.h"
@@ -107,6 +110,7 @@ TEST_CASE("Node configuration retains operator file paths")
 {
   const json input = {
     {"network", CCFConfig{}.network},
+    {"node_certificate", {{"id_format", "did:key"}}},
     {"node_data_json_file", "not-loaded/node.json"},
     {"service_data_json_file", "not-loaded/service.json"},
     {"tick_interval", "25ms"},
@@ -123,7 +127,8 @@ TEST_CASE("Node configuration retains operator file paths")
            {"recovery_role", MemberRecoveryRole::Owner}}}},
         {"constitution_files", {"not-loaded/first.js", "not-loaded/second.js"}},
         {"initial_service_certificate_validity_days", 7},
-        {"service_subject_name", "CN=Configured Service"}}},
+        {"service_subject_name", "CN=Configured Service"},
+        {"service_mldsa_parameter_set", "ML-DSA-87"}}},
       {"join",
        {{"target_rpc_address", "localhost:1234"},
         {"retry_timeout", "2s"},
@@ -135,9 +140,11 @@ TEST_CASE("Node configuration retains operator file paths")
         {"host_data_transparent_statement_path", "not-loaded/statement.cose"}}},
       {"recover",
        {{"previous_service_identity_file", "not-loaded/previous.pem"},
-        {"initial_service_certificate_validity_days", 13}}}}}};
+        {"initial_service_certificate_validity_days", 13},
+        {"service_mldsa_parameter_set", "ML-DSA-44"}}}}}};
 
   auto config = input.get<CCFConfig>();
+  CHECK(config.node_certificate.id_format == IdentityIdFormat::DIDKey);
   CHECK(config.command.type == StartType::Start);
   CHECK(
     config.command.start.members.front().certificate_file ==
@@ -147,6 +154,9 @@ TEST_CASE("Node configuration retains operator file paths")
     MemberRecoveryRole::Owner);
   CHECK(config.command.start.initial_service_certificate_validity_days == 7);
   CHECK(config.command.start.service_subject_name == "CN=Configured Service");
+  CHECK(
+    config.command.start.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_87);
   CHECK(config.snapshots.tx_count == 42);
   CHECK(config.memory.max_msg_size.count_bytes() == 128 * 1024 * 1024);
   CHECK(config.tick_interval.count_ms() == 25);
@@ -189,6 +199,9 @@ TEST_CASE("Node configuration retains operator file paths")
     config.command.recover.previous_service_identity_file ==
     "not-loaded/previous.pem");
   CHECK(config.command.recover.initial_service_certificate_validity_days == 13);
+  CHECK(
+    config.command.recover.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_44);
 
   const auto defaults = json{
     {"network", CCFConfig{}.network},
@@ -196,9 +209,80 @@ TEST_CASE("Node configuration retains operator file paths")
      {{"type", "Join"}}}}.get<CCFConfig>();
   CHECK(defaults.command.join.retry_timeout.count_ms() == 1000);
   CHECK(defaults.command.join.follow_redirect);
+  CHECK(defaults.node_certificate.id_format == IdentityIdFormat::SHA256);
   CHECK(defaults.command.join.fetch_recent_snapshot);
   CHECK(
     defaults.command.recover.initial_service_certificate_validity_days == 1);
+  CHECK(
+    defaults.command.start.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+  CHECK(
+    defaults.command.recover.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+}
+
+TEST_CASE("Node configuration resolves ringbuffer-era limit aliases")
+{
+  const json base = {
+    {"network", CCFConfig{}.network}, {"command", {{"type", "Join"}}}};
+  const auto check_limits = [&](
+                              const json& settings,
+                              size_t read_size,
+                              size_t pending_bytes,
+                              size_t frame_size) {
+    auto input = base;
+    input.update(settings);
+    const auto config = input.get<CCFConfig>();
+    const auto check = [&](const CCFConfig& parsed) {
+      CHECK(parsed.get_max_ledger_read_size() == read_size);
+      CHECK(parsed.get_max_pending_append_bytes() == pending_bytes);
+      CHECK(parsed.get_node_to_node_max_message_size() == frame_size);
+    };
+    check(config);
+    const auto encoded = json(config);
+    const auto decoded = encoded.get<CCFConfig>();
+    check(decoded);
+    CHECK(json(decoded) == encoded);
+    CHECK(decoded.ledger == config.ledger);
+    CHECK(decoded.node_to_node == config.node_to_node);
+  };
+
+  constexpr size_t mb = 1024 * 1024;
+  check_limits(json::object(), 64 * mb, 16 * mb, 64 * mb);
+  check_limits(
+    {{"memory",
+      {{"circuit_size", "3MB"},
+       {"max_msg_size", "128MB"},
+       {"max_fragment_size", "256KB"}}}},
+    128 * mb,
+    3 * mb,
+    128 * mb);
+  check_limits(
+    {{"ledger", {{"max_read_size", "96MB"}, {"max_pending_append_bytes", "0"}}},
+     {"node_to_node", {{"max_message_size", "48MB"}}}},
+    96 * mb,
+    0,
+    48 * mb);
+  check_limits(
+    {{"memory", {{"circuit_size", "3MB"}, {"max_msg_size", "128MB"}}},
+     {"ledger",
+      {{"max_read_size", "64MB"}, {"max_pending_append_bytes", "16MB"}}},
+     {"node_to_node", {{"max_message_size", "64MB"}}}},
+    64 * mb,
+    16 * mb,
+    64 * mb);
+  check_limits(
+    {{"memory", {{"max_msg_size", "128MB"}}},
+     {"ledger", {{"max_read_size", "32MB"}}}},
+    32 * mb,
+    16 * mb,
+    128 * mb);
+  check_limits(
+    {{"memory", {{"max_msg_size", "128MB"}}},
+     {"node_to_node", {{"max_message_size", "32MB"}}}},
+    128 * mb,
+    16 * mb,
+    32 * mb);
 }
 
 TEST_CASE("Genesis request retains resolved data on the wire")
@@ -252,6 +336,27 @@ namespace
     return path;
   }
 
+  std::shared_ptr<::http::HttpRpcContext> file_range_response(
+    const std::string& path,
+    llhttp_method verb,
+    const ccf::http::HeaderMap& headers)
+  {
+    ::http::Request request("/node/file", verb);
+    for (const auto& [name, value] : headers)
+    {
+      request.set_header(name, value);
+    }
+    const auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, std::vector<uint8_t>{});
+    auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+    ccf::endpoints::CommandEndpointContext ctx(rpc_ctx);
+    std::ifstream f(path, std::ios::binary);
+    REQUIRE(f.is_open());
+    rpc_ctx->set_response_header("x-file", "test-file");
+    ccf::node::fill_range_response_from_file(ctx, f);
+    return rpc_ctx;
+  }
+
   // This file is built with DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS,
   // which compiles out the CHECK_THROWS assertions, so catch explicitly.
   template <typename F>
@@ -283,13 +388,17 @@ TEST_CASE("Startup inputs are read from files")
      MemberRecoveryRole::Owner});
   start.members.push_back(
     {write_test_file(dir, "member1_cert.pem", member_cert.str())});
+  ParsedMemberInfo did_member;
+  did_member.did_key = ccf::crypto::did_key_from_public_key_der(
+    ccf::crypto::make_verifier(member_cert)->public_key_der());
+  start.members.push_back(did_member);
   start.constitution_files = {
     write_test_file(dir, "first.js", "first"),
     write_test_file(dir, "second.js", "second")};
   start.service_configuration.recovery_threshold = 1;
 
   const auto genesis = resolve_genesis_info(start);
-  REQUIRE(genesis.members.size() == 2);
+  REQUIRE(genesis.members.size() == 3);
   CHECK(genesis.members[0].cert == member_cert);
   CHECK(genesis.members[0].encryption_pub_key == encryption_key);
   CHECK(genesis.members[0].member_data == json{{"is_operator", true}});
@@ -298,6 +407,11 @@ TEST_CASE("Startup inputs are read from files")
   CHECK_FALSE(genesis.members[1].encryption_pub_key.has_value());
   CHECK(genesis.members[1].member_data.is_null());
   CHECK_FALSE(genesis.members[1].recovery_role.has_value());
+  CHECK(genesis.members[2].cert.empty());
+  CHECK(genesis.members[2].did_key == did_member.did_key);
+  auto conflicting = start;
+  conflicting.members[2].certificate_file = "must-not-be-read.pem";
+  CHECK_THROWS_AS(resolve_genesis_info(conflicting), std::logic_error);
   CHECK(genesis.constitution == "first\nsecond");
   CHECK(genesis.service_configuration == start.service_configuration);
 
@@ -548,7 +662,7 @@ TEST_CASE("Pending-node cleanup uses renewed client certificates")
   frontend->open();
   auto rpc_map = std::make_shared<ccf::RPCMap>();
   rpc_map->register_frontend<ccf::ActorsType::nodes>(frontend);
-  HTTPNodeClient client(rpc_map, self_kp, [&]() { return node_cert; });
+  HTTPNodeClient client(rpc_map, [&]() { return node_cert; });
 
   ::http::Request request(
     "/node/network/nodes/remove_expired_pending", HTTP_POST);
@@ -575,6 +689,13 @@ TEST_CASE("Pending-node cleanup uses renewed client certificates")
 
 TEST_CASE("Add a node to an opening service")
 {
+  auto id_format = IdentityIdFormat::SHA256;
+  SUBCASE("Legacy node ID") {}
+  SUBCASE("DID node ID")
+  {
+    id_format = IdentityIdFormat::DIDKey;
+  }
+
   NetworkState network;
   auto tx_encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(tx_encryptor);
@@ -604,7 +725,9 @@ TEST_CASE("Add a node to an opening service")
   INFO("Add first node before a service exists");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
     const auto response =
       frontend_process(frontend, join_input, "join", caller);
 
@@ -613,14 +736,42 @@ TEST_CASE("Add a node to an opening service")
   }
 
   InternalTablesAccess::create_service(
-    gen_tx, network.identity->cert, ccf::TxID{2, 1});
+    gen_tx, network.identity->cert, network.identity->pq_cert, ccf::TxID{2, 1});
   REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
+
+  INFO("A service with an ML-DSA identity only admits ML-DSA capable nodes");
+  REQUIRE(
+    network.identity->pq_cert.has_value() == ccf::crypto::mldsa_supported());
+  // Without ML-DSA the service has no such identity, and the main flow below
+  // shows that a joiner declaring no support is then accepted
+  if (ccf::crypto::mldsa_supported())
+  {
+    auto pk_der = node_kp->public_key_der();
+    const NodeId joiner_node_id = ccf::crypto::Sha256Hash(pk_der).hex_str();
+    // Nodes of this build without ML-DSA, and nodes that predate the field
+    const std::vector<std::optional<bool>> incapable = {false, std::nullopt};
+    for (const auto& declared : incapable)
+    {
+      JoinNetworkNodeToNode::In join_input;
+      join_input.public_encryption_key = node_public_encryption_key;
+      join_input.mldsa_supported = declared;
+      auto http_response =
+        frontend_process(frontend, join_input, "join", caller);
+      check_error(http_response, HTTP_STATUS_BAD_REQUEST);
+      check_error_message(http_response, "This service has an ML-DSA identity");
+      // Rejected before anything is recorded
+      auto check_tx = network.tables->create_tx();
+      CHECK_FALSE(check_tx.rw(network.nodes)->get(joiner_node_id).has_value());
+    }
+  }
 
   INFO("Add first node which should be trusted straight away");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
     // Join input does not include CSR (1.x)
     join_input.certificate_signing_request = std::nullopt;
 
@@ -637,14 +788,38 @@ TEST_CASE("Add a node to an opening service")
     // No endorsed certificate since no CSR was passed in
     CHECK(response.network_info->endorsed_certificate == std::nullopt);
 
-    auto pk_der = node_kp->public_key_der();
-    const NodeId joiner_node_id = ccf::crypto::Sha256Hash(pk_der).hex_str();
+    const auto joiner_node_id = compute_node_id_from_kp(node_kp, id_format);
+    CHECK(response.node_id == joiner_node_id);
     auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(joiner_node_id);
 
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::TRUSTED);
     CHECK(node_kp->public_key_pem() == node_info->public_key);
+  }
+
+  INFO("A key outside the did:key profile cannot request a DID node ID");
+  {
+    const auto eddsa_kp =
+      ccf::crypto::make_eddsa_key_pair(ccf::crypto::CurveID::CURVE25519);
+    const auto unsupported_caller = ccf::crypto::create_endorsed_cert(
+      eddsa_kp->public_key_pem(),
+      "CN=Unsupported Joiner",
+      {},
+      valid_from,
+      valid_to,
+      node_kp->private_key_pem(),
+      caller);
+    JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = IdentityIdFormat::DIDKey;
+    join_input.public_encryption_key = node_public_encryption_key;
+    const auto response =
+      frontend_process(frontend, join_input, "join", unsupported_caller);
+    check_error(response, HTTP_STATUS_BAD_REQUEST);
+    check_error_message(
+      response, "cannot be identified in the requested format");
+    auto verify_tx = network.tables->create_tx();
+    CHECK(verify_tx.ro(network.nodes)->size() == 1);
   }
 
   INFO("Adding the same node should return the same result");
@@ -655,9 +830,14 @@ TEST_CASE("Add a node to an opening service")
       up_to_ledger_secret_seqno + 1, make_ledger_secret());
 
     JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
 
-    auto http_response = frontend_process(frontend, join_input, "join", caller);
+    const auto replacement =
+      node_kp->self_sign("CN=Replacement", valid_from, valid_to);
+    auto http_response =
+      frontend_process(frontend, join_input, "join", replacement);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
     const auto response =
@@ -682,6 +862,7 @@ TEST_CASE("Add a node to an opening service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
     join_input.public_encryption_key = node_public_encryption_key;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
 
     auto http_response =
       frontend_process(frontend, join_input, "join", new_caller);
@@ -740,6 +921,13 @@ TEST_CASE("JWT refresh metrics are thread-safe")
 
 TEST_CASE("Add a node to an open service")
 {
+  auto id_format = IdentityIdFormat::SHA256;
+  SUBCASE("Legacy node ID") {}
+  SUBCASE("DID node ID")
+  {
+    id_format = IdentityIdFormat::DIDKey;
+  }
+
   NetworkState network;
   auto gen_tx = network.tables->create_tx();
   auto tx_encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
@@ -762,7 +950,7 @@ TEST_CASE("Add a node to an open service")
     up_to_ledger_secret_seqno, make_ledger_secret());
 
   InternalTablesAccess::create_service(
-    gen_tx, network.identity->cert, ccf::TxID{2, 1});
+    gen_tx, network.identity->cert, network.identity->pq_cert, ccf::TxID{2, 1});
   InternalTablesAccess::init_configuration(gen_tx, {1});
   InternalTablesAccess::activate_member(
     gen_tx,
@@ -771,7 +959,9 @@ TEST_CASE("Add a node to an open service")
       {member_cert, ccf::crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(InternalTablesAccess::open_service(gen_tx));
   REQUIRE(InternalTablesAccess::endorse_previous_identity(
-    gen_tx, *network.identity->get_key_pair()));
+    gen_tx,
+    *network.identity->get_key_pair(),
+    network.identity->get_pq_key_pair()));
   REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   // Node certificate
@@ -782,7 +972,9 @@ TEST_CASE("Add a node to an open service")
     ccf::crypto::make_ec_key_pair()->public_key_pem();
 
   JoinNetworkNodeToNode::In join_input;
+  join_input.id_format = id_format;
   join_input.public_encryption_key = node_public_encryption_key;
+  join_input.mldsa_supported = ccf::crypto::mldsa_supported();
   join_input.certificate_signing_request = node_kp->create_csr("CN=Joiner");
 
   INFO("Add node once service is open");
@@ -796,8 +988,8 @@ TEST_CASE("Add a node to an open service")
 
     CHECK(!response.network_info.has_value());
 
-    auto pk_der = node_kp->public_key_der();
-    const NodeId joiner_node_id = ccf::crypto::Sha256Hash(pk_der).hex_str();
+    const auto joiner_node_id = compute_node_id_from_kp(node_kp, id_format);
+    CHECK(response.node_id == joiner_node_id);
     auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(joiner_node_id);
     CHECK(node_info.has_value());
@@ -816,6 +1008,7 @@ TEST_CASE("Add a node to an open service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In other_join_input;
     other_join_input.public_encryption_key = node_public_encryption_key;
+    other_join_input.mldsa_supported = ccf::crypto::mldsa_supported();
 
     auto http_response =
       frontend_process(frontend, other_join_input, "join", new_caller);
@@ -841,7 +1034,7 @@ TEST_CASE("Add a node to an open service")
   {
     auto tx = network.tables->create_tx();
     // In a real scenario, nodes are trusted via member governance.
-    auto joining_node_id = ccf::compute_node_id_from_kp(node_kp);
+    auto joining_node_id = ccf::compute_node_id_from_kp(node_kp, id_format);
     InternalTablesAccess::trust_node(
       tx, joining_node_id, network.ledger_secrets->get_latest(tx).first);
     const auto dummy_endorsed_certificate =
@@ -896,10 +1089,14 @@ TEST_CASE("Add a node to an open service")
     JoinNetworkNodeToNode::In expired_join_input;
     expired_join_input.public_encryption_key =
       ccf::crypto::make_ec_key_pair()->public_key_pem();
+    expired_join_input.mldsa_supported = ccf::crypto::mldsa_supported();
     expired_join_input.certificate_signing_request =
       expired_node_kp->create_csr("CN=Expired Joiner");
     expired_join_input.node_info_network.node_to_node_interface
       .published_address = "localhost:1234";
+    expired_join_input.node_info_network.node_to_node_tls_interface =
+      NodeInfoNetwork::NodeToNodeInterface{
+        "localhost:8082", "peer.example:8082"};
 
     auto http_response = frontend_process(
       frontend, expired_join_input, "join", expired_node_caller);
@@ -911,6 +1108,9 @@ TEST_CASE("Add a node to an open service")
       const auto node_info = nodes->get(expired_node_id);
       REQUIRE(node_info.has_value());
       REQUIRE(node_info->pending_last_seen.has_value());
+      CHECK(
+        node_info->node_to_node_tls_interface ==
+        expired_join_input.node_info_network.node_to_node_tls_interface);
 
       nlohmann::json node_info_json = node_info.value();
       CHECK(
@@ -960,6 +1160,9 @@ TEST_CASE("Add a node to an open service")
       REQUIRE(last_seen.has_value());
       CHECK(last_seen.value() >= before);
       CHECK(last_seen.value() <= now_ms());
+      CHECK(
+        get_node(expired_node_id).node_to_node_tls_interface ==
+        expired_join_input.node_info_network.node_to_node_tls_interface);
     }
 
     const auto stale_pending_last_seen = now_ms() -
@@ -1000,7 +1203,8 @@ TEST_CASE("Add a node to an open service")
       std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::hours(2))
         .count();
-    const auto trusted_node_id = ccf::compute_node_id_from_kp(node_kp);
+    const auto trusted_node_id =
+      ccf::compute_node_id_from_kp(node_kp, id_format);
     set_last_seen(expired_node_id, expired);
     set_last_seen(trusted_node_id, expired);
 
@@ -1035,6 +1239,434 @@ TEST_CASE("Add a node to an open service")
     }
     CHECK(get_node(trusted_node_id).status == NodeStatus::TRUSTED);
     CHECK(get_node(trusted_node_id).pending_last_seen == expired);
+  }
+}
+
+TEST_CASE("File range parsing preserves half-open bounds")
+{
+  struct Case
+  {
+    std::string header;
+    size_t total_size;
+    size_t start;
+    size_t end;
+  };
+
+  const auto max = std::numeric_limits<size_t>::max();
+  const std::vector<Case> cases = {
+    {"bytes=0-0", 100, 0, 1},
+    {"bytes=0-99", 100, 0, 100},
+    {"bytes=10-19", 100, 10, 20},
+    {"bytes=99-99", 100, 99, 100},
+    {"bytes=0-100", 100, 0, 100},
+    {"bytes=10-100", 100, 10, 100},
+    {fmt::format("bytes=0-{}", max), 100, 0, 100},
+    {"bytes=0-", 100, 0, 100},
+    {"bytes=10-", 100, 10, 100},
+    {"bytes=99-", 100, 99, 100},
+    {"bytes=-1", 100, 99, 100},
+    {"bytes=-20", 100, 80, 100},
+    {"bytes=-100", 100, 0, 100},
+    {"bytes=-101", 100, 0, 100},
+    {fmt::format("bytes=-{}", max), 100, 0, 100},
+    {"bytes=010-019", 100, 10, 20},
+    {"bytes=10x-19y", 100, 10, 20},
+    {"bytes=10 -19 ", 100, 10, 20},
+    {"bytes=0x10-0x20", 100, 0, 1},
+    {"bytes=0-9=ignored", 100, 0, 10},
+    {"bytes=-20xyz", 100, 80, 100},
+    {"bytes=10tail-", 100, 10, 100},
+    {"bytes=-0", 100, 100, 100},
+    {"bytes=50-49", 100, 50, 50},
+    {"bytes=100-", 100, 100, 100},
+    {"bytes=100-100", 100, 100, 100},
+    {"bytes=0-0", 1, 0, 1},
+    {"bytes=-1", 1, 0, 1},
+    {fmt::format("bytes=0-{}", max), max, 0, max},
+    {fmt::format("bytes={}-{}", max - 1, max), max, max - 1, max},
+    {fmt::format("bytes={}-", max - 1), max, max - 1, max},
+    {fmt::format("bytes=-{}", max), max, 0, max},
+    {fmt::format("bytes={}-", max), max, max, max},
+    {fmt::format("bytes={}-{}", max, max), max, max, max}};
+
+  for (const auto& test : cases)
+  {
+    INFO(test.header, ", total_size=", test.total_size);
+    const auto parsed =
+      ccf::node::detail::parse_range_header(test.header, test.total_size);
+    REQUIRE(std::holds_alternative<ccf::node::detail::FileRange>(parsed));
+    const auto& range = std::get<ccf::node::detail::FileRange>(parsed);
+    CHECK(range.start == test.start);
+    CHECK(range.end == test.end);
+  }
+}
+
+TEST_CASE("File range parsing preserves exact errors")
+{
+  struct Case
+  {
+    std::string header;
+    std::string error;
+  };
+
+  const auto overflow =
+    std::to_string(std::numeric_limits<size_t>::max()) + "0";
+  const std::vector<Case> cases = {
+    {"", "Only 'bytes' is supported as a Range header unit"},
+    {"items=0-1", "Only 'bytes' is supported as a Range header unit"},
+    {"Bytes=0-1", "Only 'bytes' is supported as a Range header unit"},
+    {"bytes =0-1", "Only 'bytes' is supported as a Range header unit"},
+    {" bytes=0-1", "Only 'bytes' is supported as a Range header unit"},
+    {"bytes", "Invalid format, cannot parse range in bytes"},
+    {"bytes=", "Invalid format, cannot parse range in bytes="},
+    {"bytes=0", "Invalid format, cannot parse range in bytes=0"},
+    {"bytes=0--1", "Invalid format, cannot parse range in bytes=0--1"},
+    {"bytes=-1-5", "Invalid format, cannot parse range in bytes=-1-5"},
+    {"bytes=0-1-2", "Invalid format, cannot parse range in bytes=0-1-2"},
+    {"bytes=0-1,2-3", "Multiple ranges are not supported"},
+    {"bytes=0-1,", "Multiple ranges are not supported"},
+    {"bytes=foo,bar", "Multiple ranges are not supported"},
+    {"bytes=-", "Invalid range: Must contain range-start or range-end"},
+    {"bytes=foo-9", "Unable to parse start of range value foo in bytes=foo-9"},
+    {"bytes=0-foo", "Unable to parse end of range value foo in bytes=0-foo"},
+    {"bytes=-foo",
+     "Unable to parse end of range offset value foo in bytes=-foo"},
+    {"bytes= 1-2", "Unable to parse start of range value  1 in bytes= 1-2"},
+    {"bytes=1- 2", "Unable to parse end of range value  2 in bytes=1- 2"},
+    {"bytes=- 2", "Unable to parse end of range offset value  2 in bytes=- 2"},
+    {"bytes=+1-2", "Unable to parse start of range value +1 in bytes=+1-2"},
+    {"bytes=1-+2", "Unable to parse end of range value +2 in bytes=1-+2"},
+    {"bytes=-+2", "Unable to parse end of range offset value +2 in bytes=-+2"},
+    {"bytes==0-1", "Unable to parse start of range value =0 in bytes==0-1"},
+    {"bytes=101-", "Start of range 101 is larger than total file size 100"},
+    {"bytes=101-foo", "Start of range 101 is larger than total file size 100"},
+    {"bytes=50-48", "Invalid range: Start (50) and end (49) out of order"},
+    {"bytes=99-0", "Invalid range: Start (99) and end (1) out of order"},
+    {fmt::format("bytes={}-", overflow),
+     fmt::format(
+       "Unable to parse start of range value {} in bytes={}-",
+       overflow,
+       overflow)},
+    {fmt::format("bytes=0-{}", overflow),
+     fmt::format(
+       "Unable to parse end of range value {} in bytes=0-{}",
+       overflow,
+       overflow)},
+    {fmt::format("bytes=-{}", overflow),
+     fmt::format(
+       "Unable to parse end of range offset value {} in bytes=-{}",
+       overflow,
+       overflow)}};
+
+  for (const auto& test : cases)
+  {
+    INFO(test.header);
+    const auto parsed = ccf::node::detail::parse_range_header(test.header, 100);
+    REQUIRE(std::holds_alternative<std::string>(parsed));
+    CHECK(std::get<std::string>(parsed) == test.error);
+  }
+}
+
+TEST_CASE("File range responses preserve GET and HEAD metadata")
+{
+  const ScopedTempDir dir;
+  std::string contents;
+  for (size_t i = 0; i < 100; ++i)
+  {
+    contents.push_back(static_cast<char>(i));
+  }
+  const auto path = write_test_file(dir, "range.bin", contents);
+  const std::vector<uint8_t> bytes(contents.begin(), contents.end());
+  const auto full_digest = ccf::node::format_repr_digest(
+    "sha-256", ccf::crypto::MDType::SHA256, bytes.data(), bytes.size());
+
+  struct Case
+  {
+    std::optional<std::string> header;
+    size_t start;
+    size_t end;
+  };
+
+  const std::vector<Case> cases = {
+    {std::nullopt, 0, 100},
+    {"bytes=10-19", 10, 20},
+    {"bytes=10-", 10, 100},
+    {"bytes=-20", 80, 100},
+    {"bytes=-101", 0, 100},
+    {fmt::format("bytes=0-{}", std::numeric_limits<size_t>::max()), 0, 100},
+    {"bytes=10junk-19junk", 10, 20}};
+
+  for (const auto& test : cases)
+  {
+    for (const auto verb : {HTTP_GET, HTTP_HEAD})
+    {
+      for (const auto want_digest : {false, true})
+      {
+        INFO(
+          test.header.value_or("<absent>"),
+          ", verb=",
+          verb,
+          ", want_digest=",
+          want_digest);
+        ccf::http::HeaderMap request_headers;
+        if (test.header.has_value())
+        {
+          request_headers[ccf::http::headers::RANGE] = test.header.value();
+        }
+        if (want_digest)
+        {
+          request_headers[ccf::http::headers::WANT_REPR_DIGEST] = "sha-256=1";
+        }
+        const auto response = file_range_response(path, verb, request_headers);
+        const auto headers = response->get_response_headers();
+        CHECK(
+          response->get_response_status() ==
+          (test.header.has_value() ? HTTP_STATUS_PARTIAL_CONTENT :
+                                     HTTP_STATUS_OK));
+        CHECK(headers.at("x-file") == "test-file");
+        CHECK(headers.at("accept-ranges") == "bytes");
+        CHECK(
+          headers.at(ccf::http::headers::CONTENT_TYPE) ==
+          ccf::http::headervalues::contenttype::OCTET_STREAM);
+        if (test.header.has_value())
+        {
+          CHECK(
+            headers.at(ccf::http::headers::CONTENT_RANGE) ==
+            fmt::format("bytes {}-{}/100", test.start, test.end - 1));
+        }
+        else
+        {
+          CHECK_FALSE(headers.contains(ccf::http::headers::CONTENT_RANGE));
+        }
+        const std::vector<uint8_t> expected(
+          bytes.begin() + test.start, bytes.begin() + test.end);
+        CHECK(
+          headers.at(ccf::http::headers::ETAG) ==
+          fmt::format(
+            "\"{}\"",
+            ccf::node::format_repr_digest(
+              "sha-256",
+              ccf::crypto::MDType::SHA256,
+              expected.data(),
+              expected.size())));
+        if (want_digest)
+        {
+          CHECK(headers.at(ccf::http::headers::REPR_DIGEST) == full_digest);
+        }
+        else
+        {
+          CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
+        }
+        if (verb == HTTP_HEAD)
+        {
+          CHECK(response->get_response_body().empty());
+          CHECK(
+            headers.at(ccf::http::headers::CONTENT_LENGTH) ==
+            std::to_string(expected.size()));
+        }
+        else
+        {
+          CHECK(response->get_response_body() == expected);
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE("File range responses reject invalid and empty ranges before reading")
+{
+  const ScopedTempDir dir;
+  const auto path = write_test_file(dir, "range.bin", std::string(100, 'x'));
+
+  struct Case
+  {
+    std::string header;
+    std::string error;
+  };
+
+  const std::vector<Case> cases = {
+    {"items=0-1", "Only 'bytes' is supported as a Range header unit"},
+    {"bytes=0-1,2-3", "Multiple ranges are not supported"},
+    {"bytes=", "Invalid format, cannot parse range in bytes="},
+    {"bytes=foo-9", "Unable to parse start of range value foo in bytes=foo-9"},
+    {"bytes=0-foo", "Unable to parse end of range value foo in bytes=0-foo"},
+    {"bytes=-foo",
+     "Unable to parse end of range offset value foo in bytes=-foo"},
+    {"bytes=101-", "Start of range 101 is larger than total file size 100"},
+    {"bytes=-", "Invalid range: Must contain range-start or range-end"},
+    {"bytes=50-48", "Invalid range: Start (50) and end (49) out of order"},
+    {"bytes=-0", "Invalid range: Start (100) and end (100) out of order"},
+    {"bytes=50-49", "Invalid range: Start (50) and end (50) out of order"},
+    {"bytes=100-", "Invalid range: Start (100) and end (100) out of order"},
+    {"bytes=100-100", "Invalid range: Start (100) and end (100) out of order"}};
+
+  for (const auto& test : cases)
+  {
+    for (const auto verb : {HTTP_GET, HTTP_HEAD})
+    {
+      INFO(test.header, ", verb=", verb);
+      const auto response = file_range_response(
+        path,
+        verb,
+        {{ccf::http::headers::RANGE, test.header},
+         {ccf::http::headers::WANT_REPR_DIGEST, "sha-256=1"},
+         {ccf::http::headers::IF_NONE_MATCH, "*"}});
+      CHECK(response->get_response_status() == HTTP_STATUS_BAD_REQUEST);
+      const auto headers = response->get_response_headers();
+      CHECK(headers.at("x-file") == "test-file");
+      CHECK(headers.at("accept-ranges") == "bytes");
+      CHECK_FALSE(headers.contains(ccf::http::headers::ETAG));
+      CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
+      CHECK_FALSE(headers.contains(ccf::http::headers::CONTENT_RANGE));
+      if (verb == HTTP_GET)
+      {
+        const auto body = json::parse(response->get_response_body());
+        CHECK(body["error"]["code"] == ccf::errors::InvalidHeaderValue);
+        CHECK(body["error"]["message"] == test.error);
+      }
+      else
+      {
+        CHECK(response->get_response_body().empty());
+      }
+    }
+  }
+}
+
+TEST_CASE(
+  "File range responses reject empty files before setting range headers")
+{
+  const ScopedTempDir dir;
+  const auto path = write_test_file(dir, "empty.bin", "");
+  for (const auto verb : {HTTP_GET, HTTP_HEAD})
+  {
+    const auto response = file_range_response(
+      path,
+      verb,
+      {{ccf::http::headers::RANGE, "invalid"},
+       {ccf::http::headers::WANT_REPR_DIGEST, "sha-256=1"},
+       {ccf::http::headers::IF_NONE_MATCH, "*"}});
+    CHECK(response->get_response_status() == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    const auto headers = response->get_response_headers();
+    CHECK(headers.at("x-file") == "test-file");
+    CHECK_FALSE(headers.contains("accept-ranges"));
+    CHECK_FALSE(headers.contains(ccf::http::headers::ETAG));
+    CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
+    if (verb == HTTP_GET)
+    {
+      const auto body = json::parse(response->get_response_body());
+      CHECK(body["error"]["code"] == ccf::errors::EmptyFile);
+      CHECK(body["error"]["message"] == "Found empty file");
+    }
+    else
+    {
+      CHECK(response->get_response_body().empty());
+    }
+  }
+}
+
+TEST_CASE(
+  "File range conditional responses preserve digest and header ordering")
+{
+  const ScopedTempDir dir;
+  const std::string contents = "0123456789";
+  const auto path = write_test_file(dir, "range.bin", contents);
+  const std::vector<uint8_t> bytes(contents.begin(), contents.end());
+  const auto full_digest = ccf::node::format_repr_digest(
+    "sha-256", ccf::crypto::MDType::SHA256, bytes.data(), bytes.size());
+  for (const auto with_range : {false, true})
+  {
+    ccf::http::HeaderMap request_headers;
+    if (with_range)
+    {
+      request_headers[ccf::http::headers::RANGE] = "bytes=2-4";
+    }
+    const auto initial = file_range_response(path, HTTP_GET, request_headers);
+    const auto etag =
+      initial->get_response_headers().at(ccf::http::headers::ETAG);
+    const auto& body = initial->get_response_body();
+    const std::vector<std::string> matches = {
+      "*",
+      etag,
+      fmt::format(
+        "\"{}\"",
+        ccf::node::format_repr_digest(
+          "sha-384", ccf::crypto::MDType::SHA384, body.data(), body.size())),
+      fmt::format(
+        "\"{}\"",
+        ccf::node::format_repr_digest(
+          "sha-512", ccf::crypto::MDType::SHA512, body.data(), body.size()))};
+    for (const auto verb : {HTTP_GET, HTTP_HEAD})
+    {
+      for (const auto want_digest : {false, true})
+      {
+        auto headers = request_headers;
+        if (want_digest)
+        {
+          headers[ccf::http::headers::WANT_REPR_DIGEST] = "sha-256=1";
+        }
+        for (const auto& match : matches)
+        {
+          INFO(with_range, ", verb=", verb, ", If-None-Match=", match);
+          headers[ccf::http::headers::IF_NONE_MATCH] = match;
+          const auto response = file_range_response(path, verb, headers);
+          CHECK(response->get_response_status() == HTTP_STATUS_NOT_MODIFIED);
+          CHECK(response->get_response_body().empty());
+          const auto response_headers = response->get_response_headers();
+          CHECK(response_headers.at("x-file") == "test-file");
+          CHECK(response_headers.at("accept-ranges") == "bytes");
+          CHECK(response_headers.at(ccf::http::headers::ETAG) == etag);
+          CHECK_FALSE(
+            response_headers.contains(ccf::http::headers::CONTENT_TYPE));
+          CHECK_FALSE(
+            response_headers.contains(ccf::http::headers::CONTENT_RANGE));
+          CHECK_FALSE(
+            response_headers.contains(ccf::http::headers::CONTENT_LENGTH));
+          if (want_digest)
+          {
+            CHECK(
+              response_headers.at(ccf::http::headers::REPR_DIGEST) ==
+              full_digest);
+          }
+          else
+          {
+            CHECK_FALSE(
+              response_headers.contains(ccf::http::headers::REPR_DIGEST));
+          }
+        }
+        headers[ccf::http::headers::IF_NONE_MATCH] = "\"different\"";
+        const auto response = file_range_response(path, verb, headers);
+        CHECK(
+          response->get_response_status() ==
+          (with_range ? HTTP_STATUS_PARTIAL_CONTENT : HTTP_STATUS_OK));
+        CHECK(
+          response->get_response_headers().at(ccf::http::headers::ETAG) ==
+          etag);
+
+        for (const auto& invalid_match :
+             std::vector<std::string>{"not etags", fmt::format("W/{}", etag)})
+        {
+          headers[ccf::http::headers::IF_NONE_MATCH] = invalid_match;
+          const auto invalid_response =
+            file_range_response(path, verb, headers);
+          CHECK(
+            invalid_response->get_response_status() == HTTP_STATUS_BAD_REQUEST);
+          CHECK(
+            invalid_response->get_response_headers().at(
+              ccf::http::headers::ETAG) == etag);
+          if (verb == HTTP_GET)
+          {
+            const auto error =
+              json::parse(invalid_response->get_response_body())["error"];
+            CHECK(error["code"] == ccf::errors::InvalidHeaderValue);
+            CHECK(error["message"] == "Invalid If-Match header");
+          }
+          else
+          {
+            CHECK(invalid_response->get_response_body().empty());
+          }
+        }
+      }
+    }
   }
 }
 

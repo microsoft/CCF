@@ -14,56 +14,6 @@
 #include "node/signature_cache_interface.h"
 #include "node/tx_receipt_impl.h"
 
-#include <tav/cbor.hpp>
-
-namespace
-{
-  tav::cbor::Value encode_leaf_cbor(const ccf::TxReceiptImpl& receipt)
-  {
-    using namespace tav::cbor;
-    std::vector<Value> items;
-
-    // 1 WSD
-    if (!receipt.write_set_digest.has_value())
-    {
-      throw std::logic_error("Write set digest is required for COSE receipts");
-    }
-    items.push_back(make_bytes(receipt.write_set_digest->h));
-
-    // 2. CE
-    if (!receipt.commit_evidence.has_value())
-    {
-      throw std::logic_error("Commit evidence is required for COSE receipts");
-    }
-    items.push_back(make_string(receipt.commit_evidence.value()));
-
-    // 3. CD
-    items.push_back(make_bytes(receipt.claims_digest.value().h));
-
-    return make_array(std::move(items));
-  }
-
-  tav::cbor::Value encode_path_cbor(const ccf::HistoryTree::Path& path)
-  {
-    using namespace tav::cbor;
-    std::vector<Value> items;
-
-    for (const auto& node : path)
-    {
-      const bool dir =
-        (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
-
-      std::span<const uint8_t> hash{node.hash.bytes, node.hash.size()};
-      std::vector<Value> path_element;
-      path_element.push_back(make_simple(boolean_to_simple(dir)));
-      path_element.push_back(make_bytes(hash));
-
-      items.push_back(make_array(std::move(path_element)));
-    }
-    return make_array(std::move(items));
-  }
-}
-
 namespace ccf
 {
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt)
@@ -247,19 +197,11 @@ namespace ccf
       return std::nullopt;
     }
 
-    using namespace tav::cbor;
-    std::vector<MapItem> proof;
-
-    proof.emplace_back(
-      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL),
-      encode_leaf_cbor(receipt));
-
-    proof.emplace_back(
-      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL),
-      encode_path_cbor(*receipt.path));
-
-    auto proof_map = make_map(std::move(proof));
-    return proof_map.nondet_serialize();
+    return encode_merkle_proof(
+      receipt.write_set_digest.value(),
+      receipt.commit_evidence.value(),
+      receipt.claims_digest.value(),
+      *receipt.path);
   }
 
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
@@ -486,6 +428,7 @@ namespace ccf::historical
     {
       case ccf::TxStatus::Unknown:
       case ccf::TxStatus::Pending:
+      {
         error_reason = fmt::format(
           "Only committed transactions can be queried. Transaction {}.{} "
           "is "
@@ -494,7 +437,9 @@ namespace ccf::historical
           seqno,
           ccf::tx_status_to_str(tx_status));
         return HistoricalTxStatus::PendingOrUnknown;
+      }
       case ccf::TxStatus::Invalid:
+      {
         error_reason = fmt::format(
           "Only committed transactions can be queried. Transaction {}.{} "
           "is "
@@ -503,7 +448,10 @@ namespace ccf::historical
           seqno,
           ccf::tx_status_to_str(tx_status));
         return HistoricalTxStatus::Invalid;
-      case ccf::TxStatus::Committed:;
+      }
+      case ccf::TxStatus::Committed:
+      {
+      }
     }
 
     return HistoricalTxStatus::Valid;
@@ -560,25 +508,33 @@ namespace ccf::historical
         switch (is_available)
         {
           case HistoricalTxStatus::Error:
+          {
             ehandler(
               HistoricalQueryErrorCode::InternalError,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::PendingOrUnknown:
+          {
             ehandler(
               HistoricalQueryErrorCode::TransactionPending,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::Invalid:
+          {
             ehandler(
               HistoricalQueryErrorCode::TransactionInvalid,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::Valid:
+          {
             break;
+          }
         }
       }
 

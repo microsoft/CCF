@@ -2,7 +2,6 @@
 
 #include "../ds/ds.h"
 #include "freelist.h"
-#include "sizeclasstable.h"
 #include "snmalloc/stl/new.h"
 
 namespace snmalloc
@@ -282,6 +281,11 @@ namespace snmalloc
       uintptr_t* val;
 
     public:
+      /**
+       * Uninitialised constructor.
+       */
+      BackendStateWordRef() = default;
+
       /**
        * Constructor, wraps a `uintptr_t`.  Note that this may be used outside
        * of the meta entry by code wishing to provide uniform storage to things

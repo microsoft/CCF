@@ -47,6 +47,7 @@ namespace ccf
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::ChannelStatus>
 {
@@ -87,6 +88,7 @@ struct formatter<ccf::ChannelStatus>
     return format_to(ctx.out(), "{}", s);
   }
 };
+
 FMT_END_NAMESPACE
 
 namespace ccf
@@ -104,12 +106,8 @@ namespace ccf
     uint64_t nonce : (sizeof(MsgNonce) - sizeof(tid)) * CHAR_BIT;
 
     WireNonce(uint64_t nonce_) : nonce(nonce_) {}
-
-    [[nodiscard]] uint64_t get_val() const
-    {
-      return *reinterpret_cast<const uint64_t*>(this);
-    }
   };
+
   static_assert(
     sizeof(WireNonce) == sizeof(MsgNonce), "WireNonce is the wrong size");
 

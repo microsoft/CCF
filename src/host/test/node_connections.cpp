@@ -50,7 +50,9 @@ namespace
 
   public:
     MockSocket();
+
     MockSocket(std::nullptr_t) : impl(nullptr) {}
+
     MockSocket(bool /*is_client*/, std::optional<std::chrono::milliseconds>);
 
     MockSocketImpl* operator->() const
@@ -225,6 +227,7 @@ namespace
   };
 
   MockSocket::MockSocket() : impl(std::make_shared<MockSocketImpl>()) {}
+
   MockSocket::MockSocket(bool, std::optional<std::chrono::milliseconds>) :
     impl(std::make_shared<MockSocketImpl>())
   {}
@@ -300,15 +303,14 @@ namespace
     }
   }
 
-  // The host inspects the raft header of every outbound consensus message, so
-  // the payload has to be a plausible one. A pre-vote is used here because it
-  // is what a stalled candidate sends, and unlike an append-entries it carries
-  // no ledger indices for the host to read.
+  // The host inspects the header of every outbound CCF consensus protocol
+  // message, so the payload has to be a plausible one. A pre-vote is used here
+  // because it is what a stalled candidate sends, and unlike an append-entries
+  // it carries no ledger indices for the host to read.
   std::vector<uint8_t> make_pre_vote()
   {
     std::vector<uint8_t> m(sizeof(aft::Node2NodeMsg) + 16, 0);
-    const auto type =
-      static_cast<aft::Node2NodeMsg>(aft::raft_request_pre_vote);
+    const auto type = static_cast<aft::Node2NodeMsg>(aft::request_pre_vote);
     std::memcpy(m.data(), &type, sizeof(type));
     return m;
   }
@@ -467,7 +469,7 @@ namespace
   std::vector<uint8_t> make_append_entries(
     ::consensus::Index prev_idx, ::consensus::Index idx)
   {
-    const auto type = static_cast<aft::Node2NodeMsg>(aft::raft_append_entries);
+    const auto type = static_cast<aft::Node2NodeMsg>(aft::append_entries);
     const ::consensus::AppendEntriesIndex ae{.idx = idx, .prev_idx = prev_idx};
     std::vector<uint8_t> m(sizeof(type) + sizeof(ae) + 16, 0xab);
     std::memcpy(m.data(), &type, sizeof(type));

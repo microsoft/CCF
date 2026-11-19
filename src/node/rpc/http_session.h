@@ -22,7 +22,6 @@ namespace http
     http::RequestParser request_parser;
 
     std::shared_ptr<ccf::RPCMap> rpc_map;
-    std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
     std::shared_ptr<ErrorReporter> error_reporter;
     std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks;

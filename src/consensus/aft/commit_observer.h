@@ -7,7 +7,7 @@
 
 namespace aft
 {
-  // Notified by consensus each time the commit index advances. Implemented by
+  // Notified by CFT each time the commit index advances. Implemented by
   // the node's commit callback subsystem.
   class CommitObserver
   {

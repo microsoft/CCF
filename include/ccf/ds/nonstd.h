@@ -180,6 +180,7 @@ namespace ccf::nonstd
       return std::toupper(c);
     });
   }
+
   static inline void to_lower(std::string& s)
   {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
@@ -217,6 +218,7 @@ namespace ccf::nonstd
   }
 
   using CloseFdGuard = std::unique_ptr<int, decltype(&close_fd)>;
+
   static inline CloseFdGuard make_close_fd_guard(int* fd)
   {
     return {fd, close_fd};

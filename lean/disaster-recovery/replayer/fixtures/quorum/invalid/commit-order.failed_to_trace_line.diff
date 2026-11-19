@@ -1,0 +1,4 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_3.out
+@@ -22,0 +23 @@
++2026-09-30T07:50:00.000000Z 1   [fail ] de/recovery_decision_protocol.cpp:68 | Failed to trace recovery-decision-protocol at line 100: injected

@@ -188,6 +188,7 @@ namespace ccf::pal
 
     return raw;
   }
+
 #undef RETRIEVE_TCB_FIELD
 
   std::optional<snp::TcbVersionRaw> get_endorsed_tcb_from_cert(
@@ -197,11 +198,17 @@ namespace ccf::pal
     {
       case snp::ProductName::Milan:
       case snp::ProductName::Genoa:
+      {
         return get_milan_genoa_tcb_from_cert(vcek_leaf_cert);
+      }
       case snp::ProductName::Turin:
+      {
         return get_turin_tcb_from_cert(vcek_leaf_cert);
+      }
       default:
+      {
         throw std::logic_error("Unknown SEV-SNP product");
+      }
     }
   }
 

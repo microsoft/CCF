@@ -17,18 +17,14 @@
 #include "ccf/version.h"
 #include "common/cli_helper.h"
 #include "common/configuration.h"
-#include "common/enclave_interface_types.h"
+#include "common/create_node_status.h"
 #include "config_schema.h"
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "ds/non_blocking.h"
-#include "ds/notifying.h"
-#include "ds/oversized.h"
 #include "ds/time_bound_logger.h"
-#include "enclave/entry_points.h"
-#include "handle_ring_buffer.h"
+#include "enclave/enclave.h"
 #include "host/files_cleanup_timer.h"
 #include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
@@ -39,10 +35,9 @@
 #include "sig_term.h"
 #include "task_ticker.h"
 #include "tcp.h"
-#include "ticker.h"
+#include "tracing/logger.h"
 
 #include <CLI11/CLI11.hpp>
-#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
@@ -50,6 +45,7 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <latch>
 #include <map>
 #include <memory>
 #include <optional>
@@ -93,29 +89,23 @@ namespace ccf
 {
   void validate_ledger_transaction_size(const ccf::CCFConfig& config)
   {
-    const auto max_message_size = config.memory.max_msg_size.count_bytes();
+    const auto max_read_size = config.get_max_ledger_read_size();
     const auto max_transaction_size =
       config.ledger.max_transaction_size.count_bytes();
-    const auto response_overhead =
-      ::consensus::ledger_range_response_metadata_size;
-
-    if (
-      max_message_size <= response_overhead ||
-      max_transaction_size > max_message_size - response_overhead)
+    if (max_read_size == 0 || max_transaction_size > max_read_size)
     {
       throw std::logic_error(fmt::format(
-        "ledger.max_transaction_size ({}) must be at least {} bytes smaller "
-        "than memory.max_msg_size ({}) so a single ledger entry fits in a "
-        "ring-buffer range response",
-        max_transaction_size,
-        response_overhead,
-        max_message_size));
+        "ledger.max_read_size ({}) must be nonzero and at least "
+        "ledger.max_transaction_size ({}) so a single ledger entry fits in a "
+        "ledger range read",
+        max_read_size,
+        max_transaction_size));
     }
   }
 
   void validate_and_coerce_worker_threads(ccf::CCFConfig& config)
   {
-    // Replace the task execution capacity of the dispatch thread, which no
+    // Replace the task execution capacity of the coordination thread, which no
     // longer executes tasks itself, without requiring configuration changes.
     if (config.worker_threads == 0)
     {
@@ -204,100 +194,11 @@ namespace ccf
     }
   }
 
-  struct WriterFactories
-  {
-    ringbuffer::WriterFactory base_factory;
-    ringbuffer::NotifyingWriterFactory notifying_factory;
-    ringbuffer::NonBlockingWriterFactory non_blocking_factory;
-    oversized::WriterFactory writer_factory;
-
-    WriterFactories(
-      ringbuffer::Circuit& circuit, const oversized::WriterConfig& config) :
-      base_factory(circuit),
-      notifying_factory(base_factory),
-      non_blocking_factory(notifying_factory),
-      writer_factory(non_blocking_factory, config)
-    {}
-  };
-
-  std::optional<size_t> create_enclave_node(
-    const ccf::CCFConfig& config,
-    messaging::BufferProcessor& buffer_processor,
-    ringbuffer::Circuit& circuit,
-    EnclaveConfig& enclave_config,
-    std::vector<uint8_t>& node_cert,
-    std::vector<uint8_t>& service_cert,
-    std::vector<uint8_t>& rpc_addresses,
-    ccf::LoggerLevel log_level,
-    ringbuffer::NotifyingWriterFactory& notifying_factory,
-    ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<asynchost::LedgerSubsystem>& ledger_subsystem,
-    const std::shared_ptr<asynchost::NodeConnections>& node_connections)
-  {
-    LOG_INFO_FMT("Initialising enclave: enclave_create_node");
-    std::atomic<bool> ecall_completed = false;
-    auto flush_outbound = [&]() {
-      do
-      {
-        std::this_thread::sleep_for(
-          std::chrono::milliseconds(retry_interval_ms));
-
-        buffer_processor.read_all(circuit.read_from_inside());
-      } while (!ecall_completed);
-    };
-    std::thread flusher_thread(flush_outbound);
-    auto create_status = enclave_create_node(
-      enclave_config,
-      config,
-      node_cert,
-      service_cert,
-      rpc_addresses,
-      config.command.type,
-      log_level,
-      config.worker_threads,
-      notifying_factory.get_inbound_work_beacon(),
-      runtime_control,
-      ledger_subsystem,
-      node_connections);
-    ecall_completed.store(true);
-    flusher_thread.join();
-
-    // Reset the thread ID generator. This function will exit before any
-    // thread calls enclave_run, and without creating any new threads, so it
-    // is safe for the first thread that calls enclave_run to re-use this
-    // thread_id. That way they are both considered MAIN_THREAD_ID, even if
-    // they are actually distinct std::threads.
-    ccf::threading::reset_thread_id_generator();
-
-    if (create_status != CreateNodeStatus::OK)
-    {
-      LOG_FAIL_FMT(
-        "An error occurred when creating CCF node: {}",
-        create_node_result_to_str(create_status));
-
-      // Pull all logs from the enclave via BufferProcessor `buffer_processor`
-      // and show any logs that came from the ring buffer during setup.
-      buffer_processor.read_all(circuit.read_from_inside());
-
-      // This returns from main, stopping the program
-      return create_status;
-    }
-
-    LOG_INFO_FMT("Created new node");
-
-    // The enclave resolves and binds the RPC interfaces (including ephemeral
-    // ports), and reports the resolved addresses back here to be written out.
-    if (!config.output_files.rpc_addresses_file.empty())
-    {
-      files::dump(rpc_addresses, config.output_files.rpc_addresses_file);
-    }
-    return std::nullopt;
-  }
-
   void write_certificates_to_disk(
     const ccf::CCFConfig& config,
     const std::vector<uint8_t>& node_cert,
-    const std::vector<uint8_t>& service_cert)
+    const std::vector<uint8_t>& service_cert,
+    const std::vector<uint8_t>& pq_service_cert)
   {
     // Write the node and service certs to disk.
     files::dump(node_cert, config.output_files.node_certificate_file);
@@ -313,44 +214,69 @@ namespace ccf
       LOG_INFO_FMT(
         "Output service certificate to {}",
         config.command.service_certificate_file);
+      if (!pq_service_cert.empty())
+      {
+        files::dump(
+          pq_service_cert, config.command.pq_service_certificate_file);
+        LOG_INFO_FMT(
+          "Output ML-DSA service certificate to {}",
+          config.command.pq_service_certificate_file);
+      }
     }
   }
 
-  void run_enclave_threads(
-    const ccf::CCFConfig& config,
-    asynchost::RuntimeControlImpl& runtime_control,
-    asynchost::LedgerSubsystem& ledger_subsystem)
+  void run_enclave_threads(const ccf::CCFConfig& config, Enclave& enclave)
   {
+    const auto thread_count = config.worker_threads + 1;
+    std::latch ready(thread_count);
+    std::atomic<bool> cancelled = false;
+    // Startup ran on the launcher thread. Runtime threads reuse its main ID.
+    ccf::threading::reset_thread_id_generator();
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
+      ready.arrive_and_wait();
+      if (cancelled.load())
+      {
+        return;
+      }
+      ccf::tracing::FluentdSink::bind_producer(thread_id);
       try
       {
-        bool ret = enclave_run();
+        LOG_INFO_FMT("Starting thread: {}", thread_id);
+        const bool ret = thread_id == threading::MAIN_THREAD_ID ?
+          enclave.run_main() :
+          enclave.run_worker();
 
         if (!ret)
         {
-          throw std::logic_error(fmt::format("Failure in enclave_run"));
+          throw std::logic_error("Failure in enclave runtime thread");
         }
       }
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
+        ccf::logger::write_fatal_diagnostic(
+          "Enclave runtime thread failed; see stdout logs for details");
 
-        // This exception should be rethrown, probably aborting the process,
-        // but we sleep briefly to allow more outbound messages to be
-        // processed. If the enclave sent logging messages, it is useful to
-        // read and print them before dying.
-        std::this_thread::sleep_for(1s);
         throw;
       }
     };
 
     LOG_INFO_FMT("Starting enclave thread(s)");
-    // Start threads which will ECall and process messages inside the enclave
-    std::vector<std::thread> threads;
-    for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
+    std::vector<std::jthread> threads;
+    threads.reserve(thread_count);
+    try
     {
-      threads.emplace_back(enclave_thread_start, i);
+      for (uint32_t i = 0; i < thread_count; ++i)
+      {
+        threads.emplace_back(enclave_thread_start, i);
+      }
+    }
+    catch (...)
+    {
+      cancelled.store(true);
+      ready.count_down(thread_count - threads.size());
+      throw;
     }
 
     LOG_INFO_FMT("Entering event loop");
@@ -360,63 +286,47 @@ namespace ccf
     {
       thread.join();
     }
-
-    // Workers exit as soon as a stop is requested, so ledger mutations which
-    // append()/commit() accepted may still be queued on the ledger lane. Drain
-    // them to disk now, while no worker can run the lane. This must happen
-    // BEFORE enclave_shutdown_tasks(): shutting down the job board abandons
-    // every registered lane's pending actions, which would silently discard
-    // those writes.
-    ledger_subsystem.shutdown();
-
-    // Transports and task workers are quiescent. Release queued actions,
-    // including paused session queues, before their dependencies are torn down.
-    enclave_shutdown_tasks();
-
-    runtime_control.throw_if_fatal_error();
   }
 
-  std::optional<size_t> run_main_loop(
-    ccf::CCFConfig& config,
-    messaging::BufferProcessor& buffer_processor,
-    ringbuffer::Circuit& circuit,
-    EnclaveConfig& enclave_config,
-    ccf::LoggerLevel log_level)
+  std::optional<size_t> run_main_loop(ccf::CCFConfig& config)
   {
-    // Construct hierarchy of ringbuffer writer factories
-    WriterFactories factories(circuit, enclave_config.writer_config);
-    auto& writer_factory = factories.writer_factory;
-
     const asynchost::TaskTicker task_ticker(config.tick_interval);
 
-    // provide regular ticks to the enclave
-    const asynchost::Ticker ticker(config.tick_interval, writer_factory);
-
-    const auto request_enclave_stop = []() {
-      return ccf::enclave_request_stop();
+    std::unique_ptr<Enclave> enclave;
+    const auto request_enclave_stop = [&enclave]() {
+      if (enclave == nullptr)
+      {
+        return false;
+      }
+      enclave->request_stop();
+      return true;
     };
-    const auto drain_ringbuffers_before_loop_stop =
-      [&buffer_processor, &circuit, &factories]() {
-        buffer_processor.read_all(circuit.read_from_inside());
-        factories.non_blocking_factory.flush_all_inbound();
-      };
-    asynchost::RuntimeControl runtime_control(
-      request_enclave_stop, drain_ringbuffers_before_loop_stop);
+    asynchost::RuntimeControl runtime_control(request_enclave_stop);
+
+    // Register before startup, but libuv delivers signals only when the loop
+    // runs. This preserves signals received during initialization.
+    const auto request_node_shutdown = [&request_enclave_stop]() {
+      if (!request_enclave_stop())
+      {
+        LOG_FAIL_FMT("Cannot request node shutdown before it has been created");
+      }
+    };
+    const auto notify_node_stopping = [&enclave]() {
+      if (enclave == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "Cannot notify node of stopping before it has been created");
+        return;
+      }
+      enclave->request_stop_notice();
+    };
+    asynchost::Sigterm sigterm(
+      config.ignore_first_sigterm, request_node_shutdown, notify_node_stopping);
+    asynchost::Sighup sighup(
+      false, request_node_shutdown, notify_node_stopping);
 
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
-
-    // handle outbound logging and admin messages from the enclave
-    const asynchost::HandleRingbuffer handle_ringbuffer(
-      1ms,
-      buffer_processor,
-      circuit.read_from_inside(),
-      factories.non_blocking_factory);
-
-    // graceful shutdown on sigterm
-    asynchost::Sigterm sigterm(config.ignore_first_sigterm);
-    // graceful shutdown on sighup
-    asynchost::Sighup sighup(false /* never ignore */);
 
     asynchost::Ledger ledger(
       config.ledger.directory,
@@ -427,10 +337,9 @@ namespace ccf
     // is alive, and shut down before it is destroyed.
     auto ledger_subsystem = std::make_shared<asynchost::LedgerSubsystem>(
       ledger,
-      config.memory.max_msg_size.count_bytes() -
-        ::consensus::ledger_range_response_metadata_size,
+      config.get_max_ledger_read_size(),
       ccf::tasks::get_main_job_board(),
-      config.memory.circuit_size.count_bytes());
+      config.get_max_pending_append_bytes());
 
     if (config.snapshots.read_only_directory.has_value())
     {
@@ -457,7 +366,7 @@ namespace ccf
     // Setup node-to-node connections, which the node uses as its typed
     // transport. Outbound messages are ordered behind the ledger mutations
     // submitted before them, then written on the loop thread by a 1ms flush
-    // timer. Inbound frames keep the previous ringbuffer message size limit.
+    // timer. Inbound frames use the configured maximum message size.
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
     auto node = std::make_shared<asynchost::NodeConnections>(
@@ -465,7 +374,7 @@ namespace ccf
       *ledger_subsystem,
       node_host,
       node_port,
-      config.memory.max_msg_size.count_bytes(),
+      config.get_node_to_node_max_message_size(),
       config.node_client_interface,
       config.client_connection_timeout);
     const asynchost::FlushNodeOutbound flush_node_outbound(1ms, *node);
@@ -487,9 +396,14 @@ namespace ccf
     }
 
     // Initialise the curlm singleton
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    auto curl_libuv_context =
-      http_client::CurlmLibuvContextSingleton(uv_default_loop());
+    if (const auto curl_rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+        curl_rc != CURLE_OK)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to initialise libcurl: {}", curl_easy_strerror(curl_rc)));
+    }
+    std::optional<http_client::CurlmLibuvContextSingleton> curl_libuv_context(
+      std::in_place, uv_default_loop());
 
     // Validate and normalise the configured RPC addresses here, at the input
     // boundary, so that everything downstream sees a well-formed "host:port"
@@ -513,17 +427,13 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        LOG_FATAL_FMT(
+        const auto message = fmt::format(
           "Invalid address for RPC interface {}: {}. Exiting.", name, e.what());
+        LOG_FATAL_FMT("{}", message);
+        ccf::logger::write_fatal_diagnostic(message);
         return static_cast<int>(CLI::ExitCodes::ValidationError);
       }
     }
-
-    // Prepare startup configuration
-    const size_t certificate_size = 4096;
-    std::vector<uint8_t> node_cert(certificate_size);
-    std::vector<uint8_t> service_cert(certificate_size);
-    std::vector<uint8_t> rpc_addresses;
 
     if (ccf::pal::platform == ccf::pal::Platform::Virtual)
     {
@@ -537,9 +447,11 @@ namespace ccf
         files::exists(config.ledger.directory) &&
         !fs::is_empty(config.ledger.directory))
       {
-        LOG_FATAL_FMT(
+        const auto message = fmt::format(
           "On start, ledger directory should not exist or be empty ({})",
           config.ledger.directory);
+        LOG_FATAL_FMT("{}", message);
+        ccf::logger::write_fatal_diagnostic(message);
         return static_cast<int>(CLI::ExitCodes::ValidationError);
       }
 
@@ -550,10 +462,12 @@ namespace ccf
           files::exists(readonly_ledger_directory) &&
           !fs::is_empty(readonly_ledger_directory))
         {
-          LOG_FATAL_FMT(
+          const auto message = fmt::format(
             "On start, read-only ledger directories should not exist or be "
             "empty ({})",
             readonly_ledger_directory);
+          LOG_FATAL_FMT("{}", message);
+          ccf::logger::write_fatal_diagnostic(message);
           return static_cast<int>(CLI::ExitCodes::ValidationError);
         }
       }
@@ -562,40 +476,89 @@ namespace ccf
       config.command.type != StartType::Join &&
       config.command.type != StartType::Recover)
     {
-      LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+      constexpr auto message = "Start command should be start|join|recover.";
+      LOG_FATAL_FMT("{} Exiting.", message);
+      ccf::logger::write_fatal_diagnostic(message);
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
-    // Create the enclave node
-    auto enclave_creation_result = create_enclave_node(
-      config,
-      buffer_processor,
-      circuit,
-      enclave_config,
-      node_cert,
-      service_cert,
-      rpc_addresses,
-      log_level,
-      factories.notifying_factory,
-      *runtime_control,
-      ledger_subsystem,
-      node);
-
-    if (enclave_creation_result.has_value())
+    if (
+      config.command.type == StartType::Start &&
+      config.command.start.service_configuration.reconfiguration_type.value_or(
+        ccf::ReconfigurationType::ONE_TRANSACTION) !=
+        ccf::ReconfigurationType::ONE_TRANSACTION)
     {
-      return enclave_creation_result;
+      LOG_FAIL_FMT(
+        "2TX reconfiguration is experimental, disabled in release mode");
+      ccf::logger::write_fatal_diagnostic(
+        "2TX reconfiguration is disabled in release mode");
+      return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
 
-    // Output certificates to disk
-    write_certificates_to_disk(config, node_cert, service_cert);
+    // The stop callback's owner must outlive RuntimeControl, but the runtime
+    // itself must be destroyed before its host dependencies.
+    struct RuntimeCleanup
+    {
+      std::unique_ptr<Enclave>& enclave;
+      asynchost::NodeConnections& transport;
+      std::optional<http_client::CurlmLibuvContextSingleton>& curl_context;
+      asynchost::Sigterm& sigterm;
+      asynchost::Sighup& sighup;
 
-    // Run enclave threads and event loop. The ledger subsystem is drained
-    // inside, between the enclave threads joining and the job board shutting
-    // down; see run_enclave_threads.
-    run_enclave_threads(config, *runtime_control, *ledger_subsystem);
-    // The enclave retains the transport, so close its sockets explicitly
-    // before the loop is closed
-    node->shutdown();
+      ~RuntimeCleanup()
+      {
+        sigterm = nullptr;
+        sighup = nullptr;
+        // Curl cancellation invokes callbacks borrowing NodeState.
+        if (enclave != nullptr)
+        {
+          enclave->request_stop();
+        }
+        curl_context.reset();
+        enclave.reset();
+        transport.shutdown();
+      }
+    } cleanup{enclave, *node, curl_libuv_context, sigterm, sighup};
+
+    auto failure_status = CreateNodeStatus::EnclaveInitFailed;
+    try
+    {
+      enclave = std::make_unique<Enclave>(
+        config, *runtime_control, ledger_subsystem, node);
+      failure_status = CreateNodeStatus::InternalError;
+      const auto startup = enclave->initialise(config);
+      LOG_INFO_FMT("Created new node");
+      if (!config.output_files.rpc_addresses_file.empty())
+      {
+        files::dump(
+          startup.rpc_addresses, config.output_files.rpc_addresses_file);
+      }
+      write_certificates_to_disk(
+        config,
+        startup.node_cert,
+        startup.service_cert,
+        startup.pq_service_cert);
+    }
+    catch (const std::exception& e)
+    {
+      // Startup diagnostics are safe here: no runtime thread has executed,
+      // and locally generated secrets will be discarded.
+      LOG_FAIL_FMT("Error starting node: {}", e.what());
+      ccf::logger::write_fatal_diagnostic(
+        "Node startup failed; see stdout logs for details");
+      return failure_status;
+    }
+
+    run_enclave_threads(config, *enclave);
+    try
+    {
+      runtime_control->throw_if_fatal_error();
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
+      return CreateNodeStatus::InternalError;
+    }
 
     return std::nullopt;
   }
@@ -618,11 +581,13 @@ namespace ccf
 #endif
   }
 
-  int run(int argc, char** argv) // NOLINT(bugprone-exception-escape)
+  // NOLINTNEXTLINE(misc-use-anonymous-namespace)
+  static int run_impl(int argc, char** argv)
   {
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
     {
       LOG_FAIL_FMT("Failed to ignore SIGPIPE");
+      ccf::logger::write_fatal_diagnostic("Failed to ignore SIGPIPE");
       return 1;
     }
 
@@ -737,7 +702,27 @@ namespace ccf
     {
       ccf::logger::config::add_text_console_logger();
     }
-
+    ccf::tracing::FluentdSink::Lifetime fluentd_lifetime;
+    try
+    {
+      if (!check_config_only)
+      {
+        if (!config.observability.fluentd.empty())
+        {
+          ccf::logger::config::loggers().emplace_back(
+            std::make_unique<ccf::tracing::FluentdLogger>());
+        }
+        ccf::tracing::FluentdSink::configure(
+          config.observability.fluentd, config.worker_threads + 3);
+        ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 2);
+      }
+    }
+    catch (const std::logic_error& e)
+    {
+      LOG_FATAL_FMT("{}. Exiting.", e.what());
+      ccf::logger::write_fatal_diagnostic(e.what());
+      return static_cast<int>(CLI::ExitCodes::ValidationError);
+    }
     LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
 
     LOG_INFO_FMT(
@@ -751,6 +736,11 @@ namespace ccf
     try
     {
       validate_ledger_transaction_size(config);
+      for (const auto& endpoint : config.observability.fluentd)
+      {
+        ccf::tracing::FluentdSink::validate(
+          endpoint, config.worker_threads + 3);
+      }
       const auto pending_node_timeout =
         std::chrono::microseconds(config.pending_node_timeout);
       if (
@@ -764,11 +754,42 @@ namespace ccf
     catch (const std::logic_error& e)
     {
       LOG_FATAL_FMT("{}. Exiting.", e.what());
+      ccf::logger::write_fatal_diagnostic(e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
     // Coerces rather than rejects, so no try/catch is needed here.
     validate_and_coerce_worker_threads(config);
+
+    if (config_json.contains("memory"))
+    {
+      const auto& memory = config_json.at("memory");
+      if (memory.contains("circuit_size"))
+      {
+        LOG_INFO_FMT(
+          "memory.circuit_size is deprecated and will be removed in 8.0; use "
+          "ledger.max_pending_append_bytes instead. The legacy value is {}.",
+          config.ledger.max_pending_append_bytes.has_value() ? "ignored" :
+                                                               "used");
+      }
+      if (memory.contains("max_msg_size"))
+      {
+        LOG_INFO_FMT(
+          "memory.max_msg_size is deprecated and will be removed in 8.0; use "
+          "ledger.max_read_size and node_to_node.max_message_size instead. "
+          "The legacy value is {} for ledger.max_read_size and {} for "
+          "node_to_node.max_message_size.",
+          config.ledger.max_read_size.has_value() ? "ignored" : "used",
+          config.node_to_node.max_message_size.has_value() ? "ignored" :
+                                                             "used");
+      }
+      if (memory.contains("max_fragment_size"))
+      {
+        LOG_INFO_FMT(
+          "memory.max_fragment_size is deprecated and ignored; remove it "
+          "from the configuration. It will be removed in 8.0.");
+      }
+    }
 
     if (check_config_only)
     {
@@ -800,6 +821,7 @@ namespace ccf
     catch (const std::logic_error& e)
     {
       LOG_FATAL_FMT("{}. Exiting.", e.what());
+      ccf::logger::write_fatal_diagnostic(e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
@@ -808,6 +830,8 @@ namespace ccf
     {
       LOG_FATAL_FMT(
         "PID file {} already exists. Exiting.", pid_file_path.string());
+      ccf::logger::write_fatal_diagnostic(
+        fmt::format("PID file {} already exists", pid_file_path.string()));
       return static_cast<int>(CLI::ExitCodes::FileError);
     }
 
@@ -820,66 +844,18 @@ namespace ccf
     ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
-    // create the enclave:
-
-    // messaging ring buffers
-    const auto buffer_size = config.memory.circuit_size;
-
-    std::vector<uint8_t> to_enclave_buffer(buffer_size);
-    ringbuffer::Offsets to_enclave_offsets;
-    ringbuffer::BufferDef to_enclave_def{
-      to_enclave_buffer.data(), to_enclave_buffer.size(), &to_enclave_offsets};
-    if (!ringbuffer::Const::find_acceptable_sub_buffer(
-          to_enclave_def.data, to_enclave_def.size))
+    std::optional<int> inner_ret;
+    try
     {
-      LOG_FATAL_FMT(
-        "Unable to construct valid inbound buffer of size {}", buffer_size);
-      return static_cast<int>(CLI::ExitCodes::ValidationError);
+      inner_ret = run_main_loop(config);
     }
-
-    std::vector<uint8_t> from_enclave_buffer(buffer_size);
-    ringbuffer::Offsets from_enclave_offsets;
-    ringbuffer::BufferDef from_enclave_def{
-      from_enclave_buffer.data(),
-      from_enclave_buffer.size(),
-      &from_enclave_offsets};
-    if (!ringbuffer::Const::find_acceptable_sub_buffer(
-          from_enclave_def.data, from_enclave_def.size))
+    catch (const std::exception& e)
     {
-      LOG_FATAL_FMT(
-        "Unable to construct valid outbound buffer of size {}", buffer_size);
-      return static_cast<int>(CLI::ExitCodes::ValidationError);
-    }
-
-    ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
-    messaging::BufferProcessor buffer_processor("Host");
-
-    // reconstruct oversized messages sent to the host
-    const oversized::FragmentReconstructor fragment_reconstructor(
-      buffer_processor.get_dispatcher());
-
-    {
-      EnclaveConfig enclave_config;
-      enclave_config.tick_interval =
-        std::chrono::milliseconds(config.tick_interval);
-      enclave_config.to_enclave_buffer_start = to_enclave_def.data;
-      enclave_config.to_enclave_buffer_size = to_enclave_def.size;
-      enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;
-      enclave_config.from_enclave_buffer_start = from_enclave_def.data;
-      enclave_config.from_enclave_buffer_size = from_enclave_def.size;
-      enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
-
-      const oversized::WriterConfig writer_config{
-        config.memory.max_fragment_size, config.memory.max_msg_size};
-      enclave_config.writer_config = writer_config;
-
-      const auto inner_ret = run_main_loop(
-        config, buffer_processor, circuit, enclave_config, log_level);
-
-      if (inner_ret.has_value())
-      {
-        return inner_ret.value();
-      }
+      LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
+      ccf::logger::write_fatal_diagnostic(
+        "Unhandled exception while running the node; see stdout logs for "
+        "details");
+      inner_ret = CreateNodeStatus::InternalError;
     }
 
     constexpr size_t max_close_iterations = 1000;
@@ -903,6 +879,8 @@ namespace ccf
     {
       LOG_FAIL_FMT(
         "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
+      ccf::logger::write_fatal_diagnostic(fmt::format(
+        "Failed to close the host event loop: {}", uv_err_name(loop_close_rc)));
       // walk loop to diagnose unclosed handles
       auto cb = [](uv_handle_t* handle, void* arg) {
         (void)arg;
@@ -915,6 +893,27 @@ namespace ccf
     }
     curl_global_cleanup();
 
-    return loop_close_rc;
+    return inner_ret.value_or(loop_close_rc);
+  }
+
+  int run(int argc, char** argv) // NOLINT(bugprone-exception-escape)
+  {
+    try
+    {
+      return run_impl(argc, argv);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Unhandled exception in ccf::run: {}", e.what());
+      ccf::logger::write_fatal_diagnostic(
+        fmt::format("Unhandled exception in CCF node: {}", e.what()));
+      return CreateNodeStatus::InternalError;
+    }
+    catch (...)
+    {
+      LOG_FAIL_FMT("Unhandled exception in ccf::run");
+      ccf::logger::write_fatal_diagnostic("Unhandled exception in CCF node");
+      return CreateNodeStatus::InternalError;
+    }
   }
 }

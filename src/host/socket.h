@@ -27,6 +27,7 @@ namespace asynchost
       name(name),
       conn_name(conn_name)
     {}
+
     virtual ~SocketBehaviour() = default;
 
     /// To be implemented by clients
@@ -40,19 +41,18 @@ namespace asynchost
     /// To be implemented by servers with connections
     virtual void on_accept(ConnType& /*unused*/) {}
 
-    /// To be implemented by all servers (after registration)
-    virtual void on_start(int64_t /*unused*/) {}
-
     /// Generic loggers for common reactions
     virtual void on_listening(
       const std::string& host, const std::string& service)
     {
       LOG_INFO_FMT("{} {} listening on {}:{}", conn_name, name, host, service);
     }
+
     virtual void on_connect()
     {
       LOG_INFO_FMT("{} {} connected", conn_name, name);
     }
+
     virtual void on_disconnect()
     {
       LOG_TRACE_FMT("{} {} disconnected", conn_name, name);
@@ -63,6 +63,7 @@ namespace asynchost
     {
       LOG_INFO_FMT("{} {} bind failed", conn_name, name);
     }
+
     virtual void on_connect_failed()
     {
       LOG_INFO_FMT("{} {} connect failed", conn_name, name);
@@ -71,12 +72,17 @@ namespace asynchost
     /// Failure loggers for when things go wrong, fataly
     virtual void on_resolve_failed()
     {
-      LOG_FATAL_FMT("{} {} resolve failed", conn_name, name);
+      const auto message = fmt::format("{} {} resolve failed", conn_name, name);
+      LOG_FATAL_FMT("{}", message);
+      ccf::logger::write_fatal_diagnostic(message);
       abort();
     }
+
     virtual void on_listen_failed()
     {
-      LOG_FATAL_FMT("{} {} listen failed", conn_name, name);
+      const auto message = fmt::format("{} {} listen failed", conn_name, name);
+      LOG_FATAL_FMT("{}", message);
+      ccf::logger::write_fatal_diagnostic(message);
       abort();
     }
   };
