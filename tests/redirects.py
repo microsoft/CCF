@@ -219,7 +219,7 @@ def test_redirects_with_static_name_config(network, args):
 def run_redirect_tests_role(args):
     for node in args.nodes:
         primary_interface = node.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
-        primary_interface.app_protocol = "HTTP2" if args.http2 else "HTTP1"
+        primary_interface.app_protocol = "HTTP1"
         if args.redirections_config == "default":
             # "redirections": {} selects the default role-based resolvers
             redirections = infra.interfaces.RedirectionConfig(
@@ -308,14 +308,12 @@ if __name__ == "__main__":
         ("cpp", "samples/apps/logging/logging"),
         ("js", "js_generic"),
     ):
-        for http2 in (False, True):
-            cr.add(
-                f"{package_name}_redirects_default_http{2 if http2 else 1}",
-                run_redirect_tests_role,
-                package=package,
-                nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-                http2=http2,
-                redirections_config="default",
-            )
+        cr.add(
+            f"{package_name}_redirects_default",
+            run_redirect_tests_role,
+            package=package,
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            redirections_config="default",
+        )
 
     cr.run()

@@ -717,46 +717,40 @@ TEST_CASE("Explicit redirections use default resolvers and overrides")
   auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   network.tables->set_consensus(consensus);
   publish_frontend_state(frontend, network);
-  for (const auto version : {HttpVersion::HTTP1, HttpVersion::HTTP2})
-  {
-    INFO((version == HttpVersion::HTTP1 ? "HTTP1" : "HTTP2"));
-    auto session = std::make_shared<SessionContext>(
-      InvalidSessionId, anonymous_caller_der, "test_interface");
-    const auto call = [&](const std::string& path, llhttp_method verb) {
-      auto ctx = std::make_shared<::http::HttpRpcContext>(
-        session,
-        version,
-        verb,
-        "/app" + path,
-        ccf::http::HeaderMap{},
-        std::vector<uint8_t>{});
-      ::http::extract_actor(*ctx);
-      frontend.process(ctx);
-      return parse_response(ctx->serialise_response());
-    };
+  auto session = std::make_shared<SessionContext>(
+    InvalidSessionId, anonymous_caller_der, "test_interface");
+  const auto call = [&](const std::string& path, llhttp_method verb) {
+    auto ctx = std::make_shared<::http::HttpRpcContext>(
+      session,
+      verb,
+      "/app" + path,
+      ccf::http::HeaderMap{},
+      std::vector<uint8_t>{});
+    ::http::extract_actor(*ctx);
+    frontend.process(ctx);
+    return parse_response(ctx->serialise_response());
+  };
 
-    consensus->state = ccf::kv::test::StubConsensus::Backup;
-    auto response = call("/write?key=a%26b", HTTP_POST);
-    INFO(std::string(response.body.begin(), response.body.end()));
-    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
-    CHECK(
-      response.headers.at(ccf::http::headers::LOCATION) ==
-      "https://" + primary_address + "/app/write?key=a%26b");
-    CHECK(executions == 0);
-    CHECK(call("/read", HTTP_GET).status == HTTP_STATUS_OK);
-    CHECK(call("/backup", HTTP_GET).status == HTTP_STATUS_OK);
-    CHECK(executions == 2);
+  consensus->state = ccf::kv::test::StubConsensus::Backup;
+  auto response = call("/write?key=a%26b", HTTP_POST);
+  INFO(std::string(response.body.begin(), response.body.end()));
+  REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+  CHECK(
+    response.headers.at(ccf::http::headers::LOCATION) ==
+    "https://" + primary_address + "/app/write?key=a%26b");
+  CHECK(executions == 0);
+  CHECK(call("/read", HTTP_GET).status == HTTP_STATUS_OK);
+  CHECK(call("/backup", HTTP_GET).status == HTTP_STATUS_OK);
+  CHECK(executions == 2);
 
-    consensus->state = ccf::kv::test::StubConsensus::Primary;
-    CHECK(call("/write", HTTP_POST).status == HTTP_STATUS_OK);
-    response = call("/backup", HTTP_GET);
-    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
-    CHECK(
-      response.headers.at(ccf::http::headers::LOCATION) ==
-      "https://" + backup_address + "/app/backup");
-    CHECK(executions == 3);
-    executions = 0;
-  }
+  consensus->state = ccf::kv::test::StubConsensus::Primary;
+  CHECK(call("/write", HTTP_POST).status == HTTP_STATUS_OK);
+  response = call("/backup", HTTP_GET);
+  REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+  CHECK(
+    response.headers.at(ccf::http::headers::LOCATION) ==
+    "https://" + backup_address + "/app/backup");
+  CHECK(executions == 3);
 }
 
 TEST_CASE("Endpoints with disabled operator features look like unknown paths")
