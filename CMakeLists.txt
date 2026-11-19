@@ -566,14 +566,15 @@ install(
 
 install(
   FILES
+    ${TAV_INCLUDE_DIR}/tav/byte_buffer.h
+    ${TAV_INCLUDE_DIR}/tav/byte_buffer.hpp
+    ${TAV_INCLUDE_DIR}/tav/cbor.h
     ${TAV_INCLUDE_DIR}/tav/cbor.hpp
+    ${TAV_INCLUDE_DIR}/tav/errors.h
+    ${TAV_INCLUDE_DIR}/tav/errors.hpp
     ${TAV_INCLUDE_DIR}/tav/snp.h
     ${TAV_INCLUDE_DIR}/tav/utils.h
   DESTINATION include/3rdparty/tav
-)
-install(
-  FILES ${TAV_INCLUDE_DIR}/tav/internal/cbor_abi.h
-  DESTINATION include/3rdparty/tav/internal
 )
 
 # Install all private CCF headers, which may still be needed
@@ -833,6 +834,7 @@ if(BUILD_TESTS)
         "LINKER:--wrap=uv_freeaddrinfo"
         "LINKER:--wrap=socket"
         "LINKER:--wrap=SSL_do_handshake"
+        "LINKER:--wrap=SSL_shutdown"
     )
     add_unit_test(
       node_connections_test

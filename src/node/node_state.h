@@ -2599,7 +2599,10 @@ namespace ccf
         }
 
         open_recovered_service(
-          tx, share_manager, *network.identity->get_key_pair());
+          tx,
+          share_manager,
+          *network.identity->get_key_pair(),
+          network.identity->get_pq_key_pair());
         const auto result = tx.commit();
         if (result != ccf::kv::CommitResult::SUCCESS)
         {
@@ -2902,7 +2905,10 @@ namespace ccf
           // Failure to open or endorse has already been logged, and is not
           // treated as fatal to the governance action which requested it.
           std::ignore = ccf::open_service(
-            tx, share_manager, *network.identity->get_key_pair());
+            tx,
+            share_manager,
+            *network.identity->get_key_pair(),
+            network.identity->get_pq_key_pair());
         }
         catch (const std::logic_error& e)
         {

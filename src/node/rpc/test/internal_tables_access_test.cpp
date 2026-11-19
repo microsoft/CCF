@@ -10,6 +10,8 @@
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
 #include "crypto/certs.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/mldsa_support.h"
@@ -25,6 +27,7 @@
 
 #include <algorithm>
 #include <doctest/doctest.h>
+#include <tav/cbor.hpp>
 #include <utility>
 
 using namespace ccf;
@@ -34,6 +37,16 @@ namespace
   // ML-DSA parameter set of the test PQ certificates
   constexpr auto PQ_PARAMETER_SET = ccf::crypto::MLDSAParameterSet::ML_DSA_65;
 
+  // ML-DSA service key, or nullptr as held by a node whose build has no ML-DSA
+  ccf::crypto::MLDSAKeyPairPtr make_pq_key()
+  {
+    if (!ccf::crypto::mldsa_supported())
+    {
+      return nullptr;
+    }
+    return ccf::crypto::make_mldsa_key_pair(PQ_PARAMETER_SET);
+  }
+
   // ML-DSA service certificate, or nullopt as sent by a node whose build has
   // no ML-DSA
   std::optional<ccf::crypto::Pem> make_pq_cert(
@@ -41,12 +54,12 @@ namespace
     const std::string& valid_from,
     const std::string& valid_to)
   {
-    if (!ccf::crypto::mldsa_supported())
+    const auto pq_key = make_pq_key();
+    if (pq_key == nullptr)
     {
       return std::nullopt;
     }
-    return ccf::crypto::make_mldsa_key_pair(PQ_PARAMETER_SET)
-      ->self_sign(subject_name, valid_from, valid_to);
+    return pq_key->self_sign(subject_name, valid_from, valid_to);
   }
 
   struct TestIdentity
@@ -54,6 +67,7 @@ namespace
     std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> key =
       std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
         ccf::crypto::make_ec_key_pair());
+    ccf::crypto::MLDSAKeyPairPtr pq_key = make_pq_key();
     ccf::crypto::Pem cert;
     std::optional<ccf::crypto::Pem> pq_cert;
 
@@ -63,7 +77,11 @@ namespace
       // These tests parse certificates and extract keys, not check validity.
       // Deliberately expired dates avoid a future expiry deadline.
       cert = key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
-      pq_cert = make_pq_cert("CN=test", "20200101000000Z", "20201231235959Z");
+      if (pq_key != nullptr)
+      {
+        pq_cert =
+          pq_key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
+      }
     }
   };
 
@@ -88,6 +106,44 @@ namespace
     const auto key = ccf::crypto::COSEKey::from_der_public_key(public_key_der);
     const auto alg = ccf::cose::algorithm_for_parameter_set(PQ_PARAMETER_SET);
     return ccf::Identity{ccf::IdentityKind::COSE_KEY, key.to_cbor(alg)};
+  }
+
+  // The key endorsed by an endorsement, verified with its endorsing key
+  std::vector<uint8_t> verified_endorsed_key(
+    const ccf::CoseEndorsement& endorsement)
+  {
+    std::span<uint8_t> endorsed_key;
+    REQUIRE(ccf::crypto::make_cose_verifier_from_key(endorsement.endorsing_key)
+              ->verify(endorsement.endorsement, endorsed_key));
+    return {endorsed_key.begin(), endorsed_key.end()};
+  }
+
+  std::vector<uint8_t> protected_header(const ccf::CoseEndorsement& endorsement)
+  {
+    const auto phdr = tav::cbor::nondet_parse(endorsement.endorsement)
+                        .tag_at(ccf::cbor::tag::COSE_SIGN_1)
+                        .array_at(0)
+                        .as_bytes();
+    return {phdr.begin(), phdr.end()};
+  }
+
+  // A PQ endorsement has the epochs, previous version and protected header,
+  // except alg, of the CLASSICAL endorsement written with it
+  void require_pq_matches_classical(
+    const ccf::CoseEndorsement& pq, const ccf::CoseEndorsement& classical)
+  {
+    REQUIRE(pq.endorsement_epoch_begin == classical.endorsement_epoch_begin);
+    REQUIRE(pq.endorsement_epoch_end == classical.endorsement_epoch_end);
+    REQUIRE(pq.previous_version == classical.previous_version);
+    const auto classical_header = protected_header(classical);
+    REQUIRE(std::ranges::equal(
+      ccf::cbor::with_entry(
+        tav::cbor::nondet_parse(classical_header),
+        ccf::cose::header::iana::ALG,
+        tav::cbor::make_signed(
+          ccf::cose::algorithm_for_parameter_set(PQ_PARAMETER_SET)))
+        .det_serialize(),
+      protected_header(pq)));
   }
 
   // Every encoding of the key decodes to its published identity, and a
@@ -797,6 +853,7 @@ TEST_CASE("Identity endorsements link consecutive service recoveries")
   ccf::MerkleTreeHistory tree;
   std::optional<ccf::kv::Version> previous_endorsement_version;
   std::vector<uint8_t> previous_key;
+  std::vector<uint8_t> previous_pq_key;
   ccf::crypto::Pem previous_cert;
 
   for (size_t generation = 0; generation < creations.size(); ++generation)
@@ -817,8 +874,8 @@ TEST_CASE("Identity endorsements link consecutive service recoveries")
         creations[generation],
         {{"generation", generation}},
         generation != 0);
-      REQUIRE(
-        InternalTablesAccess::endorse_previous_identity(tx, *identity.key));
+      REQUIRE(InternalTablesAccess::endorse_previous_identity(
+        tx, *identity.key, identity.pq_key));
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
@@ -854,6 +911,23 @@ TEST_CASE("Identity endorsements link consecutive service recoveries")
       REQUIRE(validity.to_txid == expected_end->to_str());
     }
 
+    INFO("The PQ chain links the same services, with the PQ keys");
+    const auto pq_endorsement = endorsements->get(IdentityType::PQ);
+    REQUIRE(pq_endorsement.has_value() == (identity.pq_key != nullptr));
+    if (pq_endorsement.has_value())
+    {
+      REQUIRE(
+        pq_endorsement->endorsing_key == identity.pq_key->public_key_der());
+      require_pq_matches_classical(pq_endorsement.value(), endorsement.value());
+      REQUIRE(
+        verified_endorsed_key(pq_endorsement.value()) ==
+        (generation == 0 ? pq_endorsement->endorsing_key : previous_pq_key));
+      REQUIRE(
+        endorsements->get_version_of_previous_write(IdentityType::PQ) ==
+        endorsements->get_version_of_previous_write(IdentityType::CLASSICAL));
+      previous_pq_key = pq_endorsement->endorsing_key;
+    }
+
     const auto service = ro.ro<Service>(Tables::SERVICE)->get();
     REQUIRE(service->cert == identity.cert);
     REQUIRE(service->current_service_create_txid == creations[generation]);
@@ -881,6 +955,151 @@ TEST_CASE("Identity endorsements link consecutive service recoveries")
     previous_cert = identity.cert;
     tree.append(ccf::crypto::Sha256Hash(identity.cert.str()));
   }
+}
+
+namespace
+{
+  // Consecutive services, each a recovery of the previous one
+  struct ServiceGenerations
+  {
+    ccf::kv::Store store;
+    ccf::MerkleTreeHistory tree;
+    size_t count = 0;
+
+    ServiceGenerations()
+    {
+      store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    }
+
+    // Creates and opens the next service. A classical-only service has no PQ
+    // identity, as one opened by a node whose build has no ML-DSA.
+    void open(
+      const TestIdentity& identity,
+      const TxID& create_txid,
+      bool classical_only = false)
+    {
+      auto tx = store.create_tx();
+      if (count != 0)
+      {
+        tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
+          ->put(tree.serialise());
+      }
+      InternalTablesAccess::create_service(
+        tx, identity.cert, identity.pq_cert, create_txid, nullptr, count != 0);
+      if (classical_only)
+      {
+        auto* service = tx.rw<Service>(Tables::SERVICE);
+        auto info = service->get().value();
+        info.pq_cert.reset();
+        service->put(info);
+        tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES)
+          ->remove(IdentityType::PQ);
+      }
+      REQUIRE(InternalTablesAccess::endorse_previous_identity(
+        tx, *identity.key, classical_only ? nullptr : identity.pq_key));
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      tree.append(ccf::crypto::Sha256Hash(identity.cert.str()));
+      ++count;
+    }
+
+    std::optional<ccf::CoseEndorsement> endorsement(IdentityType identity_type)
+    {
+      auto ro = store.create_read_only_tx();
+      return ro
+        .ro<ccf::PreviousServiceIdentityEndorsement>(
+          Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+        ->get(identity_type);
+    }
+
+    std::optional<ccf::kv::Version> write_version(IdentityType identity_type)
+    {
+      auto ro = store.create_read_only_tx();
+      return ro
+        .ro<ccf::PreviousServiceIdentityEndorsement>(
+          Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+        ->get_version_of_previous_write(identity_type);
+    }
+  };
+
+  void require_self_endorsement(
+    const ccf::CoseEndorsement& endorsement,
+    const ccf::crypto::MLDSAKeyPairPtr& key,
+    const TxID& create_txid)
+  {
+    REQUIRE(endorsement.endorsing_key == key->public_key_der());
+    REQUIRE(endorsement.endorsement_epoch_begin == create_txid);
+    REQUIRE_FALSE(endorsement.endorsement_epoch_end.has_value());
+    REQUIRE_FALSE(endorsement.previous_version.has_value());
+    REQUIRE(verified_endorsed_key(endorsement) == endorsement.endorsing_key);
+  }
+}
+
+TEST_CASE("A classical-only service is followed by a PQ self-endorsement")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  ServiceGenerations services;
+  const TestIdentity classical_only;
+  services.open(classical_only, {2, 1}, true);
+  REQUIRE(services.endorsement(IdentityType::CLASSICAL).has_value());
+  REQUIRE_FALSE(services.endorsement(IdentityType::PQ).has_value());
+
+  INFO("The first service with a PQ identity starts the PQ chain");
+  const TestIdentity first_pq;
+  services.open(first_pq, {4, 10});
+  const auto classical = services.endorsement(IdentityType::CLASSICAL).value();
+  REQUIRE(classical.endorsement_epoch_begin == TxID{2, 1});
+  REQUIRE(classical.endorsement_epoch_end == TxID{2, 9});
+  require_self_endorsement(
+    services.endorsement(IdentityType::PQ).value(), first_pq.pq_key, {4, 10});
+  const auto first_pq_version = services.write_version(IdentityType::PQ);
+  REQUIRE(first_pq_version == services.write_version(IdentityType::CLASSICAL));
+
+  INFO("The next service back-endorses it over the CLASSICAL epochs");
+  const TestIdentity second_pq;
+  services.open(second_pq, {6, 20});
+  const auto next_classical =
+    services.endorsement(IdentityType::CLASSICAL).value();
+  const auto next_pq = services.endorsement(IdentityType::PQ).value();
+  REQUIRE(next_pq.endorsing_key == second_pq.pq_key->public_key_der());
+  REQUIRE(next_pq.endorsement_epoch_begin == TxID{4, 10});
+  REQUIRE(next_pq.endorsement_epoch_end == TxID{4, 19});
+  REQUIRE(next_pq.previous_version == first_pq_version);
+  require_pq_matches_classical(next_pq, next_classical);
+  REQUIRE(verified_endorsed_key(next_pq) == first_pq.pq_key->public_key_der());
+}
+
+TEST_CASE("The PQ chain restarts after a service without a PQ identity")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  ServiceGenerations services;
+  const TestIdentity first;
+  services.open(first, {2, 1});
+  const auto stale_pq_version = services.write_version(IdentityType::PQ);
+  REQUIRE(stale_pq_version.has_value());
+
+  INFO("A classical-only service leaves the PQ endorsement unchanged");
+  const TestIdentity classical_only;
+  services.open(classical_only, {4, 10}, true);
+  REQUIRE(services.write_version(IdentityType::PQ) == stale_pq_version);
+  REQUIRE(services.write_version(IdentityType::CLASSICAL) != stale_pq_version);
+
+  INFO("The next service starts a new PQ chain with a self-endorsement");
+  const TestIdentity next;
+  services.open(next, {6, 20});
+  require_self_endorsement(
+    services.endorsement(IdentityType::PQ).value(), next.pq_key, {6, 20});
+  const auto classical = services.endorsement(IdentityType::CLASSICAL).value();
+  REQUIRE(classical.endorsement_epoch_begin == TxID{4, 10});
+  REQUIRE(
+    verified_endorsed_key(classical) == classical_only.key->public_key_der());
 }
 
 TEST_CASE("Failed recovery creation preserves the previous service")
@@ -968,7 +1187,8 @@ TEST_CASE("Self-endorsement requires a service creation transaction")
   const auto before = store.current_txid();
   auto tx = store.create_tx();
   REQUIRE_THROWS_WITH_AS(
-    InternalTablesAccess::endorse_previous_identity(tx, *identity.key),
+    InternalTablesAccess::endorse_previous_identity(
+      tx, *identity.key, identity.pq_key),
     "Active service or current_service_create_txid is not set",
     std::logic_error);
   REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
@@ -993,18 +1213,97 @@ TEST_CASE("Endorsements must be signed by the service signing identity")
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
   const auto before = store.current_txid();
-  auto tx = store.create_tx();
-  REQUIRE_THROWS_WITH_AS(
-    InternalTablesAccess::endorse_previous_identity(tx, *other_identity.key),
-    "Endorsing key is not the service signing identity",
-    std::logic_error);
-  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  {
+    auto tx = store.create_tx();
+    SUBCASE("Another CLASSICAL key")
+    {
+      REQUIRE_THROWS_WITH_AS(
+        InternalTablesAccess::endorse_previous_identity(
+          tx, *other_identity.key, identity.pq_key),
+        "Endorsing key is not the CLASSICAL service signing identity",
+        std::logic_error);
+    }
+    if (ccf::crypto::mldsa_supported())
+    {
+      SUBCASE("Another PQ key")
+      {
+        REQUIRE_THROWS_WITH_AS(
+          InternalTablesAccess::endorse_previous_identity(
+            tx, *identity.key, other_identity.pq_key),
+          "Endorsing key is not the PQ service signing identity",
+          std::logic_error);
+      }
+      SUBCASE("No PQ key for the PQ signing identity")
+      {
+        REQUIRE_THROWS_WITH_AS(
+          InternalTablesAccess::endorse_previous_identity(
+            tx, *identity.key, nullptr),
+          "No ML-DSA service key for the published PQ service signing "
+          "identity",
+          std::logic_error);
+      }
+    }
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
   REQUIRE(store.current_txid() == before);
   auto ro = store.create_read_only_tx();
   REQUIRE(
     ro.ro<ccf::PreviousServiceIdentityEndorsement>(
         Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
       ->size() == 0);
+}
+
+TEST_CASE("Endorsements require each published identity to match its cert")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const TestIdentity other_identity;
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::create_service(
+      tx, identity.cert, identity.pq_cert, {1, 1});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  {
+    auto tx = store.create_tx();
+    auto* signing_identities =
+      tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+    auto pq_key = identity.pq_key;
+    SUBCASE("CLASSICAL")
+    {
+      signing_identities->put(
+        IdentityType::CLASSICAL,
+        expected_signing_identity(other_identity.key->public_key_der()));
+    }
+    if (ccf::crypto::mldsa_supported())
+    {
+      SUBCASE("PQ, with a PQ key")
+      {
+        signing_identities->put(
+          IdentityType::PQ,
+          expected_pq_signing_identity(other_identity.pq_cert).value());
+      }
+      SUBCASE("PQ, without a PQ key")
+      {
+        signing_identities->put(
+          IdentityType::PQ,
+          expected_pq_signing_identity(other_identity.pq_cert).value());
+        pq_key = nullptr;
+      }
+    }
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::endorse_previous_identity(
+        tx, *identity.key, pq_key),
+      "Service signing identity does not match its service certificate",
+      std::logic_error);
+    // The transaction holds the mismatched identity, so it is checked for
+    // endorsements written before the throw
+    auto* endorsements = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
+      Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+    REQUIRE_FALSE(endorsements->has(IdentityType::CLASSICAL));
+    REQUIRE_FALSE(endorsements->has(IdentityType::PQ));
+  }
 }
 
 TEST_CASE("direct node deletion updates consensus configuration")

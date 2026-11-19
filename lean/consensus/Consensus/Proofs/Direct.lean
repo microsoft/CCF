@@ -922,8 +922,7 @@ open Ledger (
     maxCommittableIndexUpTo_le_length maxCommittableIndexUpToPositiveIsSignature
   )
 section AppendEntries
-variable {self : NodeID} {state : NodeState}
-  {request : AppendEntriesRequest}
+variable {self : NodeID} {state : NodeState} {request : AppendEntriesRequest}
 
 private theorem CommitFrontier.fromLeader (frontier : CommitFrontier state)
     : CommitFrontier (handleAppendEntiresFromPrimary self state request).1 := by
@@ -1266,8 +1265,7 @@ open Consensus.Proofs.Config
 open CCF CCF.MultiNodeTransitionSystem Concrete
 open Model.Node
 section AppendEntries
-variable {self : NodeID} {state : NodeState}
-  {request : AppendEntriesRequest}
+variable {self : NodeID} {state : NodeState} {request : AppendEntriesRequest}
 
 private theorem Extends.fromLeader
     : Extends state (handleAppendEntiresFromPrimary self state request).1 := by

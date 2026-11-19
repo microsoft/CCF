@@ -1,6 +1,8 @@
 module
 
 import all Init.Control.State
+import all Init.Data.ByteArray.Lex
+import all Init.Data.String.Compare
 
 public import DisasterRecovery.Properties
 public import DisasterRecovery.Tests.Initial

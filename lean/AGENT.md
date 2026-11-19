@@ -80,6 +80,10 @@ Do not use axioms or unfinished theorems as placeholders for property statements
 Do not restate safety properties or witness claims in READMEs.
 Link to the authoritative statements in `Properties.lean` instead.
 
+## Learnings
+
+Models with an infinite state space should include a `deadlock_free` theorem using `CCF.TransitionSystem.DeadlockFree` at the end of `Properties.lean`, followed by its `_witness` theorem.
+
 ## Statement definitions versus proof machinery
 
 A definition belongs with properties when a reader needs it to understand the claim or its assumptions.

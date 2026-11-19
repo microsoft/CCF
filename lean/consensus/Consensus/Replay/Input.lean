@@ -5,6 +5,8 @@ module
 
 public import Consensus.Replay.Interpreter
 
+import Std.Data.HashMap
+
 public section
 
 namespace Consensus.Replay
@@ -70,29 +72,58 @@ def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
   return parseLog path.toString input
 
 structure Event where
+  /-- The trace line the event was read from. -/
   record : Record
-  command : Option Record
+  /--
+  `m_ts`: a counter the emitting process (`pid`) increments for each record it emits, so its
+  order within a `pid` is the order of emission. Other tags share the counter, so it may
+  have gaps.
+  -/
+  m_ts : Nat
+  /--
+  `ts`: the wall-clock emission time in nanoseconds, when the trace records it. Clocks of
+  different processes may disagree, and one may step backwards.
+  -/
+  ts : Option Nat
+  /-- `msg.function`: the name of the event. -/
   function : String
+  /-- `msg.state.node_id`: the node the event is about. -/
   node : String
+  /-- `msg`: the event's own fields. -/
   message : Json
+  /-- `msg.state`: the node's consensus state when the event was emitted. -/
   state : Json
 deriving Inhabited
 
 def Event.origin (event : Event) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
-/-- Project events, carry command provenance, and collect node identities. -/
+/--
+Order each process's records by `m_ts`, skip driver command records, split events into
+per-node streams sorted by node, and collect node identities.
+-/
 def prepareEvents (records : Array Record)
-    : Except String (Array Event × List String) := do
-  let mut events := #[]
-  let mut command : Option Record := none
+    : Except String (Array (Array Event) × List String) := do
+  let keyed ←
+    records.mapM
+      fun record =>
+        (do
+          return (← string record.value "pid", ← nat record.value "m_ts", record))
+        |>.mapError (s!"{record.location}: " ++ ·)
+  let keyed :=
+    keyed.toList.mergeSort fun (p, t, _) (q, u, _) => p < q || (p == q && t <= u)
+  let mut events : Array Event := #[]
+  let mut previous : Option (String × Nat × Record) := none
+  let mut pids : Std.HashMap String String := {}
   let mut declared : List String := []
-  for record in records do
+  for (pid, m_ts, record) in keyed do
+    if let some (last, lastMts, earlier) := previous then
+      if last == pid && lastMts == m_ts then
+        throw s!"{record.location}: m_ts {m_ts} of pid '{pid}' repeats {earlier.location}"
+    previous := some (pid, m_ts, record)
     try
       let message ← field record.value "msg"
-      if (optional message "cmd").isSome then
-        command := some record
-      else
+      unless (optional message "cmd").isSome do
         let function ← string message "function"
         let state ←
           if function == "retired_committed_tx" then
@@ -101,7 +132,11 @@ def prepareEvents (records : Array Record)
             field message "state"
         let node ←
           string (if function == "retired_committed_tx" then message else state) "node_id"
-        events := events.push { record, command, function, node, message, state }
+        if let some other := pids[node]? then
+          require (other == pid) s!"node '{node}' is traced by pids '{other}' and '{pid}'"
+        pids := pids.insert node pid
+        let ts ← (optional record.value "ts").mapM natural
+        events := events.push { record, m_ts, ts, function, node, message, state }
         declared := node :: declared
         if function == "retired_committed_tx" then
           declared := (← string message "retired_node_id") :: declared
@@ -109,6 +144,8 @@ def prepareEvents (records : Array Record)
           declared := (← configuration message) ++ declared
     catch error =>
       throw s!"{record.location}: {error}"
-  return (events, declared.mergeSort.eraseDups)
+  let streams :=
+    pids.keys.mergeSort.toArray.map fun node => events.filter (·.node == node)
+  return (streams, declared.mergeSort.eraseDups)
 
 end Consensus.Replay

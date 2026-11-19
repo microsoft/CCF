@@ -78,10 +78,27 @@ namespace ccf
     std::optional<crypto::MLDSAParameterSet> parameter_set_for_algorithm(
       int64_t alg);
 
+    /// Signs a COSE_Sign1 endorsement of a previous service identity key
+    /// (payload) with an EC service key. The signature is ECDSA, with the COSE
+    /// algorithm and digest of the key's curve.
     /// @throws std::runtime_error if header construction, signing, or
     /// encoding fails.
     std::vector<uint8_t> sign_endorsement(
       const crypto::ECKeyPair& key,
+      int64_t iat,
+      std::string_view epoch_begin,
+      std::string_view epoch_end,
+      std::span<const uint8_t> previous_merkle_root,
+      std::span<const uint8_t> payload);
+
+    /// Signs a COSE_Sign1 endorsement of a previous service identity key
+    /// (payload) with an ML-DSA service key. The signature is pure ML-DSA
+    /// with an empty context (RFC 9964), with the COSE algorithm of the key's
+    /// parameter set.
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_endorsement(
+      const crypto::MLDSAKeyPair& key,
       int64_t iat,
       std::string_view epoch_begin,
       std::string_view epoch_end,
