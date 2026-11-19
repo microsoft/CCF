@@ -91,6 +91,7 @@ The issuer can be created with auto-refresh enabled:
     Alternatively, point the node process at a PEM bundle with the ``SSL_CERT_FILE`` environment variable, or at a directory of hashed certificates with ``SSL_CERT_DIR``. These replace the system CA bundle and CA directory respectively, so they must also contain any public roots the node needs.
     The trust store is read again for each fetch, so updates apply to subsequent refreshes without restarting the node.
 
+    For confidential containers, follow the :ref:`snp-outbound-tls-trust` guidance before allowing either override.
     For existing services, see :ref:`releases/migration_7_x_to_8_x:Outbound TLS Trust` before starting the rolling upgrade.
 
 Removing a token issuer

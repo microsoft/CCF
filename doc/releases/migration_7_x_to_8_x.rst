@@ -51,7 +51,7 @@ If an issuer's private CA is trusted only through governance, refresh will fail 
 1. Before the rolling upgrade, identify the CAs needed by your auto-refreshing issuers and any private HTTPS endorsement servers.
    Install them in every new node's trust store before starting the node, or use the ``SSL_CERT_FILE`` and ``SSL_CERT_DIR`` overrides described in :ref:`build_apps/auth/jwt:Setting up a token issuer with automatic key refresh`.
    Check from the new node environment that TLS verification succeeds for issuer discovery, JWKS and any configured HTTPS endorsement endpoints.
-   On SEV-SNP, use trust material delivered within the attested guest or container, such as a bundle baked into an image approved by the attested execution policy; do not use a CA file or directory writable by the untrusted host.
+   On SEV-SNP, follow the :ref:`snp-outbound-tls-trust` guidance to restrict the overrides in the attested execution policy and protect the CA material from the untrusted host.
 2. Keep the existing CA bundles and issuer ``ca_cert_bundle_name`` values while any 7.x node can still become primary.
    During the mixed-version rollout, continue to include the legacy bundle name when creating or updating auto-refreshing issuers.
 3. After retiring the 7.x nodes and confirming that an 8.x primary can refresh the issuers' keys, update the constitution and stop sending ``ca_cert_bundle_name`` in issuer proposals.
