@@ -89,7 +89,10 @@ The issuer can be created with auto-refresh enabled:
     The key refresh interval is set via the ``jwt.key_refresh_interval`` configuration entry, where the default is 30 min (1800 seconds). Failed refreshes are retried after the lesser of 5 seconds and the configured interval, with exponential backoff capped at the configured interval. The maximum response body size accepted when fetching OpenID metadata and JWKS is set via ``jwt.key_refresh_max_response_size``, where the default is 1 MB.
     If auto-refresh fails with a TLS certificate verification error, make sure the IdP's issuing root CA is installed in the trust store used by the CCF node.
     Alternatively, point the node process at a PEM bundle with the ``SSL_CERT_FILE`` environment variable, or at a directory of hashed certificates with ``SSL_CERT_DIR``. These replace the system CA bundle and CA directory respectively, so they must also contain any public roots the node needs.
-    The trust store is read again for each fetch, so updates apply to subsequent refreshes without restarting the node.
+
+    Set these overrides only at node startup, and keep the configured paths and the CA material they point to immutable for the lifetime of the node process.
+    CCF does not guarantee that a running node will reload its trust store.
+    To change the trusted roots, restart the node with the updated trust store.
 
     For confidential containers, follow the :ref:`snp-outbound-tls-trust` guidance before allowing either override.
     For existing services, see :ref:`releases/migration_7_x_to_8_x:Outbound TLS Trust` before starting the rolling upgrade.

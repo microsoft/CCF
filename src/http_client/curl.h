@@ -175,8 +175,6 @@ namespace ccf::http_client
     // the CA bundle compiled into it by default, but ignores the OpenSSL
     // environment variables, so SSL_CERT_FILE and SSL_CERT_DIR are applied
     // here to override the CA bundle file and CA directory respectively.
-    // The trust store is re-read for each request rather than cached, so
-    // that updates to it apply without restarting the process.
     void use_system_trust_store()
     {
       // NOLINTNEXTLINE(concurrency-mt-unsafe)
