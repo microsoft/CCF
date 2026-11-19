@@ -2098,11 +2098,11 @@ namespace asynchost
       committed_idx = idx;
     }
 
-    [[nodiscard]] bool is_in_committed_file(size_t idx)
+    // Classification is a snapshot of the boundary, not a lock on the file.
+    // Range reads still take state_lock when accessing files and the cache.
+    [[nodiscard]] bool is_in_committed_file(size_t idx) const
     {
-      ccf::ds::MutexGuard guard(state_lock);
-
-      return idx <= end_of_committed_files_idx;
+      return idx <= end_of_committed_files_idx.load();
     }
 
     /**

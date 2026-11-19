@@ -3344,6 +3344,37 @@ TEST_CASE("Ledger init reclassifies later committed files as mutable")
   REQUIRE_FALSE(ledger.is_in_committed_file(2));
 }
 
+TEST_CASE("Range classification stays ordered across commit and init")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  Ledger ledger(ledger_dir);
+  ccf::tasks::JobBoard job_board;
+  LedgerSubsystem subsystem(ledger, 1024, job_board);
+  for (size_t idx = 1; idx <= 2; ++idx)
+  {
+    REQUIRE(subsystem.append(
+      make_ledger_entry(idx, ccf::kv::FORCE_LEDGER_CHUNK_AFTER), true));
+  }
+  std::optional<consensus::LedgerRangeStatus> before_init;
+  std::optional<consensus::LedgerRangeStatus> after_init;
+  REQUIRE(subsystem.commit(2));
+  REQUIRE(subsystem.get_range(
+    2, 2, [&](consensus::LedgerRangeResult&& r) { before_init = r.status; }));
+  REQUIRE(subsystem.init(1, 0));
+  REQUIRE(subsystem.get_range(
+    2, 2, [&](consensus::LedgerRangeResult&& r) { after_init = r.status; }));
+
+  // Run only the ordered lane. The first read was dispatched to a worker;
+  // the second must already have run inline against the lowered boundary.
+  auto lane = job_board.get_task();
+  REQUIRE(lane != nullptr);
+  lane->do_task();
+  REQUIRE_FALSE(before_init.has_value());
+  REQUIRE(after_init == consensus::LedgerRangeStatus::NotFound);
+  run_all_tasks(job_board);
+  REQUIRE(before_init == consensus::LedgerRangeStatus::NotFound);
+}
+
 namespace
 {
   struct PausedChunkListing
@@ -3441,6 +3472,8 @@ TEST_CASE("Canonical chunk discovery does not wait for a ledger mutation")
       pause.reached.get_future().wait_for(std::chrono::seconds(5)) ==
       std::future_status::ready);
     CHECK(fs::is_regular_file(second));
+    CHECK(ledger.is_in_committed_file(1));
+    CHECK_FALSE(ledger.is_in_committed_file(2));
     CHECK(ledger.committed_ledger_path_with_idx(1) == first);
     CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
     CHECK(ledger.get_init_idx() == init);
