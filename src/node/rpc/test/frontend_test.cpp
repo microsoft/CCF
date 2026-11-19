@@ -1002,10 +1002,8 @@ TEST_CASE("DID COSE authentication needs no certificate")
     }
     else
     {
-      NewUser enrollment;
-      enrollment.did_key = did;
-      REQUIRE(InternalTablesAccess::add_user(tx, enrollment) == did);
-      REQUIRE_FALSE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(did));
+      tx.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)
+        ->put(did, key->public_key_der());
     }
 
     const std::vector<uint8_t> payload = {'t', 'e', 's', 't'};
@@ -1167,7 +1165,8 @@ TEST_CASE(
   const auto did =
     ccf::crypto::did_key_from_public_key_der(key->public_key_der());
   auto tx = network.tables->create_tx();
-  InternalTablesAccess::add_user(tx, {{}, nullptr, did});
+  tx.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)
+    ->put(did, key->public_key_der());
   NewMember member;
   member.did_key = did;
   InternalTablesAccess::add_member(tx, member);
@@ -1189,7 +1188,7 @@ TEST_CASE(
   SUBCASE("Removal revokes an existing TLS session")
   {
     auto removal = network.tables->create_tx();
-    InternalTablesAccess::remove_user(removal, did);
+    removal.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->remove(did);
     REQUIRE(removal.commit() == ccf::kv::CommitResult::SUCCESS);
     CHECK(call().status == HTTP_STATUS_UNAUTHORIZED);
   }

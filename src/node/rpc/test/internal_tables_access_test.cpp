@@ -298,54 +298,30 @@ TEST_CASE(
   REQUIRE(did.starts_with("did:key:z"));
   auto tx = store.create_tx();
 
-  SUBCASE("Members")
-  {
-    NewMember member;
-    member.did_key = did;
-    REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
-    REQUIRE(InternalTablesAccess::activate_member(tx, did));
-    // Re-adding an existing DID member has no effect
-    REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
-    REQUIRE(
-      tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
-      MemberStatus::ACTIVE);
-    REQUIRE_FALSE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(did));
+  NewMember member;
+  member.did_key = did;
+  REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
+  REQUIRE(InternalTablesAccess::activate_member(tx, did));
+  // Re-adding an existing DID member has no effect
+  REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
+  REQUIRE(
+    tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
+    MemberStatus::ACTIVE);
+  REQUIRE_FALSE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(did));
 
-    REQUIRE(
-      InternalTablesAccess::add_member(tx, {identity.cert}).value() ==
-      legacy_id);
-    REQUIRE(
-      InternalTablesAccess::add_member(tx, {replacement}).value() ==
-      legacy_id_of(replacement));
-    REQUIRE(tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->has(did));
-    REQUIRE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(legacy_id));
-    REQUIRE(
-      tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(legacy_id)->status ==
-      MemberStatus::ACCEPTED);
-    REQUIRE(
-      tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
-      MemberStatus::ACTIVE);
-  }
-  SUBCASE("Users")
-  {
-    REQUIRE(
-      InternalTablesAccess::add_user(tx, {identity.cert}).value() == legacy_id);
-    REQUIRE(
-      InternalTablesAccess::add_user(tx, {{}, nullptr, did}).value() == did);
-    REQUIRE_FALSE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(did));
-    CHECK_THROWS_AS(
-      InternalTablesAccess::add_user(tx, {{}, nullptr, did}), std::logic_error);
-
-    InternalTablesAccess::remove_user(tx, legacy_id);
-    REQUIRE_FALSE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(legacy_id));
-    REQUIRE(tx.ro<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->has(did));
-
-    REQUIRE(
-      InternalTablesAccess::add_user(tx, {identity.cert}).value() == legacy_id);
-    InternalTablesAccess::remove_user(tx, did);
-    REQUIRE_FALSE(tx.ro<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->has(did));
-    REQUIRE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(legacy_id));
-  }
+  REQUIRE(
+    InternalTablesAccess::add_member(tx, {identity.cert}).value() == legacy_id);
+  REQUIRE(
+    InternalTablesAccess::add_member(tx, {replacement}).value() ==
+    legacy_id_of(replacement));
+  REQUIRE(tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->has(did));
+  REQUIRE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(legacy_id));
+  REQUIRE(
+    tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(legacy_id)->status ==
+    MemberStatus::ACCEPTED);
+  REQUIRE(
+    tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
+    MemberStatus::ACTIVE);
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }
 
@@ -377,11 +353,8 @@ TEST_CASE("Enrollment inputs accept a certificate or a did:key")
     ccf::crypto::did_key_from_public_key_der(identity.key->public_key_der());
   const nlohmann::json input = {{"did_key", did}};
   const auto did_member = input.get<NewMember>();
-  const auto did_user = input.get<NewUser>();
   CHECK(did_member.cert.empty());
   CHECK(did_member.did_key == did);
-  CHECK(did_user.cert.empty());
-  CHECK(did_user.did_key == did);
 }
 
 TEST_CASE("Member admission and activation preserve recovery roles")

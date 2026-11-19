@@ -28,7 +28,6 @@ node_rpc_address=$1
 shift
 
 api_version="2024-07-01"
-identity_args=()
 while [ "$1" != "" ]; do
     case $1 in
         -h|-\?|--help)

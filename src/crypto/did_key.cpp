@@ -94,14 +94,6 @@ namespace ccf::crypto
           remainder /= BASE58.size();
         }
       }
-      for (auto b : bytes)
-      {
-        if (b != 0)
-        {
-          break;
-        }
-        result.push_back('1');
-      }
       std::reverse(result.begin(), result.end());
       return result;
     }

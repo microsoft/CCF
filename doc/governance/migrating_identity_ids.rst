@@ -15,7 +15,7 @@ Derive the new ID from the identity public key:
 
 .. code-block:: bash
 
-    $ python3 -m ccf.identity --public-key identity_pubk.pem --id-format did:key
+    $ python3 -m ccf.identity --public-key identity_pubk.pem
     did:key:z...
 
 For migration, ``--cert identity_cert.pem`` can instead extract the public key from a legacy certificate locally.

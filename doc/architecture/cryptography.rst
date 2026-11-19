@@ -127,22 +127,16 @@ Only bare IDs are accepted; DID URLs with fragments, queries, or paths are not i
 A ``did:key`` is used as it is in an HTTP path, including before an action suffix, as in ``/gov/members/state-digests/did:key:z...:ack``.
 
 Members and users enroll a ``did:key`` by passing it as ``did_key`` to ``set_member`` or ``set_user``; no certificate is stored or required.
-That enrollment is the only step needed.
 The embedded public key is validated when it is enrolled; an ID that is only used to look up an identity is checked for syntax alone.
 COSE Sign1 requests use the ``did:key`` as their ``kid`` and are verified with the embedded public key.
 Endpoints using TLS client certificate authentication (such as ``user_cert`` or ``member_cert``) also accept any client certificate carrying the enrolled public key, and identify the caller by the enrolled ``did:key``.
 The validity period of such a certificate is not checked: governance explicitly grants access by enrolling the identity, and revokes it by removing the identity.
-The ``did:key`` itself is not an authorization grant: the identity must still be enrolled and satisfy the endpoint's authentication policy.
-Re-enrolling an existing ``did:key`` member or user with ``set_member`` or ``set_user`` replaces its recovery keys and data according to the existing action semantics, so a re-enrolled member must ack again before it is active.
-Changing the public key changes the ``did:key``.
 
 Certificate-based and ``did:key`` enrollments are independent identities, even when they contain the same public key.
 CCF does not detect or prevent enrolling the same public key under both ID formats; operators are responsible for deciding whether to do so, and for removing the identity they no longer want.
 Each enrollment has its own ID, data, status, and recovery role, and removing one does not affect the other.
 If both are enrolled in the same role, TLS client certificate authentication with the enrolled certificate identifies the caller by its certificate fingerprint ID; other certificates carrying the same key identify the caller by its ``did:key``.
 
-IDs already stored in the ledger are not changed or backfilled.
-There is no automatic transfer of metadata, governance state, or recovery shares between IDs.
 See :doc:`/governance/migrating_identity_ids` for the user and member migration procedure.
 
 Upgrade every node before opting in to DID identities.

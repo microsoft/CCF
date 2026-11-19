@@ -311,26 +311,19 @@ namespace ccf
     static UserId add_user(ccf::kv::Tx& tx, const NewUser& new_user)
     {
       auto* user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
-      auto* user_keys = tx.rw<ccf::UserPublicKeys>(Tables::USER_PUBLIC_KEYS);
 
-      UserId id = check_identity_enrollment(new_user.cert, new_user.did_key);
+      auto user_cert_der =
+        ccf::crypto::make_verifier(new_user.cert)->cert_der();
+      auto id = ccf::crypto::Sha256Hash(user_cert_der).hex_str();
 
       auto user_cert = user_certs->get(id);
-      if (user_cert.has_value() || user_keys->has(id))
+      if (user_cert.has_value())
       {
         throw std::logic_error(
-          fmt::format("Certificate already exists for user {}", id.value()));
+          fmt::format("Certificate already exists for user {}", id));
       }
 
-      if (new_user.did_key.has_value())
-      {
-        user_keys->put(
-          id, ccf::crypto::public_key_der_from_did_key(*new_user.did_key));
-      }
-      else
-      {
-        user_certs->put(id, new_user.cert);
-      }
+      user_certs->put(id, new_user.cert);
 
       if (new_user.user_data != nullptr)
       {
@@ -339,7 +332,7 @@ namespace ccf
         if (ui.has_value())
         {
           throw std::logic_error(
-            fmt::format("User data already exists for user {}", id.value()));
+            fmt::format("User data already exists for user {}", id));
         }
 
         user_info->put(id, {new_user.user_data});
@@ -355,7 +348,6 @@ namespace ccf
       auto* user_info = tx.rw<ccf::UserInfo>(Tables::USER_INFO);
 
       user_certs->remove(user_id);
-      tx.rw<ccf::UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->remove(user_id);
       user_info->remove(user_id);
     }
 

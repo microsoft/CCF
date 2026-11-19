@@ -1,22 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Derive legacy and did:key CCF identity IDs without contacting a service."""
-
-from enum import StrEnum
+"""Derive did:key CCF identity IDs without contacting a service."""
 
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.asymmetric.types import PublicKeyTypes
-
-
-class IdentityIdFormat(StrEnum):
-    """Supported formats for newly enrolled CCF identities."""
-
-    SHA256 = "sha256"
-    DID_KEY = "did:key"
-
 
 _BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 _EC_CODECS = {
@@ -101,45 +91,24 @@ def public_key_from_did_key(
     return key
 
 
-def identity_id_from_cert(
-    cert_pem: str,
-    id_format: IdentityIdFormat | str = IdentityIdFormat.SHA256,
-) -> str:
-    """Derive a member/user ID from a PEM certificate and enrollment format.
-
-    Legacy IDs fingerprint the certificate; did:key IDs identify its public key.
-    Raises ValueError for an invalid format, certificate, or unsupported curve
-    or RSA size, and TypeError for an unsupported DID key type.
-    """
-    selected_format = IdentityIdFormat(id_format)
-    cert = x509.load_pem_x509_certificate(cert_pem.encode("ascii"))
-    if selected_format == IdentityIdFormat.SHA256:
-        return cert.fingerprint(hashes.SHA256()).hex()
-    return did_key_from_public_key(cert.public_key())
-
-
 def main() -> None:
-    """Print an identity ID for SDK and recovery-script users."""
+    """Print the did:key of a public key, or of the public key in a certificate."""
     import argparse
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=main.__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--cert", help="Legacy PEM certificate file")
-    source.add_argument("--public-key", help="Public key file to encode as did:key")
-    parser.add_argument(
-        "--id-format", choices=list(IdentityIdFormat), default=IdentityIdFormat.SHA256
+    source.add_argument("--public-key", help="PEM public key file")
+    source.add_argument(
+        "--cert", help="PEM certificate file, to migrate a legacy identity"
     )
     args = parser.parse_args()
     if args.public_key:
-        if args.id_format != IdentityIdFormat.DID_KEY:
-            parser.error("--public-key requires --id-format did:key")
         with open(args.public_key, "rb") as key_file:
             key = serialization.load_pem_public_key(key_file.read())
-        print(did_key_from_public_key(key))
-        return
-    with open(args.cert, encoding="ascii") as cert_file:
-        cert = cert_file.read()
-    print(identity_id_from_cert(cert, args.id_format))
+    else:
+        with open(args.cert, "rb") as cert_file:
+            key = x509.load_pem_x509_certificate(cert_file.read()).public_key()
+    print(did_key_from_public_key(key))
 
 
 if __name__ == "__main__":

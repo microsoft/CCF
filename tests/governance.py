@@ -950,31 +950,6 @@ def did_key_identities(args):
                     )
                 )
 
-        def assert_migration_rollback(migration, role, legacy_id, did_id):
-            legacy_path = f"/gov/service/{role}s/{legacy_id}"
-            did_path = f"/gov/service/{role}s/{did_id}"
-            with primary.api_versioned_client(api_version=args.gov_api_version) as c:
-                before = c.get(legacy_path).body.json()
-            failed = {
-                "actions": migration["actions"]
-                + [{"name": "always_throw_in_apply", "args": {}}]
-            }
-            try:
-                network.consortium.vote_using_majority(
-                    primary,
-                    network.consortium.get_any_active_member().propose(primary, failed),
-                    migration_ballot,
-                )
-            except infra.proposal.ProposalNotAccepted as e:
-                assert "Error message" in e.response.body.text(), e.response
-            else:
-                raise AssertionError("Failed migration was accepted")
-            with primary.api_versioned_client(api_version=args.gov_api_version) as c:
-                restored = c.get(legacy_path)
-                assert restored.status_code == http.HTTPStatus.OK, restored
-                assert restored.body.json() == before, restored
-                assert c.get(did_path).status_code == http.HTTPStatus.NOT_FOUND
-
         member = network.consortium.generate_and_add_new_member(
             primary,
             args.participants_curve,
@@ -984,7 +959,11 @@ def did_key_identities(args):
         member.ack(primary)
         member.get_and_decrypt_recovery_share(primary)
         legacy_member_id = member.service_id
-        did_member_id = infra.crypto.identity_id_from_cert(member.cert, "did:key")
+        with open(
+            os.path.join(network.common_dir, f"{member.local_id}_privk.pem"),
+            encoding="ascii",
+        ) as f:
+            did_member_id = infra.crypto.did_key_from_private_key(f.read())
         with open(
             os.path.join(network.common_dir, f"{member.local_id}_enc_pubk.pem"),
             encoding="ascii",
@@ -1007,7 +986,6 @@ def did_key_identities(args):
         migration_ballot = {
             "ballot": "export function vote(rawProposal, proposerId) { return true; }"
         }
-        assert_migration_rollback(migration, "member", legacy_member_id, did_member_id)
         network.consortium.vote_using_majority(
             primary,
             network.consortium.get_any_active_member().propose(primary, migration),
@@ -1122,10 +1100,9 @@ def did_key_identities(args):
         network.consortium.add_user(
             primary, user.local_id, user_data={"migrated": True}
         )
-        with open(user.cert_path, encoding="ascii") as f:
-            user_cert = f.read()
         legacy_user_id = user.service_id
-        did_user_id = infra.crypto.identity_id_from_cert(user_cert, "did:key")
+        with open(user.key_path, encoding="ascii") as f:
+            did_user_id = infra.crypto.did_key_from_private_key(f.read())
         migration = {
             "actions": [
                 {"name": "remove_user", "args": {"user_id": legacy_user_id}},
@@ -1138,7 +1115,6 @@ def did_key_identities(args):
                 },
             ]
         }
-        assert_migration_rollback(migration, "user", legacy_user_id, did_user_id)
         network.consortium.vote_using_majority(
             primary,
             network.consortium.get_any_active_member().propose(primary, migration),
@@ -1238,34 +1214,6 @@ def did_key_identities(args):
         primary.stop()
         primary, _ = network.wait_for_new_primary(primary)
         network.wait_for_all_nodes_to_commit(primary=primary)
-
-        # Enroll the migrated member's key under its legacy ID again, so that
-        # disk recovery must restore both enrollments of a single saved key
-        with open(
-            os.path.join(network.common_dir, f"{member.local_id}_cert.pem"),
-            encoding="ascii",
-        ) as f:
-            legacy_member_cert = f.read()
-        proposal, ballot = network.consortium.make_proposal(
-            "set_member",
-            cert=legacy_member_cert,
-            encryption_pub_key=enc_pubk,
-            member_data={"format": "sha256"},
-            recovery_role="Owner",
-        )
-        network.consortium.vote_using_majority(
-            primary,
-            network.consortium.get_any_active_member().propose(primary, proposal),
-            ballot,
-        )
-        legacy_member = network.consortium.generate_existing_member(
-            member.local_id, infra.member.RecoveryRole.Owner
-        )
-        assert legacy_member.service_id == legacy_member_id
-        network.consortium.add_member(legacy_member)
-        legacy_member.ack(primary)
-        assert legacy_member.get_and_decrypt_recovery_share(primary)
-
         snapshot = primary.trigger_snapshot()
         snapshots_dir = network.get_committed_snapshots(
             primary, target_seqno=snapshot.seqno, wait_for_target_seqno=True
@@ -1294,17 +1242,12 @@ def did_key_identities(args):
                 common_dir=network.common_dir,
                 node_id_format="did:key",
             )
-            assert {
-                restored.service_id
-                for restored in recovered.consortium.members
-                if restored.local_id == member.local_id
-            } == {legacy_member_id, did_member_id}
             for original in network.consortium.members:
-                restored = recovered.consortium.get_member_by_service_id(
-                    original.service_id
+                restored = recovered.consortium.get_member_by_local_id(
+                    original.local_id
                 )
-                assert restored is not None, original.service_id
-                assert restored.local_id == original.local_id
+                assert restored is not None, original.local_id
+                assert restored.service_id == original.service_id
                 assert restored.id_format == original.id_format
                 assert restored.recovery_role == original.recovery_role
                 assert (

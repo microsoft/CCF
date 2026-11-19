@@ -14,12 +14,11 @@ namespace ccf
   {
     ccf::crypto::Pem cert;
     nlohmann::json user_data = nullptr;
-    std::optional<std::string> did_key = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewUser);
-  DECLARE_JSON_REQUIRED_FIELDS(NewUser);
-  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, cert, user_data, did_key);
+  DECLARE_JSON_REQUIRED_FIELDS(NewUser, cert);
+  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data);
 
   struct UserDetails
   {

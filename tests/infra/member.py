@@ -309,7 +309,9 @@ class Member:
                 encoding="utf-8",
             ) as c:
                 self.cert = c.read()
-                self.service_id = infra.crypto.identity_id_from_cert(self.cert)
+                self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(
+                    self.cert
+                )
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 

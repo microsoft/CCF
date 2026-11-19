@@ -325,14 +325,8 @@
                         }
                       },
                       "oneOf": [
-                        {
-                          "required": ["certificate_file"],
-                          "not": { "required": ["did_key"] }
-                        },
-                        {
-                          "required": ["did_key"],
-                          "not": { "required": ["certificate_file"] }
-                        }
+                        { "required": ["certificate_file"] },
+                        { "required": ["did_key"] }
                       ],
                       "additionalProperties": false
                     },

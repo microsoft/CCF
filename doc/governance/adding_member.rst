@@ -55,7 +55,7 @@ The Python SDK can derive the DID locally:
 .. code-block:: bash
 
     $ keygenerator.sh --name new_member --public-key-only --gen-enc-key
-    $ python3 -m ccf.identity --public-key new_member_pubk.pem --id-format did:key
+    $ python3 -m ccf.identity --public-key new_member_pubk.pem
 
 ``--public-key-only`` generates an identity key pair without creating a certificate.
 Omit ``--gen-enc-key`` for non-recovery members.

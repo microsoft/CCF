@@ -18,7 +18,6 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "ccf/entity_id.h"
 #include "crypto/cbor_tags.h"
 #include "crypto/certs.h"
 #include "crypto/cose.h"
@@ -114,7 +113,6 @@ TEST_CASE("Deriving a did:key does not validate its key")
 
   // Such an ID is well-formed, so can be looked up, but cannot be enrolled
   CHECK(is_well_formed_did_key(did));
-  CHECK(ccf::is_well_formed_identity_id(did));
   CHECK_THROWS_AS(public_key_der_from_did_key(did), std::invalid_argument);
 
   // Keys outside the supported profile are rejected without validation
@@ -133,11 +131,7 @@ TEST_CASE("Deriving a did:key does not validate its key")
         std::string("did:key:z") + std::string(3000, '1')})
   {
     CHECK_FALSE(is_well_formed_did_key(malformed));
-    CHECK_FALSE(ccf::is_well_formed_identity_id(malformed));
   }
-  CHECK(ccf::is_well_formed_identity_id(std::string(64, 'a')));
-  CHECK_FALSE(ccf::is_well_formed_identity_id(std::string(63, 'a')));
-  CHECK_FALSE(ccf::is_well_formed_identity_id(std::string(64, 'g')));
 }
 
 TEST_CASE("Published did:key NIST public key vectors")

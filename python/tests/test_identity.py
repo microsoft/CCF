@@ -3,12 +3,11 @@
 
 import base64
 import subprocess
+import sys
 from pathlib import Path
 
 import ccf.identity
 import pytest
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
@@ -16,7 +15,6 @@ from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
     load_pem_public_key,
 )
-from test_cose_sign import make_self_signed_cert
 
 
 @pytest.mark.parametrize("curve", ["secp256r1", "secp384r1"])
@@ -38,12 +36,18 @@ def test_keygenerator(tmp_path, curve, public_key_only, encryption_key):
     public_key_path = tmp_path / "member0_pubk.pem"
     assert cert_path.exists() == (not public_key_only)
     assert public_key_path.exists() == public_key_only
-    identity_public_key = (
-        load_pem_public_key(public_key_path.read_bytes())
+    source = (
+        ["--public-key", str(public_key_path)]
         if public_key_only
-        else x509.load_pem_x509_certificate(cert_path.read_bytes()).public_key()
+        else ["--cert", str(cert_path)]
     )
-    assert ccf.identity.did_key_from_public_key(identity_public_key) == (
+    cli = subprocess.run(
+        [sys.executable, "-m", "ccf.identity", *source],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert cli.stdout.strip() == (
         ccf.identity.did_key_from_public_key(identity_key.public_key())
     )
     enc_private_path = tmp_path / "member0_enc_privk.pem"
@@ -56,26 +60,6 @@ def test_keygenerator(tmp_path, curve, public_key_only, encryption_key):
         assert isinstance(enc_private, rsa.RSAPrivateKey)
         assert isinstance(enc_public, rsa.RSAPublicKey)
         assert enc_private.public_key().public_numbers() == enc_public.public_numbers()
-
-
-@pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
-def test_certificate_replacement(curve):
-    key = ec.generate_private_key(curve)
-    first = make_self_signed_cert(key, "first")
-    replacement = make_self_signed_cert(key, "replacement")
-    assert ccf.identity.identity_id_from_cert(first) != (
-        ccf.identity.identity_id_from_cert(replacement)
-    )
-    did = ccf.identity.identity_id_from_cert(first, "did:key")
-    assert did.startswith("did:key:z")
-    assert did == ccf.identity.identity_id_from_cert(replacement, "did:key")
-    assert ccf.identity.identity_id_from_cert(first) == (
-        x509.load_pem_x509_certificate(first.encode())
-        .fingerprint(hashes.SHA256())
-        .hex()
-    )
-    with pytest.raises(ValueError):
-        ccf.identity.identity_id_from_cert(first, "unknown")
 
 
 def test_supported_key_types():

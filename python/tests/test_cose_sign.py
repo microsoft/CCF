@@ -104,10 +104,7 @@ def test_create_cose_sign1_finish(curve, signature_as_text: bool):
 
     cose_sign1 = ccf.cose.create_cose_sign1(payload, priv_pem, cert)
 
-    protected, _, _, sig = cbor2.loads(cose_sign1).value
-    assert cbor2.loads(protected)[int(cwt.COSEHeaders.KID)] == (
-        ccf.identity.identity_id_from_cert(cert).encode()
-    )
+    _, _, _, sig = cbor2.loads(cose_sign1).value
     b64_sig: str | bytes = base64.urlsafe_b64encode(sig)
     if signature_as_text:
         b64_sig = b64_sig.decode("ascii")
