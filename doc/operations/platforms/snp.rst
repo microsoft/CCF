@@ -75,21 +75,17 @@ Outbound TLS trust policy
 
 The attested execution policy must control whether ``SSL_CERT_FILE`` and ``SSL_CERT_DIR`` can reach the CCF process and which values they can have.
 These variables override the node's CA file and CA directory for JWT auto-refresh and HTTPS endorsement fetches.
-If the approved image already contains all required roots, prefer leaving both variables unset and using that image's default trust store.
 
 On Confidential ACI, review the CCF container's environment allowlist in the generated `CCE policy <https://learn.microsoft.com/en-us/azure/container-instances/container-instances-tutorial-deploy-confidential-containers-cce-arm>`_:
 
-- To prohibit overrides, leave both variables out of the allowlist and ensure no wildcard or regular-expression rule matches them.
+- By default, use the approved image's trust store, leave both variables out of the allowlist, and ensure no wildcard or regular-expression rule matches them.
   With environment-variable dropping disabled, the policy rejects a launch that supplies either variable; with dropping enabled, disallowed variables are stripped before launch.
   Also ensure that the approved image and entrypoint do not set them.
-- If an override is needed, allow only the exact ``NAME=value`` pair for an approved absolute path, such as ``SSL_CERT_FILE=/etc/ccf/trust/roots.pem``.
+- If an override is needed, allow only the exact ``NAME=value`` pair for an absolute path to measured, read-only CA material, such as ``SSL_CERT_FILE=/etc/ccf/trust/roots.pem`` when that file is baked into the approved container image.
   In a CCE ``env_rules`` entry, use the ``string`` strategy and mark the rule ``required`` if the node must not fall back to the default store.
   Apply the same restriction to ``SSL_CERT_DIR`` if it is used.
 
-An allowed path does not authenticate its contents.
-Keep the CA material in the approved image or verify its integrity inside the trusted guest before use.
-Do not allow host-controlled mounts to replace the trust store, any parent directory, or any symlink target used to reach it.
-A read-only mount prevents container writes, but it does not make host-supplied contents trustworthy.
+A read-only host mount does not qualify: it prevents the container from writing to the mount, but does not measure the contents supplied by the host.
 
 Governance Proposals
 ~~~~~~~~~~~~~~~~~~~~
