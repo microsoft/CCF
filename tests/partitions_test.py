@@ -6,6 +6,7 @@ import copy
 import http
 import os
 import pprint
+import socket
 import subprocess
 import threading
 import time
@@ -71,6 +72,44 @@ def test_invalid_partitions(network, args):
         assert False, "All nodes should belong to network"
     except ValueError:
         pass
+
+    return network
+
+
+@reqs.description("Partitions cover every node-to-node listener")
+def test_partitioned_node_connections(network, args):
+    node, other = network.get_joined_nodes()[:2]
+    interfaces = [node.n2n_interface]
+    if node.host.node_to_node_tls_interface is not None:
+        interfaces.append(node.host.node_to_node_tls_interface)
+
+    def connect(interface):
+        return socket.create_connection(
+            (interface.host, interface.port),
+            timeout=0.5,
+            source_address=(other.node_client_host, 0),
+        )
+
+    for interface in interfaces:
+        with connect(interface):
+            pass
+
+    with network.partitioner.isolate_node(
+        node, other, infra.partitions.IsolationDir.INBOUND_REQUESTS
+    ):
+        for interface in interfaces:
+            try:
+                with connect(interface):
+                    pass
+            except TimeoutError:
+                continue
+            raise AssertionError(
+                f"Partition did not block node listener {interface.host}:{interface.port}"
+            )
+
+    for interface in interfaces:
+        with connect(interface):
+            pass
 
     return network
 
@@ -273,7 +312,7 @@ def test_new_joiner_helps_liveness(network, args):
 
     with contextlib.ExitStack() as stack:
         # Add a new node, but partition them before trusting them
-        new_node = network.create_node()
+        new_node = network.create_node(args.nodes[0])
         network.join_node(
             new_node,
             args.package,
@@ -497,7 +536,9 @@ def test_election_reconfiguration(network, args):
             )
         }
         rpc_interfaces.update(infra.interfaces.make_secondary_interface())
-        new_node = network.create_node(infra.interfaces.HostSpec(rpc_interfaces))
+        new_node = network.create_node(
+            infra.interfaces.HostSpec(rpc_interfaces).with_args(args)
+        )
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
@@ -566,7 +607,7 @@ def test_election_reconfiguration(network, args):
 
     LOG.info("Retire former primary and add new node")
     network.retire_node(backups[0], primary)
-    new_node = network.create_node()
+    new_node = network.create_node(args.nodes[0])
     network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args)
 
@@ -581,7 +622,7 @@ def test_join_rollback_on_primary_isolation(network, args):
 
     LOG.info("Join a pending node on an isolated primary")
     with network.partitioner.partition([primary], name="isolate primary during join"):
-        pending_node = network.create_node()
+        pending_node = network.create_node(args.nodes[0])
         network.setup_join_node(
             pending_node,
             args.package,
@@ -624,7 +665,7 @@ def test_join_rollback_on_primary_isolation(network, args):
     LOG.info("Trust a pending node on an isolated primary")
     primary = network.wait_for_stability()
     backups = network.find_backups(primary=primary)
-    host_spec = infra.interfaces.HostSpec()
+    host_spec = infra.interfaces.HostSpec().with_args(args)
     host_spec.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
     trusted_node = network.create_node(host_spec)
     network.join_node(
@@ -1481,6 +1522,7 @@ def partitioned_network(args):
 def run_basic_partitions(args):
     with partitioned_network(args) as network:
         test_invalid_partitions(network, args)
+        test_partitioned_node_connections(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)

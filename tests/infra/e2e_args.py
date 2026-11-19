@@ -93,6 +93,7 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "ledger_max_read_bytes": "ledger.max_read_size",
     "ledger_max_pending_append_bytes": "ledger.max_pending_append_bytes",
     "node_to_node_max_message_bytes": "node_to_node.max_message_size",
+    "node_to_node_tls": None,
     "gov_api_version": None,
 }
 
@@ -720,6 +721,11 @@ def cli_args(
         "--node-to-node-max-message-bytes",
         help="Maximum inbound node-to-node frame size (size string)",
         type=str,
+    )
+    parser.add_argument(
+        "--node-to-node-tls",
+        help="Enable the opt-in N2N TLS listener on locally configured nodes",
+        action="store_true",
     )
     parser.add_argument(
         "--gov-api-version",

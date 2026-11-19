@@ -57,7 +57,8 @@ namespace ccf
     JoinNetworkNodeToNode::Out::NetworkInfo,
     service_status,
     endorsed_certificate,
-    cose_signatures_config);
+    cose_signatures_config,
+    node_to_node_tls_addresses);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out);
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status);
@@ -99,7 +100,7 @@ namespace ccf
     current_service_create_txid);
   DECLARE_JSON_OPTIONAL_FIELDS(GetNetworkInfo::Out, pq_service_certificate);
 
-  DECLARE_JSON_TYPE(GetNode::NodeInfo);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetNode::NodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
     GetNode::NodeInfo,
     node_id,
@@ -108,6 +109,7 @@ namespace ccf
     rpc_interfaces,
     node_data,
     last_written);
+  DECLARE_JSON_OPTIONAL_FIELDS(GetNode::NodeInfo, node_to_node_tls_interface);
 
   DECLARE_JSON_TYPE(GetNodes::Out);
   DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes);

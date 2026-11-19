@@ -221,6 +221,9 @@ class Node:
                 self.n2n_interface = infra.interfaces.Interface(
                     host=rpc_interface.host, port=node_port
                 )
+                tls_interface = self.host.node_to_node_tls_interface
+                if tls_interface is not None and tls_interface.host == "localhost":
+                    tls_interface.host = rpc_interface.host
 
             # These helpers use the underscored ledger chunk endpoint, which is
             # only supported from 7.0.0-dev13 onwards.
@@ -350,6 +353,11 @@ class Node:
         self.host_data_transparent_statement_path = host_data_transparent_statement_path
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.election_timeout_ms = kwargs.get("election_timeout_ms")
+        interface = self.host.node_to_node_tls_interface
+        if interface is not None:
+            kwargs["node_to_node_tls_interface"] = (
+                infra.interfaces.NodeToNodeInterface.to_json(interface)
+            )
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
@@ -467,10 +475,13 @@ class Node:
                 node_address_file = os.path.join(
                     self.common_dir, self.remote.node_address_file
                 )
-                self._resolve_address(
-                    node_address_file,
-                    {infra.interfaces.NODE_TO_NODE_INTERFACE_NAME: self.n2n_interface},
-                )
+                node_interfaces = {
+                    infra.interfaces.NODE_TO_NODE_INTERFACE_NAME: self.n2n_interface
+                }
+                tls_interface = self.host.node_to_node_tls_interface
+                if tls_interface is not None:
+                    node_interfaces["node_to_node_tls_interface"] = tls_interface
+                self._resolve_address(node_address_file, node_interfaces)
 
             if self.remote.rpc_addresses_file is not None:
                 rpc_address_file = os.path.join(

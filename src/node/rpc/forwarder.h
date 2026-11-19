@@ -39,6 +39,18 @@ namespace ccf
 
     using IsCallerCertForwarded = bool;
 
+    template <typename T>
+    std::pair<T, std::vector<uint8_t>> receive_forwarded(
+      const NodeId& from, const uint8_t*& data, size_t& size, bool tls)
+    {
+      if (!tls)
+      {
+        return n2n_channels->template recv_encrypted<T>(from, data, size);
+      }
+      const auto header = serialized::read<T>(data, size);
+      return {header, serialized::read(data, size, size)};
+    }
+
     void send_timeout_error_response(
       NodeId to,
       size_t client_session_id,
@@ -128,7 +140,7 @@ namespace ccf
 
     template <typename TFwdHdr>
     std::shared_ptr<::http::HttpRpcContext> recv_forwarded_command(
-      const NodeId& from, const uint8_t* data, size_t size)
+      const NodeId& from, const uint8_t* data, size_t size, bool tls = false)
     {
       std::pair<TFwdHdr, std::vector<uint8_t>> r;
       try
@@ -136,7 +148,7 @@ namespace ccf
         LOG_TRACE_FMT("Receiving forwarded command of {} bytes", size);
         LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
 
-        r = n2n_channels->template recv_encrypted<TFwdHdr>(from, data, size);
+        r = receive_forwarded<TFwdHdr>(from, data, size, tls);
       }
       catch (const std::logic_error& err)
       {
@@ -217,7 +229,7 @@ namespace ccf
 
     template <typename TFwdHdr>
     std::optional<ForwardedResponseResult> recv_forwarded_response(
-      const NodeId& from, const uint8_t* data, size_t size)
+      const NodeId& from, const uint8_t* data, size_t size, bool tls = false)
     {
       std::pair<TFwdHdr, std::vector<uint8_t>> r;
       try
@@ -225,7 +237,7 @@ namespace ccf
         LOG_TRACE_FMT("Receiving response of {} bytes", size);
         LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
 
-        r = n2n_channels->template recv_encrypted<TFwdHdr>(from, data, size);
+        r = receive_forwarded<TFwdHdr>(from, data, size, tls);
       }
       catch (const std::logic_error& err)
       {
@@ -280,7 +292,11 @@ namespace ccf
       return fwd_handler;
     }
 
-    void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
+    void recv_message(
+      const ccf::NodeId& from,
+      const uint8_t* data,
+      size_t size,
+      bool tls = false)
     {
       try
       {
@@ -296,7 +312,7 @@ namespace ccf
           case ForwardedMsg::forwarded_cmd_v3:
           {
             auto ctx = recv_forwarded_command<ForwardedCommandHeader_v3>(
-              from, data, size);
+              from, data, size, tls);
 
             auto fwd_handler = get_forwarder_handler(ctx);
             if (fwd_handler == nullptr)
@@ -350,7 +366,7 @@ namespace ccf
             }
 
             auto rep = recv_forwarded_response<ForwardedResponseHeader_v3>(
-              from, data, size);
+              from, data, size, tls);
 
             if (!rep.has_value())
             {

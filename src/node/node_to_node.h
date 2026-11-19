@@ -33,8 +33,6 @@ namespace ccf
 
     virtual void close_channel(const NodeId& peer_id) = 0;
 
-    virtual bool have_channel(const NodeId& nid) = 0;
-
     template <class T>
     bool send_authenticated(const NodeId& to, NodeMsgType type, const T& data)
     {
@@ -66,6 +64,46 @@ namespace ccf
       const uint8_t*& data,
       size_t& size) = 0;
 
+    static size_t consensus_header_size(const uint8_t* data, size_t size)
+    {
+      switch (serialized::peek<aft::CftMsgType>(data, size))
+      {
+        case aft::append_entries:
+        {
+          return sizeof(aft::AppendEntries);
+        }
+        case aft::append_entries_response:
+        {
+          return sizeof(aft::AppendEntriesResponse);
+        }
+        case aft::request_vote:
+        {
+          return sizeof(aft::RequestVote);
+        }
+        case aft::request_vote_response:
+        {
+          return sizeof(aft::RequestVoteResponse);
+        }
+        case aft::request_pre_vote:
+        {
+          return sizeof(aft::RequestPreVote);
+        }
+        case aft::request_pre_vote_response:
+        {
+          return sizeof(aft::RequestPreVoteResponse);
+        }
+        case aft::propose_request_vote:
+        {
+          return sizeof(aft::ProposeRequestVote);
+        }
+        case aft::append_entries_signed_response:
+        default:
+        {
+          throw std::runtime_error("Unsupported consensus message");
+        }
+      }
+    }
+
     // Returns borrowed message and payload views after verifying the legacy
     // header and replay counter. The caller must keep the buffer alive and
     // unchanged until synchronous consensus processing has finished.
@@ -74,50 +112,7 @@ namespace ccf
       const NodeId& from, const uint8_t* buffer, size_t size)
     {
       const uint8_t* data = buffer;
-      size_t header_size = 0;
-      switch (serialized::peek<aft::CftMsgType>(data, size))
-      {
-        case aft::append_entries:
-        {
-          header_size = sizeof(aft::AppendEntries);
-          break;
-        }
-        case aft::append_entries_response:
-        {
-          header_size = sizeof(aft::AppendEntriesResponse);
-          break;
-        }
-        case aft::request_vote:
-        {
-          header_size = sizeof(aft::RequestVote);
-          break;
-        }
-        case aft::request_vote_response:
-        {
-          header_size = sizeof(aft::RequestVoteResponse);
-          break;
-        }
-        case aft::request_pre_vote:
-        {
-          header_size = sizeof(aft::RequestPreVote);
-          break;
-        }
-        case aft::request_pre_vote_response:
-        {
-          header_size = sizeof(aft::RequestPreVoteResponse);
-          break;
-        }
-        case aft::propose_request_vote:
-        {
-          header_size = sizeof(aft::ProposeRequestVote);
-          break;
-        }
-        case aft::append_entries_signed_response:
-        default:
-        {
-          throw std::runtime_error("Unsupported legacy consensus message");
-        }
-      }
+      const auto header_size = consensus_header_size(data, size);
 
       serialized::skip(data, size, header_size);
       if (!recv_authenticated(from, {buffer, header_size}, data, size))
@@ -129,27 +124,6 @@ namespace ccf
       // authentication.
       return {{buffer, header_size}, {data, size}};
     }
-
-    template <class T>
-    const T& recv_authenticated_with_load(
-      const NodeId& from, const uint8_t*& data, size_t& size)
-    {
-      const auto* data_ = data;
-      auto size_ = size;
-
-      const auto& t = serialized::overlay<T>(data_, size_);
-
-      if (!recv_authenticated_with_load(from, data, size))
-      {
-        throw DroppedMessageException(from);
-      }
-      serialized::skip(data, size, sizeof(T));
-
-      return t;
-    }
-
-    virtual bool recv_authenticated_with_load(
-      const NodeId& from, const uint8_t*& data, size_t& size) = 0;
 
     virtual bool recv_channel_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
