@@ -207,20 +207,6 @@ private theorem appendOther_some {before after : State} {branch : Nat}
   obtain ⟨active, rest⟩ := guard_bind_some transition
   exact ⟨(Option.some.inj rest).symm, active⟩
 
-private theorem elect_some {before after : State} {branch prefixLength : Nat}
-    (transition : step before (.elect branch prefixLength) = some after)
-    : ∃ ledger,
-        after = { before with branches := before.branches ++ [ledger.take prefixLength] }
-        ∧ at? before.branches branch = some ledger
-        ∧ hasCommittedPrefix before ledger = true
-        ∧ commitSeqno before.history ≤ prefixLength
-        ∧ prefixLength ≤ ledger.length := by
-  obtain ⟨ledger, found, rest⟩ := Option.bind_eq_some_iff.mp transition
-  obtain ⟨compatible, rest⟩ := guard_bind_some rest
-  obtain ⟨bounds, rest⟩ := guard_bind_some rest
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at bounds
-  exact ⟨ledger, (Option.some.inj rest).symm, found, compatible, bounds.1, bounds.2⟩
-
 private theorem step_branches (before after : State) (action : Action)
     (transition : step before action = some after)
     : BranchExtension before.branches after.branches := by
@@ -228,15 +214,6 @@ private theorem step_branches (before after : State) (action : Action)
       : BranchExtension branches branches := by
     intro index ledger found
     exact ⟨ledger, found, List.prefix_refl _⟩
-  have branches_append (branches extra : List (List Entry))
-      : BranchExtension branches (branches ++ extra) := by
-    intro index ledger found
-    have nonzero : index ≠ 0 := by
-      rintro rfl
-      simp only [at?, ↓reduceIte, reduceCtorEq] at found
-    have lookup : branches[index - 1]? = some ledger := by simpa only [at?, nonzero, ↓reduceIte] using found
-    refine ⟨ledger, ?_, List.prefix_refl _⟩
-    simp only [at?, nonzero, ↓reduceIte, List.getElem?_append_left (List.getElem?_eq_some_iff.mp lookup).1, lookup]
   cases action with
   | request => rw [request_some transition]; exact branches_refl _
   | execute =>
@@ -258,8 +235,8 @@ private theorem step_branches (before after : State) (action : Action)
       obtain ⟨rfl, -⟩ := appendOther_some transition
       exact branches_modify _ _ _
   | elect =>
-      obtain ⟨_, rfl, -⟩ := elect_some transition
-      exact branches_append _ _
+      obtain ⟨effect⟩ := elect_effect transition
+      exact effect.extendsBranch
 
 end consistency.Proofs.Structural
 
@@ -389,7 +366,8 @@ private theorem requests_reachable {state : State}
         obtain ⟨rfl, -⟩ := Structural.appendOther_some transition
         exact invariant
     | elect =>
-        obtain ⟨_, rfl, -⟩ := Structural.elect_some transition
+        obtain ⟨effect⟩ := elect_effect transition
+        rw [effect.history]
         exact invariant
   induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
@@ -547,16 +525,6 @@ private theorem safe_reachable {state : State}
     apply forall_modify _ _ _ _ safe.1
     intro ledger member
     simpa only [LedgerSafe, writes, List.filterMap_append, List.filterMap_cons_none, List.filterMap_nil, List.append_nil, List.mem_filterMap, forall_exists_index, and_imp] using safe.1 ledger member
-  have safe_elect (state : State) (safe : Safe state) (ledger : List Entry) (count : Nat)
-      (member : ledger ∈ state.branches)
-      : Safe { state with branches := state.branches ++ [ledger.take count] } := by
-    refine ⟨?_, safe.2⟩
-    intro candidate listed
-    rcases List.mem_append.mp listed with old | new
-    · exact safe.1 candidate old
-    · simp only [List.mem_singleton] at new
-      subst candidate
-      exact ledger_take _ _ _ (safe.1 ledger member)
   have step_safe (before after : State) (action : Action)
       (safe : Safe before) (transition : step before action = some after)
       : Safe after := by
@@ -583,8 +551,12 @@ private theorem safe_reachable {state : State}
         obtain ⟨rfl, -⟩ := Structural.appendOther_some transition
         exact safe_other _ safe _
     | elect =>
-        obtain ⟨_, rfl, found, _, _, _⟩ := Structural.elect_some transition
-        exact safe_elect _ safe _ _ (mem_of_at? found)
+        obtain ⟨effect⟩ := elect_effect transition
+        refine ⟨?_, by simpa only [effect.history] using safe.2⟩
+        intro ledger member
+        obtain ⟨old, listed, retained⟩ := effect.ledger_mem member
+        rw [effect.history, List.prefix_iff_eq_take.mp retained]
+        exact ledger_take _ _ _ (safe.1 old listed)
   induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
       change state = initialState at initialized
@@ -654,7 +626,7 @@ private theorem active_positive (state : State) {branch : Nat}
     (active : activeBranch state branch = true)
     : 0 < branch := by
   simp only [activeBranch, Bool.and_eq_true, decide_eq_true_eq] at active
-  exact Nat.lt_of_lt_of_le (Nat.zero_lt_succ 1) active.1
+  exact Nat.lt_of_lt_of_le (Nat.zero_lt_succ 1) active.1.1
 
 private theorem anchored_reachable {state : State}
     (reachable : transitionSystem.Reachable state)
@@ -696,21 +668,22 @@ private theorem anchored_reachable {state : State}
       obtain ⟨extended, extendedFound, extension⟩ :=
         Structural.branches_modify branches (branch - 1) entry _ _ originFound
       exact ⟨bound, extended, extendedFound, isPrefix.trans extension⟩
-  have anchored_elect (branches : List (List Entry)) (anchored : Anchored branches)
-      {branch : Nat} {ledger : List Entry} (found : at? branches branch = some ledger)
-      (count : Nat)
-      : Anchored (branches ++ [ledger.take count]) := by
+  have anchored_elect {before after : State} {view source count : Nat}
+      (anchored : Anchored before.branches) (effect : ElectionEffect before after view source count)
+      : Anchored after.branches := by
     intro index candidate listed seqno entry atEntry
-    rcases at_snoc listed with old | ⟨endpoint, rfl⟩
+    rcases effect.origin _ _ listed with old | empty | ⟨rfl, rfl⟩
     · obtain ⟨bound, origin, originFound, isPrefix⟩ := anchored _ _ old _ _ atEntry
-      exact ⟨bound, origin, at_prefix (by simp only [List.prefix_append]) originFound, isPrefix⟩
-    · have oldEntry := at_prefix (List.take_prefix count ledger) atEntry
-      obtain ⟨bound, origin, originFound, isPrefix⟩ := anchored _ _ found _ _ oldEntry
-      refine ⟨Nat.le_trans (Nat.le_succ_of_le (Nat.le_trans bound (at_bounds found).2))
-          (Nat.le_of_eq endpoint.symm),
-        origin, at_prefix (List.prefix_append _ _) originFound, ?_⟩
-      rw [take_of_prefix (List.take_prefix count ledger) seqno (at_bounds atEntry).2] at isPrefix
-      exact isPrefix
+      obtain ⟨extended, extendedFound, extension⟩ := effect.extendsBranch _ origin originFound
+      exact ⟨bound, extended, extendedFound, isPrefix.trans extension⟩
+    · subst candidate
+      exact (List.not_mem_nil (mem_of_at? atEntry)).elim
+    · have retained := List.take_prefix count effect.ledger
+      have oldEntry := at_prefix retained atEntry
+      obtain ⟨bound, origin, originFound, isPrefix⟩ := anchored _ _ effect.found _ _ oldEntry
+      obtain ⟨extended, extendedFound, extension⟩ := effect.extendsBranch _ origin originFound
+      rw [take_of_prefix retained seqno (at_bounds atEntry).2] at isPrefix
+      exact ⟨Nat.le_trans bound (Nat.le_of_lt effect.earlier), extended, extendedFound, isPrefix.trans extension⟩
   have step_anchored (before after : State) (action : Action)
       (anchored : Anchored before.branches)
       (transition : step before action = some after)
@@ -738,8 +711,8 @@ private theorem anchored_reachable {state : State}
         obtain ⟨rfl, active⟩ := Structural.appendOther_some transition
         exact anchored_modify _ anchored _ _ rfl (active_positive before active)
     | elect =>
-        obtain ⟨_, rfl, found, _, _, _⟩ := Structural.elect_some transition
-        exact anchored_elect _ anchored found _
+        obtain ⟨effect⟩ := elect_effect transition
+        exact anchored_elect anchored effect
   induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
       change state = initialState at initialized
@@ -876,7 +849,8 @@ private theorem snapshots_reachable {state : State}
         obtain ⟨rfl, -⟩ := Structural.appendOther_some transition
         exact snapshots_mono _ _ _ snapshots extension
     | elect =>
-        obtain ⟨_, rfl, -⟩ := Structural.elect_some transition
+        obtain ⟨effect⟩ := elect_effect transition
+        rw [effect.history]
         exact snapshots_mono _ _ _ snapshots extension
   induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
@@ -1005,8 +979,9 @@ private theorem current_elect (state : State)
     (current : Current state.branches state.history) (anchored : Anchored state.branches)
     {branch : Nat} {ledger : List Entry} (found : at? state.branches branch = some ledger)
     (count : Nat) (compatible : hasCommittedPrefix state ledger = true)
-    (retained : commitSeqno state.history ≤ count)
-    : Current (state.branches ++ [ledger.take count]) state.history := by
+    (retained : commitSeqno state.history ≤ count) {branches : List (List Entry)}
+    (newest : at? branches branches.length = some (ledger.take count))
+    : Current branches state.history := by
   have frontier_entry (state : State) {ledger : List Entry}
       (compatible : hasCommittedPrefix state ledger = true)
       (positive : 0 < commitSeqno state.history)
@@ -1053,14 +1028,7 @@ private theorem current_elect (state : State)
   have inPrefix := at_take_of_le atEntry bound
   rw [← same] at inPrefix
   have preserved := at_prefix (List.take_prefix_take_left (l := ledger) retained) inPrefix
-  exact ⟨
-    ledger.take count,
-    by
-      simp only [at?, List.length_append, List.length_cons, List.length_nil, Nat.zero_add, Nat.add_eq_zero_iff, List.length_eq_zero_iff, Nat.succ_ne_self, and_false, ↓reduceIte, Nat.add_one_sub_one, Nat.lt_add_one, getElem?_pos, Std.le_refl, List.getElem_append_right, Nat.sub_self, List.getElem_cons_zero],
-    entry,
-    preserved,
-    view
-  ⟩
+  exact ⟨ledger.take count, newest, entry, preserved, view⟩
 
 private theorem current_reachable {state : State}
     (reachable : transitionSystem.Reachable state)
@@ -1119,8 +1087,12 @@ private theorem current_reachable {state : State}
         exact current_mono _ _ _ current (Structural.branches_modify _ _ _)
           (List.length_modify _ _ _)
     | elect =>
-        obtain ⟨_, rfl, found, compatible, retained, _⟩ := Structural.elect_some transition
-        exact current_elect before current anchored found _ compatible retained
+        obtain ⟨effect⟩ := elect_effect transition
+        rw [effect.history]
+        rcases effect.newest with same | ⟨newest, compatible, retained⟩
+        · intro txid member
+          simpa only [same] using current txid member
+        · exact current_elect before current anchored effect.found _ compatible retained newest
   induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
       change state = initialState at initialized
@@ -1278,15 +1250,6 @@ private theorem committed_views {state : State}
       have atEntry : at? ledger (index + 1) = some left := by simpa only [at?, Nat.add_eq_zero_iff, Nat.succ_ne_self, and_false, ↓reduceIte, Nat.add_one_sub_one] using lookup
       rw [view]
       exact (anchored _ _ atLedger _ _ atEntry).1
-    have ordered_elect (branches : List (List Entry)) (ordered : Ordered branches)
-        {ledger : List Entry} (member : ledger ∈ branches) (count : Nat)
-        : Ordered (branches ++ [ledger.take count]) := by
-      intro candidate listed
-      rcases List.mem_append.mp listed with old | new
-      · exact ordered candidate old
-      · have same := List.mem_singleton.mp new
-        subst candidate
-        exact (ordered ledger member).sublist (List.take_sublist _ _)
     have step_ordered (before after : State) (action : Action)
         (ordered : Ordered before.branches) (anchored : Anchored before.branches)
         (transition : step before action = some after)
@@ -1314,8 +1277,10 @@ private theorem committed_views {state : State}
           obtain ⟨rfl, active⟩ := Structural.appendOther_some transition
           exact ordered_modify _ ordered anchored _ _ rfl (active_positive before active)
       | elect =>
-          obtain ⟨_, rfl, found, _, _, _⟩ := Structural.elect_some transition
-          exact ordered_elect _ ordered (mem_of_at? found) _
+          obtain ⟨effect⟩ := elect_effect transition
+          intro ledger member
+          obtain ⟨old, listed, retained⟩ := effect.ledger_mem member
+          exact (ordered old listed).sublist retained.sublist
     induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
     | @initial state initialized =>
         change state = initialState at initialized

@@ -38,6 +38,7 @@ private def responseIndex (state : State) (id : TxID) : Except String Nat := do
 private structure Replay where
   model : State := initialState
   votes : List (String × Nat × Nat × Nat) := []
+  started : Bool := false
 
 /-- Replay one `ccf.cft` consensus trace event exported by a node, or a transaction status
 given to a client, using the guarded consistency model. Nothing is reconstructed: a new
@@ -61,19 +62,25 @@ private def replayEvent (replay : Replay) (event : Json) : Except String Replay 
       let view ← nat (← node) "current_view"
       let length ← nat (← node) "last_idx"
       let latest := model.branches.length
-      unless view > latest || model == initialState do
+      unless replay.started do
+        unless view == latest && length == 0 do
+          throw s!"expected an empty initial leader in view {latest}"
+        return { replay with started := true }
+      if activeBranch model view then
         throw s!"view {view} already has a leader"
       -- The new leader's ledger is a prefix of the branch of its last entry's view.
       let vote :=
         replay.votes.find?
           fun (voter, term, kept, _) => voter == id && term == view && kept == length
-      let source := (vote.map (·.2.2.2)).getD latest
-      let mut model := model
-      for _ in [:view - latest] do
-        model ← apply model (.elect source length)
+      if view < latest && vote.isNone then
+        throw s!"missing vote request for late leader in view {view}"
+      let source := if length == 0 then 1 else (vote.map (·.2.2.2)).getD latest
+      let model ← apply model (.elect view source length)
       return { replay with model }
   | "replicate_entry" =>
       let view ← nat event "view"
+      unless replay.started do
+        throw "missing initial election"
       let model ← apply model (.request .rw)
       let request := model.history.length
       let model ← apply model (.execute request view)
@@ -83,6 +90,8 @@ private def replayEvent (replay : Replay) (event : Json) : Except String Replay 
       -- A node's ledger up to its commit point is a prefix of its current view's branch.
       let view ← nat (← node) "current_view"
       let seqno ← nat event "idx"
+      unless replay.started && activeBranch model view do
+        throw s!"commit in view {view} without a leader"
       let some entry := (at? model.branches view).bind (at? · seqno)
       | throw s!"commit of unknown entry {seqno} in view {view}"
       let model ← apply model (.commit (← responseIndex model ⟨entry.view, seqno⟩))

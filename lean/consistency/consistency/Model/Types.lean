@@ -43,12 +43,14 @@ structure Entry where
 deriving DecidableEq, Repr
 
 /-- Each branch is the append-only ledger of the leader of its one-based view.
+A skipped view has an empty slot and records the commit frontier when it was skipped.
 A concrete node's ledger is represented by one of these branches or a prefix of one.
 The history is shared by all nodes and has no timestamps: its order records the
 order in which clients observe events, according to a global clock. -/
 structure State where
   history : List Event := []
   branches : List (List Entry) := []
+  skipped : List (Nat × Nat) := []
 deriving DecidableEq, Repr
 
 /-- Nondeterministic choices are explicit inputs; all indices are one-based. -/
@@ -60,7 +62,7 @@ inductive Action where
   | commit (responseIndex : Nat)
   | invalidate (responseIndex : Nat)
   | appendOther (branch : Nat)
-  | elect (branch prefixLength : Nat)
+  | elect (view source prefixLength : Nat)
 deriving DecidableEq, Repr
 
 end consistency.Model

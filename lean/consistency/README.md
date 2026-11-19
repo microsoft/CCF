@@ -23,7 +23,9 @@ The model represents a multi-node service with forwarded reads, elections, and i
 `Model.transitionSystem` supplies initialization and an executable step function; `none` means an action is disabled.
 
 The global state contains an append-only client history and one append-only ledger branch per leader view.
-An election copies a prefix compatible with known commitments into a new branch, preserving older branches.
+An election copies a ledger prefix from an earlier view without changing other branches.
+A view skipped by a newer election cannot process requests until its own leader is elected.
+An election that advances the highest view retains all known commitments; a late election retains the prefix known committed when that view was skipped and does not change the branch used for commitment.
 Writes and forwarded reads can still select former leaders' branches.
 Write execution, initial response, and committed/invalid status reporting are separate actions.
 Commitment is tracked through received status reports.
@@ -68,6 +70,7 @@ The unsandboxed check executes build-time code, which must be trusted.
 `consistency-replay` consumes the `ccf.cft` consensus trace events that nodes [export](../../doc/operations/configuration.rst), as NDJSON records with the event in a `msg` field, ordered by timestamp.
 It replays them through `Model.step`, using `become_leader`, `send_request_vote`, `replicate_entry` and `commit`, and skipping other events.
 A new leader's view starts from the ledger prefix that it reported when requesting votes.
+Leader events can arrive out of view order without reordering transaction observations or opening a branch for a view that never elected a leader.
 Every ledger entry is replayed as a write, which a node's `commit` reports committed.
 A `tx_status` record adds what nodes do not trace: a `Committed` or `Invalid` status given to a client.
 Nothing is reconstructed: a trace missing an election or a ledger entry is rejected.

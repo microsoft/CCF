@@ -192,20 +192,6 @@ private theorem appendOther_some {before after : State} {branch : Nat}
   obtain ⟨active, rest⟩ := guard_bind_some transition
   exact ⟨(Option.some.inj rest).symm, active⟩
 
-private theorem elect_some {before after : State} {branch prefixLength : Nat}
-    (transition : step before (.elect branch prefixLength) = some after)
-    : ∃ ledger,
-        after = { before with branches := before.branches ++ [ledger.take prefixLength] }
-        ∧ at? before.branches branch = some ledger
-        ∧ hasCommittedPrefix before ledger = true
-        ∧ commitSeqno before.history ≤ prefixLength
-        ∧ prefixLength ≤ ledger.length := by
-  obtain ⟨ledger, found, rest⟩ := Option.bind_eq_some_iff.mp transition
-  obtain ⟨compatible, rest⟩ := guard_bind_some rest
-  obtain ⟨bounds, rest⟩ := guard_bind_some rest
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at bounds
-  exact ⟨ledger, (Option.some.inj rest).symm, found, compatible, bounds.1, bounds.2⟩
-
 end consistency.Proofs.Structural
 
 namespace consistency.Proofs.History
@@ -334,7 +320,8 @@ private theorem causal_reachable {state : State}
         obtain ⟨rfl, -⟩ := Structural.appendOther_some transition
         exact causal
     | elect =>
-        obtain ⟨_, rfl, -⟩ := Structural.elect_some transition
+        obtain ⟨effect⟩ := elect_effect transition
+        rw [effect.history]
         exact causal
   induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
@@ -432,7 +419,8 @@ private theorem requests_reachable {state : State}
         obtain ⟨rfl, -⟩ := Structural.appendOther_some transition
         exact invariant
     | elect =>
-        obtain ⟨_, rfl, -⟩ := Structural.elect_some transition
+        obtain ⟨effect⟩ := elect_effect transition
+        rw [effect.history]
         exact invariant
   induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
@@ -602,16 +590,6 @@ private theorem safe_reachable {state : State}
     apply forall_modify _ _ _ _ safe.1
     intro ledger member
     simpa only [LedgerSafe, writes, List.filterMap_append, List.filterMap_cons_none, List.filterMap_nil, List.append_nil, List.mem_filterMap, forall_exists_index, and_imp] using safe.1 ledger member
-  have safe_elect (state : State) (safe : Safe state) (ledger : List Entry) (count : Nat)
-      (member : ledger ∈ state.branches)
-      : Safe { state with branches := state.branches ++ [ledger.take count] } := by
-    refine ⟨?_, safe.2⟩
-    intro candidate listed
-    rcases List.mem_append.mp listed with old | new
-    · exact safe.1 candidate old
-    · simp only [List.mem_singleton] at new
-      subst candidate
-      exact ledger_take _ _ _ (safe.1 ledger member)
   have step_safe (before after : State) (action : Action)
       (safe : Safe before) (transition : step before action = some after)
       : Safe after := by
@@ -638,8 +616,12 @@ private theorem safe_reachable {state : State}
         obtain ⟨rfl, -⟩ := Structural.appendOther_some transition
         exact safe_other _ safe _
     | elect =>
-        obtain ⟨_, rfl, found, _, _, _⟩ := Structural.elect_some transition
-        exact safe_elect _ safe _ _ (mem_of_at? found)
+        obtain ⟨effect⟩ := elect_effect transition
+        refine ⟨?_, by simpa only [effect.history] using safe.2⟩
+        intro ledger member
+        obtain ⟨old, listed, retained⟩ := effect.ledger_mem member
+        rw [effect.history, List.prefix_iff_eq_take.mp retained]
+        exact ledger_take _ _ _ (safe.1 old listed)
   induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
       change state = initialState at initialized
@@ -780,7 +762,8 @@ theorem unique_tx_ids
           obtain ⟨rfl, -⟩ := Structural.appendOther_some transition
           exact invariant
       | elect =>
-          obtain ⟨_, rfl, -⟩ := Structural.elect_some transition
+          obtain ⟨effect⟩ := elect_effect transition
+          rw [effect.history]
           exact invariant
     induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
     | @initial state initialized =>
@@ -892,7 +875,7 @@ private theorem replaced_writes_trace
         .respond 3 2 2,
         .invalidate 2,
         .invalidate 4,
-        .elect 2 0,
+        .elect 3 2 0,
         .request .rw,
         .execute 7 3,
         .respond 7 3 1,
@@ -950,18 +933,18 @@ private theorem superseded_writes_trace
         .request .rw,
         .execute 3 2,
         .respond 3 2 2,
-        .elect 2 0,
+        .elect 3 2 0,
         .request .rw,
         .execute 5 3,
         .respond 5 3 1,
         .commit 6,
         .invalidate 2,
         .invalidate 4,
-        .elect 3 1,
+        .elect 4 3 1,
         .request .rw,
         .execute 10 3,
         .respond 10 3 2,
-        .elect 3 2,
+        .elect 5 3 2,
         .commit 11
       ]
       (.initial rfl) (by decide))
@@ -1014,7 +997,7 @@ private theorem reordered_writes_trace
         .appendOther 2,
         .request .rw,
         .execute 7 2,
-        .elect 2 4,
+        .elect 3 2 4,
         .request .rw,
         .execute 8 3,
         .respond 8 3 5,
