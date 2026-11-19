@@ -396,7 +396,7 @@ def run_code_upgrade_from(
     tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf621
 
     with jwt_issuer.start_openid_server(), infra.jwt_issuer.NodeTrustStore() as trust_store:
-        # Nodes newer than 7.0.16 verify the OpenID server's certificate against
+        # CCF 8 and local builds verify the OpenID server's certificate against
         # their trust store rather than a governance-managed CA bundle.
         trust_store.trust(jwt_issuer)
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
@@ -694,7 +694,7 @@ def run_ledger_compatibility_since_first(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
     with jwt_issuer.start_openid_server(), infra.jwt_issuer.NodeTrustStore() as trust_store:
-        # Nodes newer than 7.0.16 verify the OpenID server's certificate against
+        # CCF 8 and local builds verify the OpenID server's certificate against
         # their trust store rather than a governance-managed CA bundle.
         trust_store.trust(jwt_issuer)
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)

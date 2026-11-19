@@ -209,11 +209,9 @@ class NodeTrustStore(AbstractContextManager):
 class JwtIssuer:
     TEST_JWT_ISSUER_NAME = "https://example.issuer"
     TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
-    # Releases up to and including this one only auto-refresh keys over TLS
-    # connections verified against a governance-managed CA bundle, which their
-    # constitutions require set_jwt_issuer to name. Later versions verify
-    # against the node's trust store instead (see NodeTrustStore).
-    LAST_RELEASE_WITH_GOVERNANCE_CA_BUNDLES = "ccf-7.0.16"
+    # Older release lines require a governance-managed CA bundle for
+    # auto-refresh. CCF 8 and local builds use the node's trust store.
+    FIRST_MAJOR_WITH_NODE_TRUST_STORE = 8
 
     def _generate_auth_data(self, cn=None):
         if self._alg == JwtAlg.RS256:
@@ -329,8 +327,10 @@ class JwtIssuer:
         primary, _ = network.find_primary()
 
         issuer = {"issuer": self.issuer_url, "auto_refresh": self.auto_refresh}
-        if self.auto_refresh and not primary.version_after(
-            self.LAST_RELEASE_WITH_GOVERNANCE_CA_BUNDLES
+        if (
+            self.auto_refresh
+            and primary.major_version is not None
+            and primary.major_version < self.FIRST_MAJOR_WITH_NODE_TRUST_STORE
         ):
             with tempfile.NamedTemporaryFile(
                 prefix="ccf", mode="w+"
