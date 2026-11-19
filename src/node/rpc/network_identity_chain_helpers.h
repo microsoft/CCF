@@ -3,14 +3,21 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/ds/hex.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/cft_types.h"
+#include "crypto/cbor_tags.h"
 #include "crypto/cose.h"
 #include "ds/internal_logger.h"
 #include "service/tables/previous_service_identity.h"
 
+#include <algorithm>
 #include <fmt/format.h>
+#include <span>
 #include <stdexcept>
+#include <string>
+#include <tav/cbor.hpp>
+#include <vector>
 
 namespace ccf
 {
@@ -104,6 +111,119 @@ namespace ccf
     }
 
     return {endorsed_key.begin(), endorsed_key.end()};
+  }
+
+  // Signed start of the validity range of an endorsement. Unlike
+  // extract_cose_endorsement_validity, this does not require a signed end,
+  // which a self-endorsement does not have.
+  inline std::string extract_cose_endorsement_epoch_begin(
+    std::span<const uint8_t> cose_msg)
+  {
+    using namespace tav::cbor;
+
+    auto cose_cbor = rethrow_with_msg(
+      [&]() { return nondet_parse(cose_msg); }, "Parse COSE CBOR");
+
+    const auto cose_envelope = rethrow_with_msg(
+      [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+      "Parse COSE tag");
+
+    const auto phdr_raw = rethrow_with_msg(
+      [&]() { return cose_envelope.array_at(0); },
+      "Parse raw protected header");
+
+    auto phdr = rethrow_with_msg(
+      [&]() { return nondet_parse(phdr_raw.as_bytes()); },
+      "Decode protected header");
+
+    const auto ccf_claims = rethrow_with_msg(
+      [&]() {
+        return phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
+      },
+      "Retrieve CCF claims");
+
+    const auto from = rethrow_with_msg(
+      [&]() {
+        return ccf_claims
+          .map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
+          .as_string();
+      },
+      "Retrieve epoch range begin");
+
+    return std::string(from);
+  }
+
+  // A chain stops at the self-endorsement of its oldest service, which is not
+  // part of the chain. Checks that it starts at expected_from, the oldest
+  // epoch which the chain covers, and that expected_key, the key which the
+  // chain trusts for that epoch, signed it over itself.
+  inline void validate_self_endorsement(
+    const ccf::CoseEndorsement& endorsement,
+    const ccf::TxID& expected_from,
+    std::span<const uint8_t> expected_key)
+  {
+    const auto from_str = endorsement.endorsement_epoch_begin.to_str();
+
+    if (!is_self_endorsement(endorsement))
+    {
+      throw std::logic_error(
+        fmt::format("Endorsement at {} is not a self-endorsement", from_str));
+    }
+
+    if (endorsement.endorsement_epoch_begin != expected_from)
+    {
+      throw std::logic_error(fmt::format(
+        "Self-endorsement at {} does not start at the oldest endorsed epoch "
+        "{}",
+        from_str,
+        expected_from.to_str()));
+    }
+
+    if (!std::equal(
+          endorsement.endorsing_key.begin(),
+          endorsement.endorsing_key.end(),
+          expected_key.begin(),
+          expected_key.end()))
+    {
+      throw std::logic_error(fmt::format(
+        "Self-endorsement at {} is signed by public key {}, which is not the "
+        "key {} trusted from that epoch",
+        from_str,
+        ccf::ds::to_hex(endorsement.endorsing_key),
+        ccf::ds::to_hex(expected_key)));
+    }
+
+    std::vector<uint8_t> endorsed_key;
+    try
+    {
+      endorsed_key = verify_cose_endorsement_signature(
+        endorsement.endorsement, endorsement.endorsing_key);
+    }
+    catch (const std::exception&)
+    {
+      throw std::logic_error(fmt::format(
+        "Self-endorsement at {} failed signature verification", from_str));
+    }
+
+    if (endorsed_key != endorsement.endorsing_key)
+    {
+      throw std::logic_error(fmt::format(
+        "Self-endorsement at {} endorses public key {}, which is not the key "
+        "which signed it",
+        from_str,
+        ccf::ds::to_hex(endorsed_key)));
+    }
+
+    // The signature is verified, so the header is safe to trust
+    const auto signed_from =
+      extract_cose_endorsement_epoch_begin(endorsement.endorsement);
+    if (signed_from != from_str)
+    {
+      throw std::logic_error(fmt::format(
+        "Self-endorsement at {} is signed for another epoch begin {}",
+        from_str,
+        signed_from));
+    }
   }
 
   inline void verify_endorsements_connected(

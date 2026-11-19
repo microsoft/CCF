@@ -44,6 +44,9 @@ namespace ccf
     std::atomic<FetchStatus> fetch_status{FetchStatus::Retry};
     bool has_predecessors{false};
     size_t fetch_attempts{0};
+    // Self-endorsement at which fetching stopped. It is not part of the
+    // chain, and is validated against it when fetching completes.
+    std::optional<CoseEndorsement> self_endorsement;
 
     // PQ chain. A service with a PQ identity writes its PQ endorsement in the
     // transaction which writes the classical one, so both chains are fetched
@@ -54,6 +57,8 @@ namespace ccf
     // Whether the oldest PQ endorsement fetched so far has a predecessor
     bool pq_fetching{false};
     std::map<SeqNo, CoseEndorsement> pq_endorsements;
+    // As self_endorsement, for the PQ chain
+    std::optional<CoseEndorsement> pq_self_endorsement;
     TrustedKeysPQ pq_trusted_keys;
 
   public:
@@ -289,6 +294,7 @@ namespace ccf
       {
         trusted_keys = build_trusted_key_chain<ccf::crypto::ECPublicKeyPtr>(
           endorsements,
+          self_endorsement,
           network_identity->get_key_pair()->public_key_der(),
           *current_service_from,
           [](const std::vector<uint8_t>& der) {
@@ -312,6 +318,7 @@ namespace ccf
           pq_trusted_keys =
             build_trusted_key_chain<ccf::crypto::MLDSAPublicKeyPtr>(
               pq_endorsements,
+              pq_self_endorsement,
               current_pq_key_der.value(),
               *current_service_from,
               [](const std::vector<uint8_t>& der) {
@@ -425,6 +432,7 @@ namespace ccf
             endorsement.endorsement_epoch_begin.to_str()));
         }
         LOG_INFO_FMT("Got PQ self-endorsement at {}, stopping PQ chain", from);
+        pq_self_endorsement = endorsement;
         pq_fetching = false;
         return;
       }
@@ -545,6 +553,7 @@ namespace ccf
           current_service_from->seqno);
 
         has_predecessors = false;
+        self_endorsement = endorsement;
         complete_fetching(FetchStatus::Done);
         return;
       }
@@ -590,6 +599,7 @@ namespace ccf
             from_str));
         }
         LOG_INFO_FMT("Got self-endorsement at {}, stopping fetching", from);
+        self_endorsement = endorsement;
         complete_fetching(FetchStatus::Done);
         return;
       }
@@ -633,10 +643,12 @@ namespace ccf
 
     // Checks that the endorsements of a chain are connected up to the current
     // service, with valid signatures and linked keys, and returns the key
-    // trusted from the start of each epoch
+    // trusted from the start of each epoch. If fetching stopped at a
+    // self-endorsement, checks that the oldest trusted key signed it.
     template <typename KeyPtr, typename MakeKey>
     static std::map<SeqNo, KeyPtr> build_trusted_key_chain(
       const std::map<SeqNo, CoseEndorsement>& chain,
+      const std::optional<CoseEndorsement>& chain_self_endorsement,
       const std::vector<uint8_t>& current_pkey,
       const ccf::TxID& current_from,
       MakeKey make_key)
@@ -656,6 +668,10 @@ namespace ccf
 
       std::map<SeqNo, KeyPtr> keys;
       std::span<const uint8_t> previous_key_der{};
+      // Key trusted for the oldest epoch, which the current service has if
+      // no endorsement covers an older one
+      std::vector<uint8_t> oldest_key = current_pkey;
+      auto oldest_from = current_from;
       for (const auto& [seqno, endorsement] : chain)
       {
         std::vector<uint8_t> endorsed_key;
@@ -671,6 +687,12 @@ namespace ccf
             "{} to {} failed signature verification",
             endorsement.endorsement_epoch_begin.to_str(),
             format_epoch(endorsement.endorsement_epoch_end)));
+        }
+
+        if (previous_key_der.empty())
+        {
+          oldest_key = endorsed_key;
+          oldest_from = endorsement.endorsement_epoch_begin;
         }
 
         LOG_INFO_FMT(
@@ -713,6 +735,12 @@ namespace ccf
           "endorsing key {}",
           ccf::ds::to_hex(current_pkey),
           ccf::ds::to_hex(previous_key_der)));
+      }
+
+      if (chain_self_endorsement.has_value())
+      {
+        validate_self_endorsement(
+          chain_self_endorsement.value(), oldest_from, oldest_key);
       }
 
       LOG_INFO_FMT(
