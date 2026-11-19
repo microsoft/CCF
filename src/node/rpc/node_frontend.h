@@ -319,7 +319,8 @@ namespace ccf
       }
 
       auto pubk_der = ccf::crypto::public_key_der_from_cert(node_der);
-      NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
+      NodeId joining_node_id =
+        compute_node_id_from_pubk_der(pubk_der, in.id_format);
 
       pal::PlatformAttestationMeasurement measurement;
 
@@ -474,6 +475,25 @@ namespace ccf
       ccf::endpoints::EndpointContext& args, const nlohmann::json& params)
     {
       const auto in = params.get<JoinNetworkNodeToNode::In>();
+
+      try
+      {
+        // Reject keys which cannot be identified in the requested format
+        // before any further processing
+        compute_node_id_from_cert_der(
+          args.rpc_ctx->get_session_context()->caller_cert, in.id_format);
+      }
+      catch (const std::exception& e)
+      {
+        // Covers both keys outside the did:key profile and key types the
+        // certificate parser does not support.
+        const std::string payload = std::format(
+          "Node public key cannot be identified in the requested format: {}",
+          e.what());
+        LOG_INFO_FMT("Join request rejected: {}", payload);
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, payload);
+      }
 
       // Not part of network => Internal error
       if (

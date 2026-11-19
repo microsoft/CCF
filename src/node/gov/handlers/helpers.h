@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/did_key.h"
 #include "ccf/endpoints/authentication/authentication_types.h"
 #include "ccf/endpoints/authentication/cose_auth.h"
 #include "ds/gov_logging.h"
@@ -63,6 +64,22 @@ namespace ccf::gov::endpoints::detail
     return EntityType(s);
   }
 
+  // Member, user and node IDs are a hex ID or a did:key. Only the syntax of a
+  // did:key is checked, as it is unauthenticated input which is used to look
+  // up an identity.
+  template <typename EntityType>
+  std::optional<EntityType> parse_identity_id(const std::string& s)
+  {
+    if (s.starts_with("did:key:"))
+    {
+      return ccf::crypto::is_well_formed_did_key(s) ?
+        std::make_optional(EntityType(s)) :
+        std::nullopt;
+    }
+
+    return parse_hex_id<EntityType>(s);
+  }
+
   // Extract memberId from path parameter, confirm it is a plausible ID
   inline bool try_parse_member_id(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx, ccf::MemberId& member_id)
@@ -82,15 +99,14 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse member ID from string
-    const auto member_id_opt = parse_hex_id<ccf::MemberId>(member_id_str);
+    const auto member_id_opt = parse_identity_id<ccf::MemberId>(member_id_str);
     if (!member_id_opt.has_value())
     {
       detail::set_gov_error(
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        std::format(
-          "'{}' is not a valid hex-encoded member ID", member_id_str));
+        std::format("'{}' is not a valid member ID", member_id_str));
       return false;
     }
 
@@ -142,14 +158,14 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse user ID from string
-    const auto user_id_opt = parse_hex_id<ccf::UserId>(user_id_str);
+    const auto user_id_opt = parse_identity_id<ccf::UserId>(user_id_str);
     if (!user_id_opt.has_value())
     {
       detail::set_gov_error(
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        std::format("'{}' is not a valid hex-encoded user ID", user_id_str));
+        std::format("'{}' is not a valid user ID", user_id_str));
       return false;
     }
 
@@ -244,14 +260,14 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse node ID from string
-    const auto node_id_opt = parse_hex_id<ccf::NodeId>(node_id_str);
+    const auto node_id_opt = parse_identity_id<ccf::NodeId>(node_id_str);
     if (!node_id_opt.has_value())
     {
       detail::set_gov_error(
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        std::format("'{}' is not a valid hex-encoded node ID", node_id_str));
+        std::format("'{}' is not a valid node ID", node_id_str));
       return false;
     }
 

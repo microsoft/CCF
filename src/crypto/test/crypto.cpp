@@ -7,6 +7,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
+#include "ccf/crypto/did_key.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
@@ -65,6 +66,79 @@ static const string contents_ =
   "qui officia deserunt mollit anim id est laborum.";
 
 vector<uint8_t> contents(contents_.begin(), contents_.end());
+
+TEST_CASE("Deterministic did:key public key identifiers")
+{
+  for (const auto curve :
+       {CurveID::SECP256R1, CurveID::SECP384R1, CurveID::SECP521R1})
+  {
+    const auto key = make_ec_key_pair(curve);
+    const auto did = did_key_from_public_key_der(key->public_key_der());
+    CHECK(did.starts_with("did:key:z"));
+    CHECK(is_well_formed_did_key(did));
+    CHECK(did_key_from_public_key_der(public_key_der_from_did_key(did)) == did);
+    const auto decoded = make_ec_public_key(public_key_der_from_did_key(did));
+    CHECK(decoded->coordinates().x == key->coordinates().x);
+    CHECK(decoded->coordinates().y == key->coordinates().y);
+
+    // Only bare IDs are accepted
+    for (const auto& url : {did + "#key", did + "?version=1"})
+    {
+      CHECK_FALSE(is_well_formed_did_key(url));
+      CHECK_THROWS_AS(public_key_der_from_did_key(url), std::invalid_argument);
+    }
+  }
+
+  // Keys outside the supported profile have no did:key
+  CHECK_THROWS_AS(
+    did_key_from_public_key_der(make_rsa_key_pair()->public_key_der()),
+    std::invalid_argument);
+
+  for (const auto& malformed :
+       {std::string(""),
+        std::string("did:key:"),
+        std::string("did:key:z"),
+        std::string("did:key:z0"),
+        std::string("did:key:uabc"),
+        std::string("did:key:z") + std::string(96, '1')})
+  {
+    CHECK_FALSE(is_well_formed_did_key(malformed));
+    CHECK_THROWS_AS(
+      public_key_der_from_did_key(malformed), std::invalid_argument);
+  }
+  CHECK_THROWS_WITH_AS(
+    public_key_der_from_did_key("did:key:uabc"),
+    "Only base58-btc (z) multibase did:key IDs are supported",
+    std::invalid_argument);
+
+  // A well-formed ID can be looked up, but is only enrolled if it decodes to
+  // a valid key
+  CHECK(is_well_formed_did_key("did:key:z1"));
+  CHECK_THROWS_AS(
+    public_key_der_from_did_key("did:key:z1"), std::invalid_argument);
+}
+
+TEST_CASE("Published did:key NIST public key vectors")
+{
+  const std::vector<std::pair<std::string, std::string>> vectors = {
+    {"did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv",
+     "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEigrFmi0whuihKnj9R3Om1SoMph72wUGeFaBbz"
+     "G2vznt5+xflvXTHzKPKuPifLekZ8txjtdvLUrOCo52qeyskgw=="},
+    {"did:key:"
+     "z82LkvCwHNreneWpsgPEbV3gu1C6NFJEBg4srfJ5gdxEsMGRJUz2sG9FE42shbn2xkZJh54",
+     "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAECA+"
+     "iNoHDg1lL8pvX3d1uvExzVfCz7Rn6tW781Ub8K5MrDf2IMPyL0RTDiaLHC1JTKpnrn8DkXUD3"
+     "ge4mFxi+DKr0DYO2KuJdwNBrhzLRtfMa3WFMZBiPKUPfJj8dYNl/"}};
+  for (const auto& [did, spki] : vectors)
+  {
+    const auto der = raw_from_b64(spki);
+    CHECK(did_key_from_public_key_der(der) == did);
+    const auto decoded = make_ec_public_key(public_key_der_from_did_key(did));
+    const auto expected = make_ec_public_key(der);
+    CHECK(decoded->coordinates().x == expected->coordinates().x);
+    CHECK(decoded->coordinates().y == expected->coordinates().y);
+  }
+}
 
 static const string nested_cert =
   "MIIV1zCCFL+"
