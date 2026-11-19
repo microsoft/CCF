@@ -11,6 +11,8 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
+#include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -29,10 +31,6 @@ namespace ccf::logger
   static constexpr long int ns_per_s = 1'000'000'000;
 
   static constexpr auto preamble_length = 45u;
-
-#ifdef CCF_RAFT_TRACING
-  static size_t logical_clock = 0;
-#endif
 
   struct LogLine
   {
@@ -80,9 +78,6 @@ namespace ccf::logger
 
   static std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
   {
-#ifdef CCF_RAFT_TRACING
-    return std::to_string(logical_clock++);
-#else
     // Sample: "2019-07-19 18:53:25.690267"
     constexpr size_t nano_per_micro = 1000;
     return std::format(
@@ -94,7 +89,6 @@ namespace ccf::logger
       tm.tm_min,
       tm.tm_sec,
       ts.tv_nsec / nano_per_micro);
-#endif
   }
 
   class AbstractLogger
@@ -105,7 +99,7 @@ namespace ccf::logger
 
     virtual void emit(const std::string& s)
     {
-      std::cout.write(s.c_str(), s.size());
+      std::ignore = std::cout.write(s.c_str(), s.size());
       std::cout.flush();
     }
 
@@ -126,18 +120,7 @@ namespace ccf::logger
       std::tm host_tm{};
       ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-#ifdef CCF_RAFT_TRACING
-      auto escaped_msg = ll.msg;
-      if (!nlohmann::json::accept(escaped_msg))
-      {
-        // Only dump to json if not already json, to avoid double-escaping when
-        // logging json
-        // https://json.nlohmann.me/features/parsing/parse_exceptions/#use-accept-function
-        escaped_msg = nlohmann::json(ll.msg).dump();
-      }
-#else
       const auto escaped_msg = nlohmann::json(ll.msg).dump();
-#endif
 
       std::string s;
       s = std::format(
@@ -262,6 +245,23 @@ namespace ccf::logger
     }
   };
 
+  namespace detail
+  {
+    template <typename T>
+    constexpr const T& format_pattern(const T& pattern)
+    {
+      return pattern;
+    }
+
+    // Keep embedded NULs in string literals rather than treating them as C
+    // strings.
+    template <size_t N>
+    constexpr std::string_view format_pattern(const char (&pattern)[N])
+    {
+      return {pattern, N - 1};
+    }
+  }
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
@@ -280,7 +280,8 @@ namespace ccf::logger
 // To avoid repeating the (s, ...) args for every macro, we cheat with a curried
 // macro here by ending the macro with another macro name, which then accepts
 // the trailing arguments
-#define CCF_LOG_FMT_2(s, ...) std::format(s __VA_OPT__(, ) __VA_ARGS__)
+#define CCF_LOG_FMT_2(s, ...) \
+  std::format(ccf::logger::detail::format_pattern(s) __VA_OPT__(, ) __VA_ARGS__)
 #define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_2
 
 #define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")

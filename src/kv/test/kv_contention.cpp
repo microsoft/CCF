@@ -4,8 +4,8 @@
 #include "ds/internal_logger.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #include <atomic>
@@ -58,6 +58,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
     ccf::kv::Store* kv_store;
     std::atomic<size_t>* counter;
   };
+
   ThreadArgs args[thread_count] = {};
 
   const auto seed = time(NULL);
@@ -144,6 +145,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   // Start a thread which continually compacts at the latest version, until all
   // tx_threads have finished
   std::thread compact_thread;
+
   enum CompacterState
   {
     NotStarted,

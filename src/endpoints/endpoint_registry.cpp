@@ -6,16 +6,13 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
-#include "ccf/node_context.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
+#include "endpoints/rpc_context_impl.h"
 #include "http/http_parser.h"
-#include "node/rpc/claims.h"
-#include "node/rpc_context_impl.h"
-#include "node/signature_cache_interface.h"
-#include "node/tx_receipt_impl.h"
 
 #include <format>
+#include <tuple>
 
 namespace ccf::endpoints
 {
@@ -67,11 +64,11 @@ namespace ccf::endpoints
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
       {
-        ds::openapi::response(path_op, HTTP_STATUS_OK);
+        std::ignore = ds::openapi::response(path_op, HTTP_STATUS_OK);
       }
 
       // Add a default error response
-      ds::openapi::error_response_default(path_op);
+      std::ignore = ds::openapi::error_response_default(path_op);
 
       // Add summary and description if set
       {
@@ -208,80 +205,6 @@ namespace ccf::endpoints
     ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
   }
 
-  TxReceiptImplPtr build_receipt_for_committed_tx(
-    ccf::AbstractNodeContext& context, CommittedTxInfo& info)
-  {
-    if (info.commit_evidence.empty())
-    {
-      info.rpc_ctx->set_error(
-        HTTP_STATUS_INTERNAL_SERVER_ERROR,
-        ccf::errors::InternalError,
-        std::format(
-          "Cannot construct receipt for TxID {}: transaction produced no "
-          "write set (read-only transactions do not have receipts)",
-          info.tx_id.to_str()));
-      return nullptr;
-    }
-
-    auto sig_cache = context.get_subsystem<ccf::SignatureCacheInterface>();
-    if (sig_cache == nullptr)
-    {
-      info.rpc_ctx->set_error(
-        HTTP_STATUS_INTERNAL_SERVER_ERROR,
-        ccf::errors::InternalError,
-        "SignatureCacheInterface subsystem is not installed");
-      return nullptr;
-    }
-
-    auto cached_sig = sig_cache->get_signature_for(info.tx_id.seqno);
-    if (!cached_sig.has_value())
-    {
-      info.rpc_ctx->set_error(
-        HTTP_STATUS_INTERNAL_SERVER_ERROR,
-        ccf::errors::InternalError,
-        std::format(
-          "No cached signature found covering TxID {}", info.tx_id.to_str()));
-      return nullptr;
-    }
-
-    // Reconstruct merkle tree from the cached serialised tree and
-    // extract a proof for this specific seqno
-    ccf::MerkleTreeHistory tree(cached_sig->serialised_tree);
-    if (!tree.in_range(info.tx_id.seqno))
-    {
-      info.rpc_ctx->set_error(
-        HTTP_STATUS_INTERNAL_SERVER_ERROR,
-        ccf::errors::InternalError,
-        std::format(
-          "Seqno {} is not in range of cached signature tree",
-          info.tx_id.seqno));
-      return nullptr;
-    }
-    auto proof = tree.get_proof(info.tx_id.seqno);
-
-    std::optional<std::vector<uint8_t>> sig;
-    std::optional<ccf::crypto::Pem> cert;
-    NodeId node{};
-
-    if (cached_sig->sig)
-    {
-      sig = cached_sig->sig->sig;
-      cert = cached_sig->sig->cert;
-      node = cached_sig->sig->node;
-    }
-
-    return std::make_shared<TxReceiptImpl>(
-      sig,
-      cached_sig->cose_signatures,
-      proof.get_root(),
-      proof.get_path(),
-      node,
-      cert,
-      info.write_set_digest,
-      info.commit_evidence,
-      info.claims_digest);
-  }
-
   Endpoint EndpointRegistry::make_endpoint(
     const std::string& method,
     RESTVerb verb,
@@ -319,17 +242,18 @@ namespace ccf::endpoints
     const ReadOnlyEndpointFunction& f,
     const AuthnPolicies& ap)
   {
-    return make_endpoint(
-             method,
-             verb,
-             [f](EndpointContext& ctx) {
-               ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
-               ro_ctx.caller = std::move(ctx.caller);
-               f(ro_ctx);
-             },
-             ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_redirection_strategy(RedirectionStrategy::None);
+    auto endpoint = make_endpoint(
+      method,
+      verb,
+      [f](EndpointContext& ctx) {
+        ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
+        ro_ctx.caller = std::move(ctx.caller);
+        f(ro_ctx);
+      },
+      ap);
+    endpoint.set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
+    return endpoint;
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -342,8 +266,9 @@ namespace ccf::endpoints
       make_endpoint(method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap);
     endpoint.execution_mode = EndpointExecutionMode::Command;
     endpoint.command_func = f;
-    return endpoint.set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
+    return endpoint;
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)

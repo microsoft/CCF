@@ -4,11 +4,23 @@
 #include "../history.h"
 
 #include <algorithm>
+#include <charconv>
+#include <cstdint>
+#include <cstdlib>
 #include <format>
+#include <iostream>
 #include <picobench/picobench.hpp>
 #include <random>
+#include <string_view>
 
 using namespace std;
+
+// Merkle tree operations do not depend on leaf hashes being unpredictable, so
+// synthetic leaves come from a PRNG rather than from per-byte hardware entropy,
+// which is slow and host-dependent. A seed is drawn once per run (or read from
+// RNG_SEED) and printed, and each sample re-seeds its own generator with it, so
+// a sample's inputs do not depend on picobench's randomised execution order.
+static uint32_t rng_seed = 0;
 
 template <class A>
 inline void do_not_optimize(A const& value)
@@ -25,7 +37,7 @@ static void append_retract(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(rng_seed);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -58,7 +70,7 @@ static void append_flush(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(rng_seed);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -88,7 +100,7 @@ static void append_get_proof_verify(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(rng_seed);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -120,7 +132,7 @@ static void append_get_proof_verify_v(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(rng_seed);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -152,7 +164,7 @@ static void append_get_proof_verify_v(picobench::state& s)
 static void serialise_deserialise(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  std::random_device r;
+  std::mt19937 r(rng_seed);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -171,7 +183,7 @@ static void serialise_deserialise(picobench::state& s)
 static void serialised_size(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  std::random_device r;
+  std::mt19937 r(rng_seed);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -217,6 +229,28 @@ PICOBENCH(serialised_size)
 
 int main(int argc, char* argv[])
 {
+  const char* env_seed = std::getenv("RNG_SEED");
+  if (env_seed != nullptr && *env_seed != '\0')
+  {
+    const std::string_view seed_str(env_seed);
+    const auto* seed_end = seed_str.data() + seed_str.size();
+    const auto [ptr, ec] = std::from_chars(seed_str.data(), seed_end, rng_seed);
+    if (ec != std::errc() || ptr != seed_end)
+    {
+      std::cerr << std::format(
+                     "RNG_SEED must be an unsigned 32-bit integer, not '{}'",
+                     seed_str)
+                << std::endl;
+      return 1;
+    }
+  }
+  else
+  {
+    rng_seed = std::random_device{}();
+  }
+  std::cerr << std::format("RNG seed: {} (set RNG_SEED to reproduce)", rng_seed)
+            << std::endl;
+
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   auto ret = runner.run();

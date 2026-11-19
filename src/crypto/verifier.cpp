@@ -30,16 +30,6 @@ namespace ccf::crypto
     return make_verifier(pem.raw());
   }
 
-  ccf::crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der)
-  {
-    return make_verifier(der)->cert_pem();
-  }
-
-  std::vector<uint8_t> cert_pem_to_der(const ccf::crypto::Pem& pem)
-  {
-    return make_verifier(pem)->cert_der();
-  }
-
   std::vector<uint8_t> public_key_der_from_cert(const std::vector<uint8_t>& der)
   {
     return make_unique_verifier(der)->public_key_der();
@@ -72,6 +62,10 @@ namespace ccf::crypto
       return std::get<ECPublicKeyPtr>(public_key)
         ->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      throw std::logic_error("Pure ML-DSA does not support pre-hashed input");
+    }
     throw std::runtime_error("Invalid public key type");
   }
 
@@ -92,6 +86,15 @@ namespace ccf::crypto
       return std::get<ECPublicKeyPtr>(public_key)
         ->verify(contents, contents_size, sig, sig_size, md_type);
     }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      if (md_type != MDType::NONE)
+      {
+        throw std::invalid_argument("Pure ML-DSA requires MDType::NONE");
+      }
+      return std::get<MLDSAPublicKeyPtr>(public_key)
+        ->verify({contents, contents_size}, {sig, sig_size});
+    }
     throw std::runtime_error("Invalid public key type");
   }
 
@@ -105,6 +108,10 @@ namespace ccf::crypto
     {
       return std::get<ECPublicKeyPtr>(public_key)->public_key_pem();
     }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      return std::get<MLDSAPublicKeyPtr>(public_key)->public_key_pem();
+    }
     throw std::runtime_error("Invalid public key type");
   }
 
@@ -117,6 +124,10 @@ namespace ccf::crypto
     if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
       return std::get<ECPublicKeyPtr>(public_key)->public_key_der();
+    }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      return std::get<MLDSAPublicKeyPtr>(public_key)->public_key_der();
     }
     throw std::runtime_error("Invalid public key type");
   }

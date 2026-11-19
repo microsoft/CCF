@@ -3,50 +3,78 @@
 
 #include "host/runtime_control.h"
 
+#include "host/sig_term.h"
+#include "node/commit_callback_subsystem.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <csignal>
 #include <doctest/doctest.h>
+#include <iostream>
+#include <sstream>
+
+namespace
+{
+  class ScopedCerrCapture
+  {
+    std::ostringstream captured;
+    std::streambuf* previous = std::cerr.rdbuf(captured.rdbuf());
+
+  public:
+    ScopedCerrCapture() = default;
+    ScopedCerrCapture(const ScopedCerrCapture&) = delete;
+    ScopedCerrCapture& operator=(const ScopedCerrCapture&) = delete;
+
+    ~ScopedCerrCapture()
+    {
+      std::cerr.rdbuf(previous);
+    }
+
+    std::string str() const
+    {
+      return captured.str();
+    }
+  };
+}
 
 TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
 {
   size_t enclave_stop_request_count = 0;
-  size_t ringbuffer_drain_count = 0;
   {
     const auto request_enclave_stop = [&enclave_stop_request_count]() {
       ++enclave_stop_request_count;
       return true;
     };
-    const auto drain_ringbuffers = [&ringbuffer_drain_count]() {
-      ++ringbuffer_drain_count;
-    };
-    asynchost::RuntimeControl runtime_control(
-      request_enclave_stop, drain_ringbuffers);
+    asynchost::RuntimeControl runtime_control(request_enclave_stop);
 
     SUBCASE("`request_restart()` requests enclave shutdown")
     {
+      const ScopedCerrCapture stderr_output;
       runtime_control->request_restart();
       REQUIRE(enclave_stop_request_count == 1);
-      REQUIRE(ringbuffer_drain_count == 0);
       REQUIRE_NOTHROW(runtime_control->throw_if_fatal_error());
+      CHECK(stderr_output.str().empty());
     }
 
-    SUBCASE("`report_stopped()` drains ringbuffers on the host loop")
+    SUBCASE("`report_stopped()` stops the host loop")
     {
+      const ScopedCerrCapture stderr_output;
       runtime_control->report_stopped();
       uv_run(uv_default_loop(), UV_RUN_NOWAIT);
       REQUIRE(enclave_stop_request_count == 0);
-      REQUIRE(ringbuffer_drain_count == 1);
       REQUIRE_NOTHROW(runtime_control->throw_if_fatal_error());
+      CHECK(stderr_output.str().empty());
     }
 
     SUBCASE(
       "`report_fatal_error()` requests enclave shutdown and preserves the "
       "error")
     {
+      const ScopedCerrCapture stderr_output;
       runtime_control->report_fatal_error("join failed");
+      CHECK(stderr_output.str() == "Fatal error: join failed\n");
       runtime_control->report_stopped();
       uv_run(uv_default_loop(), UV_RUN_NOWAIT);
       REQUIRE(enclave_stop_request_count == 1);
-      REQUIRE(ringbuffer_drain_count == 1);
       REQUIRE_THROWS_WITH_AS(
         runtime_control->throw_if_fatal_error(),
         "join failed",
@@ -55,4 +83,59 @@ TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
   }
 
   uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+}
+
+TEST_CASE("Shutdown signals received before the loop are delivered on the loop")
+{
+  size_t stops = 0;
+  size_t notices = 0;
+  const auto request_node_shutdown = [&]() { ++stops; };
+  const auto notify_node_stopping = [&]() { ++notices; };
+  int signum = SIGTERM;
+  bool ignore_first_sigterm = false;
+
+  SUBCASE("SIGTERM requests a stop") {}
+
+  SUBCASE("Ignored first SIGTERM delivers a notice without stopping")
+  {
+    ignore_first_sigterm = true;
+  }
+
+  SUBCASE("SIGHUP requests a stop independently")
+  {
+    signum = SIGHUP;
+  }
+
+  {
+    asynchost::Sigterm sigterm(
+      ignore_first_sigterm, request_node_shutdown, notify_node_stopping);
+    asynchost::Sighup sighup(
+      false, request_node_shutdown, notify_node_stopping);
+    REQUIRE(std::raise(signum) == 0);
+    CHECK(stops == 0);
+    CHECK(notices == 0);
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    CHECK(stops == (ignore_first_sigterm ? 0 : 1));
+    CHECK(notices == (ignore_first_sigterm ? 1 : 0));
+  }
+  uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+}
+
+TEST_CASE("Shutdown releases pending commit callbacks without invoking them")
+{
+  auto callbacks = std::make_shared<ccf::CommitCallbackSubsystem>();
+  auto retained = std::make_shared<int>(42);
+  std::weak_ptr<int> weak = retained;
+  bool called = false;
+  callbacks->add_callback(
+    {1, 1}, [callbacks, retained, &called](ccf::TxID, ccf::FinalTxStatus) {
+      called = true;
+    });
+  retained.reset();
+  CHECK_FALSE(weak.expired());
+  callbacks->shutdown();
+  CHECK(weak.expired());
+  CHECK_FALSE(called);
+  CHECK(callbacks.use_count() == 1);
+  callbacks->shutdown();
 }

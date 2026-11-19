@@ -4,7 +4,7 @@
 
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/tx_id.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "crypto/cose.h"
 #include "ds/internal_logger.h"
 #include "service/tables/previous_service_identity.h"

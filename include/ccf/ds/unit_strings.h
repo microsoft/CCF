@@ -131,6 +131,7 @@ namespace ccf::ds
     std::string str;
 
     UnitString() = default;
+
     UnitString(const std::string_view& str_) : str(str_) {}
 
     bool operator==(const UnitString&) const = default;
@@ -146,6 +147,7 @@ namespace ccf::ds
     size_t value = 0;
 
     SizeString() = default;
+
     SizeString(const std::string_view& str_) :
       UnitString(str_),
       value(convert_size_string(str_))
@@ -190,6 +192,7 @@ namespace ccf::ds
     std::chrono::microseconds value = {};
 
     TimeString() = default;
+
     TimeString(const std::string_view& str_) :
       UnitString(str_),
       value(convert_time_string(str_))

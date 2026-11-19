@@ -8,6 +8,8 @@
 
 namespace ccf::crypto
 {
+  class COSEKey;
+
   class COSEVerifier
   {
   public:
@@ -37,12 +39,16 @@ namespace ccf::crypto
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key);
   COSEVerifierUniquePtr make_cose_verifier_from_key(
     std::span<const uint8_t> public_key);
+  /// Create a verifier from a COSE key, with no re-encoding of the key. If the
+  /// key has an "alg", the verifier rejects every other algorithm.
+  COSEVerifierUniquePtr make_cose_verifier_from_key(const COSEKey& key);
 
   struct COSEEndorsementValidity
   {
     std::string from_txid;
     std::string to_txid;
   };
+
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg);
 }

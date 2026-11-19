@@ -29,6 +29,7 @@ def make_final_ledger_file_name(
     is_complete: bool,
     is_committed: bool,
 ) -> str:
+    """Construct the final ledger chunk name from its range and completion state."""
     file_name = f"ledger_{start_seqno}"
     if is_complete:
         file_name += f"-{end_seqno}"
@@ -39,12 +40,17 @@ def make_final_ledger_file_name(
 
 
 def close_ledger_file(
-    ledger_file, entry_positions: list[int], final_file_name: str, complete_file=True
-):
+    ledger_file: BinaryIO,
+    entry_positions: list[int],
+    final_file_name: str,
+    complete_file: bool = True,
+) -> None:
+    """Write the optional offsets table, close the chunk, and rename it."""
     if complete_file:
         positions_offset = ledger_file.tell()
-        for pos in entry_positions:
-            ledger_file.write(int.to_bytes(pos, length=4, byteorder="little"))
+        ledger_file.writelines(
+            int.to_bytes(pos, length=4, byteorder="little") for pos in entry_positions
+        )
         ledger_file.seek(0)
         ledger_file.write(
             int.to_bytes(
@@ -61,7 +67,8 @@ def close_ledger_file(
     print(f"Wrote new ledger file: {final_file_name} (complete: {complete_file})")
 
 
-def run(args_):
+def run(args_: list[str]) -> bool:
+    """Split a ledger chunk, raising ValueError if the target is absent or invalid."""
     parser = argparse.ArgumentParser(
         description="Split a CCF ledger file around an input sequence number into two new files",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -98,6 +105,8 @@ def run(args_):
     print(f"Output directory: {args.output_dir}")
 
     output_file = None
+    entry_positions: list[int] = []
+    entry_seqno = None
     found_target_seqno = False
     first_seqno = None
     looking_for_following_signature = False
@@ -146,19 +155,24 @@ def run(args_):
             output_file = None
 
     if next_signature_seqno is not None:
+        assert output_file is not None
+        output_file.close()
         os.remove(output_file.name)
         raise ValueError(
             f"Ledger entry at target seqno {args.seqno} must be a signature. Next signature is at seqno {next_signature_seqno}."
         )
 
     if not found_target_seqno:
-        os.remove(output_file.name)
+        if output_file is not None:
+            output_file.close()
+            os.remove(output_file.name)
         raise ValueError(
             f"Could not find seqno {args.seqno} in ledger file {args.path}"
         )
 
     # Only if entries were written to file
     if output_file is not None:
+        assert entry_seqno is not None
         close_ledger_file(
             output_file,
             entry_positions,

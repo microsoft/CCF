@@ -103,6 +103,7 @@ namespace ccf::tasks
       current_workers = new_worker_count;
     }
   };
+
   // NOLINTEND(clang-analyzer-optin.performance.Padding)
 
   ThreadManager::ThreadManager(JobBoard& job_board_) :

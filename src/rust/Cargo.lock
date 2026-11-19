@@ -15,16 +15,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
-name = "cborrs"
-version = "0.1.0"
-source = "git+https://github.com/project-everest/everparse.git?rev=950bc93838ac2faae51126d8acd0637cf8c8a569#950bc93838ac2faae51126d8acd0637cf8c8a569"
-
-[[package]]
-name = "cborrs-nondet"
-version = "0.1.0"
-source = "git+https://github.com/project-everest/everparse.git?rev=950bc93838ac2faae51126d8acd0637cf8c8a569#950bc93838ac2faae51126d8acd0637cf8c8a569"
-
-[[package]]
 name = "cc"
 version = "1.2.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -38,7 +28,6 @@ dependencies = [
 name = "ccf-rs"
 version = "0.1.0"
 dependencies = [
- "cose-rs",
  "tee-attestation-verification-ffi",
 ]
 
@@ -47,21 +36,6 @@ name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
-
-[[package]]
-name = "cose-openssl"
-version = "0.1.0"
-dependencies = [
- "openssl-sys",
- "tee-attestation-verification-cbor",
-]
-
-[[package]]
-name = "cose-rs"
-version = "0.1.0"
-dependencies = [
- "cose-openssl",
-]
 
 [[package]]
 name = "find-msvc-tools"
@@ -130,12 +104,6 @@ name = "libc"
 version = "0.2.183"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5b646652bf6661599e1da8901b3b9522896f01e736bad5f723fe7a3a27f899d"
-
-[[package]]
-name = "log"
-version = "0.4.34"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "memchr"
@@ -300,7 +268,7 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-caci"
-version = "1.0.8"
+version = "2.0.0"
 dependencies = [
  "serde_json",
  "tee-attestation-verification-cose",
@@ -310,15 +278,11 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-cbor"
-version = "1.0.8"
-dependencies = [
- "cborrs",
- "cborrs-nondet",
-]
+version = "2.0.0"
 
 [[package]]
 name = "tee-attestation-verification-cose"
-version = "1.0.8"
+version = "2.0.0"
 dependencies = [
  "tee-attestation-verification-cbor",
  "tee-attestation-verification-crypto",
@@ -326,7 +290,7 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-crypto"
-version = "1.0.8"
+version = "2.0.0"
 dependencies = [
  "foreign-types-shared",
  "js-sys",
@@ -338,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-ffi"
-version = "1.0.8"
+version = "2.0.0"
 dependencies = [
  "js-sys",
  "serde",
@@ -355,9 +319,8 @@ dependencies = [
 
 [[package]]
 name = "tee-attestation-verification-lib"
-version = "1.0.8"
+version = "2.0.0"
 dependencies = [
- "log",
  "tee-attestation-verification-crypto",
  "zerocopy",
 ]

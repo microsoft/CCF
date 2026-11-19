@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http import HTTPStatus
 
 import infra.platform_detection
@@ -46,7 +46,7 @@ def test_nobuiltins_endpoints(network, args):
             if i != 0:
                 time.sleep(1.5)
             r = c.get("/app/current_time")
-            local_time = datetime.now(timezone.utc)
+            local_time = datetime.now(UTC)
             assert r.status_code == HTTPStatus.OK
             body_j = r.body.json()
             service_time = datetime.fromisoformat(body_j["timestamp"])

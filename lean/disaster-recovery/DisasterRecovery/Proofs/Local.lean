@@ -1,0 +1,162 @@
+module
+
+public import DisasterRecovery.Properties.Utils
+
+import all Init.Control.State
+
+@[expose] public section
+
+namespace DisasterRecovery.Proofs.Local
+
+open CCF
+open Model.Local
+
+@[local simp]
+private theorem effect_bind {S A B : Type} (a : StateT S Option A)
+    (f : A -> StateT S Option B) (s : S)
+    : (a >>= f) s = (a s).bind (fun (a, s) => f a s) :=
+  rfl
+
+@[local simp]
+private theorem effect_lift {S A : Type} (a : Option A) (s : S)
+    : (liftM a : StateT S Option A) s = a.map (fun a => (a, s)) := by
+  cases a <;> rfl
+
+private theorem effect_orElse_internal {S A : Type} (a : StateT S Option A)
+    (b : Unit -> StateT S Option A) (s : S)
+    : (StateT.orElse a b) s = (a s <|> b () s) :=
+  rfl
+
+@[local simp]
+private theorem effect_orElse {S A : Type} (a : StateT S Option A)
+    (b : Unit -> StateT S Option A) (s : S)
+    : (StateT.orElse a b) s = (a s <|> b () s) :=
+  effect_orElse_internal a b s
+
+private theorem validStep_run {config : Model.Config}
+    {s
+      : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification}
+    (valid : (Model.protocol config).ValidStep s)
+    : exists recovered,
+        Model.recoveredTxID config s.node = some recovered
+        /\ (step (Capabilities.record s.node) config.protocol recovered s.before
+              s.action).run
+              {}
+            = some (s.after, s.effects) := by
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
+    Option.bind_eq_some_iff, Option.map_eq_some_iff] at valid
+  obtain ⟨_, _, ⟨_, found, rfl, rfl⟩, stepped⟩ := valid
+  exact ⟨_, found, stepped⟩
+
+theorem gossip_freezes_after_choice
+    : forall (config : Model.Config),
+      forall localStep : Properties.LocalStep,
+      forall (source : Model.Local.Location) (txid : Model.Local.TxID),
+        ((Model.protocol config).ValidStep localStep
+          /\ localStep.action = .receiveGossip source txid .accepted
+          /\ localStep.before.chosen.isSome = true)
+        -> localStep.after = localStep.before
+            /\ .rejected "gossip-frozen" ∈ localStep.effects.notifications := by
+  rintro config s source txid ⟨valid, action, chosen⟩
+  obtain ⟨recovered, _, run⟩ := validStep_run valid
+  have selected : s.before.chosen ≠ none := by
+    cases h : s.before.chosen <;> simp_all
+  simp [step, action, selected, rejected, Capabilities.record,
+    ] at run
+  obtain ⟨states, effects⟩ := run
+  exact ⟨states.symm, by rw [← effects]; simp⟩
+
+theorem rejected_gossip_stutters
+    : forall (config : Model.Config),
+      forall localStep : Properties.LocalStep,
+      forall (source : Model.Local.Location) (txid : Model.Local.TxID),
+        ((Model.protocol config).ValidStep localStep
+          /\ localStep.action = .receiveGossip source txid .rejected)
+        -> localStep.after = localStep.before
+            /\ .rejected "quote-or-certificate" ∈ localStep.effects.notifications := by
+  rintro config s source txid ⟨valid, action⟩
+  obtain ⟨recovered, _, run⟩ := validStep_run valid
+  simp [step, action, rejected, Capabilities.record,
+    ] at run
+  obtain ⟨states, effects⟩ := run
+  exact ⟨states.symm, by rw [← effects]; simp⟩
+
+private theorem quorum_advance_opens (config : Config) (state : NodeState)
+    (source : Location) (timeout : Bool) (phase : state.phase = .voting)
+    (quorum : state.votes.length >= voteQuorum config)
+    : exists next effects,
+        (advance (Capabilities.record source) config state timeout).run {}
+          = some (next, effects)
+        /\ next.phase = .opening
+        /\ next.openKind = some .quorum
+        /\ .opening .quorum ∈ effects.notifications := by
+  have nonempty : state.votes ≠ [] := by
+    intro empty
+    simp [empty, voteQuorum] at quorum
+  simp [advance, phase, quorum, nonempty]
+  cases timeout <;>
+    simp [Capabilities.record, advanceTimeoutLane, advanceTimeoutState, and_assoc]
+
+theorem quorum_step_opens
+    : forall (config : Model.Config),
+      forall localStep : Properties.LocalStep,
+        ((Model.protocol config).ValidStep localStep
+          /\ (localStep.action = .timeout
+              \/ exists source, localStep.action = .receiveVote source .accepted)
+          /\ localStep.before.phase = .voting
+          /\ localStep.before.votes.length >= Model.Local.voteQuorum config.protocol)
+        -> localStep.after.phase = .opening
+            /\ localStep.after.openKind = some .quorum
+            /\ .opening .quorum ∈ localStep.effects.notifications := by
+  rintro config s ⟨valid, action, phase, quorum⟩
+  obtain ⟨recovered, _, run⟩ := validStep_run valid
+  rcases action with action | ⟨source, action⟩
+  · obtain ⟨advanced, effects, adv, opening, kind, notification⟩ :=
+      quorum_advance_opens config.protocol s.before s.node true phase quorum
+    simp [step, action, adv] at run
+    obtain ⟨rfl, rfl⟩ := run
+    exact ⟨opening, kind, notification⟩
+  · have quorum' : (insertVote source s.before.votes).length >= voteQuorum config.protocol := by
+      have length : s.before.votes.length <= (insertVote source s.before.votes).length := by
+        simp [insertVote]
+        split <;> simp
+      omega
+    obtain ⟨advanced, effects, adv, opening, kind, notification⟩ :=
+      quorum_advance_opens config.protocol
+        { s.before with votes := insertVote source s.before.votes } s.node false phase quorum'
+    rw [action] at run
+    change (StateT.orElse
+      (advance (Capabilities.record s.node) config.protocol
+        { s.before with votes := insertVote source s.before.votes } false)
+      (fun _ => rejected (Capabilities.record s.node) s.before "vote-advance")).run {}
+      = some (s.after, s.effects) at run
+    simp only [StateT.run] at adv run
+    rw [effect_orElse, adv] at run
+    change some (advanced, effects) = some (s.after, s.effects) at run
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj run)
+    exact ⟨opening, kind, notification⟩
+
+theorem aligned_opening_timeout_completes
+    : forall (config : Model.Config),
+      forall localStep : Properties.LocalStep,
+        ((Model.protocol config).ValidStep localStep
+          /\ localStep.action = .timeout
+          /\ localStep.before.phase = .opening
+          /\ localStep.before.timeoutState = .opening)
+        -> localStep.after = { localStep.before with phase := .open }
+            /\ .completed ∈ localStep.effects.notifications := by
+  rintro config s ⟨valid, action, phase, timeout⟩
+  obtain ⟨recovered, _, run⟩ := validStep_run valid
+  simp [step, action, advance, phase, timeout, validTimeout, Capabilities.record,
+    ] at run
+  obtain ⟨states, effects⟩ := run
+  constructor
+  · have states' : s.after = { s.before with phase := .open, timeoutState := .opening } := states.symm
+    simpa [timeout] using states'
+  · change ({ outgoing := [], notifications := [.completed] } :
+      Outputs Location Message Notification) = s.effects at effects
+    rw [← effects]
+    change Notification.completed ∈ [Notification.completed]
+    simp
+
+end DisasterRecovery.Proofs.Local

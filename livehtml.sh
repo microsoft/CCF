@@ -15,8 +15,7 @@ source env/bin/activate
 if [ -n "${PIP_INDEX_URL:-}" ] && [ -z "${UV_INDEX_URL:-}" ]; then
     export UV_INDEX_URL="$PIP_INDEX_URL"
 fi
-uv pip install -q -e ./python/
-uv pip install -q -r ./doc/requirements.txt
+uv pip install -q -e ./python -r doc/requirements.txt
 echo "Python environment successfully setup"
 
 sphinx-autobuild -b html doc doc/html --host localhost --port 8080

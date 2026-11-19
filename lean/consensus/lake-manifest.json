@@ -1,0 +1,31 @@
+{
+  "version": "1.3.0",
+  "packagesDir": ".lake/packages",
+  "packages": [
+    {
+      "url": "https://github.com/duckki/leanfmt.git",
+      "type": "git",
+      "subDir": null,
+      "scope": "",
+      "rev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
+      "name": "leanfmt",
+      "manifestFile": "lake-manifest.json",
+      "inputRev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
+      "inherited": false,
+      "configFile": "lakefile.toml"
+    },
+    {
+      "type": "path",
+      "scope": "",
+      "name": "ccf_common",
+      "manifestFile": "lake-manifest.json",
+      "inherited": false,
+      "dir": "../common",
+      "copy": false,
+      "configFile": "lakefile.toml"
+    }
+  ],
+  "name": "consensus",
+  "lakeDir": ".lake",
+  "fixedToolchain": false
+}

@@ -4,8 +4,8 @@
 
 #include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
-#include "consensus/aft/raft.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft.h"
+#include "consensus/aft/cft_types.h"
 
 #include <map>
 #include <optional>
@@ -26,12 +26,26 @@ namespace aft
   public:
     std::vector<std::vector<uint8_t>> ledger;
     uint64_t skip_count = 0;
+    bool backlogged = false;
+
+    bool is_backlogged() const
+    {
+      return backlogged;
+    }
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
     virtual ~LedgerStubProxy() = default;
 
-    virtual void init(Index, Index) {}
+    virtual void init(Index idx, Index /* recovery_start_idx */)
+    {
+      ccf::ds::MutexGuard lock(ledger_access);
+
+      // Entries up to idx were recovered from a snapshot, so are not held
+      // here. Pad with empty entries so that later entries are stored at their
+      // (1-based) index, as put_entry() expects.
+      ledger.resize(idx);
+    }
 
     virtual void put_entry(
       const std::vector<uint8_t>& original,
@@ -75,7 +89,32 @@ namespace aft
 
     static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
-      const auto entry_size = serialized::read<size_t>(data, size);
+      // Mirror the bounds-checking done by the real ledger
+      // (consensus::LedgerEnclave::get_entry_size): malformed or truncated
+      // entries must produce a std::logic_error, rather than reading out of
+      // bounds, so that callers can distinguish this from a transport-level
+      // truncation (serialized::InsufficientSpaceException).
+      if (size < sizeof(size_t))
+      {
+        throw std::logic_error(std::format(
+          "Cannot read ledger entry size: buffer contains {} bytes, but {} "
+          "are required",
+          size,
+          sizeof(size_t)));
+      }
+
+      const auto entry_size = serialized::peek<size_t>(data, size);
+      const auto available_size = size - sizeof(size_t);
+      if (entry_size > available_size)
+      {
+        throw std::logic_error(std::format(
+          "Cannot read ledger entry of size {} bytes from buffer containing "
+          "{} bytes after the size prefix",
+          entry_size,
+          available_size));
+      }
+
+      serialized::skip(data, size, sizeof(size_t));
       std::vector<uint8_t> entry(data, data + entry_size);
       serialized::skip(data, size, entry_size);
       return entry;
@@ -142,7 +181,7 @@ namespace aft
     void commit(Index idx) {}
   };
 
-  class ChannelStubProxy : public ccf::NodeToNode
+  class ChannelStubProxy : public aft::ConsensusChannels
   {
   public:
     // Capture what is being sent out
@@ -152,9 +191,13 @@ namespace aft
     MessageList messages;
     std::map<ccf::NodeId, std::pair<std::string, std::string>> node_addresses;
 
+    // When set, send_consensus_message() reports failure (as channels permit)
+    // and the message is not captured.
+    bool fail_sends = false;
+
     ChannelStubProxy() {}
 
-    size_t count_messages_with_type(RaftMsgType type)
+    size_t count_messages_with_type(CftMsgType type)
     {
       size_t count = 0;
       for (const auto& [nid, m] : messages)
@@ -162,7 +205,7 @@ namespace aft
         const uint8_t* data = m.data();
         size_t size = m.size();
 
-        if (serialized::peek<RaftMsgType>(data, size) == type)
+        if (serialized::peek<CftMsgType>(data, size) == type)
         {
           ++count;
         }
@@ -172,7 +215,7 @@ namespace aft
     }
 
     std::optional<std::vector<uint8_t>> pop_first(
-      RaftMsgType type, ccf::NodeId target)
+      CftMsgType type, ccf::NodeId target)
     {
       for (auto it = messages.begin(); it != messages.end(); ++it)
       {
@@ -180,7 +223,7 @@ namespace aft
         const uint8_t* data = m.data();
         size_t size = m.size();
 
-        if (serialized::peek<RaftMsgType>(data, size) == type)
+        if (serialized::peek<CftMsgType>(data, size) == type)
         {
           if (target == nid)
           {
@@ -201,74 +244,16 @@ namespace aft
       node_addresses[peer_id] = {peer_hostname, peer_service};
     }
 
-    void close_channel(const ccf::NodeId& peer_id) override {}
-
-    void set_endorsed_node_cert(const ccf::crypto::Pem&) override {}
-
-    bool have_channel(const ccf::NodeId& nid) override
+    bool send_consensus_message(
+      const ccf::NodeId& to, const uint8_t* data, size_t size) override
     {
-      return true;
-    }
+      if (fail_sends)
+      {
+        return false;
+      }
 
-    bool send_authenticated(
-      const ccf::NodeId& to,
-      ccf::NodeMsgType msg_type,
-      const uint8_t* data,
-      size_t size) override
-    {
       std::vector<uint8_t> m(data, data + size);
       messages.emplace_back(to, std::move(m));
-      return true;
-    }
-
-    bool recv_authenticated(
-      const ccf::NodeId& from_node,
-      std::span<const uint8_t> cb,
-      const uint8_t*& data,
-      size_t& size) override
-    {
-      return true;
-    }
-
-    bool recv_channel_message(
-      const ccf::NodeId& from, const uint8_t* data, size_t size) override
-    {
-      return true;
-    }
-
-    void initialize(
-      const ccf::NodeId& self_id,
-      const ccf::crypto::Pem& service_cert,
-      ccf::crypto::ECKeyPairPtr node_kp,
-      const std::optional<ccf::crypto::Pem>& node_cert = std::nullopt) override
-    {}
-
-    bool send_encrypted(
-      const ccf::NodeId& to,
-      ccf::NodeMsgType msg_type,
-      std::span<const uint8_t> cb,
-      const std::vector<uint8_t>& data) override
-    {
-      return true;
-    }
-
-    std::vector<uint8_t> recv_encrypted(
-      const ccf::NodeId& fromfpf32,
-      std::span<const uint8_t> cb,
-      const uint8_t* data,
-      size_t size) override
-    {
-      return {};
-    }
-
-    void set_message_limit(size_t message_limit) override {}
-    void set_idle_timeout(std::chrono::milliseconds idle_timeout) override {}
-
-    void tick(std::chrono::milliseconds elapsed) override {}
-
-    bool recv_authenticated_with_load(
-      const ccf::NodeId& from, const uint8_t*& data, size_t& size) override
-    {
       return true;
     }
   };
@@ -290,6 +275,7 @@ namespace aft
     ReplicatedDataType type;
     std::vector<uint8_t> data;
   };
+
   DECLARE_JSON_TYPE(ReplicatedData);
   DECLARE_JSON_REQUIRED_FIELDS(ReplicatedData, type, data);
 
@@ -332,6 +318,29 @@ namespace aft
       }
 
       consensus->add_configuration(version, configuration);
+    }
+  };
+
+  class RetiredCommittedHook : public ccf::kv::ConsensusHook
+  {
+    std::vector<ccf::kv::NodeId> node_ids;
+    ccf::kv::Version version;
+
+  public:
+    RetiredCommittedHook(
+      const ccf::kv::Configuration::Nodes& retired_committed,
+      ccf::kv::Version version_) :
+      version(version_)
+    {
+      for (const auto& [node_id, _] : retired_committed)
+      {
+        node_ids.push_back(node_id);
+      }
+    }
+
+    void call(ccf::kv::ConfigurableConsensus* consensus) override
+    {
+      consensus->trace_retired_committed_tx(version, node_ids);
     }
   };
 
@@ -466,9 +475,7 @@ namespace aft
 
     LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
 
-    // compact and rollback emulate the behaviour of the retired_committed hook
-    // in the real store through the retired_committed_entries vector, see
-    // node_state.h, circa line 2147
+    // Emulate NodeState::on_nodes_global_commit with transaction versions.
     virtual void compact(Index i) override
     {
       for (auto& [version, configuration] : retired_committed_entries)
@@ -480,7 +487,7 @@ namespace aft
           {
             retired_committed_node_ids.push_back(node_id);
           }
-          set_retired_committed_hook(i, retired_committed_node_ids);
+          set_retired_committed_hook(version, retired_committed_node_ids);
         }
         else
         {
@@ -491,7 +498,7 @@ namespace aft
         std::remove_if(
           retired_committed_entries.begin(),
           retired_committed_entries.end(),
-          [i](const auto& entry) { return entry.first < i; }),
+          [i](const auto& entry) { return entry.first <= i; }),
         retired_committed_entries.end());
     }
 
@@ -532,6 +539,8 @@ namespace aft
         ccf::kv::Configuration::Nodes configuration =
           nlohmann::json::parse(r.data);
         retired_committed_entries.emplace_back(version, configuration);
+        hooks.push_back(
+          std::make_unique<aft::RetiredCommittedHook>(configuration, version));
       }
 
       return std::make_unique<ExecutionWrapper>(

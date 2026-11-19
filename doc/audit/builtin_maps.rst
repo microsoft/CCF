@@ -229,6 +229,17 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc:
     :project: CCF
     :members:
 
+``nodes.node_join_policy``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Code update policy: JavaScript module, exporting ``apply()``, which evaluates the transparent statements presented by joining nodes whose host data is not explicitly trusted.
+See :ref:`operations/code_upgrade:Code Update Policy` for details.
+It is set with the ``set_node_join_policy`` governance action, and removed with the ``remove_node_join_policy`` governance action.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value** JavaScript module, represented as a string.
+
 ``service.info``
 ~~~~~~~~~~~~~~~~
 
@@ -256,7 +267,10 @@ Service identity and status.
 ``service.signing_identities``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Public keys for verifying service COSE signatures.
+Public keys for verifying service COSE signatures, published as ``COSE_KEY`` values in the same transaction as the certificates in ``service.info`` when a service is created or recovered.
+``CLASSICAL`` holds the EC public key of ``service.info.cert``; ``PQ`` holds the ML-DSA public key of ``service.info.pq_cert`` as an RFC 9964 AKP key, and is present exactly when that certificate is.
+A service created before this table existed has no ``CLASSICAL`` entry until its next recovery, so ``CLASSICAL`` falls back to the key of ``service.info.cert``, and older entries may hold DER certificates or public keys.
+``PQ`` never falls back: an incomplete or mismatched pair is rejected, a PQ identity is only introduced by a recovery, and a service holding one only accepts nodes with ML-DSA support.
 
 **Key** Identity type as a little-endian 64-bit unsigned integer.
 
@@ -271,8 +285,6 @@ Public keys for verifying service COSE signatures.
 .. doxygenstruct:: ccf::Identity
    :project: CCF
    :members:
-
-For legacy ledgers, an empty table falls back to ``service.info.cert`` for ``CLASSICAL``.
 
 ``service.config``
 ~~~~~~~~~~~~~~~~~~
@@ -362,8 +374,7 @@ QuickJS runtime options, used to configure runtimes created by CCF.
 
 ``interpreter.flush``
 ~~~~~~~~~~~~~~~~~~~~~~
-Used by transactions that set the JS application to signal to the interpreter cache system
-that existing instances need to be flushed.
+Used by transactions that set the JS application to signal to the interpreter cache system that existing instances need to be flushed.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
@@ -458,18 +469,71 @@ Governance history of the service, captures all COSE Sign 1 governance requests 
 
 **Key** Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
-**Value** COSE Sign1
+**Value** COSE Sign1. For proposal creation requests (``ccf.gov.msg.type`` set to ``proposal`` in the protected header), the payload is detached (``nil``) since the signed proposal body is already stored in the ``proposals`` table, written in the same transaction. Ballots and withdrawals embed their payload.
+
+To verify a detached entry, supply the proposal body from the ``proposals`` table as the detached payload when verifying the COSE Sign1 signature. Entries written by older versions of CCF embed the proposal payload as well, so auditors reading historical ledgers should accept both forms.
 
 ``cose_recent_proposals``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Window of recent COSE signed proposals, kept for the purpose of avoiding potential replay. Submitted proposals must be newer than the timestamp of the median, and not collide with any entry.
 
-The window size is set to 100 by default, but can be overriden by setting `recent_cose_proposals_window_size` in ``public:ccf.gov.service.config``.
+The window size is set to 100 by default, but can be overridden by setting `recent_cose_proposals_window_size` in ``public:ccf.gov.service.config``.
 
 **Key** ccf.gov.msg.created_at field from COSE protect header, as a string zero-padded to 10 characters, followed by SHA-256 digest of the COSE Sign1, represented as a hex-encoded string and separated by a ':'.
 
 **Value** Proposal ID as a string.
+
+``recovery_decision_protocol.nodes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Location name: A string which is unique to the location of a particular node within a network.
+
+**Value** 
+
+.. doxygenstruct:: ccf::recovery_decision_protocol::NodeInfo
+   :project: CCF
+   :members:
+
+``recovery_decision_protocol.gossip``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Location name of the source of the gossip message.
+
+**Value** The TxID of the last recovered signed transaction known by the source node.
+
+``recovery_decision_protocol.chosen_node``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Value** The location name of the chosen node. This will either be the node this node voted for, or the node that it has received an `IAmOpen` message from.
+
+``recovery_decision_protocol.votes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Location name of the node which has voted for this node to be opened.
+
+``recovery_decision_protocol.sm_state``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Value** State machine state of the recovery decision protocol.
+
+.. doxygenenum:: ccf::recovery_decision_protocol::StateMachine
+   :project: CCF
+
+``recovery_decision_protocol.timeout_sm_state``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Value** Timeout state machine state of the recovery decision protocol. Ticks based on `failover_timeout` and advances `recovery_decision_protocol.sm_state` if it falls behind.
+
+See :cpp:enum:`ccf::recovery_decision_protocol::StateMachine` above.
+
+``recovery_decision_protocol.open_kind``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
+
+.. doxygenenum:: ccf::recovery_decision_protocol::OpenKinds
+   :project: CCF
 
 ``public:ccf.internal.``
 ------------------------
@@ -558,8 +622,7 @@ Status information recorded when a primary produces a snapshot.
 ~~~~~~~~~~~~~~~~~~~
 
 Durability marker written when a snapshot is explicitly requested via the operator endpoint.
-This ensures the request is recorded as a real transaction even when it would otherwise
-carry only a transaction flag.
+This ensures the request is recorded as a real transaction even when it would otherwise carry only a transaction flag.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
@@ -576,7 +639,13 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``previous_service_identity_endorsement``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+Endorsements of service identities by the identities that succeed them, keyed by service signing identity type.
+When a service opens, it signs with the key of each identity type an endorsement of the key that signed the previous endorsement of that type, or of its own key if there is none, so that each type chains service identities across disaster recoveries.
+
+**Key** Identity type as a little-endian 64-bit unsigned integer.
+``CLASSICAL`` (0) is written by every service.
+``PQ`` (1) is written by a service with an ML-DSA identity, in the same transaction.
+It endorses the previous ``PQ`` endorsing key over the same epochs, and with the same previous Merkle root, as ``CLASSICAL``, or its own key if the previous service had no ML-DSA identity.
 
 **Value**
 
@@ -619,55 +688,4 @@ Mapping from sealing recovery names to node IDs for nodes that support local sea
 **Value** The mechanism by which the ledger secret was recovered.
 
 .. doxygenenum:: ccf::RecoveryType
-   :project: CCF
-
-``recovery_decision_protocol.nodes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name: A string which is unique to the location of a particular node within a network.
-
-**Value** 
-
-.. doxygenstruct:: ccf::recovery_decision_protocol::NodeInfo
-   :project: CCF
-   :members:
-
-``recovery_decision_protocol.gossip``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name of the source of the gossip message.
-
-**Value** The TxID of the last recovered signed transaction known by the source node.
-
-``recovery_decision_protocol.chosen_node``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** The location name of the chosen node. This will either be the node this node voted for, or the node that it has received an `IAmOpen` message from.
-
-``recovery_decision_protocol.votes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name of the node which has voted for this node to be opened.
-
-``recovery_decision_protocol.sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** State machine state of the recovery decision protocol.
-
-.. doxygenenum:: ccf::recovery_decision_protocol::StateMachine
-   :project: CCF
-
-``recovery_decision_protocol.timeout_sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** Timeout state machine state of the recovery decision protocol. Ticks based on `failover_timeout` and advances `recovery_decision_protocol.sm_state` if it falls behind.
-
-See :cpp:enum:`ccf::recovery_decision_protocol::StateMachine` above.
-
-``recovery_decision_protocol.open_kind``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
-
-.. doxygenenum:: ccf::recovery_decision_protocol::OpenKinds
    :project: CCF

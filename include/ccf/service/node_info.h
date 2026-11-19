@@ -76,6 +76,7 @@ namespace ccf
      * since the Unix epoch. Optional for backward compatibility. */
     std::optional<int64_t> pending_last_seen = std::nullopt;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfo, quote_info, encryption_pub_key, status);

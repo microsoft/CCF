@@ -15,6 +15,7 @@ namespace ccf::pal::snp
 {
 
 #pragma pack(push, 1)
+
   // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX
   // Milan: 0x00A00F11
   // Genoa: 0x00A10F11
@@ -31,6 +32,7 @@ namespace ccf::pal::snp
     uint8_t reserved2 : 4;
 
     bool operator==(const CPUID&) const = default;
+
     [[nodiscard]] std::string hex_str() const
     {
       CPUID buf = *this;
@@ -40,21 +42,25 @@ namespace ccf::pal::snp
       return std::format(
         "{:02x}", ccf::ds::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
     }
+
     [[nodiscard]] uint8_t get_family_id() const
     {
       return this->base_family + this->extended_family;
     }
+
     [[nodiscard]] uint8_t get_model_id() const
     {
       return (this->extended_model << 4) | this->base_model;
     }
   };
+
 #pragma pack(pop)
   DECLARE_JSON_TYPE(CPUID);
   DECLARE_JSON_REQUIRED_FIELDS(
     CPUID, stepping, base_model, base_family, extended_model, extended_family);
   static_assert(
     sizeof(CPUID) == sizeof(uint32_t), "Cannot cast CPUID to uint32_t");
+
   static CPUID cpuid_from_hex(const std::string& hex_str)
   {
     CPUID ret{};
@@ -97,13 +103,21 @@ namespace ccf::pal::snp
     switch (product)
     {
       case ProductName::Milan:
+      {
         return "Milan";
+      }
       case ProductName::Genoa:
+      {
         return "Genoa";
+      }
       case ProductName::Turin:
+      {
         return "Turin";
+      }
       default:
+      {
         throw std::logic_error("Unknown SEV-SNP product");
+      }
     }
   }
 
@@ -152,20 +166,28 @@ namespace ccf::pal::snp
     switch (product)
     {
       case ProductName::Milan:
+      {
         // See Table 2 of "Revision Guide for 19h 00h-0Fh Processors"
         // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/56683.pdf
         return "00a00f11";
+      }
       case ProductName::Genoa:
+      {
         // See Table 2 of "Revision Guide for 19h 10h-1Fh Processors"
         // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/57095-PUB_1_01.pdf
         return "00a10f11";
+      }
       case ProductName::Turin:
+      {
         // See Table 2 of "Revision Guide for 1Ah 00h-0Fh Processors"
         // https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/revision-guides/58251.pdf
         return "00b00f21";
+      }
       default:
+      {
         throw std::logic_error(std::format(
           "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));
+      }
     }
   }
 }

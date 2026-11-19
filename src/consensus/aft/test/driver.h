@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/join.h"
-#include "consensus/aft/raft.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft.h"
+#include "consensus/aft/cft_types.h"
 #include "ds/internal_logger.h"
 #include "logging_stub.h"
 
@@ -18,15 +18,8 @@
 #include <unordered_set>
 #include <utility>
 
-#ifdef CCF_RAFT_TRACING
-#  define RAFT_DRIVER_PRINT(...) \
-    std::cout << "<RaftDriver>  " << std::format(__VA_ARGS__) \
-              << std::format(" (ts={})", ccf::logger::logical_clock) \
-              << std::endl;
-#else
-#  define RAFT_DRIVER_PRINT(...) \
-    std::cout << "<RaftDriver>  " << std::format(__VA_ARGS__) << std::endl;
-#endif
+#define CFT_DRIVER_PRINT(...) \
+  std::cout << "<CftDriver>  " << std::format(__VA_ARGS__) << std::endl;
 
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
@@ -55,7 +48,7 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
     ccf::kv::Term term,
     ccf::kv::Version index) override
   {
-    RAFT_DRIVER_PRINT(
+    CFT_DRIVER_PRINT(
       "{}->>{}: [ledger] appending: {}.{}={}",
       _id,
       _id,
@@ -67,7 +60,7 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
 
   void truncate(aft::Index idx) override
   {
-    RAFT_DRIVER_PRINT("{}->>{}: [ledger] truncating to {}", _id, _id, idx);
+    CFT_DRIVER_PRINT("{}->>{}: [ledger] truncating to {}", _id, _id, idx);
     aft::LedgerStubProxy::truncate(idx);
   }
 };
@@ -78,13 +71,13 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
 
   void compact(aft::Index idx) override
   {
-    RAFT_DRIVER_PRINT("{}->>{}: [KV] compacting to {}", _id, _id, idx);
+    CFT_DRIVER_PRINT("{}->>{}: [KV] compacting to {}", _id, _id, idx);
     aft::LoggingStubStoreConfig::compact(idx);
   }
 
   void rollback(const ccf::TxID& tx_id, aft::Term t) override
   {
-    RAFT_DRIVER_PRINT(
+    CFT_DRIVER_PRINT(
       "{}->>{}: [KV] rolling back to {}.{}, in term {}",
       _id,
       _id,
@@ -96,64 +89,122 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
 
   void initialise_term(aft::Term t) override
   {
-    RAFT_DRIVER_PRINT("{}->>{}: [KV] initialising in term {}", _id, _id, t);
+    CFT_DRIVER_PRINT("{}->>{}: [KV] initialising in term {}", _id, _id, t);
     aft::LoggingStubStoreConfig::initialise_term(t);
   }
 };
 
 using ms = std::chrono::milliseconds;
-using TRaft = aft::Aft<LedgerStubProxy_Mermaid>;
+using TCft = aft::Aft<LedgerStubProxy_Mermaid>;
 using Store = LoggingStubStore_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
-aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
+aft::ChannelStubProxy* channel_stub_proxy(const TCft& r)
 {
   return (aft::ChannelStubProxy*)r.channels.get();
 }
 
-class RaftDriver
+class CftDriver
 {
 private:
   struct NodeDriver
   {
     std::shared_ptr<Store> kv;
-    std::shared_ptr<TRaft> raft;
+    std::shared_ptr<TCft> cft;
   };
 
-  bool pre_vote_enabled = true;
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
+  // The role and term of each node, as last printed
+  std::map<
+    ccf::NodeId,
+    std::pair<std::optional<ccf::kv::LeadershipState>, aft::Term>>
+    _roles;
 
   void _replicate(
     const std::string& term_s,
     std::vector<uint8_t> data,
-    const size_t lineno,
     bool committable = false,
     const std::optional<ccf::kv::Configuration::Nodes>& configuration =
       std::nullopt,
     const std::optional<ccf::kv::Configuration::Nodes>& retired_committed =
       std::nullopt)
   {
-    const auto opt = find_primary_in_term(term_s, lineno);
+    const auto opt = find_primary_in_term(term_s);
     if (!opt.has_value())
     {
-      RAFT_DRIVER_PRINT(
+      CFT_DRIVER_PRINT(
         "Note left of {}: No primary to replicate {}",
         _nodes.begin()->first,
         stringify(data));
       return;
     }
     const auto& [term, node_id] = *opt;
-    auto& raft = _nodes.at(node_id).raft;
-    const auto idx = raft->get_last_idx() + 1;
-    RAFT_DRIVER_PRINT(
+    auto& cft = _nodes.at(node_id).cft;
+    cft->replicate(
+      ccf::kv::BatchVector{make_entry(
+        node_id,
+        cft->get_last_idx() + 1,
+        term,
+        std::move(data),
+        committable,
+        configuration,
+        retired_committed)},
+      term);
+  }
+
+  // Nodes removed from, then nodes added to, a configuration, such as
+  // (-n[0],+n[1])
+  static std::string configuration_delta(
+    const ccf::kv::Configuration::Nodes& from,
+    const ccf::kv::Configuration::Nodes& to)
+  {
+    std::vector<std::string> changes;
+    for (const auto& [id, info] : from)
+    {
+      if (!to.contains(id))
+      {
+        changes.push_back(std::format("-{}", id));
+      }
+    }
+    for (const auto& [id, info] : to)
+    {
+      if (!from.contains(id))
+      {
+        changes.push_back(std::format("+{}", id));
+      }
+    }
+    return std::format("({})", ccf::ds::join(changes, ","));
+  }
+
+  ccf::kv::BatchVector::value_type make_entry(
+    const ccf::NodeId& node_id,
+    aft::Index idx,
+    aft::Term term,
+    std::vector<uint8_t> data,
+    bool committable = false,
+    const std::optional<ccf::kv::Configuration::Nodes>& configuration =
+      std::nullopt,
+    const std::optional<ccf::kv::Configuration::Nodes>& retired_committed =
+      std::nullopt)
+  {
+    std::string kind = committable ? "signature" : "raw";
+    if (configuration.has_value())
+    {
+      kind = std::format(
+        "reconfiguration {}",
+        configuration_delta(
+          _nodes.at(node_id).cft->get_latest_configuration(),
+          configuration.value()));
+    }
+    CFT_DRIVER_PRINT(
       "{}->>{}: replicate {}.{} = {} [{}]",
       node_id,
       node_id,
-      term_s,
+      term,
       idx,
       stringify(data),
-      configuration.has_value() ? "reconfiguration" : "raw");
+      kind);
 
     aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
     auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
@@ -182,6 +233,8 @@ private:
       // necessary to emulate the global commit hook effectively.
       _nodes.at(node_id).kv->retired_committed_entries.emplace_back(
         idx, retired_committed.value());
+      hooks->push_back(std::make_unique<aft::RetiredCommittedHook>(
+        retired_committed.value(), idx));
 
       type = aft::ReplicatedDataType::retired_committed;
       auto c = nlohmann::json(retired_committed).dump();
@@ -190,36 +243,42 @@ private:
 
     auto s = nlohmann::json(aft::ReplicatedData{type, data}).dump();
     auto d = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
-    raft->replicate(ccf::kv::BatchVector{{idx, d, committable, hooks}}, term);
+    return {idx, d, committable, hooks};
   }
 
-  void add_node(ccf::NodeId node_id)
+  // A joining node starts as a follower with an empty ledger, like a real
+  // node joining without a snapshot.
+  void add_node(ccf::NodeId node_id, bool joining = true)
   {
     auto kv = std::make_shared<Store>(node_id);
     const ccf::consensus::Configuration settings{{"10ms"}, {"100ms"}};
-    auto raft = std::make_shared<TRaft>(
+    auto cft = std::make_shared<TCft>(
       settings,
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(node_id, pre_vote_enabled),
+      std::make_shared<aft::State>(node_id),
       nullptr);
     kv->set_set_retired_committed_hook(
-      [raft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
-        raft->set_retired_committed(idx, node_ids);
+      [cft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
+        cft->set_retired_committed(idx, node_ids);
       });
-    raft->start_ticking();
+    if (joining)
+    {
+      cft->init_as_backup(0, 0, {});
+    }
+    cft->start_ticking();
 
     if (_nodes.find(node_id) != _nodes.end())
     {
       throw std::logic_error(std::format("Node {} already exists", node_id));
     }
 
-    _nodes.emplace(node_id, NodeDriver{kv, raft});
+    _nodes.emplace(node_id, NodeDriver{kv, cft});
   }
 
 public:
-  RaftDriver() = default;
+  CftDriver() = default;
 
   // Note: deprecated, to be removed when the last scenario using it is removed
   void create_new_nodes(std::vector<std::string> node_ids)
@@ -229,13 +288,13 @@ public:
     ccf::kv::Configuration::Nodes configuration;
     for (auto const& n : node_ids)
     {
-      add_node(n);
+      add_node(n, false);
       configuration.try_emplace(n);
     }
 
     for (auto& node : _nodes)
     {
-      node.second.raft->add_configuration(0, configuration);
+      node.second.cft->add_configuration(0, configuration);
     }
   }
 
@@ -244,69 +303,66 @@ public:
   {
     ccf::NodeId node_id(node_id_s);
     add_node(node_id);
-    RAFT_DRIVER_PRINT("Note over {}: Node {} created", node_id, node_id);
+    CFT_DRIVER_PRINT("Note over {}: Node {} created", node_id, node_id);
   }
 
   // Note: deprecated, to be removed when the last scenario using it is removed
-  void create_start_node(const std::string& start_node_id, const size_t lineno)
+  void create_start_node(const std::string& start_node_id)
   {
     if (!_nodes.empty())
     {
       throw std::logic_error("Start node already exists");
     }
     ccf::kv::Configuration::Nodes configuration;
-    add_node(start_node_id);
+    add_node(start_node_id, false);
     configuration.try_emplace(start_node_id);
-    _nodes[start_node_id].raft->force_become_primary();
-    _replicate("2", {}, lineno, false, configuration);
-    RAFT_DRIVER_PRINT(
+    _nodes.at(start_node_id).cft->force_become_primary();
+    print_role_change(start_node_id);
+    _replicate("2", {}, false, configuration);
+    CFT_DRIVER_PRINT(
       "Note over {}: Node {} created",
       ccf::NodeId(start_node_id),
       start_node_id);
   }
 
-  void nominate_successor(std::string node_id_s, const size_t lineno)
+  void nominate_successor(std::string node_id_s)
   {
     ccf::NodeId node_id(node_id_s);
     if (_nodes.find(node_id) == _nodes.end())
     {
-      throw std::runtime_error(std::format(
-        "Attempted to nominate unknown node {} on line {}", node_id, lineno));
+      throw std::runtime_error(
+        std::format("Attempted to nominate unknown node {}", node_id));
     }
 
-    RAFT_DRIVER_PRINT(
+    CFT_DRIVER_PRINT(
       "Note over {}: Node {} nominates a successor", node_id, node_id_s);
 
-    _nodes.at(node_id).raft->nominate_successor();
+    _nodes.at(node_id).cft->nominate_successor();
   }
 
   void cleanup_nodes(
-    const std::string& term,
-    const std::vector<std::string>& node_ids,
-    const size_t lineno)
+    const std::string& term, const std::vector<std::string>& node_ids)
   {
     ccf::kv::Configuration::Nodes retired_committed;
     for (const auto& id : node_ids)
     {
       if (_nodes.find(id) == _nodes.end())
       {
-        throw std::runtime_error(std::format(
-          "Attempted to clean up unknown node {} on line {}", id, lineno));
+        throw std::runtime_error(
+          std::format("Attempted to clean up unknown node {}", id));
       }
       retired_committed.try_emplace(id);
     }
-    _replicate(term, {}, lineno, false, std::nullopt, retired_committed);
+    _replicate(term, {}, false, std::nullopt, retired_committed);
   }
 
   void trust_nodes(
-    const std::string& term,
-    const std::vector<std::string>& node_ids,
-    const size_t lineno)
+    const std::string& term, const std::vector<std::string>& node_ids)
   {
     for (const auto& node_id : node_ids)
     {
       add_node(node_id);
-      RAFT_DRIVER_PRINT(
+      CFT_DRIVER_PRINT(
         "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
     }
     ccf::kv::Configuration::Nodes configuration;
@@ -324,24 +380,23 @@ public:
         }
       }
     }
-    _replicate(term, {}, lineno, false, configuration);
+    _replicate(term, {}, false, configuration);
   }
 
   void swap_nodes(
     const std::string& term,
     const std::vector<std::string>& nodes_out,
-    const std::vector<std::string>& nodes_in,
-    const size_t lineno)
+    const std::vector<std::string>& nodes_in)
   {
     for (auto node_in : nodes_in)
     {
       add_node(node_in);
-      RAFT_DRIVER_PRINT(
+      CFT_DRIVER_PRINT(
         "Note over {}: Node {} trusted", ccf::NodeId(node_in), node_in);
     }
     for (auto node_out : nodes_out)
     {
-      RAFT_DRIVER_PRINT(
+      CFT_DRIVER_PRINT(
         "Note over {}: Node {} retired", ccf::NodeId(node_out), node_out);
     }
     std::set<std::string> out(nodes_out.begin(), nodes_out.end());
@@ -364,14 +419,12 @@ public:
         }
       }
     }
-    _replicate(term, {}, lineno, false, configuration);
+    _replicate(term, {}, false, configuration);
   }
 
   // Note: deprecated, to be removed when the last scenario using it is removed
   void replicate_new_configuration(
-    const std::string& term_s,
-    std::vector<std::string> node_ids,
-    const size_t lineno)
+    const std::string& term_s, std::vector<std::string> node_ids)
   {
     ccf::kv::Configuration::Nodes configuration;
     for (const auto& node_id_s : node_ids)
@@ -386,7 +439,7 @@ public:
       configuration.try_emplace(node_id);
     }
 
-    _replicate(term_s, {}, lineno, false, configuration);
+    _replicate(term_s, {}, false, configuration);
   }
 
   void log(
@@ -395,7 +448,7 @@ public:
     const std::string& message,
     bool dropped = false)
   {
-    RAFT_DRIVER_PRINT(
+    CFT_DRIVER_PRINT(
       "{}-{}{}: {}", first, (dropped ? "X" : ">>"), second, message);
   }
 
@@ -405,7 +458,7 @@ public:
     const std::string& message,
     bool dropped = false)
   {
-    RAFT_DRIVER_PRINT(
+    CFT_DRIVER_PRINT(
       "{}--{}{}: {}", first, (dropped ? "X" : ">>"), second, message);
   }
 
@@ -523,93 +576,79 @@ public:
     const uint8_t* data = contents.data();
     size_t size = contents.size();
 
-    nlohmann::json packet;
+    const auto log_packet = [&](const auto& packet) {
+      log_msg_details(node_id, tgt_node_id, packet, dropped);
+      if (dropped)
+      {
+        aft::trace::drop_pending_to(
+          _nodes.at(node_id).cft->get_state_for_trace(),
+          node_id.value(),
+          tgt_node_id.value(),
+          packet);
+      }
+    };
 
-    const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+    const auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
     switch (msg_type)
     {
-      case (aft::RaftMsgType::raft_request_vote):
+      case (aft::CftMsgType::request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        packet = rv;
-        log_msg_details(node_id, tgt_node_id, rv, dropped);
+        log_packet(rv);
         break;
       }
-      case (aft::RaftMsgType::raft_request_pre_vote):
+      case (aft::CftMsgType::request_pre_vote):
       {
         auto rpv = *(aft::RequestPreVote*)data;
-        packet = rpv;
-        log_msg_details(node_id, tgt_node_id, rpv, dropped);
+        log_packet(rpv);
         break;
       }
-      case (aft::RaftMsgType::raft_request_vote_response):
-      {
-        auto rvr = *(aft::RequestPreVoteResponse*)data;
-        packet = rvr;
-        log_msg_details(node_id, tgt_node_id, rvr, dropped);
-        break;
-      }
-      case (aft::RaftMsgType::raft_request_pre_vote_response):
+      case (aft::CftMsgType::request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
-        packet = rvr;
-        log_msg_details(node_id, tgt_node_id, rvr, dropped);
+        log_packet(rvr);
         break;
       }
-      case (aft::RaftMsgType::raft_append_entries):
+      case (aft::CftMsgType::request_pre_vote_response):
+      {
+        auto rvr = *(aft::RequestPreVoteResponse*)data;
+        log_packet(rvr);
+        break;
+      }
+      case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        packet = ae;
-        log_msg_details(node_id, tgt_node_id, ae, dropped);
+        log_packet(ae);
         break;
       }
-      case (aft::RaftMsgType::raft_append_entries_response):
+      case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        packet = aer;
-        log_msg_details(node_id, tgt_node_id, aer, dropped);
+        log_packet(aer);
         break;
       }
-      case (aft::RaftMsgType::raft_append_entries_signed_response):
+      case (aft::CftMsgType::append_entries_signed_response):
       {
         throw std::runtime_error(
-          "raft_append_entries_signed_response is not handled by the driver");
+          "append_entries_signed_response is not handled by the driver");
       }
-      case (aft::RaftMsgType::raft_propose_request_vote):
+      case (aft::CftMsgType::propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
-        packet = prv;
-        log_msg_details(node_id, tgt_node_id, prv, dropped);
+        log_packet(prv);
         break;
       }
       default:
       {
         throw std::runtime_error(
-          std::format("Unhandled RaftMsgType: {}", msg_type));
+          std::format("Unhandled CftMsgType: {}", msg_type));
       }
     }
-
-#ifdef CCF_RAFT_TRACING
-    if (dropped)
-    {
-      nlohmann::json j = {};
-      j["function"] = "drop_pending_to";
-      j["from_node_id"] = node_id;
-      j["to_node_id"] = tgt_node_id;
-      // state is used by raft_scenarios_runner.py to identify indicate which
-      // node a log occurred on. Here we assign all dropped messages to the
-      // sender.
-      // Populate additional fields for trace_viz.py
-      j["state"] = _nodes.at(node_id).raft->get_state_representation();
-      j["packet"] = packet;
-      RAFT_TRACE_JSON_OUT(j);
-    }
-#endif
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
   {
-    RAFT_DRIVER_PRINT("{}-->{}: connect", first, second);
+    CFT_DRIVER_PRINT("{}-->{}: connect", first, second);
     _connections.insert(std::make_pair(first, second));
     _connections.insert(std::make_pair(second, first));
   }
@@ -619,7 +658,8 @@ public:
     std::ostringstream s;
     s << "periodic for " << std::to_string(ms_.count()) << " ms";
     log(node_id, node_id, s.str());
-    _nodes.at(node_id).raft->periodic(ms_);
+    _nodes.at(node_id).cft->periodic(ms_);
+    print_role_change(node_id);
   }
 
   void periodic_all(ms ms_)
@@ -630,7 +670,7 @@ public:
     }
   }
 
-  std::string get_ledger_summary(TRaft& r)
+  std::string get_ledger_summary(TCft& r)
   {
     std::vector<std::string> entries;
     for (ccf::kv::Version i = 1; i <= r.get_last_idx(); ++i)
@@ -648,8 +688,10 @@ public:
 
   void summarise_log(ccf::NodeId node_id)
   {
-    RAFT_DRIVER_PRINT(
-      "{}: {}", node_id, get_ledger_summary(*_nodes.at(node_id).raft));
+    CFT_DRIVER_PRINT(
+      "Note right of {}: {}",
+      node_id,
+      get_ledger_summary(*_nodes.at(node_id).cft));
   }
 
   void summarise_logs_all()
@@ -665,18 +707,18 @@ public:
     const uint8_t* data = contents.data();
     size_t size = contents.size();
 
-    const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+    const auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
     switch (msg_type)
     {
-      case (aft::RaftMsgType::raft_request_vote):
+      case (aft::CftMsgType::request_vote):
       {
         return "RV";
       }
-      case (aft::RaftMsgType::raft_request_vote_response):
+      case (aft::CftMsgType::request_vote_response):
       {
         return "RVR";
       }
-      case (aft::RaftMsgType::raft_append_entries):
+      case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
         return std::format(
@@ -687,7 +729,7 @@ public:
           ae.term_of_idx,
           ae.idx);
       }
-      case (aft::RaftMsgType::raft_append_entries_response):
+      case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
         return std::format(
@@ -696,34 +738,34 @@ public:
           aer.term,
           aer.last_log_idx);
       }
-      case (aft::RaftMsgType::raft_append_entries_signed_response):
+      case (aft::CftMsgType::append_entries_signed_response):
       {
         return "AESR";
       }
-      case (aft::RaftMsgType::raft_propose_request_vote):
+      case (aft::CftMsgType::propose_request_vote):
       {
         return "PRV";
       }
-      case (aft::RaftMsgType::raft_request_pre_vote):
+      case (aft::CftMsgType::request_pre_vote):
       {
         return "RPV";
       }
-      case (aft::RaftMsgType::raft_request_pre_vote_response):
+      case (aft::CftMsgType::request_pre_vote_response):
       {
         return "RPVR";
       }
       default:
       {
         throw std::runtime_error(
-          std::format("Unhandled RaftMsgType: {}", msg_type));
+          std::format("Unhandled CftMsgType: {}", msg_type));
       }
     }
   }
 
   void summarise_messages(ccf::NodeId src, ccf::NodeId dst)
   {
-    auto raft = _nodes.at(src).raft;
-    auto& messages = channel_stub_proxy(*raft)->messages;
+    auto cft = _nodes.at(src).cft;
+    auto& messages = channel_stub_proxy(*cft)->messages;
     std::vector<std::string> message_reps;
     for (const auto& [target, raw_msg] : messages)
     {
@@ -733,7 +775,7 @@ public:
       }
     }
 
-    RAFT_DRIVER_PRINT(
+    CFT_DRIVER_PRINT(
       "Note right of {}: {} message(s) to {} = [{}]",
       src,
       message_reps.size(),
@@ -743,18 +785,44 @@ public:
 
   void state_one(ccf::NodeId node_id)
   {
-    auto raft = _nodes.at(node_id).raft;
-    RAFT_DRIVER_PRINT(
+    auto cft = _nodes.at(node_id).cft;
+    CFT_DRIVER_PRINT(
       "Note right of {}: leadership {} membership {} @{}.{} (committed "
       "{})",
       node_id,
-      raft->is_backup() ?
+      cft->is_backup() ?
         "F" :
-        (raft->is_candidate() ? "C" : (raft->is_primary() ? "P" : "?")),
-      raft->is_retired() ? "R" : "A",
-      raft->get_view(),
-      raft->get_last_idx(),
-      raft->get_committed_seqno());
+        (cft->is_candidate() ? "C" : (cft->is_primary() ? "P" : "?")),
+      cft->is_retired() ? "R" : "A",
+      cft->get_view(),
+      cft->get_last_idx(),
+      cft->get_committed_seqno());
+  }
+
+  // Prints the role and term of a node when either has changed since they were
+  // last printed, or when they have not been printed yet
+  void print_role_change(ccf::NodeId node_id)
+  {
+    auto cft = _nodes.at(node_id).cft;
+    const std::pair role{cft->get_details().leadership_state, cft->get_view()};
+    auto [it, inserted] = _roles.try_emplace(node_id, role);
+    if (inserted || it->second != role)
+    {
+      it->second = role;
+      CFT_DRIVER_PRINT(
+        "Note over {}: becomes {} in term {}",
+        node_id,
+        role.first.has_value() ? std::format("{}", *role.first) : "None",
+        role.second);
+    }
+  }
+
+  void print_role_changes()
+  {
+    for (const auto& node : _nodes)
+    {
+      print_role_change(node.first);
+    }
   }
 
   void state_all()
@@ -767,8 +835,8 @@ public:
 
   void shuffle_messages_one(ccf::NodeId node_id)
   {
-    auto raft = _nodes.at(node_id).raft;
-    auto& messages = channel_stub_proxy(*raft)->messages;
+    auto cft = _nodes.at(node_id).cft;
+    auto& messages = channel_stub_proxy(*cft)->messages;
 
     std::random_device rd;
     std::mt19937 g(rd());
@@ -789,20 +857,19 @@ public:
   {
     if (_connections.find(std::make_pair(src, dst)) != _connections.end())
     {
-      // If this is an AppendEntries, then append the corresponding entry from
-      // the sender's ledger
+      // If this is AppendEntries, fetch the corresponding ledger entries.
       const uint8_t* data = contents.data();
       auto size = contents.size();
-      auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+      auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
       bool should_send = true;
-      if (msg_type == aft::raft_append_entries)
+      std::vector<uint8_t> body;
+      if (msg_type == aft::append_entries)
       {
         // Parse the indices to be sent to the recipient.
         auto ae = *(aft::AppendEntries*)data;
 
-        auto& sender_raft = _nodes.at(src).raft;
-        const auto payload_opt =
-          sender_raft->ledger->get_append_entries_payload(ae);
+        auto& sender_cft = _nodes.at(src).cft;
+        auto payload_opt = sender_cft->ledger->get_append_entries_payload(ae);
 
         if (!payload_opt.has_value())
         {
@@ -816,7 +883,7 @@ public:
           // and processed by the host in that order. All AppendEntries
           // referencing a specific index will be processed before any
           // truncation that removes that index.
-          // RAFT_DRIVER_PRINT(
+          // CFT_DRIVER_PRINT(
           //        "Note right of {}: Abandoning AppendEntries"
           //        "containing {} - no longer in ledger",
           //        node_id,
@@ -825,16 +892,15 @@ public:
         }
         else
         {
-          contents.insert(
-            contents.end(), payload_opt->begin(), payload_opt->end());
+          body = std::move(*payload_opt);
         }
       }
 
       if (should_send)
       {
         log_msg_details(src, dst, contents);
-        _nodes.at(dst).raft->recv_message(
-          src, contents.data(), contents.size());
+        _nodes.at(dst).cft->recv_message(src, contents, body);
+        print_role_change(dst);
         return true;
       }
     }
@@ -870,8 +936,8 @@ public:
   void dispatch_one(
     ccf::NodeId node_id, const std::optional<size_t>& max_count = std::nullopt)
   {
-    auto raft = _nodes.at(node_id).raft;
-    dispatch_one_queue(node_id, channel_stub_proxy(*raft)->messages, max_count);
+    auto cft = _nodes.at(node_id).cft;
+    dispatch_one_queue(node_id, channel_stub_proxy(*cft)->messages, max_count);
   }
 
   void dispatch_all_once()
@@ -885,7 +951,7 @@ public:
     for (auto& [node_id, driver] : _nodes)
     {
       initial_message_counts[node_id] =
-        channel_stub_proxy(*driver.raft)->messages.size();
+        channel_stub_proxy(*driver.cft)->messages.size();
     }
 
     for (auto& node : _nodes)
@@ -902,7 +968,7 @@ public:
              _nodes.end(),
              0,
              [](int acc, auto& node) {
-               return channel_stub_proxy(*node.second.raft)->messages.size() +
+               return channel_stub_proxy(*node.second.cft)->messages.size() +
                  acc;
              }) &&
            iterations++ < 5)
@@ -913,7 +979,7 @@ public:
 
   void dispatch_single(ccf::NodeId src, ccf::NodeId dst)
   {
-    auto& messages = channel_stub_proxy(*_nodes.at(src).raft)->messages;
+    auto& messages = channel_stub_proxy(*_nodes.at(src).cft)->messages;
     auto it = messages.begin();
     while (it != messages.end())
     {
@@ -936,16 +1002,16 @@ public:
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
     for (const auto& [node_id, node_driver] : _nodes)
     {
-      if (node_driver.raft->is_primary())
+      if (node_driver.cft->is_primary())
       {
-        primaries.emplace_back(node_driver.raft->get_view(), node_id);
+        primaries.emplace_back(node_driver.cft->get_view(), node_id);
       }
     }
     return primaries;
   }
 
   std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
-    const std::string& term_s, const size_t lineno)
+    const std::string& term_s)
   {
     auto primaries = find_primaries();
 
@@ -976,22 +1042,38 @@ public:
     }
 
     throw std::runtime_error(
-      std::format("Found no primary in term {} on line {}", term_s, lineno));
+      std::format("Found no primary in term {}", term_s));
   }
 
+  // Replicates the entries in one batch: "$" is a signature, anything else a
+  // transaction with that data
   void replicate(
-    const std::string& term_s,
-    std::shared_ptr<std::vector<uint8_t>> data,
-    const size_t lineno)
+    const std::string& term_s, const std::vector<std::string>& entries)
   {
-    _replicate(term_s, *data, lineno);
-  }
-
-  void emit_signature(const std::string& term_s, const size_t lineno)
-  {
-    std::string sig_s = "signature";
-    std::vector<uint8_t> sig(sig_s.data(), sig_s.data() + sig_s.size());
-    _replicate(term_s, sig, lineno, true);
+    const auto opt = find_primary_in_term(term_s);
+    if (!opt.has_value())
+    {
+      CFT_DRIVER_PRINT(
+        "Note left of {}: No primary to replicate {} entries",
+        _nodes.begin()->first,
+        entries.size());
+      return;
+    }
+    const auto& [term, node_id] = *opt;
+    auto& cft = _nodes.at(node_id).cft;
+    ccf::kv::BatchVector batch;
+    for (const auto& entry : entries)
+    {
+      const bool signature = entry == "$";
+      const std::string data_s = signature ? "signature" : entry;
+      batch.push_back(make_entry(
+        node_id,
+        cft->get_last_idx() + 1 + batch.size(),
+        term,
+        {data_s.begin(), data_s.end()},
+        signature));
+    }
+    cft->replicate(batch, term);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
@@ -1011,7 +1093,7 @@ public:
     }
     if (!noop)
     {
-      RAFT_DRIVER_PRINT("{}-->{}: disconnect", left, right);
+      CFT_DRIVER_PRINT("{}-->{}: disconnect", left, right);
     }
   }
 
@@ -1028,7 +1110,7 @@ public:
 
   void reconnect(ccf::NodeId left, ccf::NodeId right)
   {
-    RAFT_DRIVER_PRINT("{}-->{}: reconnect", left, right);
+    CFT_DRIVER_PRINT("{}-->{}: reconnect", left, right);
     _connections.insert(std::make_pair(left, right));
     _connections.insert(std::make_pair(right, left));
   }
@@ -1046,8 +1128,8 @@ public:
 
   void drop_pending_to(ccf::NodeId from, ccf::NodeId to)
   {
-    auto from_raft = _nodes.at(from).raft;
-    auto& messages = channel_stub_proxy(*from_raft)->messages;
+    auto from_cft = _nodes.at(from).cft;
+    auto& messages = channel_stub_proxy(*from_cft)->messages;
     auto it = messages.begin();
     while (it != messages.end())
     {
@@ -1071,11 +1153,6 @@ public:
     }
   }
 
-  void set_pre_vote_enabled(bool enabled)
-  {
-    pre_vote_enabled = enabled;
-  }
-
   using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
 
   Discrepancies check_state_sync(const std::map<ccf::NodeId, NodeDriver> nodes)
@@ -1088,30 +1165,30 @@ public:
     }
 
     auto [target_id, nd] = *nodes.begin();
-    auto& target_raft = nd.raft;
-    const auto target_term = target_raft->get_view();
-    const auto target_last_idx = target_raft->get_last_idx();
-    const auto target_commit_idx = target_raft->get_committed_seqno();
+    auto& target_cft = nd.cft;
+    const auto target_term = target_cft->get_view();
+    const auto target_last_idx = target_cft->get_last_idx();
+    const auto target_commit_idx = target_cft->get_committed_seqno();
 
     for (auto it = std::next(nodes.begin()); it != nodes.end(); ++it)
     {
       const auto& node_id = it->first;
-      auto& raft = it->second.raft;
+      auto& cft = it->second.cft;
 
-      if (raft->get_view() != target_term)
+      if (cft->get_view() != target_term)
       {
         discrepancies[node_id].push_back(std::format(
           "Term {} doesn't match term {} on {}",
-          raft->get_view(),
+          cft->get_view(),
           target_term,
           target_id));
       }
 
-      if (raft->get_last_idx() != target_last_idx)
+      if (cft->get_last_idx() != target_last_idx)
       {
         discrepancies[node_id].push_back(std::format(
           "Last index {} doesn't match last index {} on {}",
-          raft->get_last_idx(),
+          cft->get_last_idx(),
           target_last_idx,
           target_id));
       }
@@ -1120,7 +1197,7 @@ public:
         // Check that the every ledger entry matches
         for (aft::Index idx = 1; idx <= target_last_idx; ++idx)
         {
-          const auto target_entry = target_raft->ledger->get_entry_by_idx(idx);
+          const auto target_entry = target_cft->ledger->get_entry_by_idx(idx);
           if (!target_entry.has_value())
           {
             discrepancies[node_id].push_back(
@@ -1129,7 +1206,7 @@ public:
           }
           else
           {
-            const auto entry = raft->ledger->get_entry_by_idx(idx);
+            const auto entry = cft->ledger->get_entry_by_idx(idx);
             if (!entry.has_value())
             {
               discrepancies[node_id].push_back(
@@ -1150,11 +1227,11 @@ public:
         }
       }
 
-      if (raft->get_committed_seqno() != target_commit_idx)
+      if (cft->get_committed_seqno() != target_commit_idx)
       {
         discrepancies[node_id].push_back(std::format(
           "Commit index {} doesn't match commit index {} on {}",
-          raft->get_committed_seqno(),
+          cft->get_committed_seqno(),
           target_commit_idx,
           target_id));
       }
@@ -1169,12 +1246,12 @@ public:
     {
       for (const auto& reason : reasons)
       {
-        RAFT_DRIVER_PRINT("Note over {}: {}", node_id, reason);
+        CFT_DRIVER_PRINT("Note over {}: {}", node_id, reason);
       }
     }
   }
 
-  void assert_state_sync(const size_t lineno)
+  void assert_state_sync()
   {
     const auto discrepancies = check_state_sync(_nodes);
 
@@ -1182,12 +1259,11 @@ public:
     {
       print_discrepancies(discrepancies);
 
-      throw std::runtime_error(std::format(
-        "States not in sync on line {}", std::to_string((int)lineno)));
+      throw std::runtime_error("States not in sync");
     }
   }
 
-  void loop_until_sync(const size_t lineno)
+  void loop_until_sync()
   {
     std::pair<aft::Term, ccf::NodeId> term_primary;
     {
@@ -1213,19 +1289,19 @@ public:
     decltype(_nodes) nodes;
     for (auto& [node_id, node_driver] : _nodes)
     {
-      if (node_driver.raft->is_active())
+      if (node_driver.cft->is_active())
       {
         nodes[node_id] = node_driver;
       }
       else
       {
-        RAFT_DRIVER_PRINT(
+        CFT_DRIVER_PRINT(
           "Note over {}: Ignoring from sync check, due to retirement", node_id);
       }
     }
 
     // Emit a fresh signature on that primary (so that they can advance commit)
-    emit_signature(std::to_string(term), lineno);
+    replicate(std::to_string(term), {"$"});
 
     // Reconnect all nodes
     for (const auto& [node_id, _] : nodes)
@@ -1258,18 +1334,17 @@ public:
     }
   }
 
-  void assert_commit_safety(ccf::NodeId node_id, const size_t lineno)
+  void assert_commit_safety(ccf::NodeId node_id)
   {
     // Confirm that the index this node considers committed, is present on a
     // majority of nodes (ledger matches exactly up to and including this
     // seqno).
-    // Similar to the QuorumLogInv invariant from the TLA spec.
-    const auto& raft = _nodes.at(node_id).raft;
-    const auto committed_seqno = raft->get_committed_seqno();
+    const auto& cft = _nodes.at(node_id).cft;
+    const auto committed_seqno = cft->get_committed_seqno();
 
     auto get_ledger_prefix = [this](ccf::NodeId id, ccf::SeqNo seqno) {
       std::vector<std::vector<uint8_t>> prefix;
-      auto& ledger = _nodes.at(id).raft->ledger;
+      auto& ledger = _nodes.at(id).cft->ledger;
       for (ccf::SeqNo i = 1; i <= seqno; ++i)
       {
         auto entry = ledger->get_entry_by_idx(i);
@@ -1291,7 +1366,7 @@ public:
         get_ledger_prefix(present_node_id, committed_seqno) == committed_prefix;
     }
 
-    const auto details = raft->get_details();
+    const auto details = cft->get_details();
     for (const auto& configuration : details.configs)
     {
       if (configuration.idx <= committed_seqno)
@@ -1306,7 +1381,7 @@ public:
         const auto quorum = (nodes.size() / 2) + 1;
         if (std::cmp_less(present_count, quorum))
         {
-          RAFT_DRIVER_PRINT(
+          CFT_DRIVER_PRINT(
             "Note over {}: Node has advanced commit to {},  yet this entry is "
             "only present on {}/{} nodes (need at least {} for safety in "
             "configuration {}, beginning at {})",
@@ -1318,44 +1393,39 @@ public:
             configuration.rid,
             configuration.idx);
           throw std::runtime_error(std::format(
-            "Node ({}) at unsafe commit idx ({}) on line {}",
-            node_id,
-            committed_seqno,
-            lineno));
+            "Node ({}) at unsafe commit idx ({})", node_id, committed_seqno));
         }
       }
     }
   }
 
-  void assert_commit_safety_all(const size_t lineno)
+  void assert_commit_safety_all()
   {
     for (const auto& [node_id, _] : _nodes)
     {
-      assert_commit_safety(node_id, lineno);
+      assert_commit_safety(node_id);
     }
   }
 
-  void assert_invariants(const size_t lineno)
+  void assert_invariants()
   {
     // Check invariants:
     // Assert commit_index on all nodes is safe
-    assert_commit_safety_all(lineno);
+    assert_commit_safety_all();
   }
 
-  void assert_commit_idx(
-    ccf::NodeId node_id, const std::string& idx_s, const size_t lineno)
+  void assert_commit_idx(ccf::NodeId node_id, const std::string& idx_s)
   {
     auto idx = static_cast<aft::Index>(std::stoull(idx_s));
-    if (_nodes.at(node_id).raft->get_committed_seqno() != idx)
+    if (_nodes.at(node_id).cft->get_committed_seqno() != idx)
     {
-      RAFT_DRIVER_PRINT(
+      CFT_DRIVER_PRINT(
         "Note over {}: Node is not at expected commit idx {}", node_id, idx);
       throw std::runtime_error(std::format(
-        "Node {} not at expected commit idx ({}) on line {} : {}",
+        "Node {} not at expected commit idx ({}) : {}",
         node_id,
         idx,
-        std::to_string((int)lineno),
-        _nodes.at(node_id).raft->get_committed_seqno()));
+        _nodes.at(node_id).cft->get_committed_seqno()));
     }
   }
 
@@ -1372,27 +1442,23 @@ public:
     ccf::NodeId node_id,
     const std::string& detail,
     const std::string& expected,
-    bool equal,
-    const size_t lineno)
+    bool equal)
   {
-    auto details = _nodes.at(node_id).raft->get_details();
+    auto details = _nodes.at(node_id).cft->get_details();
     nlohmann::json d = details;
     if (d.find(detail) == d.end())
     {
-      RAFT_DRIVER_PRINT(
+      CFT_DRIVER_PRINT(
         "  Note over {}: Node does not have detail {}", node_id, detail);
-      throw std::runtime_error(std::format(
-        "Node {} does not have detail {} on line {}",
-        node_id,
-        detail,
-        std::to_string((int)lineno)));
+      throw std::runtime_error(
+        std::format("Node {} does not have detail {}", node_id, detail));
     }
 
     std::string value = detail_to_string(d[detail]);
     if (equal ? (value != expected) : (value == expected))
     {
       std::string cmp = equal ? "!" : "=";
-      RAFT_DRIVER_PRINT(
+      CFT_DRIVER_PRINT(
         "  Note over {}: Node detail {} is not as expected: {} {}= {}",
         node_id,
         detail,
@@ -1400,13 +1466,12 @@ public:
         cmp,
         expected);
       throw std::runtime_error(std::format(
-        "Node {} detail {} is not as expected: {} {}= {} on line {}",
+        "Node {} detail {} is not as expected: {} {}= {}",
         node_id,
         detail,
         value,
         cmp,
-        expected,
-        std::to_string((int)lineno)));
+        expected));
     }
   }
 
@@ -1416,7 +1481,7 @@ public:
     const std::vector<std::string>& node_ids)
   {
     auto config_idx = static_cast<aft::Index>(std::stoull(config_idx_s));
-    auto details = _nodes.at(node_id).raft->get_details();
+    auto details = _nodes.at(node_id).cft->get_details();
     for (const auto& config : details.configs)
     {
       if (config.idx == config_idx)
@@ -1451,7 +1516,7 @@ public:
     const std::string& node_id, const std::string& config_idx_s)
   {
     auto config_idx = static_cast<aft::Index>(std::stoull(config_idx_s));
-    auto details = _nodes.at(node_id).raft->get_details();
+    auto details = _nodes.at(node_id).cft->get_details();
     for (const auto& config : details.configs)
     {
       if (config.idx == config_idx)
@@ -1467,8 +1532,8 @@ public:
   void assert_last_txid(
     const std::string& node_id, const std::string& last_txid_s)
   {
-    auto idx = _nodes.at(node_id).raft->get_last_idx();
-    auto view = _nodes.at(node_id).raft->get_view(idx);
+    auto idx = _nodes.at(node_id).cft->get_last_idx();
+    auto view = _nodes.at(node_id).cft->get_view(idx);
     auto last_txid = std::format("{}.{}", view, idx);
     if (last_txid != last_txid_s)
     {

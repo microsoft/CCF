@@ -7,6 +7,7 @@
 #include "ccf/kv/untyped.h"
 #include "ds/champ_map.h"
 #include "kv/kv_types.h"
+#include "kv/trace.h"
 #include "kv/version_v.h"
 
 #include <optional>
@@ -24,11 +25,9 @@ namespace ccf::kv::untyped
 
   using State = champ::Map<K, VersionV, H>;
 
-  // This is a map of keys and with a tuple of the key's write version and
-  // the version of last transaction which read the key and committed
-  // successfully
-  using LastReadVersion = Version;
-  using Read = std::map<K, std::tuple<Version, LastReadVersion>>;
+  // This is a map of keys and the key's write version when read, or NoVersion
+  // if the key did not exist
+  using Read = std::map<K, Version>;
 
   // This is a container for a write-set + dependencies. It can be applied to
   // a given state, or used to track a set of operations on a state
@@ -38,6 +37,9 @@ namespace ccf::kv::untyped
     ChangeSet() = default;
 
   public:
+#ifdef CCF_KV_TRACING
+    trace::MapMetadata trace_metadata;
+#endif
     const size_t rollback_counter = {};
     const ccf::kv::untyped::State state;
     const ccf::kv::untyped::State committed;

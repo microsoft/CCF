@@ -9,6 +9,7 @@
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node/network_state.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
 #include "service/tables/snapshot_status.h"
@@ -86,6 +87,7 @@ namespace ccf
 
       SnapshotInfo() = default;
     };
+
     // Queue of pending snapshots that have been generated, but are not yet
     // committed
     std::map<uint32_t, SnapshotInfo> pending_snapshots;
@@ -112,6 +114,7 @@ namespace ccf
       bool forced;
       bool done;
     };
+
     std::deque<SnapshotEntry> next_snapshot_indices;
 
     static TimePoint time_point_from_snapshot_status(uint64_t timestamp)
@@ -191,7 +194,8 @@ namespace ccf
 
       void do_action() override
       {
-        self->serialise_snapshot_(std::move(snapshot), timestamp, serialised);
+        self->serialise_snapshot_(
+          std::move(snapshot), generation_count, timestamp, serialised);
       }
 
       [[nodiscard]] const std::string& get_name() const override
@@ -241,6 +245,7 @@ namespace ccf
 
     void serialise_snapshot_(
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
+      uint32_t generation,
       TimePoint timestamp,
       const std::shared_ptr<SnapshotSerialisation>& serialised)
     {
@@ -255,19 +260,17 @@ namespace ccf
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
 
-      auto tx = store->create_tx();
-      auto* evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
-      auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
-      evidence->put({snapshot_hash, snapshot_version});
-
-      auto* status = tx.rw<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS);
+      // Hash the snapshot before opening the evidence transaction. The
+      // transaction captures its read version when its first handle is
+      // created, so a long computation between handle creations lets
+      // compaction, driven by concurrent snapshot generations writing these
+      // same tables, overtake that version.
+      const auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
       const auto timestamp_ns =
         snapshot_status_timestamp_from_time_point(timestamp);
-      status->put({snapshot_version, timestamp_ns});
 
       ccf::ClaimsDigest cd;
-      // NOLINTNEXTLINE(performance-move-const-arg)
-      cd.set(std::move(snapshot_hash));
+      cd.set(ccf::crypto::Sha256Hash(snapshot_hash));
 
       ccf::crypto::Sha256Hash ws_digest;
       std::string commit_evidence;
@@ -279,17 +282,50 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      auto rc = tx.commit(cd, capture_ws_digest_and_commit_evidence);
-      if (rc != ccf::kv::CommitResult::SUCCESS)
+      bool committed = false;
+      ccf::kv::Version evidence_version = ccf::kv::NoVersion;
+      const auto evidence_tx_completed =
+        ccf::retry_on_compacted_version_conflict(
+          std::format(
+            "Snapshot evidence transaction for seqno {}", snapshot_version),
+          [&] {
+            auto tx = store->create_tx();
+            tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE)
+              ->put({snapshot_hash, snapshot_version});
+            tx.rw<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)
+              ->put({snapshot_version, timestamp_ns});
+
+            const auto rc =
+              tx.commit(cd, capture_ws_digest_and_commit_evidence);
+            if (rc != ccf::kv::CommitResult::SUCCESS)
+            {
+              LOG_FAIL_FMT(
+                "Could not commit snapshot evidence for seqno {}: {}",
+                snapshot_version,
+                std::to_underlying(rc));
+              return;
+            }
+
+            committed = true;
+            evidence_version = tx.commit_version();
+          });
+      if (!evidence_tx_completed)
       {
         LOG_FAIL_FMT(
-          "Could not commit snapshot evidence for seqno {}: {}",
-          snapshot_version,
-          std::to_underlying(rc));
-        return;
+          "Could not commit snapshot evidence for seqno {} after repeated "
+          "compaction conflicts",
+          snapshot_version);
       }
 
-      auto evidence_version = tx.commit_version();
+      if (!evidence_tx_completed || !committed)
+      {
+        // Without evidence this snapshot can never be released, so drop it
+        // rather than let it count against max_pending_snapshots_count
+        // until the next rollback. A rollback may already have removed it.
+        std::lock_guard<ccf::ds::Mutex> guard(lock);
+        pending_snapshots.erase(generation);
+        return;
+      }
 
       // Hand the serialise outputs to the (later) persist action. No lock is
       // required: the per-generation OrderedTasks guarantees this action
@@ -318,11 +354,12 @@ namespace ccf
     {
       auto serialised_receipt = build_and_serialise_receipt(
         cose_sigs,
+        IdentityType::CLASSICAL,
         tree,
         evidence_idx,
         serialised->write_set_digest,
         serialised->commit_evidence,
-        std::move(serialised->snapshot_digest));
+        serialised->snapshot_digest);
 
       // The snapshot bytes and receipt are written out to a single snapshot
       // file. This runs on a task thread (see PersistSnapshotAction).
@@ -396,6 +433,13 @@ namespace ccf
     }
 
   public:
+    // After workers and snapshot tasks stop, break the Store/Snapshotter
+    // ownership cycle, including store hooks which retain this object.
+    void shutdown()
+    {
+      store.reset();
+    }
+
     Snapshotter(
       const std::string& snapshot_dir,
       std::shared_ptr<ccf::kv::Store>& store_,

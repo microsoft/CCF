@@ -63,6 +63,7 @@ namespace nobuiltins
   {
     ccf::TxID transaction_id;
   };
+
   DECLARE_JSON_TYPE(GetCommit);
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit, transaction_id);
 

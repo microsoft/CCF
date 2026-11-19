@@ -52,6 +52,9 @@ namespace ccf::kv
     const std::string& map_name, bool track_deletes_on_missing_keys)
   {
     auto& read_txid = pimpl->read_txid;
+#ifdef CCF_KV_TRACING
+    trace::Context trace_context(pimpl->trace_attempt.id);
+#endif
 
     if (!read_txid.has_value())
     {
@@ -79,8 +82,8 @@ namespace ccf::kv
 
       // NB: The created maps are always untyped. Only the handles over them
       // are typed
-      auto new_map = std::make_shared<ccf::kv::untyped::Map>(
-        pimpl->store, map_name, ccf::kv::get_security_domain(map_name));
+      auto new_map =
+        std::make_shared<ccf::kv::untyped::Map>(pimpl->store, map_name);
       pimpl->created_maps[map_name] = new_map;
 
       abstract_map = new_map;
@@ -133,6 +136,7 @@ namespace ccf::kv
   {
     pimpl = std::make_unique<PrivateImpl>();
     pimpl->store = store_;
+    KV_TRACE(pimpl->trace_attempt.bind(store_));
   }
 
   // Use default destructor, but instantiate here where PrivateImpl is not

@@ -20,15 +20,11 @@ namespace http2
   using StreamId = int32_t;
   constexpr static StreamId DEFAULT_STREAM_ID = 0;
 
-  using StreamCloseCB = std::function<void(void)>;
-
-  // Used to keep track of response state between nghttp2 callbacks and to
-  // differentiate unary from streaming responses
+  // Used to keep track of response state between nghttp2 callbacks
   enum class StreamResponseState : uint8_t
   {
     Uninitialised = 0, // No response to send yet
-    Closing, // Unary or last frame in stream
-    Streaming // Sending data frames to client
+    Closing // Response submitted, sending remaining body and trailers
   };
 
   struct DataSource
@@ -50,6 +46,7 @@ namespace http2
       ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
+
     Incoming incoming;
 
     struct Outgoing
@@ -58,9 +55,8 @@ namespace http2
       bool has_trailers = false;
       DataSource body;
     };
-    Outgoing outgoing;
 
-    StreamCloseCB close_callback = nullptr;
+    Outgoing outgoing;
   };
 
   class AbstractParser

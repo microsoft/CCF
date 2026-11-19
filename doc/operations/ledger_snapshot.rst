@@ -56,6 +56,7 @@ The `LedgerChunkRead` feature must be added to `enabled_operator_features` on th
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
 They redirect to the appropriate chunk if it exists, using the endpoints described below, or return a `404 Not Found` response if no such chunk is available.
+The required ``since`` value must be an unsigned 64-bit decimal sequence number. Missing or malformed values return ``400 Bad Request`` with the ``InvalidQueryParameterValue`` error code.
 
 In the typical case, a requesting client will first hit a Backup, and will eventually work its way to chunks recent enough that only the primary can provide them:
 
@@ -114,10 +115,54 @@ These endpoints allow downloading a specific ledger chunk by name, where `<chunk
 They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
 They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
 
+Committed Prefixes
+^^^^^^^^^^^^^^^^^^
+
+By default, the ledger chunk locator endpoints expose only canonical ``.committed`` files.
+A client that also needs recent committed entries from an in-progress file can opt in with ``include_committed_prefix=true``:
+
+.. code-block:: http
+
+    GET /node/ledger_chunk?since=101&include_committed_prefix=true HTTP/1.1
+
+The node still prefers a canonical ``.committed`` file when one covers the requested sequence number.
+Otherwise, if the sequence number is locally available and committed, it returns a ``307 Temporary Redirect`` to a resource such as:
+
+.. code-block:: text
+
+    /node/ledger_chunk/committed_prefix/ledger_101-140.committed_prefix
+
+This resource covers the committed entries from the requested sequence number up to the commit watermark, or to the end of the physical file containing that sequence number if it comes first.
+A committed prefix therefore starts at ``since`` rather than at the start of its physical file: for the same file, ``since=120`` would select ``ledger_120-140.committed_prefix``.
+
+The ``.committed_prefix`` suffix distinguishes this synthetic resource from a canonical physical ledger file.
+The response contains a normal completed ledger representation - header, unchanged transaction bytes, and positions table - but only for the selected committed range.
+It can be read directly with :py:class:`ccf.ledger.LedgerChunk`.
+
+The response includes ``x-ms-ccf-ledger-chunk-kind: committed-prefix``.
+Clients must not archive, install, or use this resource for recovery as though it were a canonical ``.committed`` file.
+In particular, committed-prefix files are ignored by ledger directory discovery, both by nodes and by :py:class:`ccf.ledger.Ledger`, and can only be read individually with :py:class:`ccf.ledger.LedgerChunk`.
+
+Committed prefixes give clients such as auditors timely access to recent committed entries, but do not replace canonical files in backups.
+A client which tracks its progress with ``since`` must not advance it past a committed prefix: having received ``ledger_101-140.committed_prefix`` for ``since=101``, it should keep requesting ``since=101`` until it receives a canonical file, such as ``ledger_101-150.committed``.
+Committed prefixes are best stored apart from canonical files, for example in a separate directory, and discarded once a canonical file covering their range has been obtained.
+
+The ``307`` redirect intentionally differs from the ``308 Permanent Redirect`` used for canonical ``.committed`` files.
+A physical chunk's name and range are final, while the committed-prefix range selected for the same ``since`` value may grow as the commit watermark advances.
+The exact ``.committed_prefix`` URL is immutable once returned, so it remains suitable for retrying or resuming that specific download.
+
+Committed-prefix URLs are not immutable across a recovery from a ledger which is missing some of their transactions, for example from canonical backups alone: these transactions are not part of the recovered service's history, and the same URL may then serve different content.
+Operators should avoid this by recovering from the most recent ledger files available.
+Should it happen, receipts for the missing transactions can be used to :ref:`denounce the recovery <audit/receipts:Denounce an invalid recovery>`.
+
+More than one contiguous committed prefix can be available.
+For example, physical chunking may have produced unsuffixed files ``ledger_101-150`` and ``ledger_151-200`` before the commit watermark catches up to 200.
+The API preserves these physical boundaries and can expose ``ledger_101-150.committed_prefix`` followed by ``ledger_151-200.committed_prefix``.
+
 Want-Repr-Digest and Repr-Digest
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
+The canonical and committed-prefix chunk endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
 When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
 Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. If the header contains only unsupported or invalid algorithms, the server defaults to ``sha-256`` (as permitted by `RFC 9530 Appendix C.2 <https://www.rfc-editor.org/rfc/rfc9530#appendix-C.2>`_).
 For example, a client sending ``Want-Repr-Digest: sha-256=1`` will receive a header such as ``Repr-Digest: sha-256=:AEGPTgUMw5e96wxZuDtpfm23RBU3nFwtgY5fw4NYORo=:`` in the response.
@@ -142,9 +187,9 @@ When the client already holds a chunk and wants to check if it has changed, it s
 
     sequenceDiagram
         Note over Client: Client already has chunk with known ETag
-        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed If-None-Match: "sha-256=:47DEQpj8HBSa+/TImW...=:"
         Note over Node: Computes digest, matches If-None-Match
-        Node->>-Client: 304 Not Modified<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Node->>-Client: 304 Not Modified ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"
         Note over Client: No body transferred, client keeps existing copy
 
 If the ``If-None-Match`` ETag does not match the current content (e.g. the client has an outdated copy, or is checking a different chunk), the server returns the full content as a fresh download:
@@ -153,9 +198,9 @@ If the ``If-None-Match`` ETag does not match the current content (e.g. the clien
 
     sequenceDiagram
         Note over Client: Client sends an ETag that does not match
-        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:AAAA...=:"
+        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed If-None-Match: "sha-256=:AAAA...=:"
         Note over Node: Computes digest, does not match If-None-Match
-        Node->>-Client: 200 OK<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"<br/><Chunk Contents>
+        Node->>-Client: 200 OK ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:" <Chunk Contents>
         Note over Client: Client stores chunk and new ETag for future requests
 
 Snapshots
@@ -175,6 +220,12 @@ Time-based snapshotting can also be enabled with ``snapshots.time_interval``. Wh
 .. warning:: Setting ``snapshots.min_tx_count`` lower than ``2`` while ``snapshots.time_interval`` is greater than ``0s`` can lead to repeated time-based snapshots even when there are no new application writes. This is because the snapshot itself generates two transactions.
 
 To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the :ref:`audit/builtin_maps:``snapshot_evidence``` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/configuration:``ledger_signatures```).
+A COSE receipt of that signature is appended to the snapshot file, and is verified before a node joins or recovers from the snapshot.
+Snapshots written by 6.x and earlier releases carry a JSON receipt instead; these releases are out of support and nodes reject their snapshots, as do ``ccf.ledger.Snapshot`` and ``read_ledger.py --snapshot`` in the Python package.
+
+.. warning:: A service running 6.x reaches this release through a 7.0 release up to 7.0.24, which accepts JSON receipts and writes COSE receipts.
+    Upgrade the service to that release, or recover the 6.x ledger with it, and make sure it has written a snapshot, requesting one with :http:POST:`/node/snapshot:create` if needed.
+    Then remove the older snapshots from every ``snapshots.directory`` and from the snapshot backups before upgrading further (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`).
 
 Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.committed``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated and ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded.
 
@@ -182,14 +233,45 @@ Uncommitted snapshot files, i.e. those whose evidence has not yet been committed
 
 .. note:: The ``files_cleanup.max_snapshots`` configuration entry can be used to limit the number of committed snapshot files retained on disk. When the number of committed snapshots exceeds this value, the oldest snapshots (by sequence number) are automatically deleted. This is useful to control the local persistent storage footprint of a node. The value must be at least 1 if set. Snapshot cleanup runs as part of the same periodic cleanup cycle as ledger chunk cleanup (see :ref:`operations/ledger_snapshot:Periodic File Cleanup`).
 
+Backup Snapshot Fetching
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Since snapshots are only generated by the primary node, the ``snapshots.directory`` of backup nodes does not otherwise contain recent snapshots.
+Backup nodes can be configured to fetch a copy of each new snapshot from the primary by setting ``snapshots.backup_fetch.enabled`` to ``true`` (disabled by default).
+This keeps recent snapshots available on every node, so that operators can back up or recover from snapshots taken from any node, rather than only from the node that was primary when each snapshot was generated.
+
+When enabled, a backup node schedules a fetch whenever it observes a committed write to the :ref:`audit/builtin_maps:``snapshot_evidence``` table.
+It looks up the current primary's address from the RPC interface named by ``snapshots.backup_fetch.target_rpc_interface`` (defaults to ``primary_rpc_interface``) in the primary's entry in the :ref:`audit/builtin_maps:``nodes.info``` table, and downloads the corresponding committed snapshot from the primary via :http:GET:`/node/snapshot`, as joining nodes do.
+This interface must have the ``SnapshotRead`` operator feature enabled (see :ref:`operations/configuration:Operator Features`).
+The downloaded snapshot is written to the node's ``snapshots.directory``, unless a file with the same name already exists there.
+Only one fetch is in progress on a node at any time.
+
+The following options control the fetch:
+
+- ``snapshots.backup_fetch.max_attempts``: maximum number of download attempts before giving up on this snapshot (defaults to ``3``).
+- ``snapshots.backup_fetch.retry_interval``: delay between download attempts (defaults to ``1000ms``).
+- ``snapshots.backup_fetch.max_size``: maximum size of snapshot the node is willing to fetch (defaults to ``200MB``).
+
+The full set of configuration options is listed in :doc:`/operations/configuration`.
+
 Join or Recover From Snapshot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Joining nodes will request a snapshot from the target service to accelerate their join. This behaviour is controlled by the ``command.join.fetch_recent_snapshot`` configuration option, and enabled by default. This removes the need for a shared read-only snapshot mount, and corresponding operator actions to keep it up-to-date. Instead, if the joiner is told by the network that the snapshot they have locally is too old, the joiner will send a sequence of HTTP requests, potentially following redirect responses to find the current primary and request a specific snapshot, to download a recent snapshot which should allow them to join rapidly. Any suffix after a snapshot (including the entire ledger, in the rare cases where no snapshot can be found) will be replicated to that node via the consensus protocol.
 
+Snapshot discovery via :http:GET:`/node/snapshot` or :http:HEAD:`/node/snapshot` accepts an optional ``since`` selector with the same numeric requirements as ledger chunk discovery. Malformed values return ``400 Bad Request`` with ``InvalidQueryParameterValue``; omitting the selector allows the latest committed snapshot to be selected.
+
 The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-only directory. On start-up, the new node will search both ``snapshots.directory`` and ``snapshots.read_only_directory`` to find the latest committed snapshot file. Operators are responsible for populating these with recent snapshots emitted by the service, and making this available (such as via a shared read-only mount) on joining nodes.
 
+.. warning:: ``snapshots.read_only_directory`` is deprecated and will be removed in a future release.
+    Use ``command.join.fetch_recent_snapshot`` (enabled by default) to have joining nodes fetch a recent snapshot from the service, and ``snapshots.backup_fetch.enabled`` to have backup nodes keep a copy of recent snapshots in their own ``snapshots.directory`` (see :ref:`operations/ledger_snapshot:Backup Snapshot Fetching`).
+
 In particular, there is a hard lower bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
+
+.. warning:: The primary serves its newest committed snapshot without verifying it, and a joining node discards a fetched snapshot which fails verification and requests it again on its next join attempt.
+    A snapshot written by a 6.x or earlier release in the primary's ``snapshots.directory`` therefore prevents nodes from joining until a newer snapshot exists.
+    Remove such snapshots before upgrading, or create a new one with :http:POST:`/node/snapshot:create`.
+    A recovering node skips such snapshots and recovers from an older one or from the ledger.
 
 The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
 
@@ -219,6 +301,7 @@ The following flowchart summarises the join procedure when ``command.join.fetch_
         fetch.response{"Response type?"}
         fetch.send("{peer_address} GET /snapshot?since={startup_seqno}")
         fetch.fetch("{peer_address} GET /snapshot/{snapshot_name}")
+        fetch.verify{"Validate snapshot"}
     
         recovery.process("Complete recovery")
         recovery.public("Deserialise snapshot public state")
@@ -254,11 +337,13 @@ The following flowchart summarises the join procedure when ``command.join.fetch_
                 fetch.begin --> fetch.send
                 fetch.send -->|Response received| fetch.response
                 fetch.response -->|2xx Success| fetch.fetch
-                fetch.fetch --> fetch.apply
+                fetch.fetch --> fetch.verify
+                fetch.verify -->|Valid| fetch.apply
                 fetch.response -->|30x Redirect| fetch.redirect
                 fetch.redirect --> fetch.send
             end
             fetch.apply --> join.timeout
+            fetch.verify -->|Invalid| join.timeout
             fetch.send -.-> join.timeout
             fetch.response -->|Other error| join.timeout
     

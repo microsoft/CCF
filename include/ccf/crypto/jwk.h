@@ -32,6 +32,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKey&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
   DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
@@ -62,6 +63,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyData&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKeyData);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyData, kty);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -74,17 +76,27 @@ namespace ccf::crypto
       case CurveID::NONE:
       case CurveID::CURVE25519:
       case CurveID::X25519:
+      {
         throw std::logic_error(std::format(
           "Invalid JWK EC CurveId {}", std::to_underlying(curve_id)));
+      }
       case CurveID::SECP384R1:
+      {
         return JsonWebKeyECCurve::P384;
+      }
       case CurveID::SECP256R1:
+      {
         return JsonWebKeyECCurve::P256;
+      }
       case CurveID::SECP521R1:
+      {
         return JsonWebKeyECCurve::P521;
+      }
       default:
+      {
         throw std::logic_error(
           std::format("Unknown curve {}", std::to_underlying(curve_id)));
+      }
     }
   }
 
@@ -93,14 +105,22 @@ namespace ccf::crypto
     switch (jwk_curve)
     {
       case JsonWebKeyECCurve::P521:
+      {
         return CurveID::SECP521R1;
+      }
       case JsonWebKeyECCurve::P384:
+      {
         return CurveID::SECP384R1;
+      }
       case JsonWebKeyECCurve::P256:
+      {
         return CurveID::SECP256R1;
+      }
       default:
+      {
         throw std::logic_error(
           std::format("Unknown JWK curve {}", std::to_underlying(jwk_curve)));
+      }
     }
   }
 
@@ -122,15 +142,23 @@ namespace ccf::crypto
       case CurveID::SECP384R1:
       case CurveID::SECP256R1:
       case CurveID::SECP521R1:
+      {
         throw std::logic_error(
           std::format("Invalid EdDSA curve {}", std::to_underlying(curve_id)));
+      }
       case CurveID::CURVE25519:
+      {
         return JsonWebKeyEdDSACurve::ED25519;
+      }
       case CurveID::X25519:
+      {
         return JsonWebKeyEdDSACurve::X25519;
+      }
       default:
+      {
         throw std::logic_error(
           std::format("Unknown EdDSA curve {}", std::to_underlying(curve_id)));
+      }
     }
   }
 
@@ -142,6 +170,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyECPublic&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPublic, crv, x, y);
 
@@ -151,6 +180,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyECPrivate&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPrivate, JsonWebKeyECPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPrivate, d);
 
@@ -161,6 +191,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyRSAPublic&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPublic, n, e);
 
@@ -175,6 +206,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyRSAPrivate&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPrivate, JsonWebKeyRSAPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPrivate, d, p, q, dp, dq, qi);
 
@@ -185,6 +217,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyEdDSAPublic&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEdDSAPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEdDSAPublic, crv, x);
 
@@ -194,6 +227,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyEdDSAPrivate&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEdDSAPrivate, JsonWebKeyEdDSAPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEdDSAPrivate, d);
 }

@@ -1829,7 +1829,6 @@
       "required": [
         "jsModule",
         "jsFunction",
-        "forwardingRequired",
         "authnPolicies",
         "mode",
         "openApi"
@@ -2154,6 +2153,10 @@
         "certificate": {
           "$ref": "#/definitions/ServiceState.pem",
           "description": "The current service identity. This is the public face of a secret key shared only by the nodes within the service, and should be used to authenticate TLS sessions with this service."
+        },
+        "pqCertificate": {
+          "$ref": "#/definitions/ServiceState.pem",
+          "description": "The current ML-DSA service certificate, issued with the same subject as the service identity. Omitted if the service has no ML-DSA identity."
         },
         "recoveryCount": {
           "$ref": "#/definitions/safeuint",

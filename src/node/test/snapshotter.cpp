@@ -3,10 +3,14 @@
 
 #include "node/snapshotter.h"
 
+#include "ccf/ds/x509_time_fmt.h"
+#include "crypto/certs.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/public_key.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/history.h"
@@ -21,6 +25,7 @@
 #include <doctest/doctest.h>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <unistd.h>
 
@@ -59,21 +64,103 @@ struct ScopedSnapshotDir
   }
 };
 
-void write_current_ledger_file(
-  const fs::path& path, const std::vector<std::vector<uint8_t>>& entries)
+void write_ledger_file(
+  const fs::path& path,
+  const std::vector<std::vector<uint8_t>>& entries,
+  bool completed = false)
 {
   std::ofstream ledger_file(path, std::ios::binary);
   REQUIRE(ledger_file);
-  const size_t positions_offset = 0;
+  size_t positions_offset = 0;
   ledger_file.write(
     reinterpret_cast<const char*>(&positions_offset), sizeof(positions_offset));
+  std::vector<uint32_t> positions;
   for (const auto& entry : entries)
   {
+    positions.push_back(static_cast<uint32_t>(ledger_file.tellp()));
     ledger_file.write(
       reinterpret_cast<const char*>(entry.data()),
       static_cast<std::streamsize>(entry.size()));
   }
+  if (completed)
+  {
+    positions_offset = static_cast<size_t>(ledger_file.tellp());
+    ledger_file.write(
+      reinterpret_cast<const char*>(positions.data()),
+      static_cast<std::streamsize>(positions.size() * sizeof(uint32_t)));
+    ledger_file.seekp(0);
+    ledger_file.write(
+      reinterpret_cast<const char*>(&positions_offset),
+      sizeof(positions_offset));
+  }
   REQUIRE(ledger_file);
+}
+
+struct RecoverySnapshotLedgerFixture
+{
+  ScopedSnapshotDir ledger_dir;
+  ccf::CCFConfig::Ledger ledger_config;
+  std::shared_ptr<ccf::kv::AbstractTxEncryptor> encryptor =
+    std::make_shared<ccf::kv::NullTxEncryptor>();
+  ccf::CoseEndorsement endorsement{
+    .endorsement = {0xd2, 0x01},
+    .endorsing_key = {0x02, 0x03},
+    .endorsement_epoch_begin = {2, 1},
+    .endorsement_epoch_end = ccf::TxID{4, 1},
+    .previous_version = 1};
+
+  RecoverySnapshotLedgerFixture()
+  {
+    ledger_config.directory = ledger_dir.path.string();
+  }
+
+  std::vector<uint8_t> entry(
+    ccf::kv::Version seqno,
+    const std::vector<ccf::IdentityType>& identities = {
+      ccf::IdentityType::CLASSICAL}) const
+  {
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor, ccf::TxID{2, seqno}, ccf::kv::EntryType::WriteSet, 0);
+    serialiser.start_map(
+      ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT,
+      ccf::kv::SecurityDomain::PUBLIC);
+    serialiser.serialise_entry_version(ccf::kv::NoVersion);
+    serialiser.serialise_count_header(0);
+    serialiser.serialise_count_header(identities.size());
+    for (const auto identity : identities)
+    {
+      serialiser.serialise_write(
+        ccf::PreviousServiceIdentityEndorsement::KeySerialiser::to_serialised(
+          identity),
+        ccf::PreviousServiceIdentityEndorsement::ValueSerialiser::to_serialised(
+          endorsement));
+    }
+    serialiser.serialise_count_header(0);
+    return serialiser.get_raw_data();
+  }
+
+  ccf::RecoverySnapshotLedgerScan scan(
+    ccf::kv::Version snapshot_seqno = 0) const
+  {
+    return ccf::scan_recovery_snapshot_ledger_files(
+      ledger_config, encryptor, snapshot_seqno);
+  }
+};
+
+TEST_CASE("Terminal snapshotter shutdown releases its store")
+{
+  ScopedSnapshotDir snapshot_dir;
+  auto store = std::make_shared<ccf::kv::Store>();
+  auto snapshotter =
+    std::make_shared<ccf::Snapshotter>(snapshot_dir.path.string(), store, 10);
+  store->set_snapshotter(snapshotter);
+  std::weak_ptr<ccf::kv::Store> weak_store = store;
+  store.reset();
+  CHECK_FALSE(weak_store.expired());
+  snapshotter->shutdown();
+  CHECK(weak_store.expired());
+  CHECK(snapshotter.use_count() == 1);
+  snapshotter->shutdown();
 }
 
 TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
@@ -134,14 +221,13 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   REQUIRE_THROWS(ccf::verify_snapshot_seqno(malformed_snapshot, encryptor, 1));
 
   ScopedSnapshotDir malformed_ledger_dir;
-  write_current_ledger_file(
-    malformed_ledger_dir.path / "ledger_1", {malformed_entry});
+  write_ledger_file(malformed_ledger_dir.path / "ledger_1", {malformed_entry});
   ccf::CCFConfig::Ledger malformed_ledger_config;
   malformed_ledger_config.directory = malformed_ledger_dir.path.string();
   REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
     malformed_ledger_config, encryptor, 0));
 
-  write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
+  write_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
@@ -186,7 +272,7 @@ TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")
     entries.push_back(std::move(latest_entry));
   }
 
-  write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
+  write_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
@@ -236,7 +322,7 @@ TEST_CASE(
     entries.push_back(std::move(latest_entry));
   }
 
-  write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
+  write_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
@@ -304,6 +390,553 @@ TEST_CASE("Recovery snapshot endorsement scan bounds ledger entry allocation")
   ledger_config.directory = ledger_dir.path.string();
   REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
     ledger_config, std::make_shared<ccf::kv::NullTxEncryptor>(), 0));
+}
+
+TEST_CASE("Recovery snapshot ledger scan filters directory contents")
+{
+  RecoverySnapshotLedgerFixture fixture;
+  const auto missing_dir = fixture.ledger_dir.path / "missing";
+  fixture.ledger_config.read_only_directories = {missing_dir.string()};
+
+  SUBCASE("Missing directories contain no candidate entries")
+  {
+    fixture.ledger_config.directory = missing_dir.string();
+    REQUIRE(
+      ccf::find_recovery_snapshot_ledger_files(fixture.ledger_config).empty());
+    REQUIRE(fixture.scan().endorsements.empty());
+  }
+
+  SUBCASE("Only valid writable and committed read-only chunks are scanned")
+  {
+    const auto read_only_dir = fixture.ledger_dir.path / "read_only";
+    fs::create_directories(read_only_dir);
+    fixture.ledger_config.read_only_directories.push_back(
+      read_only_dir.string());
+
+    const auto committed_path = read_only_dir / "ledger_1-2.committed";
+    const auto current_path = fixture.ledger_dir.path / "ledger_3";
+    write_ledger_file(
+      committed_path, {fixture.entry(1), fixture.entry(2)}, true);
+    write_ledger_file(current_path, {fixture.entry(3)});
+    write_ledger_file(read_only_dir / "ledger_1", {});
+    write_ledger_file(read_only_dir / "ledger_1-4", {}, true);
+    fs::create_directory(fixture.ledger_dir.path / "ledger_4");
+    for (const auto* name :
+         {"notes",
+          "ledger_invalid",
+          "ledger_1-invalid.committed",
+          "ledger_0.recovery",
+          "ledger_0.ignored"})
+    {
+      write_ledger_file(fixture.ledger_dir.path / name, {});
+    }
+
+    const auto files =
+      ccf::find_recovery_snapshot_ledger_files(fixture.ledger_config);
+    REQUIRE(files.size() == 2);
+    REQUIRE(files[0].path == committed_path);
+    REQUIRE(files[0].start_idx == 1);
+    REQUIRE(files[0].end_idx == 2);
+    REQUIRE(files[0].committed);
+    REQUIRE(files[1].path == current_path);
+    REQUIRE(files[1].start_idx == 3);
+    REQUIRE_FALSE(files[1].end_idx.has_value());
+    REQUIRE_FALSE(files[1].committed);
+
+    const auto scan = fixture.scan(1);
+    REQUIRE(scan.endorsements.size() == 2);
+    for (size_t i = 0; i < scan.endorsements.size(); ++i)
+    {
+      REQUIRE(scan.endorsements[i].write_version == i + 2);
+      REQUIRE(
+        nlohmann::json(scan.endorsements[i].endorsement) ==
+        nlohmann::json(fixture.endorsement));
+    }
+  }
+
+  SUBCASE("A regular file cannot be used as a ledger directory")
+  {
+    const auto path = fixture.ledger_dir.path / "not_a_directory";
+    write_ledger_file(path, {});
+    fixture.ledger_config.directory = path.string();
+    REQUIRE_THROWS_WITH_AS(
+      ccf::find_recovery_snapshot_ledger_files(fixture.ledger_config),
+      std::format(
+        "Unable to iterate ledger directory {}: {}",
+        path.string(),
+        std::make_error_code(std::errc::not_a_directory).message())
+        .c_str(),
+      std::logic_error);
+  }
+
+  SUBCASE("An unresolvable directory reports the filesystem error")
+  {
+    const auto path = fixture.ledger_dir.path / "loop";
+    fs::create_directory_symlink(path.filename(), path);
+    fixture.ledger_config.directory = path.string();
+    REQUIRE_THROWS_WITH_AS(
+      ccf::find_recovery_snapshot_ledger_files(fixture.ledger_config),
+      std::format(
+        "Unable to inspect ledger directory {}: {}",
+        path.string(),
+        std::make_error_code(std::errc::too_many_symbolic_link_levels)
+          .message())
+        .c_str(),
+      std::logic_error);
+  }
+}
+
+TEST_CASE("Recovery snapshot ledger scan validates chunk headers")
+{
+  RecoverySnapshotLedgerFixture fixture;
+  const auto current_path = fixture.ledger_dir.path / "ledger_1";
+  const auto committed_path = fixture.ledger_dir.path / "ledger_1-1.committed";
+
+  SUBCASE("A file disappearing after discovery reports an open failure")
+  {
+    write_ledger_file(current_path, {fixture.entry(1)});
+    const auto files =
+      ccf::find_recovery_snapshot_ledger_files(fixture.ledger_config);
+    REQUIRE(files.size() == 1);
+    REQUIRE(fs::remove(current_path));
+    REQUIRE_THROWS_WITH_AS(
+      ccf::open_recovery_snapshot_ledger_file(files.front()),
+      std::format("Unable to open ledger file {}", current_path.string())
+        .c_str(),
+      std::logic_error);
+  }
+
+  SUBCASE("Missing and short chunk headers are rejected")
+  {
+    write_ledger_file(current_path, {});
+    for (const auto size : {size_t{0}, sizeof(size_t) - 1})
+    {
+      fs::resize_file(current_path, size);
+      REQUIRE_THROWS_WITH_AS(
+        fixture.scan(),
+        std::format("Ledger file {} is too small", current_path.string())
+          .c_str(),
+        std::logic_error);
+    }
+  }
+
+  SUBCASE("Committed chunks must have a positions table")
+  {
+    write_ledger_file(current_path, {fixture.entry(1)});
+    REQUIRE(fixture.scan().endorsements.size() == 1);
+    fs::rename(current_path, committed_path);
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(),
+      std::format(
+        "Committed ledger file {} has no positions table",
+        committed_path.string())
+        .c_str(),
+      std::logic_error);
+  }
+
+  SUBCASE("Positions table offsets must lie within the chunk")
+  {
+    write_ledger_file(committed_path, {fixture.entry(1)}, true);
+    for (const auto offset :
+         {sizeof(size_t) - 1,
+          static_cast<size_t>(fs::file_size(committed_path)) + 1,
+          std::numeric_limits<size_t>::max()})
+    {
+      {
+        std::fstream file(
+          committed_path, std::ios::binary | std::ios::in | std::ios::out);
+        REQUIRE(file);
+        file.write(reinterpret_cast<const char*>(&offset), sizeof(offset));
+        REQUIRE(file);
+      }
+      REQUIRE_THROWS_WITH_AS(
+        fixture.scan(),
+        std::format(
+          "Ledger file {} has invalid positions table offset {}",
+          committed_path.string(),
+          offset)
+          .c_str(),
+        std::logic_error);
+    }
+  }
+}
+
+TEST_CASE("Recovery snapshot ledger reader reports truncation after opening")
+{
+  RecoverySnapshotLedgerFixture fixture;
+  const auto path = fixture.ledger_dir.path / "ledger_1";
+  write_ledger_file(path, {fixture.entry(1)});
+  const ccf::RecoverySnapshotLedgerFile ledger_file{
+    path, 1, std::nullopt, false};
+  auto reader = ccf::open_recovery_snapshot_ledger_file(ledger_file);
+  size_t truncated_size = 0;
+  std::string error;
+
+  SUBCASE("Truncated entry header")
+  {
+    truncated_size = sizeof(size_t);
+    error = "entry header";
+  }
+  SUBCASE("Truncated entry body")
+  {
+    truncated_size =
+      sizeof(size_t) + sizeof(ccf::kv::SerialisedEntryHeader) + 1;
+    error = "complete entry";
+  }
+
+  fs::resize_file(path, truncated_size);
+  // Re-seek to discard bytes buffered while reading the chunk header.
+  reader.file.seekg(sizeof(size_t));
+  REQUIRE(reader.file);
+  REQUIRE_THROWS_WITH_AS(
+    ccf::read_recovery_snapshot_ledger_entry(reader, ledger_file),
+    std::format("Unable to read {} from ledger file {}", error, path.string())
+      .c_str(),
+    std::logic_error);
+}
+
+TEST_CASE("Recovery snapshot ledger scan distinguishes incomplete chunk tails")
+{
+  RecoverySnapshotLedgerFixture fixture;
+  const auto first = fixture.entry(1);
+  const auto current_path = fixture.ledger_dir.path / "ledger_1";
+  const auto committed_path = fixture.ledger_dir.path / "ledger_1-2.committed";
+
+  SUBCASE("Completed chunks stop at the positions table")
+  {
+    write_ledger_file(committed_path, {first, fixture.entry(2)}, true);
+    const auto scan = fixture.scan();
+    REQUIRE(scan.endorsements.size() == 2);
+    REQUIRE(scan.endorsements[0].write_version == 1);
+    REQUIRE(scan.endorsements[1].write_version == 2);
+    REQUIRE(
+      nlohmann::json(scan.endorsements[1].endorsement) ==
+      nlohmann::json(fixture.endorsement));
+  }
+
+  SUBCASE("Incomplete tails are accepted only in mutable chunks")
+  {
+    auto tail = fixture.entry(2);
+    std::string error;
+    SUBCASE("Partial entry header")
+    {
+      tail.resize(sizeof(ccf::kv::SerialisedEntryHeader) - 1);
+      error = "ends with a partial entry header";
+    }
+    SUBCASE("Truncated entry body")
+    {
+      tail.pop_back();
+      error = "contains a truncated entry";
+    }
+    SUBCASE("Zero-length entry body")
+    {
+      const ccf::kv::SerialisedEntryHeader header{};
+      tail.resize(sizeof(header));
+      std::memcpy(tail.data(), &header, sizeof(header));
+      error = "contains a truncated entry";
+    }
+
+    write_ledger_file(current_path, {first, tail});
+    const auto scan = fixture.scan();
+    REQUIRE(scan.endorsements.size() == 1);
+    REQUIRE(scan.endorsements.front().write_version == 1);
+    REQUIRE(
+      nlohmann::json(scan.endorsements.front().endorsement) ==
+      nlohmann::json(fixture.endorsement));
+
+    REQUIRE(fs::remove(current_path));
+    write_ledger_file(committed_path, {first, tail}, true);
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(),
+      std::format("Committed ledger file {} {}", committed_path.string(), error)
+        .c_str(),
+      std::logic_error);
+  }
+}
+
+TEST_CASE("Recovery snapshot ledger scan validates version ranges")
+{
+  RecoverySnapshotLedgerFixture fixture;
+  const auto first = fixture.entry(1);
+  const auto second = fixture.entry(2);
+  const auto third = fixture.entry(3);
+
+  SUBCASE("An empty mutable chunk contains no endorsements")
+  {
+    write_ledger_file(fixture.ledger_dir.path / "ledger_1", {});
+    REQUIRE(fixture.scan().endorsements.empty());
+  }
+
+  SUBCASE("Overlapping chunks and entries before the snapshot are skipped")
+  {
+    write_ledger_file(
+      fixture.ledger_dir.path / "ledger_1-2.committed", {first, second}, true);
+    write_ledger_file(
+      fixture.ledger_dir.path / "ledger_2-3.committed", {second, third}, true);
+    write_ledger_file(
+      fixture.ledger_dir.path / "ledger_3", {third, fixture.entry(4)});
+    const auto scan = fixture.scan(1);
+    REQUIRE(scan.endorsements.size() == 3);
+    for (size_t i = 0; i < scan.endorsements.size(); ++i)
+    {
+      REQUIRE(scan.endorsements[i].write_version == i + 2);
+    }
+    REQUIRE(fixture.scan(4).endorsements.empty());
+  }
+
+  SUBCASE("The first entry must match the filename's start seqno")
+  {
+    const auto path = fixture.ledger_dir.path / "ledger_2";
+    write_ledger_file(path, {first, second});
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(),
+      std::format(
+        "Ledger file {} does not start at its declared seqno 2", path.string())
+        .c_str(),
+      std::logic_error);
+  }
+
+  SUBCASE("The last entry must match the filename's end seqno")
+  {
+    const auto path = fixture.ledger_dir.path / "ledger_1-3.committed";
+    write_ledger_file(path, {first, second}, true);
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(),
+      std::format(
+        "Ledger file {} does not end at its declared seqno 3", path.string())
+        .c_str(),
+      std::logic_error);
+  }
+
+  SUBCASE("A completed chunk cannot claim entries it does not contain")
+  {
+    const auto path = fixture.ledger_dir.path / "ledger_1-1.committed";
+    write_ledger_file(path, {}, true);
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(),
+      std::format(
+        "Ledger file {} does not end at its declared seqno 1", path.string())
+        .c_str(),
+      std::logic_error);
+  }
+
+  SUBCASE("Repeated and skipped versions within a chunk are rejected")
+  {
+    const auto path = fixture.ledger_dir.path / "ledger_1";
+    for (const auto next : {ccf::kv::Version{1}, ccf::kv::Version{3}})
+    {
+      write_ledger_file(path, {first, fixture.entry(next)});
+      REQUIRE_THROWS_WITH_AS(
+        fixture.scan(),
+        std::format(
+          "Ledger file {} contains non-contiguous versions 1 and {}",
+          path.string(),
+          next)
+          .c_str(),
+        std::logic_error);
+    }
+  }
+
+  SUBCASE("Gaps between chunks report the missing suffix seqno")
+  {
+    write_ledger_file(fixture.ledger_dir.path / "ledger_1", {first});
+    write_ledger_file(fixture.ledger_dir.path / "ledger_3", {third});
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(),
+      "Ledger suffix after snapshot is missing seqno 2 (next entry is 3)",
+      std::logic_error);
+  }
+}
+
+TEST_CASE("Recovery snapshot ledger scan rejects seqno overflow")
+{
+  RecoverySnapshotLedgerFixture fixture;
+  const auto max_seqno = std::numeric_limits<ccf::kv::Version>::max();
+
+  SUBCASE("The snapshot seqno must have a successor")
+  {
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(max_seqno),
+      "Snapshot seqno cannot be incremented for ledger scanning",
+      std::logic_error);
+  }
+
+  SUBCASE("The last scanned entry must have a successor")
+  {
+    write_ledger_file(
+      fixture.ledger_dir.path / std::format("ledger_{}", max_seqno),
+      {fixture.entry(max_seqno)});
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(max_seqno - 1),
+      "Ledger seqno overflow while scanning snapshot endorsements",
+      std::logic_error);
+  }
+}
+
+TEST_CASE(
+  "Recovery snapshot ledger entries enforce endorsement table semantics")
+{
+  RecoverySnapshotLedgerFixture fixture;
+  const auto path = fixture.ledger_dir.path / "ledger_1";
+
+  SUBCASE("PQ records do not count as classical endorsements")
+  {
+    write_ledger_file(
+      path,
+      {fixture.entry(1, {ccf::IdentityType::PQ}),
+       fixture.entry(
+         2, {ccf::IdentityType::CLASSICAL, ccf::IdentityType::PQ})});
+    const auto scan = fixture.scan();
+    REQUIRE(scan.endorsements.size() == 1);
+    REQUIRE(scan.endorsements.front().write_version == 2);
+    REQUIRE(
+      nlohmann::json(scan.endorsements.front().endorsement) ==
+      nlohmann::json(fixture.endorsement));
+  }
+
+  SUBCASE("Duplicate classical writes in an entry are rejected")
+  {
+    write_ledger_file(
+      path,
+      {fixture.entry(
+        1, {ccf::IdentityType::CLASSICAL, ccf::IdentityType::CLASSICAL})});
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(),
+      "Invalid previous service identity endorsement table write",
+      std::logic_error);
+  }
+
+  SUBCASE(
+    "Removals from the endorsement table are rejected for either identity")
+  {
+    for (const auto identity :
+         {ccf::IdentityType::CLASSICAL, ccf::IdentityType::PQ})
+    {
+      ccf::kv::RawKvStoreSerialiser serialiser(
+        fixture.encryptor, ccf::TxID{2, 1}, ccf::kv::EntryType::WriteSet, 0);
+      serialiser.start_map(
+        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT,
+        ccf::kv::SecurityDomain::PUBLIC);
+      serialiser.serialise_entry_version(ccf::kv::NoVersion);
+      serialiser.serialise_count_header(0);
+      serialiser.serialise_count_header(0);
+      serialiser.serialise_count_header(1);
+      serialiser.serialise_remove(
+        ccf::PreviousServiceIdentityEndorsement::KeySerialiser::to_serialised(
+          identity));
+      write_ledger_file(path, {serialiser.get_raw_data()});
+      REQUIRE_THROWS_WITH_AS(
+        fixture.scan(),
+        "Unexpected removal from previous service identity endorsement table",
+        std::logic_error);
+    }
+  }
+
+  SUBCASE("Legacy reads and unrelated removals preserve entry traversal")
+  {
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      fixture.encryptor, ccf::TxID{2, 1}, ccf::kv::EntryType::WriteSet, 0);
+    serialiser.start_map("public:unrelated", ccf::kv::SecurityDomain::PUBLIC);
+    serialiser.serialise_entry_version(0);
+    serialiser.serialise_count_header(1);
+    // A legacy read consists of a size-prefixed key and its previous version.
+    serialiser.serialise_raw({0x01});
+    serialiser.serialise_entry_version(0);
+    serialiser.serialise_count_header(0);
+    serialiser.serialise_count_header(1);
+    serialiser.serialise_remove({0x02});
+    write_ledger_file(path, {serialiser.get_raw_data(), fixture.entry(2)});
+    const auto scan = fixture.scan();
+    REQUIRE(scan.endorsements.size() == 1);
+    REQUIRE(scan.endorsements.front().write_version == 2);
+    REQUIRE(
+      nlohmann::json(scan.endorsements.front().endorsement) ==
+      nlohmann::json(fixture.endorsement));
+  }
+}
+
+TEST_CASE("Recovery snapshot ledger scan bounds individual endorsement sizes")
+{
+  RecoverySnapshotLedgerFixture fixture;
+  const auto path = fixture.ledger_dir.path / "ledger_1";
+
+  SUBCASE("The endorsement byte limit is inclusive")
+  {
+    const auto limit = ccf::MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_SIZE;
+    for (const auto extra : {size_t{0}, size_t{1}})
+    {
+      fixture.endorsement.endorsement.resize(limit + extra, 0x01);
+      REQUIRE(
+        ccf::PreviousServiceIdentityEndorsement::ValueSerialiser::to_serialised(
+          fixture.endorsement)
+          .size() < ccf::MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE);
+      write_ledger_file(path, {fixture.entry(1)});
+      if (extra == 0)
+      {
+        const auto scan = fixture.scan();
+        REQUIRE(scan.endorsements.size() == 1);
+        REQUIRE(scan.endorsements.front().write_version == 1);
+        REQUIRE(
+          scan.endorsements.front().endorsement.endorsement ==
+          fixture.endorsement.endorsement);
+      }
+      else
+      {
+        REQUIRE_THROWS_WITH_AS(
+          fixture.scan(),
+          std::format(
+            "Ledger endorsement at 1 is too large ({} bytes; maximum {} bytes)",
+            limit + extra,
+            limit)
+            .c_str(),
+          std::logic_error);
+      }
+    }
+  }
+
+  SUBCASE("The serialised record byte limit is inclusive")
+  {
+    const auto limit = ccf::MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE;
+    fixture.endorsement.endorsing_key.clear();
+    const auto record_overhead =
+      ccf::PreviousServiceIdentityEndorsement::ValueSerialiser::to_serialised(
+        fixture.endorsement)
+        .size();
+    REQUIRE(record_overhead < limit);
+    REQUIRE((limit - record_overhead) % 4 == 0);
+    // The key is base64-encoded in JSON: three bytes produce four characters.
+    const auto key_size = (limit - record_overhead) / 4 * 3;
+    for (const auto extra : {size_t{0}, size_t{1}})
+    {
+      fixture.endorsement.endorsing_key.resize(key_size + extra, 0x02);
+      REQUIRE(
+        ccf::PreviousServiceIdentityEndorsement::ValueSerialiser::to_serialised(
+          fixture.endorsement)
+          .size() == limit + 4 * extra);
+      write_ledger_file(path, {fixture.entry(1)});
+      if (extra == 0)
+      {
+        const auto scan = fixture.scan();
+        REQUIRE(scan.endorsements.size() == 1);
+        REQUIRE(scan.endorsements.front().write_version == 1);
+        REQUIRE(
+          scan.endorsements.front().endorsement.endorsing_key ==
+          fixture.endorsement.endorsing_key);
+      }
+      else
+      {
+        REQUIRE_THROWS_WITH_AS(
+          fixture.scan(),
+          std::format(
+            "Serialised previous service identity endorsement is too large "
+            "({} bytes; maximum {} bytes)",
+            limit + 4 * extra,
+            limit)
+            .c_str(),
+          std::logic_error);
+      }
+    }
+  }
 }
 
 std::optional<fs::path> latest_committed_snapshot_path(const fs::path& dir)
@@ -641,6 +1274,61 @@ TEST_CASE("Rollback before snapshot is committed")
   }
 }
 
+TEST_CASE("Failed snapshot evidence commits do not block later snapshots")
+{
+  ccf::NetworkState network;
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto failing_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *node_kp);
+  network.tables->set_history(history);
+  const ccf::View term = 2;
+  network.tables->initialise_term(term);
+  network.tables->set_consensus(consensus);
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
+
+  ScopedSnapshotDir snapshot_dir;
+
+  size_t snapshot_tx_interval = 10;
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    snapshot_dir.path.string(), network.tables, snapshot_tx_interval);
+
+  INFO("Evidence commits fail for more than the maximum pending snapshots");
+  {
+    // Matches Snapshotter::max_pending_snapshots_count
+    constexpr size_t max_pending_snapshots_count = 5;
+    for (size_t i = 0; i < max_pending_snapshots_count; ++i)
+    {
+      issue_transactions(network, snapshot_tx_interval);
+      const auto snapshot_idx = network.tables->current_version();
+      REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+      snapshotter->commit(snapshot_idx, true);
+
+      network.tables->set_consensus(failing_consensus);
+      run_one_task();
+      network.tables->set_consensus(consensus);
+
+      // Discard the evidence tx which failed to replicate, so that the store
+      // can replicate again
+      network.tables->rollback({term, snapshot_idx}, term);
+      REQUIRE_THROWS_AS(
+        read_latest_snapshot_evidence(network.tables), std::logic_error);
+    }
+  }
+
+  INFO("A later snapshot is still generated");
+  {
+    issue_transactions(network, snapshot_tx_interval);
+    const auto snapshot_idx = network.tables->current_version();
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+    snapshotter->commit(snapshot_idx, true);
+    run_one_task();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+  }
+}
+
 TEST_CASE("Snapshot status updates preserve future queued snapshot")
 {
   ccf::logger::config::default_init();
@@ -826,6 +1514,112 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
         hooks,
         &view_history) == ccf::kv::ApplyResult::PASS);
   }
+}
+
+TEST_CASE("Snapshot receipt")
+{
+  ccf::logger::config::default_init();
+
+  using namespace std::literals;
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  const auto valid_to =
+    ccf::crypto::compute_cert_valid_to_string(valid_from, 365);
+  auto service_kp = ccf::crypto::make_ec_key_pair();
+  const auto service_cert =
+    service_kp->self_sign("CN=Snapshot service", valid_from, valid_to);
+
+  // verify_snapshot() checks the snapshot body against the claims digest of
+  // the receipt leaf without deserialising it, so any bytes serve here
+  const std::vector<uint8_t> snapshot_body(64, 0x42);
+  const auto claims_digest =
+    ccf::crypto::Sha256Hash(snapshot_body.data(), snapshot_body.size());
+  const ccf::crypto::Sha256Hash write_set_digest(
+    std::string("snapshot evidence write set"));
+  const std::string commit_evidence = "ce:2.6:0123456789abcdef";
+
+  // A signed tree whose leaf at evidence_seqno is the snapshot evidence
+  // transaction
+  constexpr ccf::kv::Version evidence_seqno = 6;
+  ccf::MerkleTreeHistory tree;
+  for (ccf::kv::Version seqno = 1; seqno <= evidence_seqno + 2; ++seqno)
+  {
+    if (seqno == evidence_seqno)
+    {
+      tree.append(ccf::crypto::Sha256Hash(
+        write_set_digest,
+        ccf::crypto::Sha256Hash(commit_evidence),
+        claims_digest));
+    }
+    else
+    {
+      tree.append(ccf::crypto::Sha256Hash(std::format("tx {}", seqno)));
+    }
+  }
+  const auto root = tree.get_root();
+  const std::vector<uint8_t> root_bytes(root.h.begin(), root.h.end());
+  ccf::CoseSignatureMap cose_sigs;
+  cose_sigs[ccf::IdentityType::CLASSICAL] = ccf::cose::sign_ledger(
+    *service_kp,
+    ccf::crypto::kid_from_key(service_kp->public_key_der()),
+    0,
+    "issuer",
+    "subject",
+    ccf::TxID{2, tree.end_index() + 1}.to_str(),
+    root_bytes);
+
+  INFO("The receipt carries the signature and the proof of the evidence");
+  const auto receipt = ccf::build_and_serialise_receipt(
+    cose_sigs,
+    ccf::IdentityType::CLASSICAL,
+    tree.serialise(),
+    evidence_seqno,
+    write_set_digest,
+    commit_evidence,
+    claims_digest);
+  const auto decoded = ccf::cose::decode_ccf_receipt(receipt, true);
+  REQUIRE(decoded.merkle_root == root_bytes);
+  REQUIRE(
+    decoded.claims_digest ==
+    std::vector<uint8_t>(claims_digest.h.begin(), claims_digest.h.end()));
+
+  INFO("The receipt verifies under the signing service identity");
+  const ccf::SnapshotSegments segments{snapshot_body, receipt};
+  REQUIRE_NOTHROW(ccf::verify_snapshot(segments));
+  REQUIRE_NOTHROW(ccf::verify_snapshot(segments, service_cert.raw()));
+
+  INFO("The receipt is rejected under another service identity");
+  const auto other_cert = ccf::crypto::make_ec_key_pair()->self_sign(
+    "CN=Other service", valid_from, valid_to);
+  REQUIRE_THROWS(ccf::verify_snapshot(segments, other_cert.raw()));
+
+  INFO("The receipt is rejected for another snapshot body");
+  auto other_body = snapshot_body;
+  other_body.front() ^= 1;
+  REQUIRE_THROWS(
+    ccf::verify_snapshot(ccf::SnapshotSegments{other_body, receipt}));
+
+  INFO("Only COSE receipts are accepted");
+  auto invalid_receipt = receipt;
+  invalid_receipt.front() ^= 1;
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_snapshot(ccf::SnapshotSegments{snapshot_body, invalid_receipt}),
+    "Snapshot receipt is not a COSE_Sign1 receipt",
+    std::logic_error);
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_snapshot(ccf::SnapshotSegments{snapshot_body, {}}),
+    "Empty snapshot receipt",
+    std::logic_error);
+
+  INFO("The receipt requires a signature of the requested identity type");
+  REQUIRE_THROWS(ccf::build_and_serialise_receipt(
+    cose_sigs,
+    ccf::IdentityType::PQ,
+    tree.serialise(),
+    evidence_seqno,
+    write_set_digest,
+    commit_evidence,
+    claims_digest));
 }
 
 int main(int argc, char** argv)

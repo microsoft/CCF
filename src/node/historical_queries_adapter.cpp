@@ -4,65 +4,15 @@
 #include "ccf/historical_queries_adapter.h"
 
 #include "ccf/crypto/cose.h"
+#include "ccf/endpoint_registry.h"
 #include "ccf/historical_queries_utils.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "crypto/cose.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
+#include "node/signature_cache_interface.h"
 #include "node/tx_receipt_impl.h"
-
-#include <format>
-#include <tav/cbor.hpp>
-#include <utility>
-
-namespace
-{
-  tav::cbor::Value encode_leaf_cbor(const ccf::TxReceiptImpl& receipt)
-  {
-    using namespace tav::cbor;
-    std::vector<Value> items;
-
-    // 1 WSD
-    if (!receipt.write_set_digest.has_value())
-    {
-      throw std::logic_error("Write set digest is required for COSE receipts");
-    }
-    items.push_back(make_bytes(receipt.write_set_digest->h));
-
-    // 2. CE
-    if (!receipt.commit_evidence.has_value())
-    {
-      throw std::logic_error("Commit evidence is required for COSE receipts");
-    }
-    items.push_back(make_string(receipt.commit_evidence.value()));
-
-    // 3. CD
-    items.push_back(make_bytes(receipt.claims_digest.value().h));
-
-    return make_array(std::move(items));
-  }
-
-  tav::cbor::Value encode_path_cbor(const ccf::HistoryTree::Path& path)
-  {
-    using namespace tav::cbor;
-    std::vector<Value> items;
-
-    for (const auto& node : path)
-    {
-      const bool dir =
-        (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
-
-      std::span<const uint8_t> hash{node.hash.bytes, node.hash.size()};
-      std::vector<Value> path_element;
-      path_element.push_back(make_simple(boolean_to_simple(dir)));
-      path_element.push_back(make_bytes(hash));
-
-      items.push_back(make_array(std::move(path_element)));
-    }
-    return make_array(std::move(items));
-  }
-}
 
 namespace ccf
 {
@@ -247,19 +197,11 @@ namespace ccf
       return std::nullopt;
     }
 
-    using namespace tav::cbor;
-    std::vector<MapItem> proof;
-
-    proof.emplace_back(
-      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL),
-      encode_leaf_cbor(receipt));
-
-    proof.emplace_back(
-      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL),
-      encode_path_cbor(*receipt.path));
-
-    auto proof_map = make_map(std::move(proof));
-    return proof_map.nondet_serialize();
+    return encode_merkle_proof(
+      receipt.write_set_digest.value(),
+      receipt.commit_evidence.value(),
+      receipt.claims_digest.value(),
+      *receipt.path);
   }
 
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
@@ -301,6 +243,83 @@ namespace ccf
       inclusion_proof, ccf::cose::header::iana::VDP, *proof};
 
     return ccf::cose::edit::set_unprotected_header(*signature, desc);
+  }
+}
+
+namespace ccf::endpoints
+{
+  TxReceiptImplPtr build_receipt_for_committed_tx(
+    ccf::AbstractNodeContext& context, CommittedTxInfo& info)
+  {
+    if (info.commit_evidence.empty())
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        std::format(
+          "Cannot construct receipt for TxID {}: transaction produced no "
+          "write set (read-only transactions do not have receipts)",
+          info.tx_id.to_str()));
+      return nullptr;
+    }
+
+    auto sig_cache = context.get_subsystem<ccf::SignatureCacheInterface>();
+    if (sig_cache == nullptr)
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        "SignatureCacheInterface subsystem is not installed");
+      return nullptr;
+    }
+
+    auto cached_sig = sig_cache->get_signature_for(info.tx_id.seqno);
+    if (!cached_sig.has_value())
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        std::format(
+          "No cached signature found covering TxID {}", info.tx_id.to_str()));
+      return nullptr;
+    }
+
+    // Reconstruct merkle tree from the cached serialised tree and
+    // extract a proof for this specific seqno
+    ccf::MerkleTreeHistory tree(cached_sig->serialised_tree);
+    if (!tree.in_range(info.tx_id.seqno))
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        std::format(
+          "Seqno {} is not in range of cached signature tree",
+          info.tx_id.seqno));
+      return nullptr;
+    }
+    auto proof = tree.get_proof(info.tx_id.seqno);
+
+    std::optional<std::vector<uint8_t>> sig;
+    std::optional<ccf::crypto::Pem> cert;
+    NodeId node{};
+
+    if (cached_sig->sig)
+    {
+      sig = cached_sig->sig->sig;
+      cert = cached_sig->sig->cert;
+      node = cached_sig->sig->node;
+    }
+
+    return std::make_shared<TxReceiptImpl>(
+      sig,
+      cached_sig->cose_signatures,
+      proof.get_root(),
+      proof.get_path(),
+      node,
+      cert,
+      info.write_set_digest,
+      info.commit_evidence,
+      info.claims_digest);
   }
 }
 
@@ -410,6 +429,7 @@ namespace ccf::historical
     {
       case ccf::TxStatus::Unknown:
       case ccf::TxStatus::Pending:
+      {
         error_reason = std::format(
           "Only committed transactions can be queried. Transaction {}.{} "
           "is "
@@ -418,7 +438,9 @@ namespace ccf::historical
           seqno,
           ccf::tx_status_to_str(tx_status));
         return HistoricalTxStatus::PendingOrUnknown;
+      }
       case ccf::TxStatus::Invalid:
+      {
         error_reason = std::format(
           "Only committed transactions can be queried. Transaction {}.{} "
           "is "
@@ -427,7 +449,10 @@ namespace ccf::historical
           seqno,
           ccf::tx_status_to_str(tx_status));
         return HistoricalTxStatus::Invalid;
-      case ccf::TxStatus::Committed:;
+      }
+      case ccf::TxStatus::Committed:
+      {
+      }
     }
 
     return HistoricalTxStatus::Valid;
@@ -484,25 +509,33 @@ namespace ccf::historical
         switch (is_available)
         {
           case HistoricalTxStatus::Error:
+          {
             ehandler(
               HistoricalQueryErrorCode::InternalError,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::PendingOrUnknown:
+          {
             ehandler(
               HistoricalQueryErrorCode::TransactionPending,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::Invalid:
+          {
             ehandler(
               HistoricalQueryErrorCode::TransactionInvalid,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::Valid:
+          {
             break;
+          }
         }
       }
 

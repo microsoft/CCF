@@ -3,7 +3,7 @@
 
 #include "node/jwt_key_auto_refresh.h"
 
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -19,13 +19,15 @@ namespace
     bool accept_keys = true;
     size_t key_updates = 0;
 
-    void set_sig_intervals(size_t, size_t) override {}
     void set_cmd_forwarder(std::shared_ptr<ccf::AbstractForwarder>) override {}
+
     void open() override {}
+
     bool is_open() override
     {
       return true;
     }
+
     void set_consensus_and_history(
       ccf::kv::Consensus*, ccf::kv::TxHistory*) override
     {}

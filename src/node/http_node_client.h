@@ -14,12 +14,8 @@ namespace ccf
   public:
     HTTPNodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map,
-      ccf::crypto::ECKeyPairPtr node_sign_kp,
       std::function<ccf::crypto::Pem()> get_node_certificate_) :
-      NodeClient(
-        std::move(rpc_map),
-        std::move(node_sign_kp),
-        std::move(get_node_certificate_))
+      NodeClient(std::move(rpc_map), std::move(get_node_certificate_))
     {}
 
     ~HTTPNodeClient() override = default;

@@ -8,7 +8,7 @@
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/version.h"
 #include "js/checks.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 #include <algorithm>
 #include <quickjs/quickjs.h>
@@ -18,6 +18,7 @@
 namespace ccf::js::extensions
 {
 #pragma clang diagnostic push
+
   namespace
   {
 
@@ -27,11 +28,6 @@ namespace ccf::js::extensions
       auto data_hex = jsctx.new_string(pal::snp::TcbVersionRaw(tcb).to_hex());
       JS_CHECK_EXC(data_hex);
       return data_hex.take();
-    }
-
-    JSValue JS_NewArrayBuffer2(JSContext* ctx, std::span<const uint8_t> data)
-    {
-      return JS_NewArrayBufferCopy(ctx, data.data(), data.size());
     }
 
     JSValue js_verify_snp_attestation(

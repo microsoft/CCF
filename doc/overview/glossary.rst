@@ -12,11 +12,14 @@ Glossary
     A :ref:`unique string <use_apps/verify_tx:Commit Evidence>` produced per transaction, and included in the Merkle Tree along with the :term:`Write Set` digest and the `claims_digest`. The reveal of that string guarantees the transaction is committed.
 
   CFT
-    Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to
-    a given limit. CFT however does not account for any nodes behaving maliciously. Read more on CFT :ref:`here <architecture/consensus/index:Consensus Protocol>`.
+    Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to a given limit.
+    CFT however does not account for any nodes behaving maliciously.
+    Read more on CFT :ref:`here <architecture/consensus/index:CCF consensus protocol>`.
 
   Enclave
-    `Trusted Execution Environments <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_, allowing fully encrypted and auditable execution without direct access from the host machine.
+    Historical term from CCF's former Intel SGX support, where application code ran in an SGX enclave loaded by an untrusted host process.
+    CCF no longer supports SGX, and a CCF node now runs as a single process inside its :term:`TEE`.
+    Some code identifiers and older documents still use this term.
 
   Members
     Constitute the consortium governing a CCF network. Their public identity should be registered in CCF.
@@ -36,14 +39,11 @@ Glossary
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
 
-  Ring Buffer
-    The ring buffer is a data structure that allows communication between the (unprotected) host and the enclave. Data that is written to one side can be read on the other. Only specific types of messages are supported to make sure each package that goes across is read by the right process in the right way.
-
   REST
     `Representational state transfer <https://en.wikipedia.org/wiki/Representational_state_transfer>`_ is a set of constraints on web APIs, usually implemented over HTTP using JSON as request and response objects exchanged between a requesting client and an implementation server.
 
   RPC
-    `Remote Procedure Call <https://en.wikipedia.org/wiki/Remote_procedure_call>`_ is a way to execute functions in remote machines. CCF uses :term:`REST` host services to allow clients to execute programs inside the :term:`enclave` via the :term:`ring buffer`.
+    `Remote Procedure Call <https://en.wikipedia.org/wiki/Remote_procedure_call>`_ is a way to execute functions in remote machines. CCF exposes :term:`REST` endpoints that allow clients to execute application and governance operations.
 
   Service identity
     The public identity of the CCF service, represented as an X.509 certificate. It is used to authenticate the service to clients and other nodes. See :ref:`here <architecture/cryptography:Service>` for more detail.
@@ -55,7 +55,9 @@ Glossary
     `Transmission Control Protocol <https://en.wikipedia.org/wiki/Transmission_Control_Protocol>`_ is a network protocol over IP that provides sessions and ordered streams, which we use to connect between nodes and external clients.
 
   TEE
-    `Trusted Execution Environment <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_ is a secure area of a main processor. It guarantees code and data loaded inside to be protected with respect to confidentiality and integrity. Often referred to as "enclave".
+    `Trusted Execution Environment <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_ is a hardware-isolated environment that protects the confidentiality and integrity of the code and data loaded inside it, and can produce attestation evidence describing that code.
+    CCF nodes use :term:`SEV-SNP` protected utility VMs as their TEE, which protect the node's memory from the host and hypervisor.
+    The :doc:`Insecure Virtual </operations/platforms/virtual>` platform provides no TEE protection and is for development only.
 
   TLS
     `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is an IETF cryptographic protocol standard designed to secure communications between a client and a server over a computer network.

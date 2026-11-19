@@ -3,13 +3,108 @@
 
 #pragma once
 
+#include "ccf/crypto/curve.h"
+#include "ccf/crypto/md_type.h"
+#include "ccf/crypto/mldsa_parameter_set.h"
+
 #include <cstdint>
+#include <optional>
+#include <span>
 #include <string>
+#include <string_view>
+#include <vector>
+
+namespace ccf::crypto
+{
+  class ECKeyPair;
+  class MLDSAKeyPair;
+}
 
 namespace ccf
 {
   namespace cose
   {
+    std::vector<uint8_t> make_cose_sign1_tbs(
+      std::span<const uint8_t> protected_header,
+      std::span<const uint8_t> payload);
+
+    std::vector<uint8_t> make_cose_sign1_envelope(
+      std::span<const uint8_t> protected_header,
+      std::span<const uint8_t> payload,
+      std::span<const uint8_t> signature,
+      bool detached);
+
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_ledger(
+      const crypto::ECKeyPair& key,
+      std::string_view kid,
+      int64_t iat,
+      std::string_view issuer,
+      std::string_view subject,
+      std::string_view txid,
+      std::span<const uint8_t> payload);
+
+    /// Same protected header, signed with pure ML-DSA over the Sig_structure
+    /// and an empty context (RFC 9964).
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_ledger(
+      const crypto::MLDSAKeyPair& key,
+      std::string_view kid,
+      int64_t iat,
+      std::string_view issuer,
+      std::string_view subject,
+      std::string_view txid,
+      std::span<const uint8_t> payload);
+
+    /// Curve-specific COSE algorithm and digest.
+    struct SigningAlgorithm
+    {
+      int64_t alg;
+      crypto::MDType md;
+    };
+
+    /// @throws std::runtime_error if the curve has no COSE signing algorithm
+    SigningAlgorithm algorithm_for_curve(crypto::CurveID curve);
+
+    /// COSE algorithm of an ML-DSA parameter set (RFC 9964).
+    /// @throws std::runtime_error for an unknown parameter set
+    int64_t algorithm_for_parameter_set(
+      crypto::MLDSAParameterSet parameter_set);
+
+    /// The ML-DSA parameter set of a COSE algorithm, or std::nullopt if alg
+    /// is not an ML-DSA algorithm.
+    std::optional<crypto::MLDSAParameterSet> parameter_set_for_algorithm(
+      int64_t alg);
+
+    /// Signs a COSE_Sign1 endorsement of a previous service identity key
+    /// (payload) with an EC service key. The signature is ECDSA, with the COSE
+    /// algorithm and digest of the key's curve.
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_endorsement(
+      const crypto::ECKeyPair& key,
+      int64_t iat,
+      std::string_view epoch_begin,
+      std::string_view epoch_end,
+      std::span<const uint8_t> previous_merkle_root,
+      std::span<const uint8_t> payload);
+
+    /// Signs a COSE_Sign1 endorsement of a previous service identity key
+    /// (payload) with an ML-DSA service key. The signature is pure ML-DSA
+    /// with an empty context (RFC 9964), with the COSE algorithm of the key's
+    /// parameter set.
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_endorsement(
+      const crypto::MLDSAKeyPair& key,
+      int64_t iat,
+      std::string_view epoch_begin,
+      std::string_view epoch_end,
+      std::span<const uint8_t> previous_merkle_root,
+      std::span<const uint8_t> payload);
+
     namespace header
     {
       namespace iana // https://www.iana.org/assignments/cose/cose.xhtml
@@ -25,15 +120,20 @@ namespace ccf
 
         // https://www.ietf.org/archive/id/draft-ietf-cose-merkle-tree-proofs-18.html#name-cose-header-parameter
         static constexpr int64_t INCLUSION_PROOFS = -1;
+        static constexpr int64_t CONSISTENCY_PROOFS = -2;
       }
+
       namespace custom
       {
         static constexpr std::string_view CCF_V1 = "ccf.v1";
         static constexpr std::string_view TX_ID = "txid";
         static constexpr std::string_view TX_RANGE_BEGIN = "epoch.start.txid";
         static constexpr std::string_view TX_RANGE_END = "epoch.end.txid";
+        static constexpr std::string_view EPOCH_LAST_MERKLE_ROOT =
+          "epoch.end.merkle.root";
       }
     }
+
     namespace value
     {
       // https://www.ietf.org/archive/id/draft-birkholz-cose-receipts-ccf-profile-05.html#section-2
@@ -43,7 +143,47 @@ namespace ccf
       static constexpr std::string_view CT_OCTET_STREAM =
         "application/octet-stream";
     }
+
+    namespace alg // https://www.iana.org/assignments/cose/cose.xhtml
+    {
+      static constexpr int64_t ES256 = -7;
+      static constexpr int64_t ES384 = -35;
+      static constexpr int64_t ES512 = -36;
+      // Fully-specified ECDSA identifiers, RFC 9864.
+      static constexpr int64_t ESP256 = -9;
+      static constexpr int64_t ESP384 = -51;
+      static constexpr int64_t ESP512 = -52;
+      static constexpr int64_t PS256 = -37;
+      static constexpr int64_t PS384 = -38;
+      static constexpr int64_t PS512 = -39;
+      static constexpr int64_t EDDSA = -8;
+      // Fully-specified EdDSA identifier, RFC 9864.
+      static constexpr int64_t ED25519 = -19;
+      // Pure ML-DSA identifiers, RFC 9964.
+      static constexpr int64_t ML_DSA_44 = -48;
+      static constexpr int64_t ML_DSA_65 = -49;
+      static constexpr int64_t ML_DSA_87 = -50;
+    }
+
+    using Signature = std::span<const uint8_t>;
+
+    static bool is_ecdsa_alg(int64_t cose_alg)
+    {
+      // RFC 9864 deprecates the curve-agnostic ES identifiers in favour of the
+      // fully-specified ESP ones. Both are accepted, since the curve, and
+      // therefore the digest, is fixed by the verification key.
+      return cose_alg == alg::ES256 || cose_alg == alg::ES384 ||
+        cose_alg == alg::ES512 || cose_alg == alg::ESP256 ||
+        cose_alg == alg::ESP384 || cose_alg == alg::ESP512;
+    }
+
+    static bool is_rsa_alg(int64_t cose_alg)
+    {
+      return cose_alg == alg::PS256 || cose_alg == alg::PS384 ||
+        cose_alg == alg::PS512;
+    }
   }
+
   namespace cwt::header
   {
     namespace iana // https://www.iana.org/assignments/cwt/cwt.xhtml
@@ -63,6 +203,7 @@ namespace ccf
        */
       static constexpr int64_t IAT = 6;
     }
+
     namespace custom
     {
       static constexpr std::string_view SVN = "svn";

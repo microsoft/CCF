@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "ccf/ds/nonstd.h"
+#include "ccf/ds/net_address.h"
 #include "ccf/http_configuration.h"
 #include "ccf/service/operator_feature.h"
 
@@ -32,11 +32,13 @@ namespace ccf
   struct Endorsement
   {
     Authority authority;
+
     bool operator==(const Endorsement& other) const
     {
       return authority == other.authority;
     }
   };
+
   DECLARE_JSON_TYPE(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
 
@@ -49,6 +51,7 @@ namespace ccf
     std::string rpcport;
     std::string pubport;
   };
+
   DECLARE_JSON_TYPE(NodeInfoNetwork_v1);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v1, rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
@@ -72,6 +75,7 @@ namespace ccf
 
     bool operator==(const RedirectionResolverConfig&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RedirectionResolverConfig);
   DECLARE_JSON_REQUIRED_FIELDS(RedirectionResolverConfig, kind);
   DECLARE_JSON_OPTIONAL_FIELDS(RedirectionResolverConfig, target);
@@ -116,10 +120,13 @@ namespace ccf
       /// contain those features.
       std::set<ccf::endpoints::OperatorFeature> enabled_operator_features;
 
+      // clang-tidy misattributes throwing aggregate initializers to implicit
+      // moves. NOLINTNEXTLINE(bugprone-exception-escape)
       struct Redirections
       {
         RedirectionResolverConfig to_primary;
-        RedirectionResolverConfig to_backup;
+        RedirectionResolverConfig to_backup{
+          RedirectionResolutionKind::NodeByRole, {{"role", "backup"}}};
 
         bool operator==(const Redirections& other) const = default;
       };
@@ -148,6 +155,18 @@ namespace ccf
     /// Node-to-node network interface
     NetInterface node_to_node_interface;
 
+    struct NodeToNodeInterface
+    {
+      NetAddress bind_address;
+      NetAddress published_address;
+
+      bool operator==(const NodeToNodeInterface&) const = default;
+    };
+
+    /// Reserved TLS endpoint metadata; no listener is created.
+    std::optional<NodeToNodeInterface> node_to_node_tls_interface =
+      std::nullopt;
+
     /// RPC interfaces
     RpcInterfaces rpc_interfaces;
   };
@@ -172,79 +191,32 @@ namespace ccf
     forwarding_timeout_ms,
     enabled_operator_features,
     redirections);
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
+    NodeInfoNetwork_v2::NodeToNodeInterface);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    NodeInfoNetwork_v2::NodeToNodeInterface, bind_address);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    NodeInfoNetwork_v2::NodeToNodeInterface, published_address);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
+  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfoNetwork_v2, node_to_node_tls_interface);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {
     NodeInfoNetwork() = default;
+
     NodeInfoNetwork(const NodeInfoNetwork_v2& other) : NodeInfoNetwork_v2(other)
     {}
 
     bool operator==(const NodeInfoNetwork& other) const
     {
       return node_to_node_interface == other.node_to_node_interface &&
+        node_to_node_tls_interface == other.node_to_node_tls_interface &&
         rpc_interfaces == other.rpc_interfaces;
     }
   };
-
-  // Splits a NetAddress ("host:port") into its host and port components. IPv6
-  // literals are expected in bracketed form ("[host]:port"), and the brackets
-  // are stripped from the returned host so that it can be used directly for
-  // resolution, certificate SANs and comparison. A port-less address ("host"
-  // or "[host]") returns the host with an empty port. The inverse of
-  // make_net_address.
-  // See https://www.rfc-editor.org/info/rfc3986/#section-3.2.3
-  inline static std::pair<std::string, std::string> split_net_address(
-    const NodeInfoNetwork::NetAddress& addr)
-  {
-    if (addr.starts_with('['))
-    {
-      // Only treat as a bracketed IPv6 literal if it is well-formed, i.e.
-      // exactly "[host]" or "[host]:port". Anything else (e.g.
-      // "[::1]foo:8000") falls through to the generic parsing below rather
-      // than being silently mis-parsed.
-      const auto close = addr.find(']');
-      if (
-        close != std::string::npos &&
-        (close + 1 == addr.size() || addr[close + 1] == ':'))
-      {
-        std::string host = addr.substr(1, close - 1);
-        std::string port;
-        if (close + 1 < addr.size())
-        {
-          port = addr.substr(close + 2);
-        }
-        return std::make_pair(std::move(host), std::move(port));
-      }
-    }
-
-    // rsplit_1 splits on the last ':'. When the address has no port it returns
-    // ("", addr), which would wrongly put the host in the port slot; handle the
-    // port-less case explicitly so the host stays in the first position.
-    if (!addr.contains(':'))
-    {
-      return std::make_pair(addr, std::string());
-    }
-
-    auto [host, port] = ccf::nonstd::rsplit_1(addr, ":");
-    return std::make_pair(std::string(host), std::string(port));
-  }
-
-  // Combines a host and port into a NetAddress ("host:port"). IPv6 literals
-  // (hosts containing ':') are wrapped in brackets to produce an unambiguous,
-  // URL-safe "[host]:port" form. Idempotent for already-bracketed hosts. The
-  // inverse of split_net_address.
-  inline static NodeInfoNetwork::NetAddress make_net_address(
-    const std::string& host, const std::string& port)
-  {
-    if (host.contains(':') && !host.starts_with('['))
-    {
-      return std::format("[{}]:{}", host, port);
-    }
-    return std::format("{}:{}", host, port);
-  }
 
   // All NodeInfoNetwork read that may lead to re-serialization for
   // write purposes must be v2 by now, so we only serialize as v2.
@@ -269,7 +241,9 @@ namespace ccf
       try
       {
         if (
-          j.contains("rpc_interfaces") || j.contains("node_to_node_interface"))
+          j.contains("rpc_interfaces") ||
+          j.contains("node_to_node_interface") ||
+          j.contains("node_to_node_tls_interface"))
         {
           // If these v2 fields are present, rethrow the error - the JSON is
           // malformed for v2. Only proceed to parse as v1 if these fields are

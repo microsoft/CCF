@@ -1,0 +1,5 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_timeout_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_timeout_3.out
+@@ -2 +2 @@
+-RDP_TRACE {"batch":0,"kind":"send","message":"gossip","node":"0","pre_version":23,"sequence":1,"target":"0","txid":"2.22"}
++RDP_TRACE {"batch":0,"kind":"send","message":"gossip","node":"0","pre_version":23,"sequence":1,"target":"0","txid":"2.23"}

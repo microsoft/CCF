@@ -51,7 +51,19 @@ Finally, the ledger can be iterated over. For each transaction in the ledger, th
     :start-after: SNIPPET_START: iterate_over_ledger
     :end-before: SNIPPET_END: iterate_over_ledger
 
-.. tip:: The integrity of the ledger is automatically verified when iterating over transactions.
+To verify ledger integrity, pass each transaction to a ``LedgerValidator``:
+
+.. code-block:: python
+
+    validator = ccf.ledger.LedgerValidator()
+    for chunk in ledger:
+        for transaction in chunk:
+            validator.add_transaction(transaction)
+
+``LedgerValidator`` automatically prunes its Merkle tree to limit memory use when verifying large ledgers.
+
+For trees used directly, ``ccf.merkletree.MerkleTree.flush(index)`` discards leaves before ``index`` without changing the root.
+New leaves can still be appended.
 
 .. _read_ledger.py:
 
@@ -131,9 +143,9 @@ An example of how to read and verify entries on the ledger can be found in :ccf_
 Since every vote request is signed by the voting member, verified by the primary node and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
 
  1. Read and store the member certificates
- 2. Read an entry from the ``public:ccf.gov.history`` table (each entry in the table contains the member id of the voting member, along with their latest signed request)
+ 2. Read an entry from the ``public:ccf.gov.cose_history`` table (each entry in the table contains the member id of the voting member, along with their latest COSE Sign1 signed request)
  3. Create a public key using the certificate of the voting member (which was stored on step 1)
- 4. Verify the signature using the public key and the raw request
+ 4. Verify the COSE Sign1 signature using the public key. Proposal creation entries have a detached payload, so the proposal body must first be read from the ``public:ccf.gov.proposals`` table in the same transaction and supplied as the detached payload. Entries written by older versions of CCF embed the proposal payload instead, and the example accepts both forms
  5. Repeat steps 2 - 4 until all voting history entries have been read
 
 ``ledger_code.py`` command line utility
@@ -190,3 +202,5 @@ API
 
 .. automodule:: ccf.receipt
     :members:
+
+.. autofunction:: ccf.cose.verify_receipt

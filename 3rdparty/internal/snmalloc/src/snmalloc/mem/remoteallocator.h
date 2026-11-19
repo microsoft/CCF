@@ -2,6 +2,7 @@
 
 #include "freelist_queue.h"
 #include "snmalloc/stl/new.h"
+#include "snmalloc/stl/utility.h"
 
 namespace snmalloc
 {
@@ -112,8 +113,15 @@ namespace snmalloc
       address_t key_tweak,
       Domesticator_queue domesticate)
     {
+      /*
+       * The next field of the free ring holds the bit-packed (displacement,
+       * length) word written by mk_from_freelist_builder, not a pointer, so
+       * it must be read raw rather than through the domesticator (which may
+       * reject anything outside the heap, as FixedRangeConfig's does).  The
+       * pointer derived from it below is domesticated separately.
+       */
       uintptr_t encoded =
-        m->free_ring.read_next(key, key_tweak, domesticate).unsafe_uintptr();
+        m->free_ring.read_next_raw(key, key_tweak).unsafe_uintptr();
 
       uint16_t decoded_size =
         static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
@@ -155,8 +163,9 @@ namespace snmalloc
       address_t key_tweak,
       Domesticator_queue domesticate)
     {
+      // See open_free_ring: this is a bit-packed word, not a pointer.
       uintptr_t encoded =
-        m->free_ring.read_next(key, key_tweak, domesticate).unsafe_uintptr();
+        m->free_ring.read_next_raw(key, key_tweak).unsafe_uintptr();
 
       uint16_t decoded_size =
         static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
@@ -312,19 +321,23 @@ namespace snmalloc
       list.invariant();
     }
 
-    void init()
+    template<
+      typename Domesticator_head,
+      typename Domesticator_queue,
+      typename Cb>
+    void drain_and_reset(
+      Domesticator_head domesticate_head,
+      Domesticator_queue domesticate_queue,
+      Cb cb)
     {
-      list.init();
-    }
-
-    template<typename Domesticator_queue, typename Cb>
-    void destroy_and_iterate(Domesticator_queue domesticate, Cb cb)
-    {
-      auto cbwrap = [cb](freelist::HeadPtr p) SNMALLOC_FAST_PATH_LAMBDA {
+      auto cbwrap = [&cb](freelist::HeadPtr p) SNMALLOC_FAST_PATH_LAMBDA {
         cb(RemoteMessage::from_message_link(p));
       };
 
-      return list.destroy_and_iterate(domesticate, cbwrap);
+      return list.drain_and_reset(
+        stl::move(domesticate_head),
+        stl::move(domesticate_queue),
+        stl::move(cbwrap));
     }
 
     inline bool can_dequeue()
@@ -338,14 +351,17 @@ namespace snmalloc
      *
      * The Domesticator here is used only on pointers read from the head.  See
      * the commentary on the class.
+     *
+     * Returns true if this enqueue started a new queue generation, or false if
+     * it appended to an existing chain.
      */
     template<typename Domesticator_head>
-    void enqueue(
+    bool enqueue(
       capptr::Alloc<RemoteMessage> first,
       capptr::Alloc<RemoteMessage> last,
       Domesticator_head domesticate_head)
     {
-      list.enqueue(
+      return list.enqueue(
         RemoteMessage::to_message_link(first),
         RemoteMessage::to_message_link(last),
         domesticate_head);

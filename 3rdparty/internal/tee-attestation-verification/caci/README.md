@@ -41,3 +41,6 @@ let verified_report_data = tav::verify_caci_attestation(
     minimum_uvm_svn,
 )?;
 ```
+
+`verify_uvm_endorsement` parses the endorsement before anything authenticates
+it, and its size is unchecked: bound untrusted input before calling.

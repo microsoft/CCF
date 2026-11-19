@@ -46,7 +46,6 @@ The ``app.json`` file of an app bundle has the following structure:
           "post": {
             "js_module": "app.js",
             "js_function": "foo_post",
-            "forwarding_required": "never",
             "authn_policies": ["user_cert"],
             "mode": "readonly",
             "openapi": {
@@ -63,10 +62,8 @@ The ``app.json`` file of an app bundle has the following structure:
 Each endpoint object contains the following information:
 
 - ``"js_module"``: The path to the module containing the endpoint handler, relative to the ``src/`` folder.
-- ``"js_function"``: The name of the endpoint handler function. This must be the name of a function exported by
-  the ``js_module``.
-- ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth/index:User Authentication>` to be applied before the endpoint
-  is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
+- ``"js_function"``: The name of the endpoint handler function. This must be the name of a function exported by the ``js_module``.
+- ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth/index:User Authentication>` to be applied before the endpoint is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
 
   - ``"user_cert"``
   - ``"member_cert"``
@@ -93,11 +90,14 @@ Each endpoint object contains the following information:
           ]
         }
 
-- ``"forwarding_required"``: A string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
+- ``"forwarding_required"``: An optional, deprecated string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
 
   - ``"always"``
   - ``"sometimes"``
   - ``"never"``
+
+  When omitted, the legacy forwarding policy is inferred from ``"redirection_strategy"``: ``"to_primary"`` implies ``"always"``, while ``"none"`` and ``"to_backup"`` imply ``"never"``. If neither field is supplied, the defaults are ``"to_primary"`` and ``"always"``. Explicit legacy policies, including ``"sometimes"``, are preserved in stored records and governance responses. Forwarding is deprecated and will be removed in CCF 8.0.
+  New applications should explicitly set ``"redirection_strategy"`` to ``"none"``, ``"to_primary"``, or ``"to_backup"`` as appropriate, and enable redirects on their interfaces. Use version-matched application bundles when upgrading from older releases which require ``"forwarding_required"``. See :doc:`/releases/fwd_to_redirect`.
 
 - ``"mode"``: A string indicating whether the endpoint requires read/write or read-only access to the Key-Value Store, or whether it is a historical endpoint that sees the state written in a specific transaction. Possible values are:
 
@@ -105,12 +105,10 @@ Each endpoint object contains the following information:
   - ``"readonly"``
   - ``"historical"``
 
-.. note:: "sometimes" is a good default value for most endpoints. The node that receives the request will forward only to preserve session consistency (a previous transaction was already forwarded), or because the transaction cannot be executed locally (it involves a write, and the node is a backup). "always" is a good setting for endpoints that always write to the KV, because it saves attempting the transaction on a backup before forwarding.
+.. note:: The explicit legacy policy ``"sometimes"`` forwards only to preserve session consistency (a previous transaction was already forwarded), or because the transaction cannot be executed locally (it involves a write, and the node is a backup). New applications should select an appropriate redirection strategy instead.
    
-- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_
-  without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
-  enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
-  types of the endpoint's requests or responses.
+- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ without `references <https://swagger.io/specification/#reference-object>`_.
+  This is descriptive but not enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the types of the endpoint's requests or responses.
 
 You can find an example metadata file at :ccf_repo:`tests/js-app-bundle/app.json` in the CCF git repository.
 
@@ -120,8 +118,7 @@ JavaScript API
 Globals
 ~~~~~~~
 
-JavaScript provides a set of built-in
-`global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
+JavaScript provides a set of built-in `global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
 
 CCF provides the additional global variable ``ccf`` to access native CCF functionality.
 It is an object implementing the :typedoc-interface:`CCF <ccf-app/global/CCF>` interface.
@@ -142,7 +139,9 @@ See the following handler from the example app bundle in the :ccf_repo:`tests/js
 Accessing the current date and time
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Code executing inside the enclave does not have access to a trusted time source. ``Date.now()`` returns the current time provided by the untrusted host. The accuracy of this time is not covered by attestation, so it should not be relied upon for tamper-proof ordering.
+Code executing inside the node's TEE does not have access to a trusted time source.
+``Date.now()`` returns the current time provided by the node's operating system clock, which the untrusted host can influence.
+The accuracy of this time is not covered by attestation, so it should not be relied upon for tamper-proof ordering.
 
 In many places where timestamps are desired, they should come from the outside with user requests - the accuracy of this timestamp is then considered a claim by a specific user, and the application logic is a purely functional transformation of those external inputs which does not generate unique claims of its own.
 
@@ -161,7 +160,9 @@ These are designed to aid debugging, as a starting point for building operationa
 
 .. note:: The execution time is only precise within a few milliseconds, and relies on the time provided by the untrusted host. It should be used for comparing the execution time between different requests, and as an approximation of real execution time, but will not help distinguish requests which complete in under 1ms.
 
-Some applications may not wish to log this information to the untrusted host (for example, if the frequency of each request type is considered confidential). This logging can be disabled by a call to ``ccf.enableMetricsLogging(false)`` at any point in the application code. This could be at the global scope to disable this logging for all calls, or within a single request handler to selectively mute that request.
+Some applications may not wish to expose this information in node logs, which are written outside the TEE and are visible to the untrusted host (for example, if the frequency of each request type is considered confidential).
+This logging can be disabled by a call to ``ccf.enableMetricsLogging(false)`` at any point in the application code.
+This could be at the global scope to disable this logging for all calls, or within a single request handler to selectively mute that request.
 
 Deployment
 ----------
@@ -183,7 +184,6 @@ For instance a proposal which deploys the example app above would look like:
                     "post": {
                       "js_module": "math.js",
                       "js_function": "compute",
-                      "forwarding_required": "never",
                       "authn_policies": [
                         "user_cert"
                       ],
@@ -269,7 +269,6 @@ For instance a proposal which deploys the example app above would look like:
                     "get": {
                       "js_module": "math.js",
                       "js_function": "compute2",
-                      "forwarding_required": "never",
                       "authn_policies": [
                         "user_cert"
                       ],

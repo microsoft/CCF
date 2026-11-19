@@ -28,17 +28,25 @@ struct std::formatter<Example> : std::formatter<std::string_view>
     switch (e)
     {
       case Example::A:
+      {
         name = "A";
         break;
+      }
       case Example::B:
+      {
         name = "B";
         break;
+      }
       case Example::C:
+      {
         name = "C";
         break;
+      }
       case Example::D:
+      {
         name = "D";
         break;
+      }
     }
     return std::formatter<std::string_view>::format(name, ctx);
   }

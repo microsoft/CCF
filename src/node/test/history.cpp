@@ -3,15 +3,17 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "service/tables/signatures.h"
 #include "service/tables/signing_identities.h"
@@ -97,7 +99,7 @@ TEST_CASE("Check signature verification")
       primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -108,7 +110,7 @@ TEST_CASE("Check signature verification")
       backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   backup_store.set_history(backup_history);
   backup_store.initialise_term(store_term);
 
@@ -168,7 +170,7 @@ TEST_CASE("Check signature verification")
   }
 }
 
-TEST_CASE("Check signature verification with published signing identities")
+TEST_CASE("Check signature verification with the signing identities table")
 {
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   auto node_kp = ccf::crypto::make_ec_key_pair();
@@ -183,7 +185,7 @@ TEST_CASE("Check signature verification with published signing identities")
     primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -200,32 +202,31 @@ TEST_CASE("Check signature verification with published signing identities")
 
   ccf::Nodes nodes(ccf::Tables::NODES);
   ccf::Service service(ccf::Tables::SERVICE);
+  const auto service_cert =
+    service_kp->self_sign("CN=Service", valid_from, valid_to);
   {
     auto tx = primary_store.create_tx();
     ccf::NodeInfo node_info;
     node_info.encryption_pub_key = node_kp->public_key_pem();
     node_info.cert = self_signed;
     tx.rw(nodes)->put(ccf::kv::test::PrimaryNodeId, node_info);
-    tx.rw(service)->put(ccf::ServiceInfo{
-      .cert = service_kp->self_sign("CN=Service", valid_from, valid_to)});
+    tx.rw(service)->put(ccf::ServiceInfo{.cert = service_cert});
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
+  INFO("An empty table falls back to the service certificate");
   primary_history->emit_signature();
   REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
 
   auto tx = primary_store.create_tx();
   auto* signing_identities =
     tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES);
-  signing_identities->put(
-    ccf::IdentityType::CLASSICAL,
-    {ccf::IdentityKind::X509_SPKI_DER, service_kp->public_key_der()});
 
-  SUBCASE("Published signing identity takes precedence over the certificate")
+  SUBCASE("A published signing identity verifies")
   {
-    const auto other_key = ccf::crypto::make_ec_key_pair();
-    tx.rw(service)->put(ccf::ServiceInfo{
-      .cert = other_key->self_sign("CN=Other", valid_from, valid_to)});
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(service_cert));
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     primary_history->emit_signature();
@@ -233,8 +234,36 @@ TEST_CASE("Check signature verification with published signing identities")
       consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
   }
 
-  SUBCASE("Published signing identity works without legacy service information")
+  SUBCASE("A legacy public key entry verifies")
   {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_SPKI_DER, service_kp->public_key_der()});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    primary_history->emit_signature();
+    REQUIRE(
+      consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+  }
+
+  SUBCASE("A signing identity for another key fails verification")
+  {
+    const auto other_key = ccf::crypto::make_ec_key_pair();
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(
+        other_key->self_sign("CN=Other", valid_from, valid_to)));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    primary_history->emit_signature();
+    REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::FAIL);
+  }
+
+  SUBCASE("A published signing identity verifies without service information")
+  {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(service_cert));
     tx.rw(service)->clear();
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
@@ -243,27 +272,91 @@ TEST_CASE("Check signature verification with published signing identities")
       consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
   }
 
-  SUBCASE("Failed verification does not retry the legacy certificate")
+  SUBCASE("Missing service information fails verification without an entry")
   {
-    signing_identities->put(
-      ccf::IdentityType::CLASSICAL,
-      {ccf::IdentityKind::X509_SPKI_DER,
-       ccf::crypto::make_ec_key_pair()->public_key_der()});
+    tx.rw(service)->clear();
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     primary_history->emit_signature();
     REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::FAIL);
   }
+}
 
-  SUBCASE("Malformed signing keys do not retry the legacy certificate")
+TEST_CASE("Signing identity carries an ML-DSA key next to the classical key")
+{
+  if (!ccf::crypto::mldsa_supported())
   {
-    signing_identities->put(
-      ccf::IdentityType::CLASSICAL,
-      {ccf::IdentityKind::X509_SPKI_DER, std::vector<uint8_t>{1, 2, 3}});
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-
-    REQUIRE_THROWS(primary_history->emit_signature());
+    return;
   }
+
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
+  auto pq_service_kp =
+    ccf::crypto::make_mldsa_key_pair(ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+  const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);
+  const auto service_cert =
+    service_kp->self_sign("CN=Service", valid_from, valid_to);
+  const auto pq_service_cert =
+    pq_service_kp->self_sign("CN=Service", valid_from, valid_to);
+
+  ccf::kv::Store primary_store;
+  primary_store.set_encryptor(encryptor);
+  constexpr auto store_term = 2;
+  auto primary_history = std::make_shared<ccf::MerkleTxHistory>(
+    primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
+  primary_history->set_endorsed_certificate(self_signed);
+  primary_history->set_service_signing_identity(
+    service_kp, pq_service_kp, ccf::COSESignaturesConfig{});
+  primary_store.set_history(primary_history);
+  primary_store.initialise_term(store_term);
+
+  INFO("The history keeps the ML-DSA key");
+  const std::weak_ptr<ccf::crypto::MLDSAKeyPair> retained_pq_service_kp =
+    pq_service_kp;
+  pq_service_kp.reset();
+  REQUIRE_FALSE(retained_pq_service_kp.expired());
+
+  ccf::kv::Store backup_store;
+  backup_store.set_encryptor(encryptor);
+  auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
+    backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
+  backup_store.set_history(backup_history);
+  backup_store.initialise_term(store_term);
+  backup_store.set_consensus(std::make_shared<DummyConsensus>(nullptr));
+
+  auto consensus = std::make_shared<DummyConsensus>(&backup_store);
+  primary_store.set_consensus(consensus);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  ccf::Service service(ccf::Tables::SERVICE);
+  ccf::SigningIdentities signing_identities(ccf::Tables::SIGNING_IDENTITIES);
+  {
+    auto tx = primary_store.create_tx();
+    ccf::NodeInfo node_info;
+    node_info.encryption_pub_key = node_kp->public_key_pem();
+    node_info.cert = self_signed;
+    tx.rw(nodes)->put(ccf::kv::test::PrimaryNodeId, node_info);
+    tx.rw(service)->put(
+      ccf::ServiceInfo{.cert = service_cert, .pq_cert = pq_service_cert});
+    auto* identities = tx.rw(signing_identities);
+    identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(service_cert));
+    identities->put(
+      ccf::IdentityType::PQ, ccf::signing_identity_from_cert(pq_service_cert));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  INFO("The classical signature is emitted and verified on the backup");
+  primary_history->emit_signature();
+  REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+
+  auto tx = backup_store.create_read_only_tx();
+  auto* cose_signatures =
+    tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+  REQUIRE(cose_signatures->get(ccf::IdentityType::CLASSICAL).has_value());
 }
 
 TEST_CASE("Check signing works across rollback")
@@ -284,7 +377,7 @@ TEST_CASE("Check signing works across rollback")
       primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -294,7 +387,7 @@ TEST_CASE("Check signing works across rollback")
       backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   backup_store.set_history(backup_history);
   backup_store.set_encryptor(encryptor);
   backup_store.initialise_term(store_term);
@@ -452,7 +545,7 @@ TEST_CASE("Pending signatures retain their endorsed certificate")
     store, ccf::kv::test::PrimaryNodeId, *node_kp);
   history->set_endorsed_certificate(first_cert);
   history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   store.set_history(history);
 
   constexpr auto store_term = 2;
@@ -500,6 +593,68 @@ TEST_CASE("Pending signatures retain their endorsed certificate")
 
   updater.request_stop();
   updater.join();
+}
+
+TEST_CASE("Signatures are not emitted on demand until signing is enabled")
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
+
+  const auto node_cert = node_kp->self_sign("CN=Node", valid_from, valid_to);
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  store.set_consensus(consensus);
+
+  // With an interval of 1, a single transaction makes try_emit_signature()
+  // immediately eligible to sign
+  constexpr size_t sig_tx_interval = 1;
+  constexpr size_t sig_ms_interval = 1000;
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    store,
+    ccf::kv::test::PrimaryNodeId,
+    *node_kp,
+    sig_tx_interval,
+    sig_ms_interval);
+  history->set_endorsed_certificate(node_cert);
+  history->set_service_signing_identity(
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
+  store.set_history(history);
+
+  constexpr auto store_term = 2;
+  store.initialise_term(store_term);
+
+  MapT table("public:table");
+
+  auto get_signature = [&]() {
+    auto tx = store.create_read_only_tx();
+    return tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get();
+  };
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(table)->put(0, 1);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(consensus->number_of_replicas() == 1);
+  REQUIRE(store.committable_gap() == 1);
+
+  INFO("No signature before start_signature_emit_timer(), despite the gap");
+  history->try_emit_signature();
+  REQUIRE(consensus->number_of_replicas() == 1);
+  REQUIRE_FALSE(get_signature().has_value());
+
+  INFO("Signature emitted on demand once signing is enabled");
+  history->start_signature_emit_timer();
+  history->try_emit_signature();
+  REQUIRE(consensus->number_of_replicas() == 2);
+  REQUIRE(store.committable_gap() == 0);
+  const auto signature = get_signature();
+  REQUIRE(signature.has_value());
+  REQUIRE(signature->cert == node_cert);
 }
 
 struct PausedSignatureCommit

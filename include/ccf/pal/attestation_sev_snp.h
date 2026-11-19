@@ -121,6 +121,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t snp = 0;
     uint8_t microcode = 0;
   };
+
   static_assert(
     sizeof(TcbVersionMilanGenoa) == snp_tcb_version_size,
     "Milan/Genoa TCB version size mismatch");
@@ -134,6 +135,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t reserved[3];
     uint8_t microcode = 0;
   };
+
   static_assert(
     sizeof(TcbVersionTurin) == snp_tcb_version_size,
     "Turin TCB version size mismatch");
@@ -218,6 +220,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       return valid;
     }
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TcbVersionPolicy);
   DECLARE_JSON_REQUIRED_FIELDS(TcbVersionPolicy);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -249,6 +252,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         static_cast<const uint8_t*>(underlying_data),
         static_cast<const uint8_t*>(underlying_data) + snp_tcb_version_size};
     }
+
     [[nodiscard]] std::string to_hex() const
     {
       auto data = this->data();
@@ -256,6 +260,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       std::reverse(data.begin(), data.end());
       return ccf::ds::to_hex(data);
     }
+
     static TcbVersionRaw from_hex(const std::string& hex)
     {
       auto data = ccf::ds::from_hex(hex);
@@ -303,9 +308,11 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
             .fmc = tcb.fmc};
         }
         default:
+        {
           throw std::logic_error(std::format(
             "Unsupported SEV-SNP product for TCB version policy: {}",
             std::to_underlying(product)));
+        }
       }
     }
 
@@ -319,14 +326,17 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       return reinterpret_cast<TcbVersionTurin*>(this);
     }
   };
+
   static_assert(
     sizeof(TcbVersionRaw) == snp_tcb_version_size,
     "TCB version raw size mismatch");
 #pragma pack(push, 1)
+
   inline void to_json(nlohmann::json& j, const TcbVersionRaw& tcb_version)
   {
     j = tcb_version.to_hex();
   }
+
   inline void from_json(const nlohmann::json& j, TcbVersionRaw& tcb_version_raw)
   {
     if (!j.is_string())
@@ -336,6 +346,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     }
     tcb_version_raw = TcbVersionRaw::from_hex(j.get<std::string>());
   }
+
   inline std::string schema_name(const TcbVersionRaw& tcb_version)
   {
     (void)tcb_version;
@@ -348,6 +359,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t s[72];
     uint8_t reserved[512 - 144];
   };
+
 #pragma pack(pop)
 
   // Table 105
@@ -359,6 +371,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   };
 
 #pragma pack(push, 1)
+
   // Table 8
   struct GuestPolicy
   {
@@ -371,6 +384,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t single_socket : 1;
     uint64_t reserved2 : 43;
   };
+
 #pragma pack(pop)
   static_assert(
     sizeof(GuestPolicy) == sizeof(uint64_t),
@@ -379,6 +393,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
   static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
 
 #pragma pack(push, 1)
+
   struct Flags
   {
     uint8_t author_key_en : 1;
@@ -386,11 +401,13 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t signing_key : 3;
     uint64_t reserved : 27;
   };
+
 #pragma pack(pop)
   static_assert(
     sizeof(Flags) == sizeof(uint32_t), "Cannot cast Flags to uint32_t");
 
 #pragma pack(push, 1)
+
   // Table 22
   struct PlatformInfo
   {
@@ -398,6 +415,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     uint8_t tsme_en : 1;
     uint64_t reserved : 62;
   };
+
 #pragma pack(pop)
   static_assert(
     sizeof(PlatformInfo) == sizeof(uint64_t),
@@ -469,6 +487,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         "Unsupported SEV-SNP product: {}", std::to_underlying(product)));
     }
   };
+
 #pragma pack(pop)
 
   // Reports are allocated in Rust and must be freed through TAV, not C++
@@ -687,6 +706,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
   [[deprecated("Use the AttestationReport overload")]]
   static EndorsementEndpointsConfiguration
   make_endorsement_endpoint_configuration(
@@ -711,6 +731,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
 
     virtual ~AttestationInterface() = default;
   };
+
 #pragma GCC diagnostic pop
 
 }

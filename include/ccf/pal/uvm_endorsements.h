@@ -21,6 +21,7 @@ namespace ccf::pal
       return std::format("did: {}, feed: {}, svn: {}", did, feed, svn);
     }
   };
+
   DECLARE_JSON_TYPE(UVMEndorsements);
   DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsements, did, feed, svn);
 

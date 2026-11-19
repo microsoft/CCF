@@ -5,7 +5,7 @@
 
 #include "ccf/ds/join.h"
 #include "ccf/ds/quote_info.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 #include <format>
 

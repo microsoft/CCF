@@ -60,7 +60,7 @@ namespace ccf::kv::test
       return state == Primary;
     }
 
-    virtual bool is_at_max_capacity() override
+    virtual bool should_apply_backpressure() override
     {
       return false;
     }
@@ -198,7 +198,9 @@ namespace ccf::kv::test
     }
 
     void recv_message(
-      const NodeId& from, const uint8_t* data, size_t size) override
+      const NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> payload = {}) override
     {}
 
     void add_configuration(
@@ -219,6 +221,10 @@ namespace ccf::kv::test
     {
       return ConsensusDetails{{}, {}, MembershipState::Active};
     }
+
+    void trace_retired_committed_tx(
+      ccf::SeqNo seqno, const std::vector<NodeId>& node_ids) override
+    {}
 
     void set_last_signature_at(ccf::SeqNo seqno)
     {

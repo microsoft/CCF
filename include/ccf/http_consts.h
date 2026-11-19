@@ -33,6 +33,8 @@ namespace ccf
       static constexpr auto CCF_SNAPSHOT_NAME = "x-ms-ccf-snapshot-name";
       static constexpr auto CCF_LEDGER_CHUNK_NAME =
         "x-ms-ccf-ledger-chunk-name";
+      static constexpr auto CCF_LEDGER_CHUNK_KIND =
+        "x-ms-ccf-ledger-chunk-kind";
     }
 
     namespace headervalues::contenttype

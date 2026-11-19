@@ -22,6 +22,7 @@ namespace ccf::pal
     }
 
     AttestationReportData() = default;
+
     AttestationReportData(std::span<const uint8_t> data)
     {
       if (data.size() != size())

@@ -5,7 +5,8 @@ import json
 import os
 import random
 import tempfile
-from datetime import datetime, timezone
+import time
+from datetime import UTC, datetime
 from hashlib import sha256
 
 import governance_api
@@ -191,6 +192,26 @@ def test_node_data(network, args):
             new_node_info = nodes[untrusted_node.node_id]
             assert new_node_info["node_data"] == new_node_data, new_node_info
 
+            # The node data file is read once, when the node is created, so
+            # removing it must not stop a pending node from retrying its join.
+            # Each accepted retry rewrites the pending entry on the primary
+            # (advancing last_written), so wait for one and check that the node
+            # is still running. The primary keeps the node data from the first
+            # join request, so retries cannot change the recorded data.
+            ntf.close()
+            previous_write = new_node_info["last_written"]
+            deadline = time.time() + 10 * args.join_timer_s
+            while True:
+                nodes = get_nodes()
+                assert untrusted_node.node_id in nodes, nodes
+                new_node_info = nodes[untrusted_node.node_id]
+                if new_node_info["last_written"] > previous_write:
+                    break
+                assert time.time() < deadline, new_node_info
+                time.sleep(0.1)
+            assert not untrusted_node.remote.check_done(timeout=0)
+            assert new_node_info["status"] == "Pending", new_node_info
+
             # Set modified node data
             new_node_data["previous_locations"] = [new_node_data["location"]]
             new_node_data["location"] = "Secret Base"
@@ -346,7 +367,7 @@ def test_ack_state_digest_update(network, args):
 @reqs.description("Renew certificates of all nodes, one by one")
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
@@ -470,7 +491,7 @@ def test_service_cert_renewal(network, args, valid_from=None):
     return renew_service_certificate(
         network,
         args,
-        valid_from=valid_from or datetime.now(timezone.utc),
+        valid_from=valid_from or datetime.now(UTC),
         validity_period_days=args.maximum_service_certificate_validity_days - 1,
     )
 
@@ -479,7 +500,7 @@ def test_service_cert_renewal(network, args, valid_from=None):
 def test_service_cert_renewal_extended(network, args):
     validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     test_vectors = [
         (now, None, None),  # Omit validity period (deduced from service configuration)
         (now, -1, infra.proposal.ProposalNotCreated),
@@ -514,6 +535,92 @@ def test_service_cert_renewal_extended(network, args):
     return network
 
 
+def check_gov_pq_service_certificate(network, args):
+    # GET /gov/service/info must report the same ML-DSA certificate as
+    # GET /node/network, and omit it when the service has none
+    pq_cert = network.get_pq_service_certificate()
+    primary, _ = network.find_primary()
+    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/info")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json().get("pqCertificate") == pq_cert, r.body.json()
+    return pq_cert
+
+
+@reqs.description("Renew ML-DSA service certificate independently")
+def test_pq_service_cert_renewal(network, args):
+    if network.get_pq_service_certificate() is None:
+        LOG.warning("Skipping ML-DSA renewal test: service has no ML-DSA certificate")
+        return network
+
+    primary, _ = network.find_primary()
+    pq_cert_before = check_gov_pq_service_certificate(network, args)
+    now = datetime.now(UTC)
+    service_validity_days = args.maximum_service_certificate_validity_days
+    pq_validity_days = service_validity_days // 2
+    assert pq_validity_days not in (0, service_validity_days)
+
+    renew_service_certificate(network, args, now, service_validity_days)
+
+    # Each certificate keeps its own validity period when the other is renewed
+    network.consortium.set_pq_service_certificate_validity(
+        primary,
+        valid_from=str(now),
+        validity_period_days=pq_validity_days,
+    )
+    network.verify_pq_service_certificate_validity_period(pq_validity_days)
+    network.verify_service_certificate_validity_period(service_validity_days)
+
+    renew_service_certificate(network, args, now, service_validity_days - 1)
+    network.verify_pq_service_certificate_validity_period(pq_validity_days)
+
+    # Omitting the period defaults to the service-wide maximum
+    network.consortium.set_pq_service_certificate_validity(
+        primary, valid_from=str(now), validity_period_days=None
+    )
+    network.verify_pq_service_certificate_validity_period(service_validity_days)
+    assert check_gov_pq_service_certificate(network, args) != pq_cert_before
+
+    return network
+
+
+@reqs.description("Renew ML-DSA service certificate - rejected proposals")
+def test_pq_service_cert_renewal_rejected(network, args):
+    primary, _ = network.find_primary()
+    service_cert_before = network.get_service_identity()
+    pq_cert_before = network.get_pq_service_certificate()
+
+    test_vectors = [(-1, infra.proposal.ProposalNotCreated)]
+    if pq_cert_before is None:
+        # Nothing to renew on a classical-only service
+        test_vectors.append((None, infra.proposal.ProposalNotAccepted))
+    else:
+        test_vectors.append(
+            (
+                args.maximum_service_certificate_validity_days + 1,
+                infra.proposal.ProposalNotAccepted,
+            )
+        )
+
+    for validity_period_days, expected_exception in test_vectors:
+        try:
+            network.consortium.set_pq_service_certificate_validity(
+                primary,
+                valid_from=str(datetime.now(UTC)),
+                validity_period_days=validity_period_days,
+            )
+        except expected_exception:
+            continue
+        raise AssertionError("Proposal should have not succeeded")
+
+    # Rejected proposals leave both certificates unchanged
+    assert network.get_service_identity() == service_cert_before
+    assert network.get_pq_service_certificate() == pq_cert_before
+    assert check_gov_pq_service_certificate(network, args) == pq_cert_before
+
+    return network
+
+
 @reqs.description("Binding proposal to service identity")
 def test_binding_proposal_to_service_identity(network, args):
     primary, _ = network.find_primary()
@@ -535,7 +642,7 @@ def test_binding_proposal_to_service_identity(network, args):
 def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
 
-    valid_from = valid_from or datetime.now(timezone.utc)
+    valid_from = valid_from or datetime.now(UTC)
     validity_period_days = args.maximum_node_certificate_validity_days
 
     self_signed_node_certs_before = {}
@@ -606,6 +713,8 @@ def gov(args):
             test_all_nodes_cert_renewal(recovered_network, args)
             test_service_cert_renewal(recovered_network, args)
             test_service_cert_renewal_extended(recovered_network, args)
+            test_pq_service_cert_renewal(recovered_network, args)
+            test_pq_service_cert_renewal_rejected(recovered_network, args)
         finally:
             recovered_network.stop_all_nodes(skip_verification=True)
 
@@ -616,7 +725,7 @@ def single_node(args):
     def test_desc(s):
         LOG.info(f"Test: {s}")
 
-    test_desc("Node data on start node")
+    test_desc("File-backed node, service, and constitution data on start node")
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         start_node_data = {"on_start": "some_node_data"}
         json.dump(start_node_data, ntf)
@@ -629,7 +738,7 @@ def single_node(args):
             pdb=args.pdb,
             node_data_json_file=ntf.name,
         ) as network:
-            network.start_and_open(args)
+            network.start_and_open(args, service_data_json_file=ntf.name)
             primary, _ = network.find_primary()
             with primary.client() as c:
                 r = c.get("/node/network/nodes")
@@ -637,6 +746,18 @@ def single_node(args):
                 assert (
                     r.body.json()["nodes"][0]["node_data"] == start_node_data
                 ), r.body.json()["nodes"][0]["node_data"]
+                r = c.get("/node/network")
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.json()["service_data"] == start_node_data
+
+            constitution_parts = []
+            for path in args.constitution:
+                with open(path, encoding="utf-8") as f:
+                    constitution_parts.append(f.read())
+            with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+                r = c.get("/gov/service/constitution")
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.text() == "\n".join(constitution_parts)
 
             test_desc("Logging levels of governance operations")
             consortium = network.consortium

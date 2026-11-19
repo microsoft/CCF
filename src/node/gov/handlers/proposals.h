@@ -3,14 +3,15 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/crypto/cose.h"
 #include "ccf/ds/json.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
 #include "js/checks.h"
-#include "js/extensions/ccf/network.h"
-#include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
+#include "node/gov/extensions/network.h"
+#include "node/gov/extensions/node.h"
 #include "node/gov/handlers/helpers.h"
 
 #include <format>
@@ -30,6 +31,7 @@ namespace ccf::gov::endpoints
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       std::optional<ccf::jsgov::Failure> failure = std::nullopt;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Proposal);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Proposal,
@@ -56,6 +58,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<Proposal> value;
     };
+
     DECLARE_JSON_TYPE(ProposalList);
     DECLARE_JSON_REQUIRED_FIELDS(ProposalList, value);
   }
@@ -470,14 +473,18 @@ namespace ccf::gov::endpoints
     }
   }
 
-  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-  inline void init_proposals_handlers(
-    ccf::BaseEndpointRegistry& registry,
-    NetworkState& network,
-    ccf::AbstractNodeContext& node_context)
+  namespace detail
   {
-    //// implementation of TSP interface Proposals
-    auto create_proposal = [&](auto& ctx, ApiVersion api_version) {
+    // Endpoint handlers registered by init_proposals_handlers(), via
+    // forwarding lambdas. Kept out of the registration function so each
+    // handler's complexity is measured on its own.
+    template <typename Ctx>
+    inline void create_proposal(
+      Ctx& ctx,
+      ApiVersion api_version,
+      ccf::AbstractNodeContext& node_context,
+      ccf::NetworkState& network)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -648,8 +655,15 @@ namespace ccf::gov::endpoints
 
               proposal_info_handle->put(proposal_id, proposal_info);
 
+              // The signed payload is the proposal body, which has just been
+              // written to the proposals table, so the governance history
+              // only records the envelope with the payload detached (nil), to
+              // avoid storing every proposal twice. Auditors verify this
+              // entry against the proposal stored in the same transaction.
               detail::record_cose_governance_history(
-                ctx.tx, cose_ident.member_id, cose_ident.envelope);
+                ctx.tx,
+                cose_ident.member_id,
+                ccf::cose::edit::detach_payload(cose_ident.envelope));
             }
           }
 
@@ -756,18 +770,11 @@ namespace ccf::gov::endpoints
           }
         }
       }
-    };
-    registry
-      .make_endpoint(
-        "/members/proposals:create",
-        HTTP_POST,
-        api_version_adapter(create_proposal),
-        detail::active_member_sig_only_policies("proposal"))
-      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
-      .set_openapi_summary("Create a governance proposal")
-      .install();
+    }
 
-    auto withdraw_proposal = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void withdraw_proposal(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -852,20 +859,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_endpoint(
-        "/members/proposals/{proposalId}:withdraw",
-        HTTP_POST,
-        api_version_adapter(withdraw_proposal),
-        detail::active_member_sig_only_policies("withdrawal"))
-      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
-      .add_openapi_response<void>(
-        HTTP_STATUS_NO_CONTENT, "The proposal no longer exists.")
-      .set_openapi_summary("Withdraw a governance proposal")
-      .install();
+    }
 
-    auto get_proposal = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_proposal(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -899,18 +897,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/members/proposals/{proposalId}",
-        HTTP_GET,
-        api_version_adapter(get_proposal),
-        no_auth_required)
-      .set_auto_schema<void, api::Proposal>()
-      .set_openapi_summary("Get a governance proposal")
-      .install();
+    }
 
-    auto list_proposals = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void list_proposals(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -935,18 +926,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/members/proposals",
-        HTTP_GET,
-        api_version_adapter(list_proposals),
-        no_auth_required)
-      .set_auto_schema<void, api::ProposalList>()
-      .set_openapi_summary("List governance proposals")
-      .install();
+    }
 
-    auto get_actions = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_actions(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -981,21 +965,18 @@ namespace ccf::gov::endpoints
           break;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/members/proposals/{proposalId}/actions",
-        HTTP_GET,
-        api_version_adapter(get_actions),
-        no_auth_required)
-      .set_auto_schema<void, nlohmann::json>()
-      .set_openapi_summary("Get a proposal's actions")
-      .install();
+    }
 
-    //// implementation of TSP interface Ballots
-    auto submit_ballot = [&](
-                           ccf::endpoints::EndpointContext& ctx,
-                           ApiVersion api_version) {
+    // Not templated on Ctx, unlike the other handlers here: the original
+    // lambda took a concrete ccf::endpoints::EndpointContext&, so its body
+    // relies on non-dependent lookup (e.g. ballot_it.value().get<...>())
+    // that a template parameter would turn into dependent names.
+    inline void submit_ballot(
+      ccf::endpoints::EndpointContext& ctx,
+      ApiVersion api_version,
+      ccf::AbstractNodeContext& node_context,
+      ccf::NetworkState& network)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -1155,18 +1136,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_endpoint(
-        "/members/proposals/{proposalId}/ballots/{memberId}:submit",
-        HTTP_POST,
-        api_version_adapter(submit_ballot),
-        detail::active_member_sig_only_policies("ballot"))
-      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
-      .set_openapi_summary("Submit a ballot")
-      .install();
+    }
 
-    auto get_ballot = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_ballot(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -1227,6 +1201,101 @@ namespace ccf::gov::endpoints
           return;
         }
       }
+    }
+  }
+
+  inline void init_proposals_handlers(
+    ccf::BaseEndpointRegistry& registry,
+    NetworkState& network,
+    ccf::AbstractNodeContext& node_context)
+  {
+    //// implementation of TSP interface Proposals
+    auto create_proposal = [&network,
+                            &node_context](auto& ctx, ApiVersion api_version) {
+      detail::create_proposal(ctx, api_version, node_context, network);
+    };
+    registry
+      .make_endpoint(
+        "/members/proposals:create",
+        HTTP_POST,
+        api_version_adapter(create_proposal),
+        detail::active_member_sig_only_policies("proposal"))
+      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
+      .set_openapi_summary("Create a governance proposal")
+      .install();
+
+    auto withdraw_proposal = [](auto& ctx, ApiVersion api_version) {
+      detail::withdraw_proposal(ctx, api_version);
+    };
+    registry
+      .make_endpoint(
+        "/members/proposals/{proposalId}:withdraw",
+        HTTP_POST,
+        api_version_adapter(withdraw_proposal),
+        detail::active_member_sig_only_policies("withdrawal"))
+      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
+      .add_openapi_response<void>(
+        HTTP_STATUS_NO_CONTENT, "The proposal no longer exists.")
+      .set_openapi_summary("Withdraw a governance proposal")
+      .install();
+
+    auto get_proposal = [](auto& ctx, ApiVersion api_version) {
+      detail::get_proposal(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/members/proposals/{proposalId}",
+        HTTP_GET,
+        api_version_adapter(get_proposal),
+        no_auth_required)
+      .set_auto_schema<void, api::Proposal>()
+      .set_openapi_summary("Get a governance proposal")
+      .install();
+
+    auto list_proposals = [](auto& ctx, ApiVersion api_version) {
+      detail::list_proposals(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/members/proposals",
+        HTTP_GET,
+        api_version_adapter(list_proposals),
+        no_auth_required)
+      .set_auto_schema<void, api::ProposalList>()
+      .set_openapi_summary("List governance proposals")
+      .install();
+
+    auto get_actions = [](auto& ctx, ApiVersion api_version) {
+      detail::get_actions(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/members/proposals/{proposalId}/actions",
+        HTTP_GET,
+        api_version_adapter(get_actions),
+        no_auth_required)
+      .set_auto_schema<void, nlohmann::json>()
+      .set_openapi_summary("Get a proposal's actions")
+      .install();
+
+    //// implementation of TSP interface Ballots
+    auto submit_ballot = [&network, &node_context](
+                           ccf::endpoints::EndpointContext& ctx,
+                           ApiVersion api_version) {
+      detail::submit_ballot(ctx, api_version, node_context, network);
+    };
+    registry
+      .make_endpoint(
+        "/members/proposals/{proposalId}/ballots/{memberId}:submit",
+        HTTP_POST,
+        api_version_adapter(submit_ballot),
+        detail::active_member_sig_only_policies("ballot"))
+      .set_auto_schema<ds::openapi::Cose, api::Proposal>()
+      .set_openapi_summary("Submit a ballot")
+      .install();
+
+    auto get_ballot = [](auto& ctx, ApiVersion api_version) {
+      detail::get_ballot(ctx, api_version);
     };
     registry
       .make_read_only_endpoint(

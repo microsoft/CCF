@@ -5,14 +5,10 @@
 //!
 //! This module exports the symbols declared in `ffi/include/tav/caci.h`.
 
-use std::ffi::CStr;
 use std::os::raw::c_char;
 
-use super::utils::{
-    input_bytes, input_text, owned_out_ptr, tav_error_free, tav_error_message, TavByteBuffer,
-    MAX_INPUT_LEN,
-};
-use crate::c_ffi::cose::{tav_cbor_value_from_bytes, TavCborValue};
+use super::cbor::{into_handle, TavCborHandle};
+use super::utils::{input_bytes, input_text, owned_out_ptr, TavByteBuffer};
 use crate::c_ffi::snp::TavSnpAttestationReport;
 use crate::{into_result, TavError, TavErrorCode};
 use attestation::snp::report::TcbVersionRaw;
@@ -38,19 +34,6 @@ impl From<AciError> for TavError {
     }
 }
 
-unsafe fn cose_error_to_caci(error: *mut TavError) -> TavError {
-    let message = unsafe { CStr::from_ptr(tav_error_message(error)) }
-        .to_string_lossy()
-        .into_owned();
-    unsafe {
-        tav_error_free(error);
-    }
-    TavError::new(
-        TavErrorCode::CaciCose,
-        format!("failed to materialize verified UVM CBOR: {message}"),
-    )
-}
-
 unsafe fn attestation_report<'a>(
     report: *const TavSnpAttestationReport,
 ) -> Result<&'a attestation::snp::report::AttestationReport, TavError> {
@@ -61,7 +44,7 @@ unsafe fn attestation_report<'a>(
 }
 
 unsafe fn uvm_endorsement_handle<'a>(
-    uvm_endorsement: *const TavCborValue,
+    uvm_endorsement: *const TavCborHandle,
 ) -> Result<&'a cose::CborValue<'static>, TavError> {
     if uvm_endorsement.is_null() {
         return Err(TavError::invalid_argument("uvm_endorsement is null"));
@@ -82,14 +65,9 @@ unsafe fn minimum_tcb_entries(
             "minimum_tcb_cpuids pointer is null",
         ));
     }
-    if count > MAX_INPUT_LEN / TCB_VERSION_LEN {
-        return Err(TavError::invalid_argument(
-            "minimum_tcb exceeds maximum input size",
-        ));
-    }
     let values_len = count
         .checked_mul(TCB_VERSION_LEN)
-        .ok_or_else(|| TavError::invalid_argument("minimum_tcb_values length overflow"))?;
+        .ok_or_else(|| TavError::invalid_argument("minimum_tcb exceeds maximum input size"))?;
     let values = unsafe { input_bytes(values, values_len, "minimum_tcb_values", false) }?;
     let cpuids = unsafe { std::slice::from_raw_parts(cpuids, count) };
 
@@ -118,12 +96,9 @@ unsafe fn parse_trusted_policy_digests(
             "at least one trusted policy digest is required",
         ));
     }
-    if count > MAX_INPUT_LEN / SNP_HOST_DATA_LEN {
-        return Err(TavError::invalid_argument(
-            "trusted_policy_digests exceeds maximum input size",
-        ));
-    }
-    let len = count * SNP_HOST_DATA_LEN;
+    let len = count.checked_mul(SNP_HOST_DATA_LEN).ok_or_else(|| {
+        TavError::invalid_argument("trusted_policy_digests exceeds maximum input size")
+    })?;
     let bytes = unsafe { input_bytes(data, len, "trusted_policy_digests", false) }?;
     Ok(bytes
         .chunks_exact(SNP_HOST_DATA_LEN)
@@ -152,7 +127,7 @@ pub unsafe extern "C" fn tav_verify_caci_uvm_endorsement(
     uvm_endorsement_len: usize,
     trusted_didx509: *const c_char,
     trusted_didx509_len: usize,
-    out_uvm_endorsement: *mut *mut TavCborValue,
+    out_uvm_endorsement: *mut *mut TavCborHandle,
 ) -> *mut TavError {
     into_result(|| {
         unsafe { owned_out_ptr(out_uvm_endorsement, "out_uvm_endorsement") }?;
@@ -174,16 +149,13 @@ pub unsafe extern "C" fn tav_verify_caci_uvm_endorsement(
         }?;
         synchronous::verify_uvm_endorsement(uvm_endorsement, trusted_didx509)
             .map_err(TavError::from)?;
-        let cose_error = unsafe {
-            tav_cbor_value_from_bytes(
-                uvm_endorsement.as_ptr(),
-                uvm_endorsement.len(),
-                out_uvm_endorsement,
+        let value = ::cbor::CborValue::parse_nondet(uvm_endorsement).map_err(|message| {
+            TavError::new(
+                TavErrorCode::CaciCose,
+                format!("failed to materialize verified UVM CBOR: {message}"),
             )
-        };
-        if !cose_error.is_null() {
-            return Err(unsafe { cose_error_to_caci(cose_error) });
-        }
+        })?;
+        unsafe { *out_uvm_endorsement = into_handle(value.into_owned()) };
         Ok(())
     })
 }
@@ -196,7 +168,7 @@ pub unsafe extern "C" fn tav_verify_caci_attestation(
     minimum_tcb_count: usize,
     trusted_policy_digests: *const u8,
     trusted_policy_digest_count: usize,
-    uvm_endorsement: *const TavCborValue,
+    uvm_endorsement: *const TavCborHandle,
     uvm_feed: *const c_char,
     uvm_feed_len: usize,
     minimum_svn: u64,

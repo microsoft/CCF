@@ -15,8 +15,6 @@ namespace ccf::crypto
   protected:
     mutable OpenSSL::Unique_X509 cert;
 
-    static MDType get_md_type(int mdt);
-
   public:
     Verifier_OpenSSL(const std::vector<uint8_t>& c);
     Verifier_OpenSSL(Verifier_OpenSSL&& v) = default;
@@ -44,5 +42,7 @@ namespace ccf::crypto
       const ccf::nonstd::SystemClock::time_point& now) const override;
 
     std::string subject() const override;
+
+    std::vector<uint8_t> subject_der() const override;
   };
 }
