@@ -20,6 +20,7 @@ Derive the new ID from the identity public key:
 
 For migration, ``--cert identity_cert.pem`` can instead extract the public key from a legacy certificate locally.
 Use the resulting ``did:key`` for enrollment, signing, and recovery.
+An identity whose key is not a P-256, P-384, or P-521 key, such as an RSA key, has no ``did:key`` and remains a certificate identity.
 
 Migrating a user
 ----------------

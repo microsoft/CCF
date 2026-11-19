@@ -62,20 +62,16 @@ def test_keygenerator(tmp_path, curve, public_key_only, encryption_key):
         assert enc_private.public_key().public_numbers() == enc_public.public_numbers()
 
 
-def test_supported_key_types():
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048).public_key()
-    did = ccf.identity.did_key_from_public_key(key)
-    assert did.startswith("did:key:z")
-    decoded = ccf.identity.public_key_from_did_key(did)
-    assert isinstance(decoded, rsa.RSAPublicKey)
-    assert decoded.public_numbers() == key.public_numbers()
-    with pytest.raises(TypeError, match="Unsupported"):
+def test_unsupported_key_types():
+    for key in (
+        rsa.generate_private_key(public_exponent=65537, key_size=2048).public_key(),
+        ed25519.Ed25519PrivateKey.generate().public_key(),
+    ):
+        with pytest.raises(TypeError, match="Unsupported"):
+            ccf.identity.did_key_from_public_key(key)
+    with pytest.raises(ValueError, match="Unsupported"):
         ccf.identity.did_key_from_public_key(
-            ed25519.Ed25519PrivateKey.generate().public_key()
-        )
-    with pytest.raises(ValueError, match="2048"):
-        ccf.identity.did_key_from_public_key(
-            rsa.generate_private_key(public_exponent=65537, key_size=1024).public_key()
+            ec.generate_private_key(ec.SECP256K1()).public_key()
         )
 
 

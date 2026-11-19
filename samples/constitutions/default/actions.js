@@ -244,7 +244,7 @@ function checkEntityId(value, field) {
     // An ID which looks up an identity is only checked for syntax. The key it
     // contains is validated when the identity is enrolled.
     const re = new RegExp("^did:key:z[1-9A-HJ-NP-Za-km-z]+$");
-    if (value.length > 3000 || !re.test(value)) {
+    if (value.length > 104 || !re.test(value)) {
       throw new Error(`${field} must be a base58-btc did:key`);
     }
     return;

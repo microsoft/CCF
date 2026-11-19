@@ -10,11 +10,11 @@
 
 namespace ccf::crypto
 {
-  /// Encode a NIST EC or RSA SubjectPublicKeyInfo as a base58-btc did:key.
-  /// Throws std::invalid_argument for unsupported key types and sizes.
-  /// The key is not validated, as that is costly for large RSA keys and this
-  /// derives the ID of keys presented by unauthenticated callers. A key is
-  /// validated when its did:key is enrolled, by public_key_der_from_did_key.
+  /// Encode a P-256, P-384 or P-521 SubjectPublicKeyInfo as a base58-btc
+  /// did:key. Throws std::invalid_argument for any other key.
+  /// The key is not validated, as this derives the ID of keys presented by
+  /// unauthenticated callers. A key is validated when its did:key is enrolled,
+  /// by public_key_der_from_did_key.
   std::string did_key_from_public_key_der(std::span<const uint8_t> der);
 
   /// Check that a string is a bare base58-btc did:key of acceptable size,

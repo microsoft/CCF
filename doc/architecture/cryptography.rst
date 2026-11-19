@@ -114,14 +114,14 @@ Member and user IDs are the hexadecimal SHA-256 fingerprint of the DER certifica
 Node IDs are the hexadecimal SHA-256 fingerprint of the DER SubjectPublicKeyInfo public key.
 
 New identities can instead use a `did:key <https://w3c-ccg.github.io/did-key-spec/>`_ ID, which embeds the multicodec-tagged public key rather than hashing it.
-CCF supports compressed P-256, P-384, and P-521 keys and PKCS#1 RSA public keys between 2048 and 16384 bits.
-The ``did:key`` specification lists the P-256 and P-384 key types; P-521 and RSA keys use the ``p521-pub`` and ``rsa-pub`` codes from the `multicodec table <https://github.com/multiformats/multicodec/blob/master/table.csv>`_, so other ``did:key`` implementations may not accept them.
+CCF supports P-256, P-384, and P-521 keys.
+The ``did:key`` specification lists the P-256 and P-384 key types; P-521 keys use the ``p521-pub`` code from the `multicodec table <https://github.com/multiformats/multicodec/blob/master/table.csv>`_, so other ``did:key`` implementations may not accept them.
 Existing authentication and signing algorithm restrictions still apply.
 
 The `did:key identifier syntax <https://w3c-ccg.github.io/did-key-spec/#did-key-identifier-syntax>`_ allows either a base58-btc (``z``) or a base64url (``u``) multibase value.
 CCF only accepts and produces the base58-btc (``z``) form, which is the form used by every example in the specification, and rejects the base64url form.
 As the specification describes, a ``did:key`` is a deterministic encoding of its public key, and CCF only accepts the ``did:key`` that it would produce from the decoded key.
-For example, an EC key must use the compressed point encoding.
+For example, the key must use the compressed point encoding.
 Only bare IDs are accepted; DID URLs with fragments, queries, or paths are not identity IDs.
 
 A ``did:key`` is used as it is in an HTTP path, including before an action suffix, as in ``/gov/members/state-digests/did:key:z...:ack``.

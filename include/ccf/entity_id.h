@@ -125,7 +125,7 @@ namespace ccf
     schema["type"] = "string";
 
     schema["pattern"] = "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$";
-    schema["maxLength"] = 3000;
+    schema["maxLength"] = 104;
   }
 
   struct MemberIdFormatter

@@ -540,7 +540,7 @@
         "type": "string"
       },
       "NodeId": {
-        "maxLength": 3000,
+        "maxLength": 104,
         "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },

@@ -259,7 +259,7 @@
         "type": "object"
       },
       "MemberId": {
-        "maxLength": 3000,
+        "maxLength": 104,
         "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
@@ -362,7 +362,7 @@
         "type": "object"
       },
       "NodeId": {
-        "maxLength": 3000,
+        "maxLength": 104,
         "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
@@ -670,7 +670,7 @@
         "type": "object"
       },
       "UserId": {
-        "maxLength": 3000,
+        "maxLength": 104,
         "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
@@ -1049,7 +1049,7 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -1082,7 +1082,7 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -1267,7 +1267,7 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -1291,7 +1291,7 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -1341,7 +1341,7 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -1534,7 +1534,7 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -1558,7 +1558,7 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -1943,7 +1943,7 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -2025,7 +2025,7 @@
           "name": "nodeId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
@@ -2188,7 +2188,7 @@
           "name": "userId",
           "required": true,
           "schema": {
-            "maxLength": 3000,
+            "maxLength": 104,
             "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
