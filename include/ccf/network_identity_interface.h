@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/node_subsystem_interface.h"
+#include "ccf/service/identity_type.h"
 #include "ccf/tx_id.h"
 
 #include <exception>
@@ -62,6 +63,11 @@ namespace ccf
   /// network identity keys over the history of the service.
   using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
 
+  /// Map from sequence number to the DER-encoded SubjectPublicKeyInfo of the
+  /// trusted service key of one identity type which signed from that sequence
+  /// number on.
+  using TrustedKeysDer = std::map<ccf::SeqNo, std::vector<uint8_t>>;
+
   /// Exception thrown when identity data is requested before the
   /// asynchronous identity-history-fetching process has completed.
   struct IdentityHistoryNotFetched : public std::exception
@@ -103,6 +109,21 @@ namespace ccf
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
 
+    /// Returns the COSE endorsements chain of the service identities of the
+    /// given type for the given sequence number, newest endorsement first, or
+    /// std::nullopt if the chain is not available for it. The CLASSICAL chain
+    /// is the one returned by get_cose_endorsements_chain(seqno). The PQ chain
+    /// is validated as the CLASSICAL one is, and fetching fails if either is
+    /// inconsistent. It starts at the latest service which had a PQ identity
+    /// when the service before it, if any, did not, so it is std::nullopt for
+    /// earlier sequence numbers and for a service without a PQ identity.
+    ///
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
+    /// completed.
+    [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
+    get_cose_endorsements_chain(
+      ccf::SeqNo seqno, IdentityType identity_type) const = 0;
+
     /// Returns the trusted EC public key that was active at the given
     /// sequence number, or nullptr if the sequence number precedes the
     /// earliest known trusted key.
@@ -114,11 +135,36 @@ namespace ccf
     [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const = 0;
 
+    /// Returns the DER-encoded SubjectPublicKeyInfo of the trusted service
+    /// key of the given type that was active at the given sequence number, or
+    /// std::nullopt if there is none. The CLASSICAL key is the one returned by
+    /// get_trusted_identity_for(seqno). There is no PQ key before the PQ chain
+    /// of get_cose_endorsements_chain(seqno, identity_type) starts, nor for a
+    /// service without a PQ identity.
+    ///
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
+    /// completed.
+    /// @throws std::logic_error for CLASSICAL, as get_trusted_identity_for.
+    [[nodiscard]] virtual std::optional<std::vector<uint8_t>>
+    get_trusted_key_der_for(
+      ccf::SeqNo seqno, IdentityType identity_type) const = 0;
+
     /// Returns all trusted network identity keys as a map from sequence
     /// number to EC public key.
     ///
     /// @throws IdentityHistoryNotFetched if identity history fetching has not
     /// completed.
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
+
+    /// Returns all trusted service keys of the given type, as DER-encoded
+    /// SubjectPublicKeyInfo, by the sequence number from which each signed.
+    /// The CLASSICAL keys are those returned by get_trusted_keys(). The PQ
+    /// keys are those of the PQ chain, and are empty for a service without a
+    /// PQ identity.
+    ///
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
+    /// completed.
+    [[nodiscard]] virtual TrustedKeysDer get_trusted_keys_der(
+      IdentityType identity_type) const = 0;
   };
 }
