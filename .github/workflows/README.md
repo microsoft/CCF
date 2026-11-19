@@ -212,7 +212,10 @@ File: `vendor-verification.yml`
 
 # Release
 
-Produces CCF reference release artifacts, excluding the Python package. Triggered on tags matching `ccf-[567].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts, excluding the Python package.
+Triggered on tags matching `ccf-[78].*`, and manually with an optional dry run.
+The output of a non-dry-run job is a draft release, which needs to be published manually.
+Publishing triggers the downstream jobs listed below.
 
 Python packages are built and published separately by the [OneBranch pipeline](../../.pipelines/README.md), without attestations.
 
