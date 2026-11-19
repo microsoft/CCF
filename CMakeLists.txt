@@ -843,6 +843,12 @@ if(BUILD_TESTS)
     target_link_libraries(node_connections_test PRIVATE ccf_tasks uv)
 
     add_unit_test(
+      node_tls_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_tls.cpp
+    )
+    target_link_libraries(node_tls_test PRIVATE ccf_tasks uv)
+
+    add_unit_test(
       tcp_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/tcp_test.cpp
     )
@@ -1377,6 +1383,20 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
+    NAME n2n_tls_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/n2n_tls.py
+    BUCKET bucket_a
+    BUILD_DEPENDS logging
+  )
+
+  add_e2e_test(
+    NAME n2n_transport_bridge_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/n2n_transport_bridge.py
+    BUCKET bucket_a
+    BUILD_DEPENDS logging
+  )
+
+  add_e2e_test(
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     BUCKET bucket_b
@@ -1680,6 +1700,7 @@ if(BUILD_TESTS)
     BUILD_DEPENDS logging
     DETECT_DEADLOCKS
     CONFIGURATIONS partitions
+    ADDITIONAL_ARGS --node-to-node-tls
   )
 
   set_property(
@@ -1757,6 +1778,7 @@ if(BUILD_TESTS)
       BUILD_DEPENDS js_generic
       ADDITIONAL_ARGS
         ${LTS_TEST_ARGS}
+        --node-to-node-tls
         --constitution
         ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
     )

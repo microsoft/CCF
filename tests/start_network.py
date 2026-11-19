@@ -47,7 +47,6 @@ def run(args):
         hosts = []
         for host_desc in host_descs:
             interface = infra.interfaces.RPCInterface()
-            interface.apply_args(args)
             interface.parse_from_str(host_desc)
 
             if args.redirection_kind == "node-by-role":
@@ -79,7 +78,7 @@ def run(args):
             hosts.append(
                 infra.interfaces.HostSpec(
                     rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}
-                )
+                ).with_args(args)
             )
 
     if not args.verbose:

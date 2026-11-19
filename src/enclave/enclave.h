@@ -196,6 +196,7 @@ namespace ccf
     {
       request_stop();
       node_transport->set_inbound_handler(nullptr);
+      node_transport->stop_tls();
       rpcsessions->stop(ccf::tls::OpenSSLServer::LoopState::NotRunning);
       // Accepted writes must reach disk before queued tasks are discarded.
       ledger_subsystem->shutdown();
@@ -248,7 +249,14 @@ namespace ccf
           NodeMsgType type,
           const NodeId& from,
           const uint8_t* data,
-          size_t size) { node->recv_node_inbound(type, from, data, size); });
+          size_t size) { node->recv_node_inbound(type, from, data, size); },
+        [this](
+          NodeMsgType type,
+          const NodeId& from,
+          const uint8_t* data,
+          size_t size) {
+          node->recv_node_tls_inbound(type, from, data, size);
+        });
       node_transport->set_inbound_handler(node_ingress);
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);

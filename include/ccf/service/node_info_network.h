@@ -162,7 +162,7 @@ namespace ccf
       bool operator==(const NodeToNodeInterface&) const = default;
     };
 
-    /// Reserved TLS endpoint metadata; no listener is created.
+    /// Optional mutually authenticated TLS endpoint for node-to-node traffic.
     std::optional<NodeToNodeInterface> node_to_node_tls_interface =
       std::nullopt;
 

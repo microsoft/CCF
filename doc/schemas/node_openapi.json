@@ -102,6 +102,9 @@
         "properties": {
           "address": {
             "$ref": "#/components/schemas/string"
+          },
+          "tls_address": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
@@ -345,6 +348,9 @@
           },
           "node_id": {
             "$ref": "#/components/schemas/NodeId"
+          },
+          "node_to_node_tls_interface": {
+            "$ref": "#/components/schemas/NodeInfoNetwork_v2__NodeToNodeInterface"
           },
           "primary": {
             "$ref": "#/components/schemas/boolean"
@@ -615,6 +621,20 @@
             "$ref": "#/components/schemas/RedirectionResolverConfig"
           }
         },
+        "type": "object"
+      },
+      "NodeInfoNetwork_v2__NodeToNodeInterface": {
+        "properties": {
+          "bind_address": {
+            "$ref": "#/components/schemas/string"
+          },
+          "published_address": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "bind_address"
+        ],
         "type": "object"
       },
       "NodeMetrics": {

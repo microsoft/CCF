@@ -14,6 +14,21 @@ Removal of request forwarding between nodes is planned for 8.0. Migrate applicat
 
 This requires changes to RPC interface configuration, endpoint definitions, and client redirect handling. See :doc:`fwd_to_redirect` for configuration examples, endpoint strategy mappings, and authentication considerations.
 
+Node-to-Node TLS
+----------------
+
+The 7.x bridge supports opt-in TLS alongside legacy channels.
+TLS-only configuration and removal of the legacy endpoint are deferred to 8.0.
+First upgrade every node to a release which preserves ``node_to_node_tls_interface`` metadata when accepting joins.
+Then replace nodes with the TLS-capable bridge release, explicitly configuring both endpoints and permitting network access to both.
+TLS is exercised between dual-enabled nodes while pairs involving legacy-only nodes continue using legacy channels.
+
+Before any later TLS-only upgrade, inspect each trusted node's recorded network information through ``GET /node/network/nodes`` and verify its TLS published endpoint is present and reachable.
+An older primary may have dropped the TLS field from a joining node's metadata.
+Upgrading that primary or changing local configuration alone does not repair previously recorded metadata: replace the affected node through a metadata-aware primary.
+Do not introduce TLS-only nodes until all required peers advertise usable TLS endpoints.
+See :doc:`/operations/configuration` for the opt-in configuration.
+
 Ringbuffer-Era Configuration
 ----------------------------------------
 

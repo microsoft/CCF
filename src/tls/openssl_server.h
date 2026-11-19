@@ -87,6 +87,9 @@ namespace ccf::tls
       // Linux TCP_USER_TIMEOUT, independent of application inactivity.
       // Unset preserves the operating system's defaults for RPC.
       std::optional<std::chrono::milliseconds> tcp_user_timeout = std::nullopt;
+      std::function<std::shared_ptr<SSL_CTX>(
+        const std::string&, const std::string&)>
+        context_factory = {};
     };
 
     // NOLINTEND(readability-redundant-member-init)
@@ -98,6 +101,7 @@ namespace ccf::tls
     OnClose on_close;
     OnAccept on_accept;
     bool plaintext;
+    decltype(Config::context_factory) context_factory;
     std::optional<std::chrono::milliseconds> tcp_user_timeout;
     uv_poll_t* listen_poll = nullptr;
     int listen_fd = -1;
@@ -176,6 +180,10 @@ namespace ccf::tls
     std::shared_ptr<SSL_CTX> build_server_ctx(
       const std::string& cert_pem, const std::string& key_pem)
     {
+      if (context_factory)
+      {
+        return context_factory(cert_pem, key_pem);
+      }
       // So that anything reported below comes from this function rather than
       // from unrelated work previously done on this thread.
       ERR_clear_error();
@@ -498,6 +506,7 @@ namespace ccf::tls
       on_close(std::move(on_close_)),
       on_accept(std::move(on_accept_)),
       plaintext(config.plaintext),
+      context_factory(std::move(config.context_factory)),
       tcp_user_timeout(config.tcp_user_timeout)
     {
       OpenSSLConnectionEngine::Config engine_config{
