@@ -2148,16 +2148,23 @@ TEST_CASE("Delete committed file from main directory")
   }
 }
 
-// Returns whether the main ledger directory has a committed file containing idx
+// Returns whether the main ledger directory has a committed file containing
+// idx, named as the ledger names committed files
 bool has_committed_file_with_idx(size_t idx)
 {
   for (auto const& f : fs::directory_iterator(ledger_dir))
   {
     const auto file_name = f.path().filename().string();
-    const auto range = get_committed_file_range(
+    const auto range = get_completed_file_range(
       file_name, false /* do not allow recovery files */);
     if (
-      is_ledger_file_name_committed(file_name) && range.has_value() &&
+      range.has_value() && range->start_idx != 0 &&
+      file_name ==
+        fmt::format(
+          "ledger_{}-{}{}",
+          range->start_idx,
+          range->last_idx,
+          ledger_committed_suffix) &&
       range->start_idx <= idx && idx <= range->last_idx)
     {
       return true;
@@ -2166,11 +2173,10 @@ bool has_committed_file_with_idx(size_t idx)
   return false;
 }
 
-// The ledger chunk endpoints find committed files in the ledger's own record
-// of the main ledger directory, rather than by scanning it. Check that, for all
-// indices up to last_idx, they find a file whenever a scan of the directory
-// would find a committed file containing the index, and only a committed file
-// which still exists and contains the index.
+// Check that, for all indices up to last_idx, the ledger chunk endpoints find a
+// file whenever the main ledger directory has a committed file containing the
+// index, up to the end of committed files, and only a committed file of the
+// main ledger directory which exists and contains the index.
 void check_committed_ledger_paths(Ledger& ledger, size_t last_idx)
 {
   for (size_t idx = 1; idx <= last_idx; ++idx)
@@ -2353,6 +2359,57 @@ TEST_CASE("Committed ledger paths ignore uncommitted files named with a range")
   REQUIRE(
     ledger.committed_ledger_path_with_idx(5) ==
     fs::path(ledger_dir) / "ledger_1-10.committed");
+}
+
+TEST_CASE("Committed ledger paths include files copied in after startup")
+{
+  // E.g. earlier committed files restored to the main ledger directory of a
+  // node which started without them
+  auto dir = AutoDeleteFolder(ledger_dir);
+  fs::create_directory(ledger_dir);
+
+  write_test_ledger_file(ledger_dir, 11, 20, true);
+
+  Ledger ledger(ledger_dir);
+  REQUIRE_FALSE(ledger.committed_ledger_path_with_idx(5).has_value());
+
+  write_test_ledger_file(ledger_dir, 1, 10, true);
+  check_committed_ledger_paths(ledger, 20);
+  REQUIRE(
+    ledger.committed_ledger_path_with_idx(5) ==
+    fs::path(ledger_dir) / "ledger_1-10.committed");
+}
+
+TEST_CASE("Committed ledger paths only include files named as committed files")
+{
+  // E.g. copies of committed files under other names, which are not returned
+  // even when their names appear to start later
+  auto dir = AutoDeleteFolder(ledger_dir);
+  fs::create_directory(ledger_dir);
+
+  write_test_ledger_file(ledger_dir, 1, 10, true);
+  const auto committed_file = fs::path(ledger_dir) / "ledger_1-10.committed";
+
+  Ledger ledger(ledger_dir);
+  for (const auto* name :
+       {"copy_5-10.committed",
+        ".ledger_5-10.committed",
+        "ledger_05-10.committed",
+        "ledger_5--1.committed",
+        "ledger_0-10.committed"})
+  {
+    fs::copy_file(committed_file, fs::path(ledger_dir) / name);
+  }
+
+  for (size_t idx = 1; idx <= 10; ++idx)
+  {
+    CAPTURE(idx);
+    REQUIRE(ledger.committed_ledger_path_with_idx(idx) == committed_file);
+  }
+
+  // Nor are they returned once no committed file contains the index
+  REQUIRE(fs::remove(committed_file));
+  REQUIRE_FALSE(ledger.committed_ledger_path_with_idx(5).has_value());
 }
 
 TEST_CASE("Committed ledger paths include overlapping files")
