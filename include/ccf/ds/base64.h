@@ -8,10 +8,7 @@
 #include <string_view>
 #include <vector>
 
-// These keep their ccf::crypto names, but are declared in ds so that
-// ccf/ds/json.h can use them without depending on crypto. They are also
-// provided by ccf/crypto/base64.h.
-namespace ccf::crypto
+namespace ccf::ds
 {
   std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string);
 

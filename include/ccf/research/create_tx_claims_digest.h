@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 
 #include <optional>
 

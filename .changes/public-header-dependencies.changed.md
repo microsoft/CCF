@@ -1,2 +1,2 @@
-Public C++ header components no longer form dependency cycles, so applications that obtained typed KV maps indirectly through headers such as `ccf/tx.h` or `ccf/crypto/sha256_hash.h` may need to include `ccf/service/map.h` or `ccf/kv/map.h` directly.
-Applications can now include `ccf/research/create_tx_claims_digest.h` using only installed headers.
+Public C++ header components no longer form dependency cycles: `ccf/tx.h`, `ccf/endpoint.h`, `ccf/endpoint_context.h`, `ccf/common_auth_policies.h` and `ccf/crypto/base64.h` moved to `ccf/kv/`, `ccf/endpoints/` and `ccf/ds/`, the base64 functions moved from `ccf::crypto` to `ccf::ds`, and several headers no longer provide the typed KV maps transitively.
+See the [migration guide](doc/releases/migration_7_x_to_8_x.rst#public-c-headers) for the full list of replacements.

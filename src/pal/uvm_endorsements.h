@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/base64.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/json.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/uvm_endorsements.h"

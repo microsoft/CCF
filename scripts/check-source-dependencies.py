@@ -128,17 +128,10 @@ def includes_in(path, root, generated_headers, is_internal, errors):
         yield line_number, f"#include {directive}", included_file
 
 
-def public_component_for(path, public_root, overrides):
-    """A public header belongs to the longest override matching it, where a
-    trailing slash matches a directory. Otherwise it belongs to its top-level
-    directory under include/ccf, and a top-level header is its own component."""
-    relative = path.relative_to(public_root).as_posix()
-    for override in sorted(overrides, key=len, reverse=True):
-        if relative == override or (
-            override.endswith("/") and relative.startswith(override)
-        ):
-            return f"ccf/{overrides[override]}"
-    return f"ccf/{relative.split('/')[0]}"
+def public_component_for(path, public_root):
+    """A public header belongs to its top-level directory under include/ccf,
+    and a top-level header is its own component."""
+    return f"ccf/{path.relative_to(public_root).parts[0]}"
 
 
 def find_cycle(edges):
@@ -217,21 +210,6 @@ def main():
         print(f"Dependency policy allows a cycle: {cycle}", file=sys.stderr)
         return 1
 
-    public_overrides = config["public_component_overrides"]
-    unknown_overrides = sorted(
-        header
-        for header in public_overrides
-        if not (
-            (public_root / header).is_dir()
-            if header.endswith("/")
-            else (public_root / header).is_file()
-        )
-    )
-    if unknown_overrides:
-        unknown = ", ".join(unknown_overrides)
-        print(f"Unknown public header in overrides: {unknown}", file=sys.stderr)
-        return 1
-
     def is_internal(include_path):
         return is_internal_spelling(include_path, source_components, public_components)
 
@@ -274,7 +252,7 @@ def main():
     )
 
     for header in public_headers:
-        header_component = public_component_for(header, public_root, public_overrides)
+        header_component = public_component_for(header, public_root)
         for line_number, directive, included_file in includes_in(
             header, root, generated_headers, is_internal, errors
         ):
@@ -283,9 +261,7 @@ def main():
                 private_includes.append(location)
                 continue
 
-            target_component = public_component_for(
-                included_file, public_root, public_overrides
-            )
+            target_component = public_component_for(included_file, public_root)
             if target_component != header_component:
                 public_edges.setdefault(
                     (header_component, target_component), []

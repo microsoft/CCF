@@ -41,6 +41,49 @@ Removal of the entire ``memory`` section is planned for 8.0. Migrate to the new 
 This increases the effective read budget by 2048 bytes compared with previous releases at the same configured size.
 ``ledger.max_transaction_size`` must not exceed this budget. The independent node-to-node limit includes message headers but excludes the 4-byte length prefix.
 
+Public C++ Headers
+------------------
+
+Public header components, the directories under ``include/ccf/``, no longer include each other in cycles. Several headers and functions moved to the component that owns them, without forwarding headers or aliases, so C++ applications must update their includes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - 7.x
+     - 8.x
+   * - ``ccf/tx.h``
+     - ``ccf/kv/tx.h``
+   * - ``ccf/endpoint.h``
+     - ``ccf/endpoints/endpoint.h``
+   * - ``ccf/endpoint_context.h``
+     - ``ccf/endpoints/endpoint_context.h``
+   * - ``ccf/common_auth_policies.h``
+     - ``ccf/endpoints/common_auth_policies.h``
+   * - ``ccf/crypto/base64.h``
+     - ``ccf/ds/base64.h``
+   * - ``ccf::crypto::b64_from_raw``, ``ccf::crypto::b64url_from_raw``, ``ccf::crypto::raw_from_b64`` and ``ccf::crypto::raw_from_b64url``
+     - The same functions in ``ccf::ds``
+
+Class and function names are otherwise unchanged. ``ccf/app_interface.h`` still provides the endpoint registry, authentication policies and transaction types.
+
+Some headers no longer provide declarations that they did not use themselves. Include the header that declares them instead:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Declarations
+     - No longer provided by
+     - Include
+   * - ``ccf::kv::Map``, ``ccf::kv::Set``, ``ccf::kv::Value`` and their ``ccf::Service*`` aliases
+     - ``ccf/kv/tx.h`` and ``ccf/crypto/sha256_hash.h``, and headers which obtained them from these, such as ``ccf/claims_digest.h``
+     - ``ccf/service/map.h`` or the matching ``ccf/kv/`` header
+   * - ``ccf::AbstractNodeContext``
+     - ``ccf/indexing/strategies/seqnos_by_key_bucketed.h``
+     - ``ccf/node_context.h``
+   * - ``ccf::DID``, ``ccf::Feed`` and the UVM endorsements tables
+     - ``ccf/pal/uvm_endorsements.h``
+     - ``ccf/service/tables/uvm_endorsements.h``
+
 ML-DSA Service Identity
 -----------------------
 

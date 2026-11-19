@@ -8,18 +8,12 @@
 #include <string>
 #include <vector>
 
-namespace ccf
-{
-  using DID = std::string;
-  using Feed = std::string;
-}
-
 namespace ccf::pal
 {
   struct UVMEndorsements
   {
-    DID did;
-    Feed feed;
+    std::string did;
+    std::string feed;
     std::string svn;
 
     bool operator==(const UVMEndorsements&) const = default;

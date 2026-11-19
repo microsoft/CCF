@@ -41,7 +41,7 @@
     "tls": ["crypto", "ds", "tasks", "tcp"],
     "kv": ["ccf-api", "crypto", "ds"],
     "service": ["ccf-api", "crypto", "ds", "kv"],
-    "rust": ["ccf-api", "kv"],
+    "rust": ["ccf-api", "endpoints", "kv"],
     "consensus": [
       "ccf-api",
       "crypto",
@@ -102,12 +102,5 @@
       "node",
       "tasks"
     ]
-  },
-  "public_component_overrides": {
-    "common_auth_policies.h": "endpoints",
-    "endpoint.h": "endpoints",
-    "endpoint_context.h": "endpoints",
-    "indexing/strategies/": "indexing/strategies",
-    "tx.h": "kv"
   }
 }

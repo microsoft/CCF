@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 #include "forwarder_types.h"
 
 #include <chrono>

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/hash_provider.h"
+#include "ccf/ds/base64.h"
 #include "ccf/http_etag.h"
 #include "ccf/service/tables/nodes.h"
 #include "http/http_digest.h"
@@ -26,7 +26,7 @@ namespace ccf::node
   {
     auto hp = ccf::crypto::make_hash_provider();
     auto digest = hp->hash(data, size, md);
-    auto b64 = ccf::crypto::b64_from_raw(digest.data(), digest.size());
+    auto b64 = ccf::ds::b64_from_raw(digest.data(), digest.size());
     return fmt::format("{}=:{}:", algo_name, b64);
   }
 
@@ -461,7 +461,7 @@ namespace ccf::node
     auto sha256_hash = hash_provider->hash(
       contents.data(), contents.size(), ccf::crypto::MDType::SHA256);
     auto sha256_b64 =
-      ccf::crypto::b64_from_raw(sha256_hash.data(), sha256_hash.size());
+      ccf::ds::b64_from_raw(sha256_hash.data(), sha256_hash.size());
     auto sha256_etag = fmt::format("sha-256=:{}:", sha256_b64);
 
     ctx.rpc_ctx->set_response_header(
@@ -483,7 +483,7 @@ namespace ccf::node
           auto sha384_hash = hash_provider->hash(
             contents.data(), contents.size(), ccf::crypto::MDType::SHA384);
           auto sha384_b64 =
-            ccf::crypto::b64_from_raw(sha384_hash.data(), sha384_hash.size());
+            ccf::ds::b64_from_raw(sha384_hash.data(), sha384_hash.size());
           matched = matcher.matches(fmt::format("sha-384=:{}:", sha384_b64));
         }
 
@@ -492,7 +492,7 @@ namespace ccf::node
           auto sha512_hash = hash_provider->hash(
             contents.data(), contents.size(), ccf::crypto::MDType::SHA512);
           auto sha512_b64 =
-            ccf::crypto::b64_from_raw(sha512_hash.data(), sha512_hash.size());
+            ccf::ds::b64_from_raw(sha512_hash.data(), sha512_hash.size());
           matched = matcher.matches(fmt::format("sha-512=:{}:", sha512_b64));
         }
 

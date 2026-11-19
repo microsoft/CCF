@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/kv/tx.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/tables/self_healing_open.h"
-#include "ccf/tx.h"
 #include "node/ledger_secret.h"
 
 namespace ccf::sealing

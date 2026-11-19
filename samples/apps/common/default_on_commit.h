@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/endpoint_context.h"
 #include "ccf/endpoint_registry.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/receipt.h"
 #include "ccf/rpc_context.h"
 

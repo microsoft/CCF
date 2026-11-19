@@ -6,6 +6,7 @@
 #include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
+#include "ccf/kv/tx.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
@@ -18,7 +19,6 @@
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
-#include "ccf/tx.h"
 #include "consensus/aft/cft_types.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/mldsa_support.h"
@@ -912,7 +912,7 @@ namespace ccf
       if (security_policy.has_value())
       {
         auto raw_security_policy =
-          ccf::crypto::raw_from_b64(security_policy.value());
+          ccf::ds::raw_from_b64(security_policy.value());
         host_data_table->put(
           host_data, {raw_security_policy.begin(), raw_security_policy.end()});
       }
