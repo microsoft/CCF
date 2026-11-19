@@ -52,9 +52,10 @@ Nodes that join a service never create one.
 - Starting a new service or recovering an existing one on such a node always creates it. Recovery of a classical-only ledger is the way to give an existing service an ML-DSA identity.
 - 7.x runs on Azure Linux 3 with OpenSSL 3.3 and never creates an ML-DSA identity; Azure Linux 4 with OpenSSL 3.5 is 8.x only, and running 7.x on OpenSSL 3.5 is unsupported.
 - Once a service has an ML-DSA identity, every node must be able to hold it.
-  Join requests from nodes built without ML-DSA support, including all 7.x nodes, are rejected with ``400 Bad Request`` before the node is recorded, and an 8.x node built without ML-DSA support aborts the recovery of a ledger whose service has one at the end of the public ledger.
+  Join requests from nodes built without ML-DSA support, including all 7.x nodes, are rejected with ``400 Bad Request`` before the node is recorded, and an 8.x node built without ML-DSA support aborts the recovery of a ledger whose service has one, at its first transaction signed with the ML-DSA identity or, if it replays none, at the end of the public ledger.
   Rolling such a service back to 7.x nodes is therefore impossible by joining and unsupported by disaster recovery: 7.x nodes recover the ledger, and the recovered service silently loses its ML-DSA identity.
   Plan the recovery that introduces the identity for after the live upgrade has completed and been validated.
+- Every signature transaction of a service with an ML-DSA identity carries an ML-DSA COSE signature next to the classical one, and nodes verify both when they replay the ledger (see :ref:`audit/builtin_maps:``cose_signatures```).
 - The ML-DSA service certificate is renewed by the ``set_pq_service_certificate_validity`` proposal of the 8.x default constitution (see :ref:`governance/common_member_operations:Renewing ML-DSA Service Certificate`).
   A recovery keeps the constitution stored in the ledger, so under a 7.x or custom constitution the ML-DSA certificate expires after ``initial_service_certificate_validity_days``.
   After the recovery that introduces the identity and before the first renewal, install the 8.x default constitution with ``set_constitution``, or port its ``set_pq_service_certificate_validity`` action into the custom constitution.

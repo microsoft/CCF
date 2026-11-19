@@ -580,8 +580,10 @@ Signatures emitted by the primary node at regular interval, over the root of the
 ~~~~~~~~~~~~~~~~~~~
 
 COSE signatures over the Merkle root, keyed by service signing identity type.
+Each signature transaction writes one signature per service signing key, with the same protected header except ``alg`` and ``kid``: ``CLASSICAL`` with the EC key, and ``PQ`` with the ML-DSA key of a service with an ML-DSA identity.
+Nodes replaying the ledger verify each signature written by a signature transaction with the ``service.signing_identities`` entry of its type, and reject the transaction if it has no signature for one of the published identities.
 
-**Key** Identity type as a little-endian 64-bit unsigned integer. Only ``CLASSICAL`` (0) is currently populated; ``PQ`` (1) is reserved for future support.
+**Key** Identity type as a little-endian 64-bit unsigned integer.
 
 **Value** A CBOR-encoded COSE Sign1 message, stored as a base64-encoded JSON string. Implements the following :ccf_repo:`CDDL schema </cddl/ccf-merkle-tree-cose-signature.cddl>`.
 

@@ -404,10 +404,22 @@ namespace ccf::kv
     {}
   };
 
+  // A signature transaction carries a signature of an identity type which this
+  // build cannot verify. Replay stops at such a transaction, since the ledger
+  // may continue past it.
+  class UnverifiableSignatureType : public std::logic_error
+  {
+  public:
+    UnverifiableSignatureType(const std::string& msg) : std::logic_error(msg) {}
+  };
+
   class TxHistory
   {
   public:
     virtual ~TxHistory() = default;
+    // Returns false if a signature in the transaction at version is invalid
+    // or missing. Throws UnverifiableSignatureType if the transaction carries
+    // a signature this build cannot verify.
     virtual bool verify_root_signatures(ccf::kv::Version version) = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
