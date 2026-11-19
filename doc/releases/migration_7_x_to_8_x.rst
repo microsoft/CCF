@@ -41,6 +41,21 @@ Removal of the entire ``memory`` section is planned for 8.0. Migrate to the new 
 This increases the effective read budget by 2048 bytes compared with previous releases at the same configured size.
 ``ledger.max_transaction_size`` must not exceed this budget. The independent node-to-node limit includes message headers but excludes the 4-byte length prefix.
 
+Outbound TLS Trust
+------------------
+
+CCF 8.x uses the node's system trust store for JWT key auto-refresh and verifies HTTPS connections to SEV-SNP endorsement servers using the same store.
+An 8.x node ignores governance-managed CA bundles even if the service still uses a 7.x constitution.
+If an issuer's private CA is trusted only through governance, refresh will fail when the first 8.x node becomes primary, and clients may lose access when the issuer rotates its signing keys.
+
+1. Before the rolling upgrade, identify the CAs needed by your auto-refreshing issuers and any private HTTPS endorsement servers.
+   Install them in every new node's trust store before starting the node, or use the ``SSL_CERT_FILE`` and ``SSL_CERT_DIR`` overrides described in :ref:`build_apps/auth/jwt:Setting up a token issuer with automatic key refresh`.
+   Check from the new node environment that TLS verification succeeds for issuer discovery, JWKS and any configured HTTPS endorsement endpoints.
+   On SEV-SNP, use trust material delivered within the attested guest or container, such as a bundle baked into an image approved by the attested execution policy; do not use a CA file or directory writable by the untrusted host.
+2. Keep the existing CA bundles and issuer ``ca_cert_bundle_name`` values while any 7.x node can still become primary.
+   During the mixed-version rollout, continue to include the legacy bundle name when creating or updating auto-refreshing issuers.
+3. After retiring the 7.x nodes and confirming that an 8.x primary can refresh the issuers' keys, update the constitution and stop sending ``ca_cert_bundle_name`` in issuer proposals.
+
 ML-DSA Service Identity
 -----------------------
 
