@@ -1103,6 +1103,26 @@ def did_key_identities(args):
         legacy_user_id = user.service_id
         with open(user.key_path, encoding="ascii") as f:
             did_user_id = infra.crypto.did_key_from_private_key(f.read())
+
+        # Enrollment arguments are validated when a proposal is submitted
+        with open(user.cert_path, encoding="ascii") as f:
+            user_cert = f.read()
+        for invalid_args in (
+            {"did_key": did_user_id, "cert": user_cert},
+            {"did_key": "did:key:zinvalid"},
+            {"did_key": did_user_id + "#fragment"},
+        ):
+            invalid = {"actions": [{"name": "set_user", "args": invalid_args}]}
+            try:
+                network.consortium.get_any_active_member().propose(primary, invalid)
+            except infra.proposal.ProposalNotCreated as e:
+                assert e.response.status_code == http.HTTPStatus.BAD_REQUEST, e.response
+                assert (
+                    e.response.body.json()["error"]["code"]
+                    == "ProposalFailedToValidate"
+                ), e.response
+            else:
+                raise AssertionError(f"Invalid enrollment accepted: {invalid_args}")
         migration = {
             "actions": [
                 {"name": "remove_user", "args": {"user_id": legacy_user_id}},

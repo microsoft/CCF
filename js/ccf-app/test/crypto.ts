@@ -27,22 +27,6 @@ export function generateSelfSignedCert() {
   };
 }
 
-// The did:key of the RSA public key in a certificate: the base58-btc encoding
-// of the rsa-pub multicodec (0x1205) followed by the PKCS#1 public key.
-export function didKeyFromCert(cert: string): string {
-  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  const key = new crypto.X509Certificate(cert).publicKey;
-  let value = BigInt(
-    "0x8524" + key.export({ format: "der", type: "pkcs1" }).toString("hex"),
-  );
-  let encoded = "";
-  while (value > 0n) {
-    encoded = alphabet[Number(value % 58n)] + encoded;
-    value /= 58n;
-  }
-  return "did:key:z" + encoded;
-}
-
 export function generateSelfSignedCACert(): string {
   const keys = crypto.generateKeyPairSync("rsa", {
     modulusLength: 2048,

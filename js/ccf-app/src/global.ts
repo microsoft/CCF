@@ -637,12 +637,6 @@ export interface CCFHistorical {
 }
 
 export interface CCF {
-  /** Derive the legacy identity ID of a certificate: its SHA-256 fingerprint. */
-  pemToId(pem: string): string;
-
-  /** Decode a base58-btc did:key to its DER SubjectPublicKeyInfo public key. */
-  publicKeyFromDidKey(id: string): ArrayBuffer;
-
   /**
    * Convert a string into an ArrayBuffer.
    */

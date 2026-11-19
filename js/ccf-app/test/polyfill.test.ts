@@ -11,7 +11,6 @@ import type {
 import { ccf } from "../src/global.js";
 import * as textcodec from "../src/textcodec.js";
 import {
-  didKeyFromCert,
   generateSelfSignedCert,
   generateSelfSignedCACert,
   generateIntermediateCACert,
@@ -27,58 +26,6 @@ beforeEach(function () {
 });
 
 describe("polyfill", function () {
-  describe("identity IDs", function () {
-    it("decodes published NIST curve vectors and rejects unsupported codecs", function () {
-      for (const did of [
-        "did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv",
-        "did:key:z82LkvCwHNreneWpsgPEbV3gu1C6NFJEBg4srfJ5gdxEsMGRJUz2sG9FE42shbn2xkZJh54",
-      ]) {
-        const key = crypto.createPublicKey({
-          key: Buffer.from(ccf.publicKeyFromDidKey(did)),
-          format: "der",
-          type: "spki",
-        });
-        assert.equal(key.asymmetricKeyType, "ec");
-        assert.throws(() => ccf.publicKeyFromDidKey(did + "1"));
-      }
-      assert.throws(() =>
-        ccf.publicKeyFromDidKey(
-          "did:key:z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP",
-        ),
-      );
-    });
-
-    it("rejects base64url multibase did:key IDs", function () {
-      const point = Buffer.from(
-        "038a0ac59a2d3086e8a12a78fd4773a6d52a0ca61ef6c1419e15a05bcc6dafce7b",
-        "hex",
-      );
-      const multicodec = Buffer.concat([Buffer.from([0x80, 0x24]), point]);
-      const base64url = "did:key:u" + multicodec.toString("base64url");
-      assert.throws(() => ccf.publicKeyFromDidKey(base64url), /base58-btc/);
-    });
-
-    it("derives legacy IDs and decodes did:key RSA identities", function () {
-      const { cert, publicKey } = generateSelfSignedCert();
-      assert.match(ccf.pemToId(cert), /^[a-f0-9]{64}$/);
-      const did = didKeyFromCert(cert);
-      assert.deepEqual(
-        Buffer.from(ccf.publicKeyFromDidKey(did)),
-        crypto
-          .createPublicKey(publicKey)
-          .export({ format: "der", type: "spki" }),
-      );
-      for (const invalid of [
-        "",
-        did + "#key",
-        did + "?version=1",
-        "did:key:z0",
-        "did:key:z" + "1".repeat(3000),
-      ]) {
-        assert.throws(() => ccf.publicKeyFromDidKey(invalid));
-      }
-    });
-  });
   describe("strToBuf/bufToStr", function () {
     it("converts string <--> ArrayBuffer", function () {
       const s = "foo";
