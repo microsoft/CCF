@@ -7,6 +7,7 @@ import random
 import re
 import sys
 import time
+from contextlib import ExitStack
 from enum import Enum, auto
 
 import infra.e2e_args
@@ -70,10 +71,19 @@ def run(args):
         args.throws_if_reqs_not_met = False
     s.validate_tests_signature(chosen_suite)
 
+    with ExitStack() as cleanup:
+        _run_suite(args, chosen_suite, seed, cleanup)
+
+
+def _run_suite(args, chosen_suite, seed, cleanup):
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    node_env = None
 
     if not args.dry_run:
-        jwt_server = jwt_issuer.start_openid_server()
+        trust_store = cleanup.enter_context(infra.jwt_issuer.NodeTrustStore())
+        trust_store.trust(jwt_issuer)
+        node_env = trust_store.env
+        cleanup.enter_context(jwt_issuer.start_openid_server())
 
     txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
     network = infra.network.Network(
@@ -82,9 +92,12 @@ def run(args):
         args.debug_nodes,
         txs=txs,
         jwt_issuer=jwt_issuer,
+        node_env=node_env,
     )
 
     if not args.dry_run:
+        # Recovery tests can replace the network, so stop the current one.
+        cleanup.callback(lambda: network.stop_all_nodes(skip_verification=True))
         network.start_and_open(args)
 
     LOG.info(f"Running {len(chosen_suite)} tests for {args.test_duration} seconds")
@@ -183,9 +196,7 @@ def run(args):
 
         elapsed -= test_elapsed
 
-    if not args.dry_run:
-        network.stop_all_nodes(skip_verification=True)
-        jwt_server.stop()
+    cleanup.close()
 
     if success:
         LOG.success(f"Suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")

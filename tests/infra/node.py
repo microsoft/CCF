@@ -154,6 +154,7 @@ class Node:
         version=None,
         node_data_json_file=None,
         ipv6=False,
+        default_env=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -161,6 +162,7 @@ class Node:
         self.debug = debug
         self.perf = perf
         self.ipv6 = ipv6
+        self.default_env = dict(default_env or {})
         self.remote = None
         self.network_state = NodeNetworkState.stopped
         self.common_dir = None
@@ -327,6 +329,7 @@ class Node:
         common_dir,
         members_info=None,
         host_data_transparent_statement_path=None,
+        env=None,
         **kwargs,
     ):
         """
@@ -374,6 +377,7 @@ class Node:
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
             host_data_transparent_statement_path=self.host_data_transparent_statement_path,
+            env=self.default_env | (env or {}),
             **kwargs,
         )
         self.remote.setup()

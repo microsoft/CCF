@@ -4,7 +4,6 @@
 
 #include "ccf/endpoint.h"
 #include "ccf/service/signed_req.h"
-#include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
 #include "ccf/service/tables/gov.h"
@@ -116,7 +115,6 @@ namespace ccf
     //
     // JWT tables
     //
-    const CACertBundlePEMs ca_cert_bundles = {Tables::CA_CERT_BUNDLE_PEMS};
     const JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
     const JwtPublicSigningKeysMetadata jwt_public_signing_keys_metadata = {
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA};

@@ -5,7 +5,6 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/nonstd.h"
-#include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/jwt.h"
 #include "http/http_builder.h"
 #include "http_client/curl.h"
@@ -173,9 +172,11 @@ namespace ccf
       ccf::tasks::add_delayed_task(retry_task, std::chrono::seconds(delay_s));
     }
 
-    void send_curl_get(
+  protected:
+    // Issues an outbound HTTPS GET. Virtual so that unit tests can substitute
+    // the transport, without a live libcurl/libuv context.
+    virtual void send_curl_get(
       const std::string& url,
-      const std::string& ca_bundle_pem,
       ccf::http_client::CurlRequest::ResponseCallback callback)
     {
       ccf::http_client::UniqueCURL curl_handle;
@@ -190,11 +191,7 @@ namespace ccf
       // https://curl.se/libcurl/c/CURLOPT_SSL_VERIFYHOST.html
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
-      curl_handle.set_blob_opt(
-        CURLOPT_CAINFO_BLOB,
-        reinterpret_cast<const uint8_t*>(ca_bundle_pem.data()),
-        ca_bundle_pem.size());
-      curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
+      curl_handle.use_system_trust_store();
 
       ccf::http_client::UniqueSlist headers;
 
@@ -231,7 +228,7 @@ namespace ccf
       max_response_size(max_response_size)
     {}
 
-    ~JwtKeyAutoRefresh()
+    virtual ~JwtKeyAutoRefresh()
     {
       stop();
     }
@@ -400,7 +397,6 @@ namespace ccf
 
     void handle_jwt_metadata_response(
       const std::string& issuer,
-      std::string ca_bundle_pem,
       ccf::http_status status,
       std::vector<uint8_t>&& data)
     {
@@ -523,13 +519,11 @@ namespace ccf
             }));
         };
 
-      send_curl_get(jwks_url_str, ca_bundle_pem, std::move(response_callback));
+      send_curl_get(jwks_url_str, std::move(response_callback));
     }
 
     void refresh_issuer_jwt_keys(
-      const JwtIssuer& issuer,
-      const JwtIssuerMetadata& metadata,
-      ccf::CACertBundlePEMs::ReadOnlyHandle* ca_cert_bundles)
+      const JwtIssuer& issuer, const JwtIssuerMetadata& metadata)
     {
       if (!metadata.auto_refresh)
       {
@@ -546,39 +540,15 @@ namespace ccf
 
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
-      if (!metadata.ca_cert_bundle_name.has_value())
-      {
-        LOG_INFO_FMT(
-          "JWT key auto-refresh: Issuer '{}' has auto-refresh enabled but no "
-          "CA cert bundle name",
-          issuer);
-        send_refresh_jwt_keys_error(issuer);
-        return;
-      }
-      const auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
-      auto ca_cert_bundle_pem = ca_cert_bundles->get(ca_cert_bundle_name);
-      if (!ca_cert_bundle_pem.has_value())
-      {
-        LOG_INFO_FMT(
-          "JWT key auto-refresh: CA cert bundle with name '{}' for issuer "
-          "'{}' not "
-          "found",
-          ca_cert_bundle_name,
-          issuer);
-        send_refresh_jwt_keys_error(issuer);
-        return;
-      }
 
       auto metadata_url = issuer + "/.well-known/openid-configuration";
 
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting OpenID metadata at {}", metadata_url);
 
-      auto ca_bundle_pem = ca_cert_bundle_pem.value();
-
       const auto self = weak_from_this();
       auto response_callback =
-        [self, issuer, ca_bundle_pem](
+        [self, issuer](
           std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
@@ -587,13 +557,8 @@ namespace ccf
             request->get_response_body() != nullptr ?
               std::move(request->get_response_body()->buffer) :
               std::vector<uint8_t>{});
-          ccf::tasks::add_task(
-            ccf::tasks::make_basic_task([self,
-                                         issuer,
-                                         ca_bundle_pem,
-                                         curl_response,
-                                         http_status,
-                                         response_body_sp]() {
+          ccf::tasks::add_task(ccf::tasks::make_basic_task(
+            [self, issuer, curl_response, http_status, response_body_sp]() {
               const auto self_sp = self.lock();
               if (self_sp == nullptr || self_sp->stopped.load())
               {
@@ -612,14 +577,11 @@ namespace ccf
                 return;
               }
               self_sp->handle_jwt_metadata_response(
-                issuer,
-                ca_bundle_pem,
-                http_status,
-                std::move(*response_body_sp));
+                issuer, http_status, std::move(*response_body_sp));
             }));
         };
 
-      send_curl_get(metadata_url, ca_bundle_pem, std::move(response_callback));
+      send_curl_get(metadata_url, std::move(response_callback));
     }
 
     void refresh_jwt_keys()
@@ -631,12 +593,10 @@ namespace ccf
 
       std::unique_ptr<ccf::kv::ReadOnlyTx> tx;
       ccf::JwtIssuers::ReadOnlyHandle* jwt_issuers = nullptr;
-      ccf::CACertBundlePEMs::ReadOnlyHandle* ca_cert_bundles = nullptr;
       if (!ccf::retry_on_compacted_version_conflict(
             "JWT key auto-refresh: Issuer lookup", [&] {
               tx = network.tables->create_read_only_tx_ptr();
               jwt_issuers = tx->ro(network.jwt_issuers);
-              ca_cert_bundles = tx->ro(network.ca_cert_bundles);
             }))
       {
         LOG_FAIL_FMT(
@@ -646,14 +606,13 @@ namespace ccf
       }
 
       jwt_issuers->foreach(
-        [this, &ca_cert_bundles](
-          const JwtIssuer& issuer, const JwtIssuerMetadata& metadata) {
+        [this](const JwtIssuer& issuer, const JwtIssuerMetadata& metadata) {
           if (stopped.load())
           {
             return false;
           }
 
-          refresh_issuer_jwt_keys(issuer, metadata, ca_cert_bundles);
+          refresh_issuer_jwt_keys(issuer, metadata);
           return true;
         });
     }
@@ -665,15 +624,12 @@ namespace ccf
         return;
       }
 
-      std::unique_ptr<ccf::kv::ReadOnlyTx> tx;
       std::optional<JwtIssuerMetadata> metadata;
-      ccf::CACertBundlePEMs::ReadOnlyHandle* ca_cert_bundles = nullptr;
       if (!ccf::retry_on_compacted_version_conflict(
             fmt::format("JWT key auto-refresh: Lookup of issuer '{}'", issuer),
             [&] {
-              tx = network.tables->create_read_only_tx_ptr();
-              metadata = tx->ro(network.jwt_issuers)->get(issuer);
-              ca_cert_bundles = tx->ro(network.ca_cert_bundles);
+              auto tx = network.tables->create_read_only_tx();
+              metadata = tx.ro(network.jwt_issuers)->get(issuer);
             }))
       {
         LOG_FAIL_FMT(
@@ -694,7 +650,7 @@ namespace ccf
         return;
       }
 
-      refresh_issuer_jwt_keys(issuer, metadata.value(), ca_cert_bundles);
+      refresh_issuer_jwt_keys(issuer, metadata.value());
     }
 
     // Returns a copy of the current attempts
