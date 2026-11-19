@@ -13,65 +13,100 @@ To be clear being able to save 1 line of human readable code at the cost of 1000
 
 Within a model's library directory, use this layout:
 
-| Location          | Responsibility                                                                                       |
-| ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `Model.lean`      | Assemble the executable model, including configuration and network composition.                      |
-| `Model/`          | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
-| `Shared/`         | Reusable transition systems, network composition, and execution definitions.                         |
-| `Properties.lean` | Define the named claims as `def ... : Prop`.                                                         |
-| `Properties/`     | Definitions needed to state and understand those claims, such as state and trace predicates.         |
-| `Proof.lean`      | Export theorems establishing the named properties, linked to their checked implementations.          |
-| `Proofs/`         | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
-| `Tests/`          | Executable model checks and regression cases.                                                        |
+| Location               | Responsibility                                                                                       |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `Model.lean`           | Assemble the executable model, including configuration and network composition.                      |
+| `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
+| `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.  |
+| `Properties.lean`      | State safety theorems and witness lemmas explicitly, linked to checked implementations.              |
+| `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
+| `Proofs/`              | Supporting derivations, ghost state, and strengthening invariants.                                   |
+| `Tests/`               | Executable model checks and regression cases.                                                        |
+| `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                  |
+| `TraceValidation/`     | Trace formats, decoding, bookkeeping, and adapters to model transitions.                             |
+
+## Model versus trace validation
+
+`Model.lean` and `Model/` define protocol state, actions, results, and executable transitions independently of implementation trace formats.
+A model execution must be expressible without a recorded test case, trace envelope, or parser.
+Keep schemas, sequence numbers, test scopes, recording identifiers, lifecycle-completeness checks, parser errors, and replay diagnostics in `TraceValidation.lean` or `TraceValidation/`.
+Accommodations for missing trace fields, such as an omitted initial term, also belong there.
+The model computes operation results and state changes.
+The adapter translates records into model actions, compares reported results with computed outputs, and maintains trace bookkeeping without independently updating model state.
+If diagnostic checks run before model execution, negative trace tests must also exercise model execution and reported-output comparison without those checks.
+Do not add reported observations to model actions solely to validate a trace.
+Store the model state directly alongside separate recording bookkeeping, and execute model actions when checking traces.
+Do not reconstruct model state from trace-decorated stores or transactions, or introduce a second transition system solely for replay.
+Trace-only bookkeeping steps must leave the model state unchanged.
+State every public safety claim in `Properties.lean` over model state, actions, outputs, or executions of `Model.transitionSystem`.
+Do not use trace-adapter reachability as a safety premise or retain duplicate adapter-scoped safety catalogues.
+The safety entrypoint and its transitive imports must not depend on trace validation.
 
 ## Dependency direction
 
-- Keep `Shared/`, `Model/`, and `Model.lean` independent of property and proof
-  modules. Shared infrastructure must not depend on a particular protocol.
-- Property definitions should depend on the model, shared definitions, and other
-  property helpers. Neither `Properties.lean` nor `Properties/` may import
-  `Proof.lean` or `Proofs/`.
-- Let `Proofs/` depend on model and property definitions, plus other supporting
-  proofs. `Proof.lean` imports the property statements and their implementations.
+- Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property helpers, theorem entrypoints, and proof modules.
+  They must also be independent of trace validation.
+  Shared infrastructure must not depend on a particular protocol.
+- Let `TraceValidation.lean` and `TraceValidation/` depend on the model and shared definitions, not property helpers, theorem entrypoints, or proof implementations.
+- Property helpers in `Properties/` should depend only on the model, shared definitions, and other property helpers.
+  They may not import `Properties.lean` or `Proofs/`.
+- Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
+  `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
 
-The proof entrypoint should establish the named property rather than repeat its
-statement. For example:
+Write the full logical statement in each public safety theorem and existential witness lemma, rather than defining a separate named proposition.
+Declare public safety claims and their existential witnesses with the `theorem` keyword, since Lean core has no `lemma` command.
+Name each witness after its safety theorem with a `_witness` suffix, including the witness implementations under `Proofs/`.
+Keep each proof body a one-line `by exact Proofs.<implementation>` reference, and place each witness lemma next to its corresponding safety theorem.
+For example:
 
 ```lean
-theorem quorum_opener_unique : Properties.QuorumOpenerUnique :=
-	Proofs.Model.quorum_opener_unique
+namespace DisasterRecovery.Properties
+
+theorem rejected_gossip_stutters
+    : forall (config : Model.Config) (localStep : Properties.LocalStep),
+      forall (source : Model.Local.Location) (txid : Model.Local.TxID),
+        ((Model.protocol config).ValidStep localStep
+          /\ localStep.action = .receiveGossip source txid .rejected)
+        -> localStep.after = localStep.before
+            /\ List.Mem (.rejected "quote-or-certificate") localStep.effects.notifications := by
+  exact Proofs.Local.rejected_gossip_stutters
+
+end DisasterRecovery.Properties
 ```
 
+Keep supporting proof statements explicit too, or use existing lower-level facts, so they do not depend on the final theorem entrypoint.
 Do not use axioms or unfinished theorems as placeholders for property statements.
+
+Do not restate safety properties or witness claims in READMEs.
+Link to the authoritative statements in `Properties.lean` instead.
+
+## Learnings
+
+Models with an infinite state space should include a `deadlock_free` theorem using `CCF.TransitionSystem.DeadlockFree` at the end of `Properties.lean`, followed by its `_witness` theorem.
 
 ## Statement definitions versus proof machinery
 
-A definition belongs with properties when a reader needs it to understand the
-claim or its assumptions. A definition used only to establish the claim belongs
-with proofs.
+A definition belongs with properties when a reader needs it to understand the claim or its assumptions.
+A definition used only to establish the claim belongs with proofs.
 
-State historical properties over executions of the actual model. Put reusable
-execution definitions in `Shared/` and protocol-specific trace predicates in
-`Properties/`. Keep ghost histories, send-time snapshots, and proof-only
-invariants under `Proofs/`; do not expose their representation through public
-property helpers.
+State historical properties over executions of the actual model.
+Put reusable execution definitions in `common/CCF/` and protocol-specific trace predicates in `Properties/`.
+Keep ghost histories, send-time snapshots, and proof-only invariants under `Proofs/`; do not expose their representation through public property helpers.
 
-When using a ghost execution, prove that every relevant model execution admits
-the decoration. Do not restrict the model to executions convenient for a proof.
-Moving ghost definitions into `Properties/` merely to remove an import does not
-establish this separation.
+When using a ghost execution, prove that every relevant model execution admits the decoration.
+Do not restrict the model to executions convenient for a proof.
+Moving ghost definitions into `Properties/` merely to remove an import does not establish this separation.
 
 ## Review and validation
 
-Review the model, property definitions, their helpers, and the theorem links in
-`Proof.lean`. Keep the detailed proof implementations machine-checked and within
-the axiom allowlist.
+Review the model, full statements and proof links in `Properties.lean`, and the property helpers used by those statements.
+Keep the detailed proof implementations machine-checked and within the axiom allowlist.
 
-Retain the generated package-level import-all module and the whole-package axiom
-audit. The proof entrypoint does not replace either check. After moving modules,
-regenerate the import root and run the package's existing checks. For disaster
-recovery, see the [validation commands](disaster-recovery/README.md#validation).
+Retain the package-level import root, whole-package import coverage with `lake exe check-imports`, and kernel and axiom-dependency checks with `lake check`.
+The proof entrypoint does not replace either check.
+After moving modules, update the import root and run the package's existing checks.
+For disaster recovery, see the [validation commands](disaster-recovery/README.md#validation).
 
-`DisasterRecovery/Tests/Architecture.lean` checks the property import graph during
-the build. It rejects proof dependencies and imports that reverse the shared,
-model, and property layers.
+The shared `lake exe check-imports` command checks dependency direction for every specification library root discovered from Lake.
+Do not add per-model architecture tests; see [the common package](common/README.md#architecture-checks) for the policy.
+It keeps common and model modules independent of properties and proofs, property helpers independent of proofs and theorem entrypoints, and proof implementations independent of the final theorem entrypoint.

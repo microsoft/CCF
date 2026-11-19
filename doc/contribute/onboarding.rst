@@ -30,8 +30,8 @@ To run a locally built copy of this application in a sandbox, see :doc:`/build_a
 
     Setting up Python environment...
     Python environment successfully setup
-    [11:44:33.376] Starting 1 CCF node...
     [11:44:33.376] Virtual mode enabled
+    [11:44:33.376] Starting 1 CCF node...
     [11:44:35.025] Started CCF network with the following nodes:
     [11:44:35.025]   Node [0] = https://127.0.0.1:8000
     [11:44:35.025] You can now issue business transactions to the samples/apps/logging/logging application
@@ -46,19 +46,19 @@ The main CI job for CCF is defined in :ccf_repo:`a YAML file in the repo </.gith
 
 That job gates pull requests, and is also used with a different trigger (on tags like ``ccf-*``) to produce releases.
 
-:ccf_repo:`Several other jobs </.github/workflows/README.md>` are defined as GitHub Actions worflows and run more in-depth tests, publish documentation etc.
+:ccf_repo:`Several other jobs </.github/workflows/README.md>` are defined as GitHub Actions workflows and run more in-depth tests, publish documentation etc.
 
 Review the release and compatibility policy
 -------------------------------------------
 
-:doc:`/build_apps/release_policy` defines what changes are possible in CCF and what timeline they must follow.
+:doc:`/releases/release_policy` defines what changes are possible in CCF and what timeline they must follow.
 
 Simplified Data Flow Map
 ------------------------
 
 This chart is a simplified illustration of the data flow in a running CCF service. Where possible, nodes and edges have been made links to the most relevant documentation page or file.
 
-Note that this diagram deliberately does not represent host-to-enclave communication.
+Note that this diagram deliberately does not represent the node's internal I/O layer (sockets and file access).
 
 .. mermaid::
 

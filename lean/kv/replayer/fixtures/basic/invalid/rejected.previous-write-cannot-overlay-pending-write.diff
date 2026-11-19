@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -13 +13 @@
+-{"key":"","map":"a","seq":13,"store":1,"tx":1,"type":"previous_write","value":null}
++{"key":"","map":"a","seq":13,"store":1,"tx":1,"type":"previous_write","value":1}

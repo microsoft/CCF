@@ -51,20 +51,24 @@ namespace ccf
     }
 
     ccf::ClaimsDigest claims = ccf::empty_claims();
+
     // NOLINTBEGIN(performance-move-const-arg)
     void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
     {
       claims.set(std::move(digest));
     }
+
     // NOLINTEND(performance-move-const-arg)
 
     ccf::PathParams path_params;
+
     const ccf::PathParams& get_request_path_params() override
     {
       return path_params;
     }
 
     ccf::PathParams decoded_path_params;
+
     const ccf::PathParams& get_decoded_request_path_params() override
     {
       return decoded_path_params;
@@ -127,6 +131,7 @@ namespace ccf
       std::string commit_evidence;
       ccf::ClaimsDigest claims_digest;
     };
+
     std::optional<RespondOnCommitInfo> respond_on_commit = std::nullopt;
 
     [[nodiscard]] virtual bool should_apply_writes() const = 0;

@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -43 +43 @@
+-{"result":"conflict","seq":43,"store":2,"tx":12,"type":"commit_result","version":0}
++{"seq":43,"store":2,"term":0,"tx":12,"type":"apply","version":2,"writes":[{"key":"00","map":"b","value":"22"}]}

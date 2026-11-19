@@ -121,6 +121,7 @@ namespace ccf::ds::json
       }
     }
   }
+
 #pragma clang diagnostic pop
 
   template <typename T>

@@ -23,6 +23,7 @@ namespace ccf
     'C', 'o', 'm', 'm', 'i', 't', ' ', 'S'};
   static std::span<const uint8_t> commit_secret_label{
     commit_secret_label_, sizeof(commit_secret_label_)};
+
   struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
@@ -50,6 +51,17 @@ namespace ccf
       std::span<const uint8_t> plain,
       std::span<const uint8_t> aad,
       std::vector<uint8_t>& cipher,
+      uint8_t tag[ccf::crypto::GCM_SIZE_TAG])
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(context_lock);
+      context->encrypt(iv, plain, aad, cipher, tag);
+    }
+
+    void encrypt(
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> cipher,
       uint8_t tag[ccf::crypto::GCM_SIZE_TAG])
     {
       std::lock_guard<ccf::ds::Mutex> guard(context_lock);

@@ -59,7 +59,7 @@ TEST_CASE("CBOR: signed integer overflow")
 {
   // 9223372036854775807 + 1 = 9223372036854775808
   auto cbor_bytes = ccf::ds::from_hex("1b8000000000000000");
-  REQUIRE_THROWS_AS(nondet_parse(cbor_bytes), DecodeError);
+  REQUIRE_THROWS_AS(nondet_parse(cbor_bytes), tav::Exception);
 }
 
 TEST_CASE("CBOR: strings")
@@ -626,7 +626,7 @@ TEST_CASE("CBOR: tagged empty array Tag(9300) with []")
   REQUIRE_EQ(cbor_bytes, encoded);
 
   const auto& array = decoded.tag_at(9300);
-  REQUIRE_THROWS_AS((void)array.array_at(0), DecodeError);
+  REQUIRE_THROWS_AS((void)array.array_at(0), tav::Exception);
 
   const std::string expected_repr = R"(Tagged[9300]:
   Array[0]:)";
@@ -1702,14 +1702,14 @@ TEST_CASE("CBOR: encode empty bytes and string with null data pointer")
 TEST_CASE("CBOR: error - invalid data")
 {
   auto cbor_bytes = ccf::ds::from_hex("18");
-  REQUIRE_THROWS_AS(nondet_parse(cbor_bytes), DecodeError);
+  REQUIRE_THROWS_AS(nondet_parse(cbor_bytes), tav::Exception);
 }
 
 TEST_CASE("CBOR: error - array out of bounds")
 {
   auto cbor_bytes = ccf::ds::from_hex("83010203");
   auto value = nondet_parse(cbor_bytes);
-  REQUIRE_THROWS_AS((void)value.array_at(10), DecodeError);
+  REQUIRE_THROWS_AS((void)value.array_at(10), tav::Exception);
 }
 
 TEST_CASE("CBOR: error - unexpected tag")
@@ -1717,7 +1717,7 @@ TEST_CASE("CBOR: error - unexpected tag")
   auto cbor_bytes = ccf::ds::from_hex("d9232b42cafe"); // Tag 9003
   auto value = nondet_parse(cbor_bytes);
 
-  REQUIRE_THROWS_AS((void)value.tag_at(9004), DecodeError);
+  REQUIRE_THROWS_AS((void)value.tag_at(9004), tav::Exception);
 }
 
 TEST_CASE("CBOR: throw with context")
@@ -1725,13 +1725,12 @@ TEST_CASE("CBOR: throw with context")
   auto v = make_signed(105);
 
   const std::string context = "Custom enough context";
-  // Accessors report the operation that failed.
-  const std::string err = "as_string";
+  const std::string err = "CBOR type mismatch or null argument";
   const std::string expected_err = context + ": " + err;
   REQUIRE_THROWS_WITH_AS(
     rethrow_with_msg([&]() { std::ignore = v.as_string(); }, context),
     expected_err.c_str(),
-    DecodeError);
+    tav::Exception);
 }
 
 TEST_CASE("CBOR: trailing bytes rejected")
@@ -1742,7 +1741,7 @@ TEST_CASE("CBOR: trailing bytes rejected")
 
   // Append trailing byte - should be rejected
   auto with_trailing = ccf::ds::from_hex("182a00");
-  REQUIRE_THROWS_AS(nondet_parse(with_trailing), DecodeError);
+  REQUIRE_THROWS_AS(nondet_parse(with_trailing), tav::Exception);
 
   // Valid CBOR byte string h'0102' = 0x420102
   auto valid_bstr = ccf::ds::from_hex("420102");
@@ -1750,7 +1749,7 @@ TEST_CASE("CBOR: trailing bytes rejected")
 
   // Append trailing bytes
   auto bstr_trailing = ccf::ds::from_hex("420102ff");
-  REQUIRE_THROWS_AS(nondet_parse(bstr_trailing), DecodeError);
+  REQUIRE_THROWS_AS(nondet_parse(bstr_trailing), tav::Exception);
 
   // Valid CBOR array [1, 2] = 0x820102
   auto valid_array = ccf::ds::from_hex("820102");
@@ -1758,7 +1757,7 @@ TEST_CASE("CBOR: trailing bytes rejected")
 
   // Append trailing byte
   auto array_trailing = ccf::ds::from_hex("82010203");
-  REQUIRE_THROWS_AS(nondet_parse(array_trailing), DecodeError);
+  REQUIRE_THROWS_AS(nondet_parse(array_trailing), tav::Exception);
 }
 
 TEST_CASE("CBOR: parse max depth")
@@ -1773,11 +1772,11 @@ TEST_CASE("CBOR: parse max depth")
 
   // depth 3: [[[42]]] -- should fail at max_depth=2
   auto depth3 = ccf::ds::from_hex("818181182a");
-  REQUIRE_THROWS_AS(nondet_parse(depth3, 2), DecodeError);
+  REQUIRE_THROWS_AS(nondet_parse(depth3, 2), tav::Exception);
 
   // map depth 3: {1: {1: {1: 42}}} -- should fail at max_depth=2
   auto map_depth3 = ccf::ds::from_hex("a101a101a101182a");
-  REQUIRE_THROWS_AS(nondet_parse(map_depth3, 2), DecodeError);
+  REQUIRE_THROWS_AS(nondet_parse(map_depth3, 2), tav::Exception);
 
   // map depth 2: {1: {1: 42}} -- should pass at max_depth=2
   auto map_depth2 = ccf::ds::from_hex("a101a101182a");
@@ -1801,7 +1800,7 @@ TEST_CASE("CBOR: serialize max depth")
     level.push_back(std::move(deep));
     deep = make_array(std::move(level));
   }
-  REQUIRE_THROWS_AS(std::ignore = deep.nondet_serialize(2), EncodeError);
+  REQUIRE_THROWS_AS(std::ignore = deep.nondet_serialize(2), tav::Exception);
 
   // Same deep tree passes at higher limit
   REQUIRE_NOTHROW(std::ignore = deep.nondet_serialize(3));

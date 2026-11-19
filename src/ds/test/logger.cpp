@@ -6,8 +6,13 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
+#include <cstdint>
+#include <ctime>
 #include <doctest/doctest.h>
+#include <iostream>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -51,6 +56,23 @@ public:
 using TestTextLogger = TestLogger<ccf::logger::TextConsoleLogger>;
 using TestJsonLogger = TestLogger<ccf::logger::JsonConsoleLogger>;
 
+TEST_CASE("JSON logs retain wall-clock timestamps and string messages")
+{
+  std::vector<std::string> logs;
+  TestJsonLogger logger(logs);
+  ccf::logger::LogLine line(ccf::LoggerLevel::INFO, "test", __FILE__, __LINE__);
+  line.msg = R"({"function":"replicate"})";
+  logger.write(line);
+
+  REQUIRE(logs.size() == 1);
+  const auto record = nlohmann::json::parse(logs.front());
+  CHECK(record["msg"] == line.msg);
+  const auto timestamp = record["h_ts"].get<std::string>();
+  REQUIRE(timestamp.size() == 27);
+  CHECK(timestamp[10] == 'T');
+  CHECK(timestamp.back() == 'Z');
+}
+
 class ScopedLoggerConfig
 {
   const ccf::LoggerLevel previous_level = ccf::logger::config::level();
@@ -73,6 +95,108 @@ public:
     ccf::ds::TimeBoundLogger::default_max_time = previous_default_max_time;
   }
 };
+
+class ScopedCerrCapture
+{
+  std::ostringstream captured;
+  std::streambuf* previous = std::cerr.rdbuf(captured.rdbuf());
+
+public:
+  ScopedCerrCapture() = default;
+  ScopedCerrCapture(const ScopedCerrCapture&) = delete;
+  ScopedCerrCapture& operator=(const ScopedCerrCapture&) = delete;
+
+  ~ScopedCerrCapture()
+  {
+    std::cerr.rdbuf(previous);
+  }
+
+  std::string str() const
+  {
+    return captured.str();
+  }
+};
+
+class ScopedCoutCapture
+{
+  std::ostringstream captured;
+  std::streambuf* previous = std::cout.rdbuf(captured.rdbuf());
+
+public:
+  ScopedCoutCapture() = default;
+  ScopedCoutCapture(const ScopedCoutCapture&) = delete;
+  ScopedCoutCapture& operator=(const ScopedCoutCapture&) = delete;
+
+  ~ScopedCoutCapture()
+  {
+    std::cout.rdbuf(previous);
+  }
+
+  void clear()
+  {
+    captured.str("");
+    captured.clear();
+  }
+
+  std::string str() const
+  {
+    return captured.str();
+  }
+};
+
+#ifndef CCF_CFT_TRACING
+TEST_CASE("Logger timestamp retains microsecond precision")
+{
+  std::tm tm{};
+  tm.tm_year = 126;
+  tm.tm_mon = 5;
+  tm.tm_mday = 16;
+  tm.tm_hour = 5;
+  tm.tm_min = 30;
+  tm.tm_sec = 6;
+  ::timespec ts{};
+
+  CHECK(ccf::logger::get_timestamp(tm, ts) == "2026-06-16T05:30:06.000000Z");
+  ts.tv_nsec = 123456789;
+  CHECK(ccf::logger::get_timestamp(tm, ts) == "2026-06-16T05:30:06.123456Z");
+  ts.tv_nsec = 999999999;
+  CHECK(ccf::logger::get_timestamp(tm, ts) == "2026-06-16T05:30:06.999999Z");
+}
+#endif
+
+TEST_CASE("Application log formatting preserves text and JSON messages")
+{
+  using namespace std::string_literals;
+
+  std::vector<std::string> text_logs;
+  std::vector<std::string> json_logs;
+  const ScopedLoggerConfig restore_config;
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<TestTextLogger>(text_logs));
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<TestJsonLogger>(json_logs));
+
+  const std::vector<uint8_t> bytes = {0, 1, 127, 255};
+  CCF_APP_INFO(
+    "value={:.2f} hex={:02x} enum={} optional={}",
+    1.25,
+    fmt::join(bytes, ""),
+    ccf::LoggerLevel::INFO,
+    std::optional{7});
+  CCF_APP_INFO("escaped={{}}\n{}\0{}", "before", "after");
+
+  const std::vector<std::string> expected = {
+    "value=1.25 hex=00017fff enum=2 optional=optional(7)",
+    "escaped={}\nbefore\0after"s};
+  REQUIRE(text_logs.size() == expected.size());
+  REQUIRE(json_logs.size() == expected.size());
+  for (size_t i = 0; i < expected.size(); ++i)
+  {
+    CHECK(text_logs[i].ends_with(expected[i] + "\n"));
+    CHECK(nlohmann::json::parse(json_logs[i]).at("msg") == expected[i]);
+  }
+}
 
 TEST_CASE("Time-bound logger duration formatting")
 {
@@ -181,6 +305,38 @@ TEST_CASE("Framework logging macros")
   }
 
   ccf::logger::config::loggers().clear();
+}
+
+TEST_CASE("Only explicit fatal diagnostics write to stderr")
+{
+  const ScopedLoggerConfig restore_config;
+  ccf::logger::config::level() = ccf::LoggerLevel::TRACE;
+  ScopedCoutCapture captured_out;
+  ScopedCerrCapture captured_err;
+
+  const auto check_console_logger = [&](auto logger) {
+    auto& loggers = ccf::logger::config::loggers();
+    loggers.clear();
+    loggers.emplace_back(std::move(logger));
+    captured_out.clear();
+
+    LOG_INFO_FMT("Recoverable information");
+    LOG_FAIL_FMT("Recoverable failure");
+    LOG_FATAL_FMT("Fatal severity label without termination");
+
+    CHECK(captured_err.str().empty());
+    const auto output = captured_out.str();
+    CHECK(output.contains("Recoverable information"));
+    CHECK(output.contains("Recoverable failure"));
+    CHECK(output.contains("Fatal severity label without termination"));
+  };
+
+  check_console_logger(std::make_unique<ccf::logger::TextConsoleLogger>());
+  check_console_logger(std::make_unique<ccf::logger::JsonConsoleLogger>());
+  captured_out.clear();
+  ccf::logger::write_fatal_diagnostic("Node terminated");
+  CHECK(captured_out.str().empty());
+  CHECK(captured_err.str() == "Fatal error: Node terminated\n");
 }
 
 TEST_CASE("Application logging macros")

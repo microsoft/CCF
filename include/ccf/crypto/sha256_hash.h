@@ -35,7 +35,9 @@ namespace ccf::crypto
       const Sha256Hash& third);
     Sha256Hash(const Sha256Hash& hash) = default;
     Sha256Hash& operator=(const Sha256Hash& hash) = default;
+
     Sha256Hash(Sha256Hash&& hash) noexcept : h(hash.h) {}
+
     Sha256Hash& operator=(Sha256Hash&& hash) noexcept
     {
       h = hash.h;
@@ -66,6 +68,7 @@ namespace ccf::crypto
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::crypto::Sha256Hash>
 {
@@ -81,4 +84,5 @@ struct formatter<ccf::crypto::Sha256Hash>
     return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
   }
 };
+
 FMT_END_NAMESPACE

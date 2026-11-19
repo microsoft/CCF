@@ -17,7 +17,7 @@ import tempfile
 import time
 import urllib.parse
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http.client import HTTPResponse
 from io import BytesIO
 from threading import local
@@ -46,7 +46,7 @@ class OffSettableSecondsSinceEpoch:
     start = None
 
     def __init__(self) -> None:
-        self.start = datetime.now(tz=timezone.utc)
+        self.start = datetime.now(tz=UTC)
 
     def moment(self):
         return self.start + timedelta(seconds=self.offset_seconds)

@@ -14,22 +14,19 @@ CTest entry          ctest -R e2e_logging
 
 ### CTest entries
 
-Registered in CMakeLists.txt via `add_e2e_test(NAME ...)`. Names should be
-unique and not be substrings of each other, so that `ctest -R <name>` matches
-exactly one test. For example, `recovery_test` and `recovery_test_suite` are
-problematic because `-R recovery_test` matches both.
+Registered in CMakeLists.txt via `add_e2e_test(NAME ...)`.
+Names should be unique and not be substrings of each other, so that `ctest -R <name>` matches exactly one test.
+For example, `recovery_test` and `recovery_test_suite` are problematic because `-R recovery_test` matches both.
 
 ### Entry-points
 
-Python scripts (e.g. `schema.py`, `e2e_logging.py`) that use `ConcurrentRunner`
-to run one or more groups in parallel. A single entry-point may bin-pack
-unrelated groups for efficient CI run-time.
+Python scripts (e.g. `schema.py`, `e2e_logging.py`) that use `ConcurrentRunner` to run one or more groups in parallel.
+A single entry-point may bin-pack unrelated groups for efficient CI run-time.
 
 ### Runners (ConcurrentRunner threads)
 
-The first argument to `cr.add("name", ...)`. This name appears in every log
-line from that thread, so it should be short and descriptive (e.g. `"cpp"`,
-`"operations"`, `"recovery"`).
+The first argument to `cr.add("name", ...)`.
+This name appears in every log line from that thread, so it should be short and descriptive (e.g. `"cpp"`, `"operations"`, `"recovery"`).
 
 ### Groups — `run_` prefix
 
@@ -50,6 +47,4 @@ Individual test functions that operate on an existing network.
 
 ### Other helpers
 
-Functions that don't fit either pattern (e.g. shared test groups that operate
-on an existing network but aren't individual tests) should avoid the `test_`
-and `run_` prefixes.
+Functions that don't fit either pattern (e.g. shared test groups that operate on an existing network but aren't individual tests) should avoid the `test_` and `run_` prefixes.

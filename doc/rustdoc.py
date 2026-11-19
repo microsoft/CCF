@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Publish the application SDK's rustdoc alongside each Sphinx HTML version."""
+"""Publish the application SDK's rustdoc alongside the Sphinx HTML output."""
 
 import os
 from pathlib import Path
@@ -20,10 +20,7 @@ def build_rustdoc(app):
     if app.builder.format != "html" or os.environ.get("SKIP_RUSTDOC"):
         return
 
-    # Multiversion sources need not be in the checkout containing conf.py.
     manifest = Path(app.srcdir).resolve().parent / "src/rust/ccf-app/Cargo.toml"
-    if not manifest.is_file():
-        return
 
     env = os.environ.copy()
     env.pop("CARGO_BUILD_TARGET", None)

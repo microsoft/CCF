@@ -22,6 +22,7 @@ namespace ccf::tasks
 
   protected:
     virtual void do_task_implementation() = 0;
+
     virtual void on_shutdown() noexcept {}
 
   public:

@@ -22,13 +22,19 @@ namespace ccf::crypto
       switch (c)
       {
         case '-':
+        {
           c = '+';
           break;
+        }
         case '_':
+        {
           c = '/';
           break;
+        }
         default:
+        {
           continue;
+        }
       }
     }
     auto padding = b64_string.size() % 4 == 2 ? 2 :
@@ -58,13 +64,19 @@ namespace ccf::crypto
       switch (c)
       {
         case '+':
+        {
           c = '-';
           break;
+        }
         case '/':
+        {
           c = '_';
           break;
+        }
         default:
+        {
           continue;
+        }
       }
     }
 

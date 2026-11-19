@@ -64,14 +64,12 @@ export function content(request) {
 def endpoint_properties(
     js_module,
     js_function,
-    forwarding_required="never",
     redirection_strategy="none",
     mode="readonly",
 ):
     return {
         "js_module": js_module,
         "js_function": js_function,
-        "forwarding_required": forwarding_required,
         "redirection_strategy": redirection_strategy,
         "authn_policies": ["no_auth"],
         "mode": mode,
@@ -117,7 +115,20 @@ def test_custom_endpoints(network, args):
     }
 
     def upper_cased_keys(obj):
-        return {k.upper(): v for k, v in obj.items()}
+        return {
+            k.upper(): {
+                **v,
+                "forwarding_required": v.get(
+                    "forwarding_required",
+                    (
+                        "always"
+                        if v.get("redirection_strategy", "to_primary") == "to_primary"
+                        else "never"
+                    ),
+                ),
+            }
+            for k, v in obj.items()
+        }
 
     def prefixed_module_name(module_def):
         if module_def["name"].startswith("/"):
@@ -614,7 +625,6 @@ def test_custom_role_definitions(network, args):
         "get": {
             "js_module": "test.js",
             "js_function": "content",
-            "forwarding_required": "never",
             "redirection_strategy": "none",
             "authn_policies": ["user_cert"],
             "mode": "readonly",

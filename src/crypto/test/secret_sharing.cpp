@@ -183,6 +183,7 @@ TEST_CASE("Serialisation")
 }
 
 constexpr element prime = (1ul << 31) - 1ul; // a notorious Mersenne prime
+
 static element reduce(element x)
 {
   // Actually CT, as compiled by Clang 11+, but obviously not guaranteed to be

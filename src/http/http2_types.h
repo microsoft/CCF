@@ -46,6 +46,7 @@ namespace http2
       ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
+
     Incoming incoming;
 
     struct Outgoing
@@ -54,6 +55,7 @@ namespace http2
       bool has_trailers = false;
       DataSource body;
     };
+
     Outgoing outgoing;
   };
 

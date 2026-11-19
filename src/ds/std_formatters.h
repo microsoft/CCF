@@ -13,6 +13,7 @@
 /// types
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<std::vector<uint8_t>>
 {
@@ -45,4 +46,5 @@ struct formatter<std::array<uint8_t, N>>
     return fmt::format_to(ctx.out(), "<arr[{}]: {:02x}>", N, fmt::join(a, " "));
   }
 };
+
 FMT_END_NAMESPACE

@@ -10,6 +10,8 @@
 #include "endpoints/rpc_context_impl.h"
 #include "http/http_parser.h"
 
+#include <tuple>
+
 namespace ccf::endpoints
 {
   namespace
@@ -60,11 +62,11 @@ namespace ccf::endpoints
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
       {
-        ds::openapi::response(path_op, HTTP_STATUS_OK);
+        std::ignore = ds::openapi::response(path_op, HTTP_STATUS_OK);
       }
 
       // Add a default error response
-      ds::openapi::error_response_default(path_op);
+      std::ignore = ds::openapi::error_response_default(path_op);
 
       // Add summary and description if set
       {
@@ -238,17 +240,18 @@ namespace ccf::endpoints
     const ReadOnlyEndpointFunction& f,
     const AuthnPolicies& ap)
   {
-    return make_endpoint(
-             method,
-             verb,
-             [f](EndpointContext& ctx) {
-               ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
-               ro_ctx.caller = std::move(ctx.caller);
-               f(ro_ctx);
-             },
-             ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_redirection_strategy(RedirectionStrategy::None);
+    auto endpoint = make_endpoint(
+      method,
+      verb,
+      [f](EndpointContext& ctx) {
+        ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
+        ro_ctx.caller = std::move(ctx.caller);
+        f(ro_ctx);
+      },
+      ap);
+    endpoint.set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
+    return endpoint;
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -261,8 +264,9 @@ namespace ccf::endpoints
       make_endpoint(method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap);
     endpoint.execution_mode = EndpointExecutionMode::Command;
     endpoint.command_func = f;
-    return endpoint.set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
+    return endpoint;
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)

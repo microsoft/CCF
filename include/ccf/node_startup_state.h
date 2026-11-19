@@ -39,4 +39,5 @@ namespace std
     return os << j.dump();
   }
 }
+
 // NOLINTEND(cert-dcl58-cpp)

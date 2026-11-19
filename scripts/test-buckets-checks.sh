@@ -14,26 +14,24 @@ SNAPSHOT="$ROOT_DIR/tests/ci-buckets.txt"
 
 cd "$ROOT_DIR" || exit 1
 
-# Use defaults plus the opt-in documentation test selected by Virtual A.
 # Changes to the default test inventory must still match the snapshot.
 BUILD_DIR=$(mktemp -d) || { echo "mktemp failed" >&2; exit 1; }
 ACTUAL=$(mktemp) || { echo "mktemp failed" >&2; rm -rf "$BUILD_DIR"; exit 1; }
 trap 'rm -rf "$BUILD_DIR"; rm -f "$ACTUAL"' EXIT
 
 echo "Configuring build dir for bucket check: $BUILD_DIR"
-if ! cmake -GNinja -S "$ROOT_DIR" -B "$BUILD_DIR" \
-       -DDOCS_PYTHON="$(command -v python3)" \
-      >"$BUILD_DIR/configure.log" 2>&1; then
+if ! cmake -GNinja -S "$ROOT_DIR" -B "$BUILD_DIR" >"$BUILD_DIR/configure.log" 2>&1; then
   cat "$BUILD_DIR/configure.log" >&2
   echo "cmake configure failed; cannot run test bucket check" >&2
   exit 1
 fi
 
 ctest_names() {
-  # ctest -N lines look like "  Test  #12: foo_test"; take the last field.
+  # ctest -N lines look like "  Test  #12: foo_test", followed by " (Disabled)"
+  # for disabled tests; take the name.
   (cd "$BUILD_DIR" && ctest -N "$@" 2>/dev/null) \
     | grep -E "^[[:space:]]*Test +#" \
-    | awk '{print $NF}'
+    | awk '{print $3}'
 }
 
 emit_bucket() {

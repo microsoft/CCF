@@ -48,6 +48,10 @@ namespace ccf::cose::edit
    * Useful to add a proof to a signature to turn it into a receipt, to
    * add a receipt to a signed statement to turn it into a transparent
    * statement, or simply to strip the unprotected header from a COSE Sign1.
+   * All bytes outside the unprotected header are preserved, including
+   * non-preferred length encodings. An empty replacement map is encoded as
+   * the single byte 0xa0. The input must be a valid, tagged COSE_Sign1 with
+   * definite-length items; malformed or unsupported encodings are rejected.
    *
    * @param cose_input The COSE_Sign1 message to edit.
    * @param descriptor An object describing whether and how to set the

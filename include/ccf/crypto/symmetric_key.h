@@ -28,7 +28,8 @@ namespace ccf::crypto
     [[nodiscard]] std::span<const uint8_t> get_iv() const;
 
     [[nodiscard]] size_t serialised_size() const;
-    std::vector<uint8_t> serialise();
+    [[nodiscard]] std::vector<uint8_t> serialise() const;
+    void serialise(std::span<uint8_t> output) const;
 
     void deserialise(const std::vector<uint8_t>& ser);
     void deserialise(const uint8_t*& data, size_t& size);
@@ -92,6 +93,15 @@ namespace ccf::crypto
         std::vector<uint8_t>& cipher,
         uint8_t tag[GCM_SIZE_TAG]) = 0;
 
+      // cipher must be exactly plain.size() bytes. Input and output must not
+      // partially overlap; identical plaintext and ciphertext spans are valid.
+      virtual void encrypt(
+        std::span<const uint8_t> iv,
+        std::span<const uint8_t> plain,
+        std::span<const uint8_t> aad,
+        std::span<uint8_t> cipher,
+        uint8_t tag[GCM_SIZE_TAG]);
+
       // Replaces plain on success and clears it if authentication fails.
       virtual bool decrypt(
         std::span<const uint8_t> iv,
@@ -118,6 +128,15 @@ namespace ccf::crypto
       std::vector<uint8_t>& cipher,
       uint8_t tag[GCM_SIZE_TAG]) const = 0;
 
+    // cipher must be exactly plain.size() bytes. Input and output must not
+    // partially overlap; identical plaintext and ciphertext spans are valid.
+    virtual void encrypt(
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> cipher,
+      uint8_t tag[GCM_SIZE_TAG]) const;
+
     // AES-GCM decryption
     // Replaces plain on success and clears it if authentication fails.
     virtual bool decrypt(
@@ -126,6 +145,16 @@ namespace ccf::crypto
       std::span<const uint8_t> cipher,
       std::span<const uint8_t> aad,
       std::vector<uint8_t>& plain) const = 0;
+
+    // plain must be exactly cipher.size() bytes. Input and output must not
+    // partially overlap; identical ciphertext and plaintext spans are valid.
+    // Zeroes plain if authentication fails.
+    virtual bool decrypt(
+      std::span<const uint8_t> iv,
+      const uint8_t tag[GCM_SIZE_TAG],
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> plain) const;
 
     // Key size in bits
     [[nodiscard]] virtual size_t key_size() const = 0;

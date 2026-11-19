@@ -2826,6 +2826,41 @@ TEST_CASE("ccf.crypto private-key bindings still succeed after scrubbing")
     )JS");
   }
 
+  SUBCASE("RSA-PSS saltLength conversion errors propagate")
+  {
+    // A failing property read or number conversion must surface as a JS
+    // exception, rather than being swallowed and silently signing or
+    // verifying with a salt length of 0.
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateRsaKeyPair(2048);
+      const data = ccf.strToBuf("hello");
+      const good = {name: "RSA-PSS", hash: "SHA-256", saltLength: 32};
+      const sig = ccf.crypto.sign(good, kp.privateKey, data);
+      const poisoned = [
+        {name: "RSA-PSS", hash: "SHA-256",
+         get saltLength() { throw new Error("salt getter"); }},
+        {name: "RSA-PSS", hash: "SHA-256",
+         saltLength: {valueOf() { throw new Error("salt valueOf"); }}},
+        {name: "RSA-PSS", hash: "SHA-256", saltLength: Symbol("salt")},
+      ];
+      for (const algorithm of poisoned) {
+        for (const [label, thunk] of [
+          ["sign", () => ccf.crypto.sign(algorithm, kp.privateKey, data)],
+          ["verifySignature",
+           () => ccf.crypto.verifySignature(algorithm, kp.publicKey, sig, data)],
+        ]) {
+          let threw = false;
+          try { thunk(); } catch (e) { threw = true; }
+          if (!threw)
+            throw new Error(label + " swallowed a saltLength conversion error");
+        }
+      }
+      // A later, unrelated operation must not see a stale pending exception.
+      if (!ccf.crypto.verifySignature(good, kp.publicKey, sig, data))
+        throw new Error("signature did not verify after poisoned calls");
+    )JS");
+  }
+
   SUBCASE("HMAC accepts a non-PEM key")
   {
     run_crypto_handler(R"JS(

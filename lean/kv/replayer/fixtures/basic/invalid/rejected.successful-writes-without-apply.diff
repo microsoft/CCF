@@ -1,0 +1,9 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -22,2 +22 @@
+-{"seq":22,"store":1,"term":0,"tx":1,"type":"apply","version":1,"writes":[{"key":"","map":"a","value":null},{"key":"00","map":"b","value":"22"}]}
+-{"result":"success","seq":23,"store":1,"tx":1,"type":"commit_result","version":1}
++{"result":"success","seq":23,"store":1,"tx":1,"type":"commit_result","version":0}
+@@ -37 +36 @@
+-{"events":36,"seq":37,"type":"trace_end"}
++{"events":35,"seq":37,"type":"trace_end"}

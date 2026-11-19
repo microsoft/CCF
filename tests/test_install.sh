@@ -56,7 +56,11 @@ python3 -m venv --without-pip env
 bash "$INSTALL_PREFIX"/bin/install_uv.sh "$PWD"/env/bin
 # shellcheck source=/dev/null
 source env/bin/activate
-uv pip install -e ../../../python
+if [[ "${CCF_USE_RELEASED_PYTHON_PACKAGE:-0}" == "1" ]]; then
+    uv pip install --upgrade --reinstall-package ccf ccf
+else
+    uv pip install -e ../../../python
+fi
 
 # Poll until service has died
 while [ "$(service_http_status)" == "200" ]; do

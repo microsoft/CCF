@@ -9,6 +9,7 @@
 #include "ccf/service/tables/jwt.h"
 #include "http/http_builder.h"
 #include "http_client/curl.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/rpc/http_rpc_context.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/rpc_map.h"
@@ -20,6 +21,8 @@
 #include <curl/curl.h>
 #include <fmt/format.h>
 #include <map>
+#include <memory>
+#include <optional>
 
 namespace ccf
 {
@@ -626,9 +629,22 @@ namespace ccf
         return;
       }
 
-      auto tx = network.tables->create_read_only_tx();
-      auto* jwt_issuers = tx.ro(network.jwt_issuers);
-      auto* ca_cert_bundles = tx.ro(network.ca_cert_bundles);
+      std::unique_ptr<ccf::kv::ReadOnlyTx> tx;
+      ccf::JwtIssuers::ReadOnlyHandle* jwt_issuers = nullptr;
+      ccf::CACertBundlePEMs::ReadOnlyHandle* ca_cert_bundles = nullptr;
+      if (!ccf::retry_on_compacted_version_conflict(
+            "JWT key auto-refresh: Issuer lookup", [&] {
+              tx = network.tables->create_read_only_tx_ptr();
+              jwt_issuers = tx->ro(network.jwt_issuers);
+              ca_cert_bundles = tx->ro(network.ca_cert_bundles);
+            }))
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Could not read issuers after repeated "
+          "compaction conflicts, skipping refresh");
+        return;
+      }
+
       jwt_issuers->foreach(
         [this, &ca_cert_bundles](
           const JwtIssuer& issuer, const JwtIssuerMetadata& metadata) {
@@ -649,9 +665,25 @@ namespace ccf
         return;
       }
 
-      auto tx = network.tables->create_read_only_tx();
-      auto* jwt_issuers = tx.ro(network.jwt_issuers);
-      const auto metadata = jwt_issuers->get(issuer);
+      std::unique_ptr<ccf::kv::ReadOnlyTx> tx;
+      std::optional<JwtIssuerMetadata> metadata;
+      ccf::CACertBundlePEMs::ReadOnlyHandle* ca_cert_bundles = nullptr;
+      if (!ccf::retry_on_compacted_version_conflict(
+            fmt::format("JWT key auto-refresh: Lookup of issuer '{}'", issuer),
+            [&] {
+              tx = network.tables->create_read_only_tx_ptr();
+              metadata = tx->ro(network.jwt_issuers)->get(issuer);
+              ca_cert_bundles = tx->ro(network.ca_cert_bundles);
+            }))
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Could not read issuer '{}' after repeated "
+          "compaction conflicts, scheduling retry",
+          issuer);
+        schedule_retry(issuer);
+        return;
+      }
+
       if (!metadata.has_value())
       {
         LOG_DEBUG_FMT(
@@ -662,8 +694,7 @@ namespace ccf
         return;
       }
 
-      refresh_issuer_jwt_keys(
-        issuer, metadata.value(), tx.ro(network.ca_cert_bundles));
+      refresh_issuer_jwt_keys(issuer, metadata.value(), ca_cert_bundles);
     }
 
     // Returns a copy of the current attempts

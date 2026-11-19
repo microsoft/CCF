@@ -6,12 +6,9 @@ This document explains how to spin up a test CCF network and submit simple comma
 Startup
 -------
 
-.. note:: Before starting a CCF sandbox environment, make sure that:
+.. note:: Before starting a CCF sandbox environment, make sure that CCF is installed (see :doc:`/build_apps/install_bin`).
 
-    - The CCF runtime environment has successfully been setup (see :doc:`/operations/run_setup`).
-    - CCF is installed (see :doc:`/build_apps/install_bin`)
-
-The quickest way to start a CCF sandbox is to use the ``sandbox.sh`` script available as part of the CCF install, specifying the :doc:`enclave image </build_apps/build_app>` to run.
+The quickest way to start a CCF sandbox is to use the ``sandbox.sh`` script available as part of the CCF install, specifying the :ref:`application <build_apps/example_cpp:Building>` to run.
 ``sandbox.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available. Node configuration options use the defaults and descriptions from the :doc:`cchost configuration schema </operations/configuration>`, rather than defaults selected by the end-to-end test infrastructure. Explicit command-line options still override these defaults.
 ``sandbox.sh`` is a demonstration tool, and not intended for use in production deployments.
 There are a large number of additional configuration options, documented by passing the ``--help`` argument. You may wish to pass ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
@@ -33,8 +30,8 @@ For example, deploying the generic JS application:
     $ /opt/ccf/bin/sandbox.sh
     Setting up Python environment...
     Python environment successfully setup
-    [16:14:05.294] Starting 1 CCF node...
-    [16:14:05.295] Virtual mode enabled
+    [16:14:05.294] Virtual mode enabled
+    [16:14:05.295] Starting 1 CCF node...
     [16:14:10.010] Started CCF network with the following nodes:
     [16:14:10.011]   Node [0] = https://127.0.0.1:8000
     [16:14:10.011] You can now issue business transactions to the /opt/ccf/bin/js_generic application.
@@ -45,7 +42,8 @@ For example, deploying the generic JS application:
 
 .. note::
 
-    - ``sandbox.sh`` automatically uses the platform which either the local build or install of CCF targeted, i.e. either Virtual or SNP.
+    - CCF detects the platform at runtime: nodes started by ``sandbox.sh`` run on SEV-SNP when it is available on the machine, and otherwise fall back to the :doc:`Insecure Virtual </operations/platforms/virtual>` platform, which provides no security guarantees.
+      The ``Virtual mode enabled`` line above is only printed in the latter case.
     - The ``--verbose`` argument can be used to display all commands issued by operators and members to start the network.
 
 The command output shows the addresses of the CCF nodes where commands may be submitted (ie, via ``curl https://127.0.0.1:8000/...``).
@@ -60,7 +58,9 @@ Authentication
 
 When establishing a TLS connection with a CCF service both the service and client must prove their identity.
 
-The :term:`Service Identity` is created at startup. The initial node generates a fresh private key which exists solely within the service's enclaves. A certificate of the corresponding public key is emitted (``service_cert.pem``) and used by all subsequent connections to confirm they are communicating with the intended service.
+The :term:`Service Identity` is created at startup.
+The initial node generates a fresh private key which exists solely within the TEE-protected memory of the service's nodes.
+A certificate of the corresponding public key is emitted (``service_cert.pem``) and used by all subsequent connections to confirm they are communicating with the intended service.
 
 Each member and user is identified by the cert with which they were registered with the service, either at genesis or in a subsequent ``set_member`` or ``set_user`` governance proposal. Access to the corresponding private key allows a client to submit commands as this member or user. For this test network these are all freshly generated and stored in the same common workspace for easy access. In a real deployment only certificates would be shared; private keys would be created by each participant, and remain confidential in their possession.
 
@@ -129,7 +129,11 @@ We can log messages in the public table via the ``/app/log/public`` path:
     $ curl https://127.0.0.1:8000/app/log/public?id=42 -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
     {"msg":"Logged to public table"}
 
-Note that the paths to these handlers is arbitrary. The names of the endpoints do not affect whether the result works with public or private tables - that is determined entirely by the application code. The logging app contains very simple examples, and real business transactions are likely to read and write from multiple tables. The difference between public and private tables is that private tables are encrypted before being written to the ledger, so their contents are only visible within the service's enclaves, whereas public tables can be read and audited directly from the ledger. This can be crudely checked by grepping the produced ledger files:
+Note that the paths to these handlers is arbitrary.
+The names of the endpoints do not affect whether the result works with public or private tables - that is determined entirely by the application code.
+The logging app contains very simple examples, and real business transactions are likely to read and write from multiple tables.
+The difference between public and private tables is that private tables are encrypted before being written to the ledger, so their contents are only visible within the TEEs of the service's nodes, whereas public tables can be read and audited directly from the ledger.
+This can be crudely checked by grepping the produced ledger files:
 
 .. code-block:: bash
 

@@ -34,7 +34,10 @@ namespace http2
       LOG_TRACE_FMT("Creating HTTP2 parser");
 
       nghttp2_session_callbacks* callbacks = nullptr;
-      nghttp2_session_callbacks_new(&callbacks);
+      if (nghttp2_session_callbacks_new(&callbacks) != 0)
+      {
+        throw std::logic_error("Could not create new HTTP/2 session callbacks");
+      }
       nghttp2_session_callbacks_set_on_stream_close_callback(
         callbacks, on_stream_close_callback);
       nghttp2_session_callbacks_set_data_source_read_length_callback(

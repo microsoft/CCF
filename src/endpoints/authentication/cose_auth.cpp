@@ -82,7 +82,8 @@ namespace ccf
             phdr.map_at(make_string(HEADER_PARAM_MSG_CREATED_AT)).as_signed();
           if (value < 0)
           {
-            throw DecodeError(Error::TYPE_MISMATCH, "Must be non-negative");
+            throw tav::Exception(
+              tav::ErrorCode::CBOR_TYPE_MISMATCH, "Must be non-negative");
           }
           return value;
         },
@@ -94,9 +95,9 @@ namespace ccf
           return phdr.map_at(make_string(HEADER_PARAM_MSG_TYPE)).as_string();
         });
       }
-      catch (const DecodeError& err)
+      catch (const tav::Exception& err)
       {
-        if (err.error_code() != Error::KEY_NOT_FOUND)
+        if (err.code() != tav::ErrorCode::CBOR_KEY_NOT_FOUND)
         {
           throw;
         }
@@ -109,9 +110,9 @@ namespace ccf
             .as_string();
         });
       }
-      catch (const DecodeError& err)
+      catch (const tav::Exception& err)
       {
-        if (err.error_code() != Error::KEY_NOT_FOUND)
+        if (err.code() != tav::ErrorCode::CBOR_KEY_NOT_FOUND)
         {
           throw;
         }
@@ -176,9 +177,9 @@ namespace ccf
           },
           "Parse msg type in protected header");
       }
-      catch (const DecodeError& err)
+      catch (const tav::Exception& err)
       {
-        if (err.error_code() != Error::KEY_NOT_FOUND)
+        if (err.code() != tav::ErrorCode::CBOR_KEY_NOT_FOUND)
         {
           throw;
         }
@@ -193,15 +194,15 @@ namespace ccf
           "Parse created_at in protected header");
         if (val < 0)
         {
-          throw DecodeError(
-            Error::TYPE_MISMATCH,
+          throw tav::Exception(
+            tav::ErrorCode::CBOR_TYPE_MISMATCH,
             "Header parameter created_at must be positive");
         }
         parsed.msg_created_at = val;
       }
-      catch (const DecodeError& err)
+      catch (const tav::Exception& err)
       {
-        if (err.error_code() != Error::KEY_NOT_FOUND)
+        if (err.code() != tav::ErrorCode::CBOR_KEY_NOT_FOUND)
         {
           throw;
         }
@@ -225,6 +226,7 @@ namespace ccf
     std::optional<std::string> gov_msg_type_) :
     gov_msg_type(std::move(gov_msg_type_))
   {}
+
   MemberCOSESign1AuthnPolicy::~MemberCOSESign1AuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCOSESign1AuthnPolicy::authenticate(

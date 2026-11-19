@@ -7,8 +7,8 @@
 #ifdef _WIN32
 #  ifndef _MSC_VER
 #    include <errno.h>
-#    include <stdio.h>
 #  endif
+#  include <cstdio>
 #  ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
 #  endif
@@ -18,12 +18,15 @@
 #  include <windows.h>
 #  pragma comment(lib, "bcrypt.lib")
 #  include <bcrypt.h>
+#  pragma comment(lib, "ntdll.lib")
 // VirtualAlloc2 is exposed in RS5 headers.
 #  ifdef NTDDI_WIN10_RS5
 #    if (NTDDI_VERSION >= NTDDI_WIN10_RS5) && \
       (WINVER >= _WIN32_WINNT_WIN10) && !defined(USE_SYSTEMATIC_TESTING)
 #      define PLATFORM_HAS_VIRTUALALLOC2
 #      define PLATFORM_HAS_WAITONADDRESS
+#      pragma comment(lib, "mincore.lib")
+#      pragma comment(lib, "synchronization.lib")
 #    endif
 #  endif
 
@@ -33,16 +36,38 @@
  * allocations have been freed.
  *
  * One way to guarantee that the reservations get released
- * at the absolute end of the program is to force them to
+ * at the end of the CRT's teardown is to force them to
  * be initialized first. Statics and globals get destroyed
  * in FILO order of when they were initialized. The pragma
  * init_seg makes sure the statics and globals in this
  * file are handled first, and thus will be the last to
- * be destroyed when the program exits or the DLL is
- * unloaded.
+ * be destroyed by the CRT when the program exits or the
+ * DLL is unloaded.
+ *
+ * Fiber-local storage callbacks (used, for example, by
+ * Rust's thread-local destructors) and DLL detach
+ * notifications are run by the loader during process
+ * exit, which for an executable is after the CRT's
+ * teardown.  Hence, the reservations are only released
+ * when a DLL is unloaded while the process continues to
+ * run; see ~VirtualVector.
  */
 #  pragma warning(disable : 4075)
 #  pragma init_seg(".CRT$XCB")
+
+/**
+ * Linker-provided symbol at the base address of the current module.
+ */
+extern "C" IMAGE_DOS_HEADER __ImageBase;
+
+/**
+ * Returns TRUE if the loader has started shutting down the process, and FALSE
+ * otherwise, including when a DLL is unloaded by FreeLibrary while the process
+ * continues to run.  This is exported by ntdll.dll, but not declared in the
+ * SDK headers, so must be declared by the caller.  See
+ * https://learn.microsoft.com/en-us/windows/win32/devnotes/rtldllshutdowninprogress
+ */
+extern "C" __declspec(dllimport) BOOLEAN NTAPI RtlDllShutdownInProgress();
 
 namespace snmalloc
 {
@@ -229,6 +254,18 @@ namespace snmalloc
       abort();
     }
 
+    /**
+     * Returns true if the module containing this code is a DLL, and false if
+     * it is the executable.
+     */
+    static bool current_module_is_dll()
+    {
+      const auto* base = reinterpret_cast<const char*>(&__ImageBase);
+      const auto* nt_headers =
+        reinterpret_cast<const IMAGE_NT_HEADERS*>(base + __ImageBase.e_lfanew);
+      return (nt_headers->FileHeader.Characteristics & IMAGE_FILE_DLL) != 0;
+    }
+
     /// Notify platform that we will not be using these pages
     static void notify_not_using(void* p, size_t size) noexcept
     {
@@ -309,12 +346,11 @@ namespace snmalloc
       return result;
     }
 
-    static uint64_t internal_time_in_ms()
+    static uint64_t performance_counter_frequency()
     {
-      // Performance counter is a high-precision monotonic clock.
       static stl::Atomic<uint64_t> freq_cache = 0;
-      constexpr uint64_t ms_per_second = 1000;
       SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+
       auto freq = freq_cache.load(stl::memory_order_relaxed);
       if (SNMALLOC_UNLIKELY(freq == 0))
       {
@@ -324,8 +360,34 @@ namespace snmalloc
         freq = static_cast<uint64_t>(buf.QuadPart);
         freq_cache.store(freq, stl::memory_order_relaxed);
       }
+
+      return freq;
+    }
+
+    static uint64_t internal_time_in_ms()
+    {
+      constexpr uint64_t ms_per_second = 1000;
+      SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+      auto freq = performance_counter_frequency();
       ::QueryPerformanceCounter(&buf);
       return (static_cast<uint64_t>(buf.QuadPart) * ms_per_second) / freq;
+    }
+
+    static uint64_t tick()
+    {
+      if constexpr (
+        (Aal::aal_features & NoCpuCycleCounters) != NoCpuCycleCounters)
+      {
+        return Aal::tick();
+      }
+      else
+      {
+        constexpr uint64_t ns_per_second = 1'000'000'000;
+        SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+        auto freq = performance_counter_frequency();
+        ::QueryPerformanceCounter(&buf);
+        return (static_cast<uint64_t>(buf.QuadPart) * ns_per_second) / freq;
+      }
     }
 
 #  ifdef PLATFORM_HAS_WAITONADDRESS
@@ -387,6 +449,18 @@ namespace snmalloc
 
     ~VirtualVector()
     {
+      // Memory is only returned to the OS if this module is being unloaded
+      // while the process continues to run.  An executable's statics are
+      // only destroyed as part of process exit, and a DLL may be detached
+      // as part of process exit.  In both cases, code run later by the
+      // loader, such as fiber-local storage callbacks or other DLLs' detach
+      // notifications, may still access allocations, and the OS reclaims
+      // the memory when the process terminates.
+      if (
+        !snmalloc::PALWindows::current_module_is_dll() ||
+        RtlDllShutdownInProgress())
+        return;
+
       if (data)
       {
         for (size_t i = size; i > 0; i--)
@@ -561,7 +635,9 @@ namespace snmalloc
 
   /**
    * This will be destroyed last of all of the
-   * statics and globals due to init_seg
+   * statics and globals due to init_seg.  See
+   * ~VirtualVector for when the reservations are
+   * released.
    */
   static inline VirtualVector reservations;
 
@@ -597,7 +673,7 @@ namespace snmalloc
   }
 #  endif
 
-  void* PALWindows::reserve(size_t size) noexcept
+  inline void* PALWindows::reserve(size_t size) noexcept
   {
     void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 

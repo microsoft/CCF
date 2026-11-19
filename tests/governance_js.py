@@ -330,7 +330,7 @@ def test_proposal_withdrawal(network, args):
     return network
 
 
-@reqs.description("Test ballot storage and validation")
+@reqs.description("Test governance resource validation and ballot storage")
 def test_ballot_storage(network, args):
     node = choose_node(network)
 
@@ -343,6 +343,56 @@ def test_ballot_storage(network, args):
         r = c.post("/gov/members/proposals:create", valid_set_recovery_threshold)
         assert r.status_code == 200, r.body.text()
         proposal_id = r.body.json()["proposalId"]
+
+        proposal_path = f"/gov/members/proposals/{proposal_id}"
+        r = c.get(proposal_path)
+        assert r.status_code == 200, r.body.text()
+        unchanged_proposal = r.body.json()
+        other_member_id = network.consortium.get_member_by_local_id(
+            "member1"
+        ).service_id
+
+        for resource_id in ("0" * 63, "0" * 65, "g" * 64, other_member_id):
+            if resource_id != other_member_id:
+                for path in (
+                    f"/gov/service/members/{resource_id}",
+                    f"/gov/service/users/{resource_id}",
+                    f"/gov/service/nodes/{resource_id}",
+                    f"/gov/recovery/encrypted-shares/{resource_id}",
+                    f"/gov/members/proposals/{resource_id}",
+                    f"/gov/members/proposals/{resource_id}/actions",
+                    f"/gov/members/proposals/{resource_id}/ballots/{member_id}",
+                    f"{proposal_path}/ballots/{resource_id}",
+                ):
+                    r = c.get(path)
+                    assert r.status_code == 400, (path, r.body.text())
+                    error = r.body.json()["error"]
+                    assert error["code"] == "InvalidResourceName", error
+
+            for path, message_type in (
+                (f"/gov/members/proposals/{resource_id}:withdraw", "withdrawal"),
+                (
+                    f"/gov/members/proposals/{resource_id}/ballots/{member_id}:submit",
+                    "ballot",
+                ),
+                (f"{proposal_path}/ballots/{resource_id}:submit", "ballot"),
+            ):
+                # Non-hex URLs bypass the client's COSE header inference.
+                r = c.post(
+                    path,
+                    ballot_yes,
+                    cose_header_parameters_override={
+                        "ccf.gov.msg.type": message_type,
+                        "ccf.gov.msg.proposal_id": proposal_id,
+                    },
+                )
+                assert r.status_code == 400, (path, r.body.text())
+                error = r.body.json()["error"]
+                assert error["code"] == "InvalidResourceName", error
+
+        r = c.get(proposal_path)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json() == unchanged_proposal, r.body.json()
 
         r = c.post(
             f"/gov/members/proposals/{proposal_id}/ballots/{member_id}:submit", {}

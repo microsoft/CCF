@@ -86,11 +86,6 @@ namespace ccf
       return impl.get_session_metrics();
     }
 
-    size_t get_jwt_attempts() override
-    {
-      return impl.get_jwt_attempts();
-    }
-
     QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,

@@ -63,6 +63,10 @@ def test_redirects_with_node_role_config(network, args):
 
     primary, orig_backups = network.find_nodes()
 
+    LOG.info("Member requests redirected from a backup remain authenticated")
+    ack = network.consortium.get_any_active_member().ack(orig_backups[0])
+    assert ack.status_code == http.HTTPStatus.NO_CONTENT, ack
+
     LOG.info("Write initial values")
     with primary.client("user0") as c:
         for path in paths:
@@ -75,6 +79,22 @@ def test_redirects_with_node_role_config(network, args):
     LOG.info("Redirect to original primary")
     for backup in orig_backups:
         test_redirect_to_primary(backup, primary)
+
+    LOG.info("Following a redirect preserves the write body and query")
+    with orig_backups[0].client("user0") as c:
+        scoped_path = "/app/log/private?scope=redirect%26scope"
+        r = c.post(scoped_path, req, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
+        assert r.headers["location"].endswith(scoped_path), r
+        r = c.post(scoped_path, req)
+        assert r.status_code == http.HTTPStatus.OK, r
+        network.wait_for_all_nodes_to_commit(primary=primary)
+        r = c.get(
+            f"/app/log/private?scope=redirect%26scope&id={req['id']}",
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json()["msg"] == msg, r
 
     LOG.info("Redirect from primary to backup")
     with primary.client("user0") as c:
@@ -172,14 +192,16 @@ def test_redirects_with_static_name_config(network, args):
     LOG.info("Add 2 more nodes with static address redirect config")
     for _ in range(2):
         other_node = network.create_node(host_spec)
-        network.join_node(other_node, args.package, args, from_snapshot=False)
+        network.join_node(
+            other_node, args.package, args, from_snapshot=False, target_node=original
+        )
         network.trust_node(other_node, args)
 
     LOG.info(
-        "Remove original node, so remaining network all have static address redirect config"
+        "Stop original node, so remaining running nodes all have static address redirect config"
     )
-    network.retire_node(original, original)
     original.stop()
+    network.wait_for_new_primary(original)
 
     LOG.info("Test to_backup config with static address")
     primary, _ = network.find_primary()
@@ -197,9 +219,25 @@ def test_redirects_with_static_name_config(network, args):
 def run_redirect_tests_role(args):
     for node in args.nodes:
         primary_interface = node.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
-        primary_interface.redirections = infra.interfaces.RedirectionConfig(
-            to_primary=infra.interfaces.NodeByRoleResolver()
-        )
+        primary_interface.app_protocol = "HTTP2" if args.http2 else "HTTP1"
+        if args.redirections_config == "default":
+            # "redirections": {} selects the default role-based resolvers
+            redirections = infra.interfaces.RedirectionConfig(
+                to_primary=None, to_backup=None
+            )
+        elif args.redirections_config == "roleless":
+            # NodeByRole resolvers without a role target the role of the field
+            # they configure, so to_backup must still resolve to a backup
+            redirections = infra.interfaces.RedirectionConfig(
+                to_primary=infra.interfaces.NodeByRoleResolver(target=None),
+                to_backup=infra.interfaces.NodeByRoleResolver(target=None),
+            )
+        else:
+            assert args.redirections_config == "explicit", args.redirections_config
+            redirections = infra.interfaces.RedirectionConfig(
+                to_primary=infra.interfaces.NodeByRoleResolver()
+            )
+        primary_interface.redirections = redirections
 
     with infra.network.network(
         args.nodes,
@@ -233,6 +271,15 @@ if __name__ == "__main__":
         run_redirect_tests_role,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        redirections_config="explicit",
+    )
+
+    cr.add(
+        "cpp_redirects_roleless",
+        run_redirect_tests_role,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        redirections_config="roleless",
     )
 
     cr.add(
@@ -247,6 +294,7 @@ if __name__ == "__main__":
         run_redirect_tests_role,
         package="js_generic",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        redirections_config="explicit",
     )
 
     cr.add(
@@ -255,5 +303,19 @@ if __name__ == "__main__":
         package="js_generic",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
+
+    for package_name, package in (
+        ("cpp", "samples/apps/logging/logging"),
+        ("js", "js_generic"),
+    ):
+        for http2 in (False, True):
+            cr.add(
+                f"{package_name}_redirects_default_http{2 if http2 else 1}",
+                run_redirect_tests_role,
+                package=package,
+                nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+                http2=http2,
+                redirections_config="default",
+            )
 
     cr.run()

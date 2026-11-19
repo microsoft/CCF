@@ -32,6 +32,7 @@ namespace ccf::pal::snp::ioctl6
     // https://github.com/torvalds/linux/blob/v6.8/drivers/virt/coco/sev-guest/sev-guest.h
     // https://github.com/torvalds/linux/blob/v6.8/include/uapi/linux/sev-guest.h
     constexpr size_t ATTESTATION_RESPONSE_SIZE = 4000;
+
     struct AttestationResponse
     {
       uint32_t status = 0;
@@ -43,6 +44,7 @@ namespace ccf::pal::snp::ioctl6
         detail::ATTESTATION_RESPONSE_SIZE - 0x20 - attestation_report_size>
         padding = {};
     };
+
     static_assert(
       sizeof(AttestationResponse) == detail::ATTESTATION_RESPONSE_SIZE);
     static_assert(offsetof(AttestationResponse, report_size) == 0x04);
@@ -50,6 +52,7 @@ namespace ccf::pal::snp::ioctl6
   }
 
 #pragma pack(push, 1)
+
   // Helper to add padding to a struct, so that the resulting struct has some
   // minimum size. As a minor detail, the padding will be initialised to 0.
   template <typename T, size_t N>
@@ -122,22 +125,26 @@ namespace ccf::pal::snp::ioctl6
                [](uint8_t e) { return e == default_sentinel; });
     }
   };
+
 #pragma pack(pop)
 
   // Table 22
 #pragma pack(push, 1)
+
   struct AttestationReq
   {
     uint8_t report_data[snp_attestation_report_data_size] = {0};
     uint32_t vmpl = 0;
     uint8_t reserved[28] = {0};
   }; // snp_report_req in (linux) include/uapi/linux/sev-guest.h
+
 #pragma pack(pop)
 
   // Table 25
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #pragma pack(push, 1)
+
   struct AttestationResp
   {
     uint32_t status = 0;
@@ -148,6 +155,7 @@ namespace ccf::pal::snp::ioctl6
     uint8_t padding[64] = {0};
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
+
 #pragma pack(pop)
   static_assert(offsetof(AttestationResp, report_size) == 0x04);
   static_assert(offsetof(AttestationResp, report) == 0x20);
@@ -163,6 +171,7 @@ namespace ccf::pal::snp::ioctl6
   constexpr uint8_t GUEST_FIELD_SELECT_TCB_VERSION = 0b00100000;
 
 #pragma pack(push, 1)
+
   struct DerivedKeyReq
   {
     uint32_t key_select = 0;
@@ -172,6 +181,7 @@ namespace ccf::pal::snp::ioctl6
     uint32_t guest_svn = 0;
     TcbVersionRaw tcb_version;
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
+
 #pragma pack(pop)
   static_assert(
     sizeof(DerivedKeyReq) == 0x20,
@@ -179,12 +189,14 @@ namespace ccf::pal::snp::ioctl6
 
 // Table 21
 #pragma pack(push, 1)
+
   struct DerivedKeyResp
   {
     uint32_t status;
     uint8_t reserved[0x20 - 0x04];
     uint8_t data[32];
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
+
 #pragma pack(pop)
 
   struct ExitInfoErrors
@@ -322,6 +334,7 @@ namespace ccf::pal::snp::ioctl6
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
     [[deprecated(
       "Use get_raw() and explicitly decode with "
       "parse_attestation_report_unverified")]] [[nodiscard]] const ccf::pal::
@@ -351,6 +364,7 @@ namespace ccf::pal::snp::ioctl6
         reinterpret_cast<const uint8_t*>(&padded_resp.report);
       return {report, report + attestation_report_size};
     }
+
 #pragma GCC diagnostic pop
   };
 

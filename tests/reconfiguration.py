@@ -10,7 +10,7 @@ import tempfile
 import time
 from contextlib import ExitStack
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from shutil import copy, rmtree
 
 import ccf.ledger
@@ -118,6 +118,38 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         time.sleep(0.5)
         LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
         assert time.time() <= end_time, "Reconfiguration did not complete in time"
+
+
+@reqs.description("Record inactive node-to-node TLS metadata when joining")
+def test_node_to_node_tls_metadata(network, args):
+    primary, _ = network.find_primary()
+    endpoint = {
+        "bind_address": "not-resolved.invalid:0",
+        "published_address": "peer.example:8082",
+    }
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        from_snapshot=False,
+        node_to_node_tls_interface=endpoint,
+    )
+    new_node.stop()
+    with primary.client() as c:
+        r = c.get(f"/node/network/nodes/{new_node.node_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        join_seqno = r.body.json()["last_written"]
+
+    network.retire_node(primary, new_node)
+    network.create_and_wait_for_ledger_chunk(primary)
+    with primary.get_ledger_chunk_from_api(join_seqno) as ledger:
+        tables = ledger.get_transaction(join_seqno).get_public_domain().get_tables()
+        info = json.loads(
+            tables[ccf.ledger.NODES_TABLE_NAME][new_node.node_id.encode()]
+        )
+        assert info["node_to_node_tls_interface"] == endpoint, info
+    return network
 
 
 @reqs.description("Adding a node with invalid target service certificate")
@@ -439,9 +471,8 @@ def test_add_node_endorsements_endpoints(network, args):
         return network
 
     args_copy = deepcopy(args)
+    # The public Azure cache returns 404 for the Genoa chip/TCB pairs used in CI.
     test_vectors = [
-        (["Azure:global.acccache.azure.net"], True),
-        (["Azure:global.acccache.azure.net:443"], True),
         (["Azure:invalid.azure.net:443"], False),
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),
@@ -461,6 +492,9 @@ def test_add_node_endorsements_endpoints(network, args):
         args_copy.snp_endorsements_file = "/dev/null"
         try:
             per_request_retry_timeout = 3
+            if "AMD:kdsintf.amd.com" in servers:
+                # Allow for AMD's 10s Retry-After plus the 3s request timeout.
+                per_request_retry_timeout += 10
             network.join_node(
                 new_node,
                 args.package,
@@ -600,7 +634,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
 @reqs.description("Adding as many pending nodes as current number of nodes")
 @reqs.supports_methods("/app/log/private")
 def test_add_as_many_pending_nodes(network, args):
-    # Killing pending nodes should not change the raft consensus rules
+    # Killing pending nodes should not change the CCF consensus protocol rules.
     primary, _ = network.find_primary()
     number_new_nodes = len(network.nodes)
     LOG.info(
@@ -733,6 +767,7 @@ def test_issue_fake_join(network, args):
     }
     req["consensus_type"] = "CFT"
     req["startup_seqno"] = 0
+    req["mldsa_supported"] = True
     with open(
         os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r", encoding="utf-8"
     ) as f:
@@ -741,6 +776,25 @@ def test_issue_fake_join(network, args):
     with primary.client(identity="user0") as c:
         # First, retrieve real quote from primary node
         own_quote = c.get("/node/quotes/self").body.json()
+
+        has_pq_identity = (
+            c.get("/node/network").body.json().get("pq_service_certificate") is not None
+        )
+        LOG.info(
+            f"Join without declaring ML-DSA support (service has ML-DSA identity: {has_pq_identity})"
+        )
+        req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
+        del req["mldsa_supported"]
+        r = c.post("/node/join", body=req, validate_openapi=False)
+        if has_pq_identity:
+            # Rejected before the quote is even looked at
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+            assert r.body.json()["error"]["code"] == "InvalidInput", r
+            assert "ML-DSA" in r.body.json()["error"]["message"], r
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+            assert r.body.json()["error"]["code"] == "InvalidQuote", r
+        req["mldsa_supported"] = True
 
         LOG.info("Join with SGX dummy quote")
         req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
@@ -856,7 +910,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(datetime.now(timezone.utc)),
+                    "valid_from": str(datetime.now(UTC)),
                 },
             },
             {
@@ -1224,6 +1278,7 @@ def run_all(args, ipv6=False):
         test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
         test_retire_primary(network, args)
+        test_node_to_node_tls_metadata(network, args)
 
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)

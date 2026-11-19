@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#![forbid(unsafe_code)]
+
 //! COSE_Sign1 verification backed by `tee-attestation-verification-crypto`.
 //!
 //! This crate is intentionally verification-only. It exposes:
@@ -18,6 +20,14 @@
 //! an unprotected-header map, payload, and signature. Parse the envelope with
 //! [`CborValue::parse_nondet`], import the signer public key through the active
 //! backend, then pass the envelope components to the verifier.
+//!
+//! Envelopes and protected headers are parsed within the default CBOR limits:
+//! nesting up to [`MAX_CBOR_NESTING_DEPTH`], at most [`MAX_CBOR_MAP_ENTRIES`]
+//! entries in any map, and no map inside a map key.
+//!
+//! Parsing can cost time proportional to the nesting depth times the input
+//! length. Input sizes are unchecked: bound untrusted input before parsing or
+//! verifying it.
 //!
 //! ```no_run
 //! use tee_attestation_verification_cose::{
@@ -58,7 +68,7 @@
 
 mod cose;
 
-pub use cbor::{CborValue, Det, Mode, Nondet, MAX_CBOR_NESTING_DEPTH};
+pub use cbor::{CborValue, Det, Mode, Nondet, MAX_CBOR_MAP_ENTRIES, MAX_CBOR_NESTING_DEPTH};
 pub use cose::*;
 
 #[cfg(sync_crypto)]

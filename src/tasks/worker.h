@@ -36,6 +36,7 @@ namespace ccf::tasks
         "{} task failed with exception: {}", task.get_name(), e.what()));
       if (abort_on_throw)
       {
+        ccf::logger::write_fatal_diagnostic("Task failed with an exception");
         std::abort();
       }
     }
@@ -45,6 +46,8 @@ namespace ccf::tasks
         fmt::format("{} task failed with unknown exception", task.get_name()));
       if (abort_on_throw)
       {
+        ccf::logger::write_fatal_diagnostic(
+          "Task failed with an unknown exception");
         std::abort();
       }
     }

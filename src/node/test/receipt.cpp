@@ -116,7 +116,7 @@ void compare_receipts(ccf::ReceiptPtr l, ccf::ReceiptPtr r)
   }
 }
 
-TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
+nlohmann::json sample_receipt_json()
 {
   const auto sample_json_receipt =
     R"xxx({
@@ -151,7 +151,12 @@ TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
   "is_signature_transaction": false
 })xxx";
 
-  nlohmann::json j = nlohmann::json::parse(sample_json_receipt);
+  return nlohmann::json::parse(sample_json_receipt);
+}
+
+TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
+{
+  auto j = sample_receipt_json();
 
   auto receipt = j.get<ccf::ReceiptPtr>();
 
@@ -166,8 +171,218 @@ TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
     compare_receipts(receipt, unendorsed);
 
     j["leaf_components"].erase("claims_digest");
-    REQUIRE_NOTHROW(j.get<ccf::ReceiptPtr>());
+    const auto without_claims = j.get<ccf::ReceiptPtr>();
+    const auto proof_receipt =
+      std::dynamic_pointer_cast<ccf::ProofReceipt>(without_claims);
+    REQUIRE(proof_receipt != nullptr);
+    CHECK(proof_receipt->leaf_components.claims_digest.empty());
+    const nlohmann::json serialised = without_claims;
+    CHECK(serialised.at("leaf_components") == j.at("leaf_components"));
   }
+}
+
+TEST_CASE("Legacy JSON formats" * doctest::test_suite("receipt"))
+{
+  auto j = sample_receipt_json();
+  const auto original = j.get<ccf::ReceiptPtr>();
+  j.erase("is_signature_transaction");
+
+  SUBCASE("Proof receipts without a transaction discriminator")
+  {
+    compare_receipts(original, j.get<ccf::ReceiptPtr>());
+  }
+
+  SUBCASE("Leaf-only signature receipts")
+  {
+    const auto root = original->calculate_root();
+    j.erase("leaf_components");
+    j.erase("proof");
+    j["leaf"] = root;
+
+    const auto receipt = j.get<ccf::ReceiptPtr>();
+    const auto signature_receipt =
+      std::dynamic_pointer_cast<ccf::SignatureReceipt>(receipt);
+    REQUIRE(signature_receipt != nullptr);
+    CHECK(signature_receipt->is_signature_transaction());
+    CHECK(signature_receipt->signed_root == root);
+    CHECK(signature_receipt->calculate_root() == root);
+    CHECK(receipt->signature == original->signature);
+    CHECK(receipt->node_id == original->node_id);
+    CHECK(receipt->cert == original->cert);
+    CHECK(receipt->service_endorsements == original->service_endorsements);
+
+    nlohmann::json serialised;
+    CHECK_THROWS_WITH_AS(
+      to_json(serialised, receipt),
+      "Conversion of signature receipts to JSON is currently undefined",
+      std::logic_error);
+  }
+}
+
+TEST_CASE("Invalid JSON" * doctest::test_suite("receipt"))
+{
+  using nlohmann::json;
+  const auto valid = sample_receipt_json();
+
+  SUBCASE("Receipt types require JSON objects")
+  {
+    for (const auto& invalid :
+         {json(nullptr), json(false), json(42), json("invalid"), json::array()})
+    {
+      INFO(invalid.dump());
+      CHECK_THROWS_AS(
+        invalid.get<ccf::ProofReceipt::Components>(), ccf::JsonParseError);
+      CHECK_THROWS_AS(
+        invalid.get<ccf::ProofReceipt::ProofStep>(), ccf::JsonParseError);
+      CHECK_THROWS_AS(invalid.get<ccf::ReceiptPtr>(), ccf::JsonParseError);
+    }
+  }
+
+  SUBCASE("Required receipt fields")
+  {
+    for (const auto* field :
+         {"leaf_components", "proof", "signature", "node_id", "cert"})
+    {
+      INFO(field);
+      auto invalid = valid;
+      invalid.erase(field);
+      CHECK_THROWS_WITH_AS(
+        invalid.get<ccf::ReceiptPtr>(),
+        doctest::Contains(fmt::format("Missing required field '{}'", field)),
+        ccf::JsonParseError);
+    }
+
+    auto legacy = valid;
+    legacy.erase("is_signature_transaction");
+    legacy.erase("proof");
+    CHECK_THROWS_WITH_AS(
+      legacy.get<ccf::ReceiptPtr>(),
+      doctest::Contains("Missing required field 'proof'"),
+      ccf::JsonParseError);
+  }
+
+  SUBCASE("Required leaf components")
+  {
+    for (const auto* field : {"write_set_digest", "commit_evidence"})
+    {
+      INFO(field);
+      auto invalid = valid.at("leaf_components");
+      invalid.erase(field);
+      CHECK_THROWS_WITH_AS(
+        invalid.get<ccf::ProofReceipt::Components>(),
+        doctest::Contains(fmt::format("Missing required field '{}'", field)),
+        ccf::JsonParseError);
+    }
+  }
+
+  SUBCASE("Unsupported or ambiguous receipt formats")
+  {
+    auto invalid = valid;
+    invalid["is_signature_transaction"] = true;
+    CHECK_THROWS_AS(invalid.get<ccf::ReceiptPtr>(), ccf::JsonParseError);
+
+    invalid["is_signature_transaction"] = "false";
+    CHECK_THROWS_AS(invalid.get<ccf::ReceiptPtr>(), json::type_error);
+
+    invalid.erase("is_signature_transaction");
+    invalid["leaf"] = valid.at("leaf_components").at("write_set_digest");
+    CHECK_THROWS_AS(invalid.get<ccf::ReceiptPtr>(), ccf::JsonParseError);
+
+    invalid.erase("leaf");
+    invalid.erase("leaf_components");
+    CHECK_THROWS_AS(invalid.get<ccf::ReceiptPtr>(), ccf::JsonParseError);
+  }
+
+  SUBCASE("Proof steps require exactly one direction")
+  {
+    const auto& hash = valid.at("leaf_components").at("write_set_digest");
+    for (const auto& invalid :
+         {json::object(), json{{"left", hash}, {"right", hash}}})
+    {
+      CHECK_THROWS_WITH_AS(
+        invalid.get<ccf::ProofReceipt::ProofStep>(),
+        doctest::Contains("Expected either 'left' or 'right' field"),
+        ccf::JsonParseError);
+    }
+
+    for (const auto* direction : {"left", "right"})
+    {
+      const json invalid = {{direction, "not a digest"}};
+      CHECK_THROWS_AS(
+        invalid.get<ccf::ProofReceipt::ProofStep>(), ccf::JsonParseError);
+    }
+  }
+
+  SUBCASE("Invalid field types")
+  {
+    auto invalid = valid;
+    invalid["leaf_components"]["commit_evidence"] = 42;
+    CHECK_THROWS_AS(invalid.get<ccf::ReceiptPtr>(), json::type_error);
+
+    invalid = valid;
+    invalid["cert"] = 42;
+    CHECK_THROWS_AS(invalid.get<ccf::ReceiptPtr>(), std::runtime_error);
+  }
+}
+
+TEST_CASE("JSON parse error locations" * doctest::test_suite("receipt"))
+{
+  using nlohmann::json;
+  const auto check_pointer =
+    [](const json& invalid, const std::string& expected_pointer) {
+      try
+      {
+        invalid.get<ccf::ReceiptPtr>();
+        FAIL("Expected an invalid receipt to be rejected");
+      }
+      catch (const ccf::JsonParseError& error)
+      {
+        CHECK(error.pointer() == expected_pointer);
+      }
+    };
+
+  const auto valid = sample_receipt_json();
+  for (const bool legacy : {false, true})
+  {
+    INFO("Legacy format: ", legacy);
+    auto receipt = valid;
+    if (legacy)
+    {
+      receipt.erase("is_signature_transaction");
+    }
+
+    for (const auto* field : {"write_set_digest", "claims_digest"})
+    {
+      auto invalid = receipt;
+      invalid["leaf_components"][field] = "not a digest";
+      check_pointer(invalid, fmt::format("#/leaf_components/{}", field));
+    }
+
+    auto invalid = receipt;
+    invalid["leaf_components"] = nullptr;
+    check_pointer(invalid, "#/leaf_components");
+
+    invalid = receipt;
+    invalid["proof"] = nullptr;
+    check_pointer(invalid, "#/proof");
+
+    invalid = receipt;
+    invalid["proof"] = json::array({receipt.at("proof").at(0), json::object()});
+    check_pointer(invalid, "#/proof/1");
+  }
+
+  for (const auto* field : {"signature", "node_id", "service_endorsements"})
+  {
+    auto invalid = valid;
+    invalid[field] = nullptr;
+    check_pointer(invalid, fmt::format("#/{}", field));
+  }
+
+  auto invalid = valid;
+  invalid.erase("is_signature_transaction");
+  invalid.erase("leaf_components");
+  invalid["leaf"] = "not a digest";
+  check_pointer(invalid, "#/leaf");
 }
 
 TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
@@ -175,7 +390,10 @@ TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
   {
     std::shared_ptr<ccf::Receipt> r = nullptr;
     nlohmann::json j;
-    REQUIRE_THROWS(to_json(j, r));
+    REQUIRE_THROWS_WITH_AS(
+      to_json(j, r),
+      "Cannot serialise Receipt to JSON: Got nullptr",
+      ccf::JsonParseError);
     REQUIRE_THROWS(from_json(j, r));
   }
 

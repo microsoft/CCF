@@ -17,7 +17,7 @@ Implementation
 Configuration
 ~~~~~~~~~~~~~
 
-The ``worker_threads`` configuration option controls the number of worker threads when starting a CCF node. CCF starts one more worker thread than configured, in addition to the dispatch thread. The extra worker preserves task execution capacity now that the dispatch thread no longer executes tasks. This option defaults to ``1``, which starts two workers; a configured value of ``0`` starts one worker and logs a warning. Positive values are incremented silently.
+The ``worker_threads`` configuration option controls the number of worker threads when starting a CCF node. CCF starts one more worker thread than configured, in addition to the coordination thread. The extra worker preserves task execution capacity now that the coordination thread no longer executes tasks. This option defaults to ``1``, which starts two workers; a configured value of ``0`` starts one worker and logs a warning. Positive values are incremented silently.
 
 It is strongly recommended that all CCF nodes run the same number of worker threads.
 
@@ -28,12 +28,20 @@ To ensure session consistency, commands that originate from the same connection 
 It is strongly advised that during the execution of a command the application does not mutate any global state outside of the key-value store.
 Any inter-command communication must be performed via the key-value store, to ensure that CCF can rollback commands or change the primary as required.
 
+Node-to-Node Ingress
+~~~~~~~~~~~~~~~~~~~~
+
+Messages from other nodes and stop notices execute in order on a single ``OrderedTasks`` lane, so they never run concurrently with each other.
+This lane is an ordinary task on the shared worker pool, so it waits behind other ready tasks and needs a free worker to run.
+Consensus maintenance runs as an independent periodic task and may execute concurrently with node ingress, protected by the consensus state lock.
+Tasks which block for long periods, such as outbound HTTP requests or slow file access, can therefore delay consensus while they occupy every worker.
+
 Task Shutdown
 ~~~~~~~~~~~~~
 
 Task cancellation prevents future execution but does not release queued actions.
 Terminal shutdown additionally releases their resources, without executing application work.
-The node shuts down the main ``JobBoard`` after RPC transport teardown and after all enclave worker threads have joined, while task dependencies are still alive.
+The node shuts down the main ``JobBoard`` after RPC transport teardown and after all coordination and worker threads have joined, while task dependencies are still alive.
 Normal connection closure does not trigger this task shutdown or change the lifetime of already queued requests.
 
 Each ``OrderedTasks`` scheduler registers weakly with its ``JobBoard`` for its lifetime.

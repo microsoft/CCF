@@ -38,6 +38,7 @@ namespace ccf::tasks
     }
 
     using Visitor = std::function<void(T&&)>;
+
     bool pop_and_visit(Visitor&& visitor)
     {
       decltype(pending) local;

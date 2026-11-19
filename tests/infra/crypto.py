@@ -138,7 +138,7 @@ def generate_cert(
     if issuer_cn is None:
         issuer_cn = cn
     if valid_from is None:
-        valid_from = datetime.datetime.now(datetime.timezone.utc)
+        valid_from = datetime.datetime.now(datetime.UTC)
     priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
     pub = priv.public_key()
     issuer_priv = load_pem_private_key(
@@ -408,7 +408,7 @@ def create_signed_statement(
     will be reused so that the issuer DID is stable across calls.
     """
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     validity = datetime.timedelta(days=10)
 
     # Generate or reuse CA key and self-signed cert
@@ -522,7 +522,7 @@ def create_signed_statement(
         1: -7,  # alg: ES256
         3: "application/octet-stream",  # content_type
         33: [leaf_der, ca_der],  # x5chain
-        15: cwt_claims,
+        int(cwt.COSEHeaders.CWT_CLAIMS): cwt_claims,
     }
 
     leaf_key_pem = leaf_key.private_bytes(

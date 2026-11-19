@@ -12,6 +12,7 @@
 #include <regex>
 #include <set>
 #include <string_view>
+#include <tuple>
 #include <unordered_set>
 
 /**
@@ -152,7 +153,7 @@ namespace ccf::ds::openapi
     {
       // responses is required field in a path_operation, but caller may
       // choose to add their own later
-      access::get_object(po, "responses");
+      std::ignore = access::get_object(po, "responses");
     }
 
     return po;
@@ -195,7 +196,7 @@ namespace ccf::ds::openapi
   static inline nlohmann::json& request_body(nlohmann::json& path_operation)
   {
     auto& request_body = access::get_object(path_operation, "requestBody");
-    access::get_object(request_body, "content");
+    std::ignore = access::get_object(request_body, "content");
     return request_body;
   }
 

@@ -56,22 +56,34 @@ namespace
         case 1:
         case 31:
         case 32:
+        {
           break;
+        }
         case 252:
+        {
           requested = 65'536;
           break;
+        }
         case 253:
+        {
           requested = 65'535;
           break;
+        }
         case 254:
+        {
           requested = 256;
           break;
+        }
         case 255:
+        {
           requested = 255;
           break;
+        }
         default:
+        {
           requested %= 64;
           break;
+        }
       }
       const auto granted = std::min(requested, payload_budget);
       payload_budget -= granted;
@@ -119,14 +131,20 @@ namespace
       switch (input.byte() % VARIANTS)
       {
         case 0: // Null
+        {
           *current = nullptr;
           break;
+        }
         case 1: // Boolean
+        {
           *current = (input.byte() & 1) != 0;
           break;
+        }
         case 2: // Unsigned integer
+        {
           *current = input.uint64();
           break;
+        }
         case 3: // Signed integer
         {
           const auto value = std::bit_cast<int64_t>(input.uint64());
@@ -145,11 +163,15 @@ namespace
           break;
         }
         case 5: // String
+        {
           *current = input.string();
           break;
+        }
         case 6: // Binary data
+        {
           *current = json::binary(input.binary());
           break;
+        }
         case 7: // Array
         {
           *current = json::array();
@@ -179,7 +201,9 @@ namespace
           break;
         }
         default:
+        {
           __builtin_unreachable();
+        }
       }
     }
 

@@ -11,6 +11,7 @@
  * Newer version of fmt does not include it by default.
  */
 FMT_BEGIN_NAMESPACE
+
 template <typename E>
 struct formatter<E, std::enable_if_t<std::is_enum_v<E>, char>>
 {
@@ -26,6 +27,7 @@ struct formatter<E, std::enable_if_t<std::is_enum_v<E>, char>>
     return fmt::format_to(ctx.out(), "{}", std::to_underlying(value));
   }
 };
+
 FMT_END_NAMESPACE
 
 // ci-checks exception - defines a struct in the fmt namespace

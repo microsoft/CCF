@@ -51,6 +51,7 @@ namespace ccf::endpoints
       return *ident;
     }
   };
+
   using CommandEndpointFunction =
     std::function<void(CommandEndpointContext& args)>;
 
@@ -63,6 +64,7 @@ namespace ccf::endpoints
 
     ccf::kv::Tx& tx;
   };
+
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
   using LocallyCommittedEndpointFunction =
@@ -92,6 +94,7 @@ namespace ccf::endpoints
 
     ccf::kv::ReadOnlyTx& tx;
   };
+
   using ReadOnlyEndpointFunction =
     std::function<void(ReadOnlyEndpointContext& args)>;
 }

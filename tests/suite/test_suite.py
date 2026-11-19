@@ -22,6 +22,7 @@ suites = {}
 # This suite tests that rekeying, network configuration changes, recoveries and
 # curve changes can be interleaved
 suite_rekey_recovery = [
+    governance_history.test_service_signing_identities,
     recovery.test_recover_service,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_on_other_curve,
@@ -36,6 +37,7 @@ suite_rekey_recovery = [
     reconfiguration.test_add_node_on_other_curve,
     e2e_logging.test_rekey,
     recovery.test_recover_service,
+    governance_history.test_service_signing_identities,
     e2e_logging.test_rekey,
     recovery.test_recover_service_with_wrong_identity,
 ]
@@ -86,7 +88,6 @@ all_tests_suite = [
     e2e_logging.test_cert_prefix,
     e2e_logging.test_anonymous_caller,
     e2e_logging.test_raw_text,
-    e2e_logging.test_forwarding_frontends,
     e2e_logging.test_user_data_ACL,
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,
@@ -140,6 +141,7 @@ all_tests_suite = [
     # test the most complete ledgers
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
+    governance_history.test_service_signing_identities,
 ]
 suites["all"] = all_tests_suite
 
@@ -156,7 +158,6 @@ regression_5236_suite = [
     memberclient.test_corrupted_signature,
     e2e_operations.test_forced_snapshot,
     recovery.test_recover_service,
-    e2e_logging.test_forwarding_frontends,
     recovery.test_recover_service_aborted,
 ]
 suites["regression_5236"] = regression_5236_suite

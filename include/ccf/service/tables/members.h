@@ -67,6 +67,7 @@ namespace ccf
         member_data == rhs.member_data && recovery_role == rhs.recovery_role;
     }
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember);
   DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -89,6 +90,7 @@ namespace ccf
         recovery_role == rhs.recovery_role;
     }
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberDetails);
   DECLARE_JSON_REQUIRED_FIELDS(MemberDetails, status);
   DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_role);
@@ -121,6 +123,7 @@ namespace ccf
       state_digest(root.hex_str())
     {}
   };
+
   DECLARE_JSON_TYPE(StateDigest);
   DECLARE_JSON_REQUIRED_FIELDS(StateDigest, state_digest);
 
@@ -149,6 +152,7 @@ namespace ccf
       cose_sign1_req(cose_sign1_req_)
     {}
   };
+
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(MemberAck, StateDigest);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-parameter"
@@ -157,6 +161,7 @@ namespace ccf
 #pragma clang diagnostic pop
   DECLARE_JSON_OPTIONAL_FIELDS(MemberAck, signed_req, cose_sign1_req);
   using MemberAcks = ServiceMap<MemberId, MemberAck>;
+
   namespace Tables
   {
     static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
