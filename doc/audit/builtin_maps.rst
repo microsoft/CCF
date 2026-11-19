@@ -7,11 +7,22 @@ Built-in Maps
 ``members.certs``
 ~~~~~~~~~~~~~~~~~
 
-X509 certificates of all members in the consortium.
+X509 certificates of legacy members in the consortium.
 
 **Key** Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
 **Value** Member certificate, represented as a PEM-encoded string.
+
+``members.public_keys``
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Certificate-free member enrollments.
+
+**Key** Member ID: the ``did:key`` containing the member's public key.
+
+**Value** The public key, represented as DER SubjectPublicKeyInfo bytes.
+
+See :ref:`architecture/cryptography:Identity IDs` for enrollment and revocation semantics.
 
 ``members.encryption_public_keys``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -21,6 +32,8 @@ Public encryption keys submitted by members to the network. The recovery share f
 **Key** Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
 **Value** Member public encryption key, represented as a PEM-encoded string.
+
+DID members use their ``did:key`` as the key instead of a certificate fingerprint.
 
 ``members.info``
 ~~~~~~~~~~~~~~~~
@@ -62,11 +75,22 @@ Member acknowledgements of the ledger state, each containing a signature over th
 ``users.certs``
 ~~~~~~~~~~~~~~~
 
-X509 certificates of all network users.
+X509 certificates of legacy network users.
 
 **Key** User ID: SHA-256 fingerprint of the user certificate, represented as a hex-encoded string.
 
 **Value** User certificate, represented as a PEM-encoded string.
+
+``users.public_keys``
+~~~~~~~~~~~~~~~~~~~~~
+
+Certificate-free user enrollments.
+
+**Key** User ID: the ``did:key`` containing the user's public key.
+
+**Value** The public key, represented as DER SubjectPublicKeyInfo bytes.
+
+Member and user information and acknowledgement tables also accept ``did:key`` IDs as keys.
 
 ``users.info``
 ~~~~~~~~~~~~~~
@@ -639,7 +663,13 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``previous_service_identity_endorsement``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+Endorsements of service identities by the identities that succeed them, keyed by service signing identity type.
+When a service opens, it signs with the key of each identity type an endorsement of the key that signed the previous endorsement of that type, or of its own key if there is none, so that each type chains service identities across disaster recoveries.
+
+**Key** Identity type as a little-endian 64-bit unsigned integer.
+``CLASSICAL`` (0) is written by every service.
+``PQ`` (1) is written by a service with an ML-DSA identity, in the same transaction.
+It endorses the previous ``PQ`` endorsing key over the same epochs, and with the same previous Merkle root, as ``CLASSICAL``, or its own key if the previous service had no ML-DSA identity.
 
 **Value**
 

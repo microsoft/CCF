@@ -5,6 +5,57 @@ The authoritative release notes are on [GitHub Releases](https://github.com/micr
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.25]
+
+[7.0.25]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.25
+
+### Added
+
+- `ccf::crypto::OpenSSL::cose_key_from_x509()`, in the new public header `ccf/crypto/openssl/cose_key.h`, makes a `ccf::crypto::COSEKey` from a certificate that is already parsed, without parsing it again as `COSEKey::from_der_cert()` does; see [COSE Keys](doc/build_apps/crypto.rst#cose-keys). (#8751)
+- Services publish their ML-DSA signing public key in `service.signing_identities[PQ]` alongside `service.info.pq_cert`, with no fallback when the PQ pair is incomplete or mismatched; see the [built-in maps reference](doc/audit/builtin_maps.rst) and the [7.x to 8.x migration guide](doc/releases/migration_7_x_to_8_x.rst#ml-dsa-service-identity). (#8696)
+
+### Changed
+
+- The Build Apps landing page now groups application guides by task, with release cadence, compatibility and migration guidance collected under Releases and Upgrades.
+  See [Build Apps](doc/build_apps/index.rst) and [Releases and Upgrades](doc/releases/index.rst). (#8708)
+- Transactions before an uncommitted reconfiguration transaction now commit once their signature has a quorum in each active configuration defined at or before that signature, without waiting for a quorum of the new configuration.
+  See [Reconfiguration](doc/architecture/consensus/index.rst#reconfiguration). (#8728)
+- Release notes now select change descriptions by their adding commits in a release tag range, so retained published descriptions are not repeated.
+  An optional consolidation script archives released descriptions in `CHANGELOG.md` and removes unchanged published fragments; see the [release procedure](doc/contribute/release_ccf.rst). (#8755)
+
+### Removed
+
+- Nodes and `ccf.ledger.Snapshot` accept only COSE snapshot receipts, so snapshots written by 6.x and earlier releases, which are out of support, are rejected when joining or recovering.
+  Before upgrading, make sure the service has a snapshot written by 7.0 or later and remove the older ones, upgrading a service still on 6.x to an earlier 7.0 release first; a 6.x snapshot left as the primary's newest prevents nodes from joining (see [Snapshot Generation](doc/operations/ledger_snapshot.rst#snapshot-generation)). (#8746)
+
+### Fixed
+
+- `ccf_cose_sign1_prepare` and `ccf.cose.create_cose_sign1_prepare` again return the `alg` as a JSON Web Algorithm name such as `"ES384"`, as Azure Key Vault expects, and hash the message with the algorithm of the signing key rather than that of the certificate's own signature.
+  See [COSE Signing](doc/governance/hsm_keys.rst#cose-signing). (#8740)
+- JWT signature verification now uses a thread-local signing-key cache rather than serialising verification across worker threads.
+  See [JWT authentication](doc/build_apps/auth/jwt.rst#validating-tokens). (#8771)
+- `ccf.ledger.Ledger` now reads a ledger chunk that is committed in only some of the given directories regardless of the order of those directories, preferring its committed copy, then a completed copy over an open one.
+  With `contiguous_suffix=True`, conflicting chunk ranges are only rejected if they are part of the selected suffix. (#8742)
+- `ccf.ledger.PublicDomain` now rejects snapshot map entries that extend beyond their map's serialised size, as the node does, and the `OFFSETS` verification level rejects ledger chunks with bytes outside their transactions. (#8745)
+- `ledger_viz.py` now shows a tile for every transaction, including the `WaitingForRecoveryShares` service status change of a recovering service, so that tiles stay aligned with transactions. (#8743)
+- `ccf.read_ledger.run` no longer appends the default format rules to the `tables_format_rules` list passed by its caller. (#8744)
+- `ccf.ledger.Snapshot` no longer skips receipt verification or reports an uncommitted snapshot as committed, when a directory containing the snapshot has `.committed` in its name. (#8741)
+- `ccf.ledger.range_from_filename`, `ccf.ledger.snapshot_index_from_filename` and `ccf.tx_id.TxID.parse` now reject names and transaction IDs containing signs, whitespace, underscores, non-ASCII digits or unexpected prefixes.
+  `range_from_filename` also rejects ordinary ledger chunk names whose end seqno precedes their start seqno. (#8739)
+- Respond-on-commit requests now report invalidated transactions after a later view commits, without waiting for the commit sequence number to catch up with the transaction.
+  See [deferring responses until commit](doc/build_apps/example_cpp.rst#deferring-response-until-commit). (#8714)
+- Joining and backup nodes now allocate the buffer for a snapshot fetched from a peer once, at the snapshot's full size, so a fetch needs about the snapshot's size in memory rather than up to three times it.
+  They also stop fetching a snapshot larger than `command.join.fetch_snapshot_max_size` or `snapshots.backup_fetch.max_size` after its first byte range; see [Backup Snapshot Fetching](doc/operations/ledger_snapshot.rst#backup-snapshot-fetching). (#8775)
+- `SeqnosByKey_Bucketed` no longer creates empty bucket files for late first writes or gaps between writes.
+  See [indexing strategies](doc/build_apps/example_cpp.rst) for query costs and remaining memory limitations. (#8686)
+
+### Dependencies
+
+- Updated didx509cpp to [1.0.1](https://github.com/microsoft/didx509cpp/releases/tag/didx509cpp-1.0.1), which decodes standalone Fulcio extensions only when selected by DID policy and only on the leaf certificate. (#8774)
+- Updated the bundled `fmt` library from `12.2.0` to `12.2.1`, fixing allocation-size overflow checks, truncated `std::error_code` format parsing, and `nullptr` formatting with `FMT_COMPILE` and `fmt::to_string`.
+  See [C++ logging](doc/build_apps/logging.rst) and the [upstream release notes](https://github.com/fmtlib/fmt/releases/tag/12.2.1). (#8754)
+- Update the exported Valijson headers from 1.1.3 to [1.1.4](https://github.com/tristanpenman/valijson/releases/tag/v1.1.4), adding JSON Schema `ipv6` and `hostname` format validation for C++ applications. (#8753)
+
 ## [7.0.24]
 
 [7.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.24

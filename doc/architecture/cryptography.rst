@@ -106,6 +106,45 @@ Each node also has an encryption public-key (``Node Encryption Public Key``) use
         NodeEncryptedLedgerSecrets -- recorded in ccf.internal.encrypted_ledger_secrets --> Ledger
 
 
+Identity IDs
+------------
+
+Node, member, and user IDs default to the existing ``sha256`` format.
+Member and user IDs are the hexadecimal SHA-256 fingerprint of the DER certificate.
+Node IDs are the hexadecimal SHA-256 fingerprint of the DER SubjectPublicKeyInfo public key.
+
+New identities can instead use a `did:key <https://w3c-ccg.github.io/did-key-spec/>`_ ID, which embeds the multicodec-tagged public key rather than hashing it.
+CCF supports P-256, P-384, and P-521 keys.
+The ``did:key`` specification lists the P-256 and P-384 key types; P-521 keys use the ``p521-pub`` code from the `multicodec table <https://github.com/multiformats/multicodec/blob/master/table.csv>`_, so other ``did:key`` implementations may not accept them.
+Existing authentication and signing algorithm restrictions still apply.
+
+The `did:key identifier syntax <https://w3c-ccg.github.io/did-key-spec/#did-key-identifier-syntax>`_ allows either a base58-btc (``z``) or a base64url (``u``) multibase value.
+CCF only accepts and produces the base58-btc (``z``) form, which is the form used by every example in the specification, and rejects the base64url form.
+As the specification describes, a ``did:key`` is a deterministic encoding of its public key, and CCF only accepts the ``did:key`` that it would produce from the decoded key.
+For example, the key must use the compressed point encoding.
+Only bare IDs are accepted; DID URLs with fragments, queries, or paths are not identity IDs.
+
+A ``did:key`` is used as it is in an HTTP path, including before an action suffix, as in ``/gov/members/state-digests/did:key:z...:ack``.
+
+Members and users enroll a ``did:key`` by passing it as ``did_key`` to ``set_member`` or ``set_user``; no certificate is stored or required.
+The embedded public key is validated when it is enrolled; an ID that is only used to look up an identity is checked for syntax alone.
+COSE Sign1 requests use the ``did:key`` as their ``kid`` and are verified with the embedded public key.
+Endpoints using TLS client certificate authentication (such as ``user_cert`` or ``member_cert``) also accept any client certificate carrying the enrolled public key, and identify the caller by the enrolled ``did:key``.
+The validity period of such a certificate is not checked: governance explicitly grants access by enrolling the identity, and revokes it by removing the identity.
+
+Certificate-based and ``did:key`` enrollments are independent identities, even when they contain the same public key.
+CCF does not detect or prevent enrolling the same public key under both ID formats; operators are responsible for deciding whether to do so, and for removing the identity they no longer want.
+Each enrollment has its own ID, data, status, and recovery role, and removing one does not affect the other.
+If both are enrolled in the same role, TLS client certificate authentication with the enrolled certificate identifies the caller by its certificate fingerprint ID; other certificates carrying the same key identify the caller by its ``did:key``.
+
+See :doc:`/governance/migrating_identity_ids` for the user and member migration procedure.
+
+Upgrade every node before opting in to DID identities.
+Upgraded services can mix legacy and DID IDs, but older binaries are not supported in a DID-enabled service.
+This option does not change SHA-256 ledger hashes, proposal IDs, receipt formats, attestation bindings, or cryptographic signature algorithms.
+
+See :doc:`/operations/configuration` for node and genesis member configuration, :doc:`/governance/adding_member` and :doc:`/governance/open_network` for enrollment, and :doc:`/use_apps/issue_commands` for COSE signing.
+
 Algorithms and Curves
 ---------------------
 

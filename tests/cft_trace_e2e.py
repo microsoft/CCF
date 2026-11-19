@@ -286,7 +286,7 @@ def run(args):
         if line.startswith("{"):
             records.append(json.loads(line))
     assert records, output.read_text()
-    assert all({"h_ts", "process_id", "msg"} == set(record) for record in records)
+    assert all({"m_ts", "pid", "msg"} == set(record) for record in records)
     assert any(record["msg"]["function"] == "replicate" for record in records)
     assert all(record["msg"]["state"]["node_id"] for record in records)
 

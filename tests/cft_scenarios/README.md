@@ -60,6 +60,32 @@ ctest --test-dir build -VV -R '^cft_scenario_test$' --no-tests=error
 The runner prints each scenario as a Mermaid sequence diagram, and writes its trace to `consensus/raw/<name>.ndjson` in the build directory.
 [`consensus-replay`](../../lean/consensus/replay/README.md) validates these traces against the Lean model of the protocol.
 
+## Diagrams
+
+[`cft_scenarios_mermaid.py`](../cft_scenarios_mermaid.py) prints one scenario as a compact Mermaid sequence diagram:
+
+```sh
+python3 tests/cft_scenarios_mermaid.py build/cft_driver tests/cft_scenarios/Scenarios/<name>.lean
+```
+
+Messages are arrows, which end in a cross when the message is dropped.
+The actions of a node, such as appending to its ledger, rolling back or time passing, are arrows from that node to itself.
+Updates to the state of a node, such as its role or commit index, are notes, and the driver prints the role and term of a node whenever either changes.
+Consecutive actions of a node share an arrow, and consecutive updates share a note.
+Symbols replace what the driver prints, followed by the term, index or transaction ID to which they apply:
+
+| Symbols     | Meaning                                                                      |
+| ----------- | ---------------------------------------------------------------------------- |
+| 👑 💂 📊 🙋 💤 | Role, in a term: primary, backup, pre-vote candidate, candidate, or none of these |
+| ✍️ ⚙️ 📄    | Signature, reconfiguration, or another entry, appended to the ledger         |
+| ⏪ 🔒       | Rollback, commit                                                             |
+| 📦 📊 🙋 👉 | Requests: append entries, pre-vote, vote, nomination of a successor          |
+| ✅ ❌       | Response which accepts or rejects a request                                  |
+| 🆕 🤝 👋 🙈 | Node created, trusted, retired, left out of the final check as it is retired |
+| 🔗 🧱 ⏳    | Nodes connected, nodes disconnected, time passing                            |
+
+A reconfiguration is also followed by the nodes it removes and adds, such as `⚙️2.3(-n[0],+n[1])`.
+
 ## Bindings
 
 `lake` compiles the scenarios to a static library, which defines `main`.

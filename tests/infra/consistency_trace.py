@@ -61,9 +61,9 @@ def recording(args):
         if tag == "ccf.cft" and record["msg"]["function"] in FUNCTIONS:
             seconds, nanos = struct.unpack(">II", timestamp.data)
             # Keyed by origin, as delivery retries can duplicate records.
-            events[(record["process_id"], record["h_ts"])] = (
+            events[(record["pid"], record["m_ts"])] = (
                 seconds * 10**9 + nanos,
-                record["h_ts"],
+                record["m_ts"],
                 record,
             )
 

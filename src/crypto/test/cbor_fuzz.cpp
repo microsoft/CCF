@@ -16,7 +16,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
   {
     value = tav::cbor::nondet_parse({data, size});
   }
-  catch (const tav::cbor::DecodeError&)
+  catch (const tav::Exception&)
   {
     return 0;
   }

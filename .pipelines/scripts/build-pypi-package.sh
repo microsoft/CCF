@@ -26,8 +26,9 @@ uv=$(command -v uv)
 
 package_version=$(
     "$uv" run --no-project --with packaging \
-        python scripts/validate_python_version.py "$BUILD_SOURCEBRANCH"
+        python scripts/derive_python_version.py "$BUILD_SOURCEBRANCH"
 )
+"$uv" version --project python --frozen "$package_version"
 
 rm -rf python/dist
 "$uv" build --wheel python

@@ -21,13 +21,15 @@ namespace ccf
   static std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
     std::make_shared<EmptyAuthnPolicy>();
 
-  /** Authenticate using TLS session identity, and @c public:ccf.gov.users.certs
-   * table */
+  /** Authenticate using TLS session identity, and the
+   * @c public:ccf.gov.users.certs and @c public:ccf.gov.users.public_keys
+   * tables */
   static std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
     std::make_shared<UserCertAuthnPolicy>();
 
-  /** Authenticate using TLS session identity, and
-   * @c public:ccf.gov.members.certs table */
+  /** Authenticate using TLS session identity, and the
+   * @c public:ccf.gov.members.certs and @c public:ccf.gov.members.public_keys
+   * tables */
   static std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
     std::make_shared<MemberCertAuthnPolicy>();
 
@@ -41,14 +43,16 @@ namespace ccf
   static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
     std::make_shared<JwtAuthnPolicy>();
 
-  /** Authenticate using COSE Sign1 payloads, and
-   * @c public:ccf.gov.members.certs table */
+  /** Authenticate using COSE Sign1 payloads, and the
+   * @c public:ccf.gov.members.certs and @c public:ccf.gov.members.public_keys
+   * tables */
   static std::shared_ptr<MemberCOSESign1AuthnPolicy>
     member_cose_sign1_auth_policy =
       std::make_shared<MemberCOSESign1AuthnPolicy>();
 
-  /** Authenticate using COSE Sign1 payloads, and
-   * @c public:ccf.gov.users.certs table */
+  /** Authenticate using COSE Sign1 payloads, and the
+   * @c public:ccf.gov.users.certs and @c public:ccf.gov.users.public_keys
+   * tables */
   static std::shared_ptr<UserCOSESign1AuthnPolicy> user_cose_sign1_auth_policy =
     std::make_shared<UserCOSESign1AuthnPolicy>();
 

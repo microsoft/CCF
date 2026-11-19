@@ -1018,8 +1018,10 @@ open CCF
 open Model.Node
 open Consensus.Proofs.Ledger
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private abbrev actor : NodeID := c.tr.actor
@@ -2842,8 +2844,7 @@ open Ledger (
     maxCommittableIndexUpTo_le_length maxCommittableIndexUpToPositiveIsSignature
   )
 section AppendEntries
-variable {self : NodeID} {state : NodeState}
-  {request : AppendEntriesRequest}
+variable {self : NodeID} {state : NodeState} {request : AppendEntriesRequest}
 
 private theorem CommitFrontier.fromLeader (frontier : CommitFrontier state)
     : CommitFrontier (handleAppendEntiresFromPrimary self state request).1 := by
@@ -3172,8 +3173,7 @@ open Consensus.Proofs.Config
 open CCF CCF.MultiNodeTransitionSystem Concrete
 open Model.Node
 section AppendEntries
-variable {self : NodeID} {state : NodeState}
-  {request : AppendEntriesRequest}
+variable {self : NodeID} {state : NodeState} {request : AppendEntriesRequest}
 
 private theorem Extends.fromLeader
     : Extends state (handleAppendEntiresFromPrimary self state request).1 := by
@@ -4844,8 +4844,12 @@ open Consensus.Proofs.Config
 open Model (initialNodeState BOOTSTRAP_TERM)
 variable [Config.InitialConfiguration]
 section Initial
-variable {nodes : List NodeID} {initial : Model.State}
-  (initialized : (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes).init initial)
+variable
+  {nodes : List NodeID} {initial : Model.State} (initialized
+                                                  : (Model.transitionSystem
+                                                      Config.INITIAL_CONFIGURATION
+                                                      nodes).init
+                                                      initial)
 include initialized
 
 private theorem initial_state {node : NodeID} {state : NodeState}
@@ -5446,8 +5450,10 @@ open CCF
 open Model.Node
 open Consensus.Proofs.Ledger
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private theorem sum : Summary c.actor c.pre c.event c.post c.sent := c.tr.summary
@@ -5697,8 +5703,10 @@ open CCF
 open Model.Node
 open Consensus.Proofs.Ledger
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private theorem anchors : Everywhere Anchor (before :: rest) := c.all Inv.anchor
@@ -6530,8 +6538,10 @@ open Consensus.Proofs.Ledger
 open Consensus.Proofs.Config
 open Model (BOOTSTRAP_TERM)
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private theorem termMonos : Everywhere TermMono (after :: before :: rest) :=
@@ -6963,8 +6973,10 @@ open CCF
 open Model.Node
 open Consensus.Proofs.Ledger
 variable [Config.InitialConfiguration]
-variable {nodes : List NodeID} {after before : Model.State}
-  {rest : History} (c : Ctx nodes after before rest)
+variable
+  {nodes : List NodeID} {after before : Model.State} {rest : History} (c
+                                                                        : Ctx nodes after
+                                                                            before rest)
 include c
 
 private theorem pre_led (leader : c.pre.role = .primary)
