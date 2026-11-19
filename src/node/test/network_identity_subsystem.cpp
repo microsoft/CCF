@@ -1125,6 +1125,67 @@ TEST_CASE(
   REQUIRE_THROWS_AS({ auto sub = f.make_subsystem(); }, std::exception);
 }
 
+TEST_CASE("Failed: tampered self-endorsement of the current service")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1});
+  f.use_identity_key(cb.current_key_pair());
+  f.node_state->current_service_from = ccf::TxID{2, 1};
+  f.node_state->topmost = cb.topmost_entry();
+  f.node_state->topmost->endorsement.back() ^= 0xFF;
+
+  REQUIRE_THROWS_WITH_AS(
+    { auto sub = f.make_subsystem(); },
+    doctest::Contains("Self-endorsement at 2.1 failed signature verification"),
+    std::runtime_error);
+}
+
+TEST_CASE("Failed: invalid self-endorsement at which fetching stops")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {8, 400});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  auto& self = f.historical->entries.at(cb.write_versions.at(0));
+  std::string expected_error;
+
+  SUBCASE("Tampered signature")
+  {
+    self.endorsement.back() ^= 0xFF;
+    expected_error = "Self-endorsement at 2.1 failed signature verification";
+  }
+  SUBCASE("Self-endorsement of a key which the chain does not endorse")
+  {
+    ChainBuilder stranger;
+    stranger.add_self({2, 1});
+    self = stranger.topmost_entry();
+    expected_error = "trusted from that epoch";
+  }
+  SUBCASE("Signed for another epoch than its entry")
+  {
+    const auto& key = cb.service_keys.at(0);
+    self.endorsement = ccf::cose::sign_endorsement(
+      *key, 1700000000, "2.2", {}, {}, key->public_key_der());
+    expected_error = "is signed for another epoch begin 2.2";
+  }
+  SUBCASE("Back-endorsement passed off as a self-endorsement")
+  {
+    // Would stop fetching before the oldest endorsements are reached
+    auto& middle = f.historical->entries.at(cb.write_versions.at(1));
+    middle.previous_version = std::nullopt;
+    middle.endorsement_epoch_begin = ccf::TxID{6, 201};
+    middle.endorsement_epoch_end = std::nullopt;
+    expected_error = "which is not the key which signed it";
+  }
+
+  REQUIRE_THROWS_WITH_AS(
+    { auto sub = f.make_subsystem(); },
+    doctest::Contains(expected_error),
+    std::runtime_error);
+}
+
 TEST_CASE("Reader: empty chain for current-epoch seqno in Done")
 {
   SubsystemFixture f;
@@ -1632,6 +1693,23 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
     expected_error =
       "PQ endorsements chain: fetched self-endorsement at 2.2 which has not "
       "been seen";
+  }
+  SUBCASE("Tampered PQ self-endorsement")
+  {
+    f.historical->pq_entries.at(cb.write_versions.at(0)).endorsement.back() ^=
+      0xFF;
+    expected_error =
+      "PQ endorsements chain: Self-endorsement at 2.1 failed signature "
+      "verification";
+  }
+  SUBCASE("PQ back-endorsement passed off as a self-endorsement")
+  {
+    // Would stop the PQ chain before its oldest endorsements are reached
+    auto& endorsement = f.historical->pq_entries.at(middle_version);
+    endorsement.previous_version = std::nullopt;
+    endorsement.endorsement_epoch_begin = ccf::TxID{6, 201};
+    expected_error =
+      "PQ endorsements chain: Self-endorsement at 6.201 endorses public key";
   }
   SUBCASE("PQ endorsement over a key which is not an ML-DSA key")
   {
