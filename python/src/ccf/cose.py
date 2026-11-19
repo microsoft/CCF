@@ -9,20 +9,25 @@ import sys
 import warnings
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import cbor2
 import cwt
 import cwt.const
 import cwt.enums
 import cwt.utils
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
-from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
+from cryptography.hazmat.primitives.asymmetric.types import (
+    CertificatePublicKeyTypes,
+    PublicKeyTypes,
+)
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     PublicFormat,
+    load_der_public_key,
     load_pem_public_key,
 )
 from cryptography.x509 import load_pem_x509_certificate
@@ -69,6 +74,12 @@ CCF_PROOF_PATH_LABEL = 2
 CCF_CONSISTENCY_PROOF_ANCHOR_LABEL = 1
 CCF_CONSISTENCY_PROOF_PATH_LABEL = 2
 CCF_MAX_COMMIT_EVIDENCE_SIZE = 1024
+
+# Pure ML-DSA COSE algorithms, see https://www.rfc-editor.org/rfc/rfc9964.html
+
+COSE_ALG_ML_DSA_44 = -48
+COSE_ALG_ML_DSA_65 = -49
+COSE_ALG_ML_DSA_87 = -50
 
 # Digest algorithm and JSON Web Algorithm name for each supported COSE
 # signature algorithm (RFC 9053, section 2.1).
@@ -223,10 +234,120 @@ def verify_cose_sign1_with_cert(
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
 
+_COSE_SIGN1_TAG = cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1]
+
+
+def _decode_cose_sign1(value: Any, _immutable: bool) -> cbor2.CBORTag:
+    """Decode a COSE_Sign1 tag. Registering it keeps the contents of the
+    message a mutable array and map, which cbor2 decodes as immutable
+    containers for other tags."""
+    return cbor2.CBORTag(_COSE_SIGN1_TAG, value)
+
+
+def _is_mldsa_key(key: PublicKeyTypes) -> bool:
+    """Return whether key is an ML-DSA public key."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric import mldsa
+    except ImportError:  # cryptography < 47 has no ML-DSA
+        return False
+    return isinstance(
+        key, (mldsa.MLDSA44PublicKey, mldsa.MLDSA65PublicKey, mldsa.MLDSA87PublicKey)
+    )
+
+
+def verify_cose_sign1_mldsa(
+    spki_der: bytes, cose_sign1: bytes, payload: bytes | None = None
+) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
+    """Verify a COSE Sign1 message signed with pure ML-DSA (RFC 9964), and
+    return its protected headers, unprotected headers and payload.
+
+    spki_der is the DER-encoded SubjectPublicKeyInfo of the ML-DSA public key.
+    The protected alg must be the algorithm of its parameter set, and a kid, if
+    present, the hexadecimal SHA-256 of the key's DER encoding.
+    payload is the detached payload, for a message with a nil payload.
+    ML-DSA requires cryptography 48 or later. Raises TypeError if the key is
+    not an ML-DSA key, and ValueError if the message is malformed or not signed
+    by the key.
+    """
+    try:
+        from cryptography.hazmat.primitives.asymmetric import mldsa
+    except ImportError as exc:  # cryptography < 47 has no ML-DSA
+        raise ValueError("ML-DSA verification requires cryptography >= 48") from exc
+
+    key = load_der_public_key(spki_der)
+    if isinstance(key, mldsa.MLDSA44PublicKey):
+        alg = COSE_ALG_ML_DSA_44
+    elif isinstance(key, mldsa.MLDSA65PublicKey):
+        alg = COSE_ALG_ML_DSA_65
+    elif isinstance(key, mldsa.MLDSA87PublicKey):
+        alg = COSE_ALG_ML_DSA_87
+    else:
+        raise TypeError("Key is not an ML-DSA public key")
+
+    try:
+        message = cbor2.loads(
+            cose_sign1, semantic_decoders={_COSE_SIGN1_TAG: _decode_cose_sign1}
+        )
+    except cbor2.CBORDecodeError as exc:
+        raise ValueError(f"Invalid COSE Sign1 CBOR: {exc}") from exc
+    if type(message) is not cbor2.CBORTag or message.tag != _COSE_SIGN1_TAG:
+        raise ValueError("Message must be a tagged four-element COSE Sign1 message")
+    elements = cast(list[Any], message.value)
+    if type(elements) is not list or len(elements) != 4:
+        raise ValueError("Message must be a tagged four-element COSE Sign1 message")
+    phdr_bytes, uhdr, message_payload, signature = elements
+    if type(phdr_bytes) is not bytes or type(signature) is not bytes:
+        raise ValueError("Protected header and signature must be bstr")
+    try:
+        protected = cast(dict[str | int, Any], cbor2.loads(phdr_bytes))
+    except cbor2.CBORDecodeError as exc:
+        raise ValueError(f"Invalid protected header CBOR: {exc}") from exc
+    if type(protected) is not dict:
+        raise ValueError("Protected header must be a map")
+    unprotected = cast(dict[str | int, Any], uhdr)
+    if type(unprotected) is not dict:
+        raise ValueError("Unprotected header must be a map")
+
+    if protected.get(int(cwt.COSEHeaders.ALG)) != alg:
+        raise ValueError(f"Protected alg must be {alg} for this ML-DSA key")
+    kid = protected.get(
+        int(cwt.COSEHeaders.KID), unprotected.get(int(cwt.COSEHeaders.KID))
+    )
+    expected_kid = hashlib.sha256(
+        key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    ).hexdigest()
+    if kid is not None and kid != expected_kid.encode("ascii"):
+        raise ValueError(f"Message is not signed by the expected key {expected_kid}")
+
+    if payload is None:
+        if type(message_payload) is not bytes:
+            raise ValueError("Payload is detached")
+        payload = message_payload
+    elif message_payload is not None:
+        raise ValueError("Payload must be detached (nil)")
+
+    to_be_signed = cbor2.dumps(["Signature1", phdr_bytes, b"", payload])
+    try:
+        key.verify(signature, to_be_signed)
+    except InvalidSignature as exc:
+        raise ValueError("ML-DSA signature verification failed") from exc
+    return protected, unprotected, payload
+
+
 def verify_cose_sign1_with_key(
     key: bytes, cose_sign1: bytes, payload: bytes | None = None
 ) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
-    """Verify a COSE Sign1 message using a PEM public key."""
+    """Verify a COSE Sign1 message using a PEM public key.
+
+    ML-DSA keys are verified with :func:`verify_cose_sign1_mldsa`.
+    """
+    public_key = load_pem_public_key(key)
+    if _is_mldsa_key(public_key):
+        return verify_cose_sign1_mldsa(
+            public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo),
+            cose_sign1,
+            payload,
+        )
     cose_ctx = cwt.COSE.new()
     key_pem = key.decode()
     cose_key = cwt.COSEKey.from_pem(key_pem, kid=key_fingerprint_from_key(key_pem))

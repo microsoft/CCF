@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import base64
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from hashlib import sha256
 from io import BytesIO
 from math import isnan
@@ -14,7 +14,11 @@ from cbor2 import CBORDecodeError, CBORDecoder, CBORTag
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PublicFormat,
+    load_der_public_key,
+)
 from cryptography.x509 import Certificate
 from cryptography.x509.verification import PolicyBuilder, Store
 
@@ -31,7 +35,9 @@ from ccf.cose import (
     COSE_RECEIPT_CONSISTENCY_PROOF_LABEL,
     COSE_RECEIPT_INCLUSION_PROOF_LABEL,
     key_fingerprint_from_key,
+    verify_cose_sign1_with_key,
 )
+from ccf.tx_id import TxID
 
 _MAX_RECEIPT_CBOR_DEPTH = 400
 
@@ -252,8 +258,97 @@ def check_cert_chain(
     verifier.verify(leaf=node_cert, intermediates=endorsements)
 
 
+# A recovered service starts its first view this many views after the last view
+# of the previous service, as aft::starting_view_change in the node
+_RECOVERY_VIEW_INCREMENT = 2
+
+
+def _require_endorsements_sequence(endorsements: Sequence[bytes]) -> None:
+    """Raise TypeError if endorsements is a single message rather than a
+    sequence of COSE_Sign1 messages."""
+    if type(endorsements) in (bytes, bytearray, memoryview, str):
+        raise TypeError(
+            "Endorsements must be a sequence of COSE Sign1 messages, not a single "
+            f"{type(endorsements).__name__}"
+        )
+
+
+def _txid_claim(claims: Mapping[Any, Any], label: str) -> TxID:
+    """Return the valid transaction ID at label in a ccf.v1 claims map."""
+    value = claims.get(label)
+    view, seqno = TxID.parse(value if type(value) is str else None)
+    if view is None or seqno is None:
+        raise ValueError(f"{label} must be a valid transaction ID")
+    return TxID(view, seqno)
+
+
+def verify_cose_endorsements(
+    endorsements: Sequence[bytes], key: CertificatePublicKeyTypes
+) -> tuple[CertificatePublicKeyTypes, TxID, TxID]:
+    """
+    Verify a chain of COSE service identity endorsements from a trusted service
+    key, and return the service key it endorses last, with the first and last
+    transaction IDs of the epoch that key signed.
+
+    The chain is a sequence of COSE_Sign1 messages, ordered newest first, as
+    served for a receipt of a transaction signed by a previous service
+    identity. The first endorsement must be signed by key, and each later one
+    by the key that the one before it endorses. Each epoch must end, as a
+    disaster recovery leaves it, one sequence number and two views before the
+    start of the epoch of the endorsement before it.
+    Keys are EC keys for CLASSICAL service identities, and ML-DSA keys for PQ
+    ones.
+    """
+    _require_endorsements_sequence(endorsements)
+    if not endorsements:
+        raise ValueError("Endorsements chain must not be empty")
+
+    endorsed_key = key
+    newer_begin: TxID | None = None
+    begin = end = TxID(None, None)
+    for index, endorsement in enumerate(endorsements):
+        endorsing_key_pem = endorsed_key.public_bytes(
+            Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
+        )
+        try:
+            phdr, _, payload = verify_cose_sign1_with_key(
+                endorsing_key_pem, endorsement
+            )
+        except Exception as exc:
+            raise ValueError(
+                f"Endorsement {index} is not signed by the key it must be signed by"
+            ) from exc
+        claims = phdr.get("ccf.v1")
+        if type(claims) is not dict:
+            raise ValueError("Endorsement must have ccf.v1 claims")
+        claims = cast(dict[Any, Any], claims)
+        begin = _txid_claim(claims, "epoch.start.txid")
+        end = _txid_claim(claims, "epoch.end.txid")
+        assert begin.seqno is not None and end.seqno is not None
+        if end.seqno < begin.seqno:
+            raise ValueError(f"Endorsement epoch {begin} - {end} is empty")
+        if newer_begin is not None:
+            assert newer_begin.seqno is not None and newer_begin.view is not None
+            assert end.view is not None
+            if (
+                end.seqno + 1 != newer_begin.seqno
+                or end.view + _RECOVERY_VIEW_INCREMENT != newer_begin.view
+            ):
+                raise ValueError(
+                    f"Endorsement epoch {begin} - {end} does not end just "
+                    f"before the next epoch, which starts at {newer_begin}"
+                )
+        newer_begin = begin
+        endorsed_key = cast(CertificatePublicKeyTypes, load_der_public_key(payload))
+
+    return endorsed_key, begin, end
+
+
 def verify_cose(
-    receipt_bytes: bytes, key: CertificatePublicKeyTypes, claim_digest: bytes
+    receipt_bytes: bytes,
+    key: CertificatePublicKeyTypes,
+    claim_digest: bytes,
+    endorsements: Sequence[bytes] = (),
 ):
     """
     Verify a COSE Sign1 receipt as defined in https://www.rfc-editor.org/rfc/rfc9942.html,
@@ -263,11 +358,25 @@ def verify_cose(
     claims digest against the supplied service key.
     Any accompanying consistency proofs must reconstruct the same signed root;
     this does not establish trust in their older roots.
+
+    The service key is an EC key for a CLASSICAL receipt, or an ML-DSA key for
+    a PQ receipt, which requires cryptography 48 or later.
+    For a receipt signed by a previous service identity, endorsements is the
+    COSE endorsements chain of the receipt, newest first, and key is the
+    trusted current service key. The receipt must then be signed by the key
+    that the chain endorses last, for a transaction in the epoch of that key
+    (see :func:`verify_cose_endorsements`).
     """
     _require_digest(claim_digest)
-    key_pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
-        "ascii"
-    )
+    _require_endorsements_sequence(endorsements)
+    signing_key = key
+    epoch: tuple[TxID, TxID] | None = None
+    if endorsements:
+        signing_key, begin, end = verify_cose_endorsements(endorsements, key)
+        epoch = (begin, end)
+    key_pem = signing_key.public_bytes(
+        Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
+    ).decode("ascii")
     expected_kid = key_fingerprint_from_key(key_pem)
 
     receipt = _decode_receipt_cbor(receipt_bytes)
@@ -292,6 +401,20 @@ def verify_cose(
     kid = phdr.get(int(cwt.COSEHeaders.KID))
     if type(kid) is not bytes or kid != expected_kid.encode("ascii"):
         raise ValueError(f"Receipt is not signed by the expected key {expected_kid}")
+
+    if epoch is not None:
+        claims = phdr.get("ccf.v1")
+        if type(claims) is not dict:
+            raise ValueError("Receipt must have ccf.v1 claims")
+        txid = _txid_claim(cast(dict[Any, Any], claims), "txid")
+        begin, end = epoch
+        assert txid.seqno is not None
+        assert begin.seqno is not None and end.seqno is not None
+        if not begin.seqno <= txid.seqno <= end.seqno:
+            raise ValueError(
+                f"Receipt for {txid} is not in the epoch {begin} - {end} of the "
+                "endorsed key"
+            )
 
     if COSE_PHDR_VDS_LABEL not in phdr:
         raise ValueError("Verifiable data structure type is required")

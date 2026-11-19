@@ -207,15 +207,36 @@ namespace ccf
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
     const TxReceiptImpl& receipt)
   {
-    return receipt.cose_endorsements;
+    return describe_cose_endorsements_v2(receipt, IdentityType::CLASSICAL);
   }
 
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
     const TxReceiptImpl& receipt)
   {
-    // This API exposes a single signature, so it returns the CLASSICAL one.
-    const auto signature =
-      receipt.cose_signatures.find(IdentityType::CLASSICAL);
+    return describe_cose_signature_v2(receipt, IdentityType::CLASSICAL);
+  }
+
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
+    const TxReceiptImpl& receipt)
+  {
+    return describe_cose_receipt_v2(receipt, IdentityType::CLASSICAL);
+  }
+
+  std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v2(
+    const TxReceiptImpl& receipt, IdentityType identity_type)
+  {
+    const auto endorsements = receipt.cose_endorsements.find(identity_type);
+    if (endorsements == receipt.cose_endorsements.end())
+    {
+      return std::nullopt;
+    }
+    return endorsements->second;
+  }
+
+  std::optional<SerialisedCoseSignature> describe_cose_signature_v2(
+    const TxReceiptImpl& receipt, IdentityType identity_type)
+  {
+    const auto signature = receipt.cose_signatures.find(identity_type);
     if (signature == receipt.cose_signatures.end())
     {
       return std::nullopt;
@@ -223,10 +244,10 @@ namespace ccf
     return signature->second;
   }
 
-  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
-    const TxReceiptImpl& receipt)
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v2(
+    const TxReceiptImpl& receipt, IdentityType identity_type)
   {
-    auto signature = describe_cose_signature_v1(receipt);
+    auto signature = describe_cose_signature_v2(receipt, identity_type);
     if (!signature.has_value())
     {
       return std::nullopt;
