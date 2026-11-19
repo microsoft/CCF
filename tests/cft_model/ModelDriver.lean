@@ -480,12 +480,16 @@ private def timedOut (node : NodeID) (pre : NodeState) : IO NodeState := do
       sentEvent "send_request_vote" (snapshot node state)
     return state
 
-/-- `replicate`: a primary appends `entries` in one batch. -/
-private def replicated (node : NodeID) (pre : NodeState) (entries : List AppendEntryInput)
+/--
+`replicate`: a primary appends `entries` in one batch, each with whether `cft.h` then sends
+what it has not sent, before the end of the batch.
+-/
+private def replicated (node : NodeID) (pre : NodeState)
+    (entries : List (AppendEntryInput × Bool))
     : IO NodeState := do
   stateEvent "replicate" node pre
   let mut state := pre
-  for entry in entries do
+  for (entry, flushed) in entries do
     let index := state.log.length + 1
     let metadata := entry.content.metadata
     stateEvent "replicate_entry" node state
@@ -519,7 +523,8 @@ private def replicated (node : NodeID) (pre : NodeState) (entries : List AppendE
           }
         state ← entriesSent node state (shown := some shown) (shownSent := some index)
     state := { appended with sentIndex := state.sentIndex }
-    unless entry.flushes.isEmpty do
+    -- cft.h traces that it sends, even if it has no peer to send to
+    if flushed then
       stateEvent "batch_flush" node state
       for _ in entry.flushes do
         state ← entriesSent node state
@@ -893,13 +898,16 @@ private def periodic (node : NodeID) (ms : Nat) : IO Unit := do
           let events (pre _post : NodeState) : IO NodeState := entriesSent node pre
           unless ← perform (.local node (.sendEntries peer stop)) events do
             break
+    -- cft.h counts the time since a peer acknowledged from when it first knows that peer
+    let peers := eligiblePeers state node
     driver.modify
       fun d =>
         {
           d with
             sinceAck :=
               fun primary peer =>
-                d.sinceAck primary peer + if primary == node then ms else 0
+                d.sinceAck primary peer
+                + if primary == node && decide (peer ∈ peers) then ms else 0
         }
     let d ← driver.get
     let live (configuration : Configuration) : Nat :=
@@ -989,7 +997,7 @@ private def append (term : Text) (entries : List Replicated) : IO Unit := do
   let mut batching := (← driver.get).batching primary
   let mut log := state.log
   let mut sent := state.sentIndex
-  let mut inputs : Array AppendEntryInput := #[]
+  let mut inputs : Array (AppendEntryInput × Bool) := #[]
   for (content, size) in entries do
     let before : NodeState := { state with log }
     if let some members := content.metadata.configuration then
@@ -999,18 +1007,19 @@ private def append (term : Text) (entries : List Replicated) : IO Unit := do
     batching :=
       { batching with count := batching.count + 1, size := batching.size + size }
     let mut flushes : List (NodeID × Nat) := []
-    if batching.size >= sizeLimit then
+    let flushed := batching.size >= sizeLimit
+    if flushed then
       batching := { batching.resized with count := 0, size := 0 }
       for peer in (eligiblePeers { state with log } primary).sort do
         let stops := ranges log (sent peer) batching.limit
         flushes := flushes ++ stops.map (peer, ·)
         sent := CCF.Function.update sent peer log.length
-    inputs := inputs.push { content, flushes }
+    inputs := inputs.push ({ content, flushes }, flushed)
   driver.modify
     fun d => { d with batching := CCF.Function.update d.batching primary batching }
   let events (pre _post : NodeState) : IO NodeState :=
     replicated primary pre inputs.toList
-  unless ← perform (.local primary (.append inputs.toList)) events do
+  unless ← perform (.local primary (.append (inputs.toList.map (·.1)))) events do
     fail s!"The model does not let node {nodeName primary} append these entries"
 
 /-! ## Membership -/
