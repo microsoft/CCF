@@ -3,16 +3,20 @@ module
 public import consistency.Properties.History
 public import CCF.Proofs.Execution
 
+import consistency.Proofs.Election
+
 /-!
 Ledger identity, commitment, serializability, ordering and real-time proofs.
 
-This module is self-contained: shared lemmas are duplicated as private declarations in each
-proof module so that the proof modules can be checked in parallel.
+Apart from the shared election lemmas, supporting lemmas stay local so this module can be
+checked in parallel with the other safety proofs.
 -/
 
 @[expose] public section
 
 set_option linter.unusedSimpArgs false
+
+open consistency.Proofs.Election
 
 namespace consistency.Proofs.Structural
 

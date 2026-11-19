@@ -3,18 +3,21 @@ module
 public import consistency.Properties.History
 public import CCF.Proofs.Execution
 
+import consistency.Proofs.Election
+
 /-!
 Non-vacuity witnesses and the history-only safety proofs.
 Witness executions are constructed by replaying model actions.
 The history-only invariants (causality, unique request IDs, observation safety and unique
 responses) are proved here as well.
 
-Each proof module under `Proofs/` is self-contained: lemmas needed by more than one module are
-duplicated as private declarations, so the modules do not import each other and Lake can check
-them in parallel. This layout is chosen to minimize verification wall-clock time.
+Apart from the shared election lemmas, supporting lemmas stay local so this module can be
+checked in parallel with the other safety proofs.
 -/
 
 @[expose] public section
+
+open consistency.Proofs.Election
 
 set_option linter.unusedSimpArgs false
 
