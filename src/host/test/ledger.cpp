@@ -3449,6 +3449,10 @@ TEST_CASE("Canonical chunk discovery observes restores in the main directory")
   fs::create_directory(path);
   CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
   fs::remove(path);
+  // A symlink loop makes the file type lookup fail rather than report a type.
+  fs::create_symlink(path.filename(), path);
+  CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
+  fs::remove(path);
   fs::copy_file(archived, path);
   for (size_t idx = 1; idx <= 3; ++idx)
   {

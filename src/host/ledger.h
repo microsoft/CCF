@@ -27,6 +27,7 @@
 #include <memory>
 #include <string>
 #include <sys/types.h>
+#include <system_error>
 #include <tuple>
 #include <unistd.h>
 #include <utility>
@@ -79,13 +80,21 @@ namespace asynchost
       }
       if (idx >= start_idx && last_idx.has_value() && idx <= last_idx.value())
       {
+        std::error_code ec;
         if (
           lookup == LedgerFileLookup::CanonicalCommitted &&
           (start_idx == 0 ||
            f_name !=
              fmt::format("ledger_{}-{}.committed", start_idx, *last_idx) ||
-           !fs::is_regular_file(f.path())))
+           !f.is_regular_file(ec)))
         {
+          if (ec && ec != std::errc::no_such_file_or_directory)
+          {
+            LOG_FAIL_FMT(
+              "Could not determine file type for {}: {}",
+              f.path(),
+              ec.message());
+          }
           continue;
         }
         match = f_name;
