@@ -316,9 +316,8 @@ namespace ccf::js::extensions
         ccf::crypto::OpenSSL::Unique_X509 cert(bio, true);
         if (cert == nullptr)
         {
-          LOG_DEBUG_FMT(
-            "isValidX509Bundle: {}",
-            ccf::crypto::OpenSSL::error_string(ERR_get_error()));
+          const auto error = ccf::crypto::OpenSSL::first_error();
+          LOG_DEBUG_FMT("isValidX509Bundle: {}", error);
           return ccf::js::core::constants::False;
         }
       }
@@ -1057,11 +1056,14 @@ namespace ccf::js::extensions
           ccf::js::ScopedCleanse key_pem_guard(key_pem);
           auto key_pair = ccf::crypto::make_rsa_key_pair(key_pem);
 
+          auto salt_length_val = jsctx.get_property(algorithm, "saltLength");
+          JS_CHECK_EXC(salt_length_val);
+
           int64_t salt_length{};
-          std::ignore = JS_ToInt64(
-            jsctx,
-            &salt_length,
-            jsctx.get_property(algorithm, "saltLength").val);
+          if (JS_ToInt64(ctx, &salt_length, salt_length_val.val) < 0)
+          {
+            return ccf::js::core::constants::Exception;
+          }
 
           auto sig =
             key_pair->sign(contents, mdtype, static_cast<size_t>(salt_length));
@@ -1229,11 +1231,14 @@ namespace ccf::js::extensions
         }
         else
         {
+          auto salt_length_val = jsctx.get_property(algorithm, "saltLength");
+          JS_CHECK_EXC(salt_length_val);
+
           int64_t salt_length{};
-          std::ignore = JS_ToInt64(
-            jsctx,
-            &salt_length,
-            jsctx.get_property(algorithm, "saltLength").val);
+          if (JS_ToInt64(ctx, &salt_length, salt_length_val.val) < 0)
+          {
+            return ccf::js::core::constants::Exception;
+          }
 
           auto public_key = ccf::crypto::make_rsa_public_key(key);
           // Only supporting PSS (with salt), PKCS1v15 has been deprecated.

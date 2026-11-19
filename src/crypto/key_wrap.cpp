@@ -3,13 +3,14 @@
 
 #include "ccf/crypto/key_wrap.h"
 
+#include "ccf/crypto/entropy.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "openssl/symmetric_key.h"
 
 #include <climits>
 #include <cstdint>
-#include <openssl/rand.h>
+#include <openssl/crypto.h>
 #include <stdexcept>
 #include <vector>
 
@@ -94,7 +95,9 @@ namespace ccf::crypto
     std::vector<uint8_t> taeskey(aes_key_size / CHAR_BIT);
     try
     {
-      RAND_bytes(taeskey.data(), taeskey.size());
+      // Throws rather than leaving the temporary key zero-filled if the RNG
+      // fails.
+      get_entropy()->random(taeskey.data(), taeskey.size());
 
       // - Wraps the AES key with the wrapping RSA key using CKM_RSA_PKCS_OAEP
       //   with parameters of OAEPParams.

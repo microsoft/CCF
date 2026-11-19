@@ -2,12 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
+#include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
@@ -15,11 +17,13 @@
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
-#include "consensus/aft/raft_types.h"
-#include "cose/cose_rs_ffi.h"
+#include "consensus/aft/cft_types.h"
+#include "crypto/cose.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
+#include "service/tables/config.h"
 #include "service/tables/governance_history.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
@@ -40,6 +44,7 @@ namespace ccf
     return ccf::TxID{
       .view = txid.view - aft::starting_view_change, .seqno = txid.seqno - 1};
   }
+
   inline ccf::TxID next_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{
@@ -121,40 +126,6 @@ namespace ccf
       return member_encryption_public_keys->get(member_id).has_value();
     }
 
-    static bool is_recovery_participant(
-      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
-    {
-      return is_recovery_participant_or_owner(tx, member_id) &&
-        !is_recovery_owner(tx, member_id);
-    }
-
-    static bool is_recovery_owner(
-      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
-    {
-      auto* member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto mi = member_info->get(member_id);
-      if (!mi.has_value())
-      {
-        return false;
-      }
-
-      return mi->recovery_role.has_value() &&
-        mi->recovery_role.value() == MemberRecoveryRole::Owner;
-    }
-
-    static bool is_active_member(
-      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
-    {
-      auto* member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto mi = member_info->get(member_id);
-      if (!mi.has_value())
-      {
-        return false;
-      }
-
-      return mi->status == MemberStatus::ACTIVE;
-    }
-
     static std::map<MemberId, ccf::crypto::Pem>
     get_active_recovery_participants(ccf::kv::ReadOnlyTx& tx)
     {
@@ -224,7 +195,6 @@ namespace ccf
     {
       auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
 
       auto member_cert_der =
         ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
@@ -283,18 +253,6 @@ namespace ccf
           id, member_pub_info.encryption_pub_key.value());
       }
 
-      auto* tree_h =
-        tx.ro<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE);
-      auto tree = tree_h->get();
-      if (!tree.has_value())
-      {
-        member_acks->put(id, MemberAck());
-      }
-      else
-      {
-        MerkleTreeHistory history(tree.value());
-        member_acks->put(id, MemberAck(history.get_root()));
-      }
       return id;
     }
 
@@ -315,112 +273,6 @@ namespace ccf
       member_info->put(member_id, member.value());
 
       return newly_active;
-    }
-
-    static bool remove_member(ccf::kv::Tx& tx, const MemberId& member_id)
-    {
-      auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
-      auto* member_encryption_public_keys =
-        tx.rw<ccf::MemberPublicEncryptionKeys>(
-          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
-      auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
-      auto* member_gov_history =
-        tx.rw<ccf::GovernanceHistory>(Tables::GOV_HISTORY);
-
-      auto member_to_remove = member_info->get(member_id);
-      if (!member_to_remove.has_value())
-      {
-        // The remove member proposal is idempotent so if the member does not
-        // exist, the proposal should succeed with no effect
-        LOG_FAIL_FMT(
-          "Could not remove member {}: member does not exist", member_id);
-        return true;
-      }
-
-      // If the member was active and had a recovery share, check that
-      // the new number of active members is still sufficient for
-      // recovery
-      if (member_to_remove->status == MemberStatus::ACTIVE)
-      {
-        if (is_recovery_participant(tx, member_id))
-        {
-          size_t active_recovery_participants_count_after =
-            get_active_recovery_participants(tx).size() - 1;
-          auto recovery_threshold = get_recovery_threshold(tx);
-          auto active_recovery_owners_count =
-            get_active_recovery_owners(tx).size();
-          if (
-            active_recovery_participants_count_after == 0 &&
-            active_recovery_owners_count > 0 && recovery_threshold == 1)
-          {
-            // Its fine to remove all active recovery particiants as long as
-            // recover owner(s) exist with a threshold of 1.
-            LOG_INFO_FMT(
-              "Allowing last active recovery participant member {}: to "
-              "be removed as active recovery owner members ({}) are present "
-              "with recovery threshold ({}).",
-              member_id,
-              active_recovery_owners_count,
-              recovery_threshold);
-          }
-          else if (
-            active_recovery_participants_count_after < recovery_threshold)
-          {
-            // Because the member to remove is active, there is at least one
-            // active member (i.e. active_recovery_participants_count_after >=
-            // 0)
-            LOG_FAIL_FMT(
-              "Failed to remove recovery member {}: number of active recovery "
-              "participant members ({}) would be less than recovery threshold "
-              "({})",
-              member_id,
-              active_recovery_participants_count_after,
-              recovery_threshold);
-            return false;
-          }
-        }
-        else if (is_recovery_owner(tx, member_id))
-        {
-          size_t active_recovery_owners_count_after =
-            get_active_recovery_owners(tx).size() - 1;
-          auto recovery_threshold = get_recovery_threshold(tx);
-          auto active_recovery_participants_count =
-            get_active_recovery_participants(tx).size();
-          if (active_recovery_owners_count_after == 0)
-          {
-            if (active_recovery_participants_count > 0)
-            {
-              LOG_INFO_FMT(
-                "Allowing last active recovery owner member {}: to "
-                "be removed as active recovery owner participants ({}) are "
-                "present with recovery threshold ({}).",
-                member_id,
-                active_recovery_participants_count,
-                recovery_threshold);
-            }
-            else
-            {
-              LOG_FAIL_FMT(
-                "Failed to remove last active recovery owner member {}: number "
-                "of active recovery participant members ({}) would be less "
-                "than recovery threshold ({})",
-                member_id,
-                active_recovery_participants_count,
-                recovery_threshold);
-              return false;
-            }
-          }
-        }
-      }
-
-      member_info->remove(member_id);
-      member_encryption_public_keys->remove(member_id);
-      member_certs->remove(member_id);
-      member_acks->remove(member_id);
-      member_gov_history->remove(member_id);
-
-      return true;
     }
 
     static UserId add_user(ccf::kv::Tx& tx, const NewUser& new_user)
@@ -505,18 +357,54 @@ namespace ccf
     static void create_service(
       ccf::kv::Tx& tx,
       const ccf::crypto::Pem& service_cert,
+      const std::optional<ccf::crypto::Pem>& pq_service_cert,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
     {
       auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+      const auto prev_service_info = service->get();
+      auto* signing_identities =
+        tx.rw<SigningIdentities>(Tables::SIGNING_IDENTITIES);
+
+      const auto service_key = ccf::crypto::COSEKey::from_der_cert(
+        ccf::crypto::cert_pem_to_der(service_cert));
+      if (service_key.ec_public_key() == nullptr)
+      {
+        throw std::logic_error(
+          "Classical service signing key must be an EC key");
+      }
+      const auto signing_identity = signing_identity_from_key(service_key);
+
+      // Builds with ML-DSA always hold a PQ identity, and a service which has
+      // one never loses it
+      const bool prev_service_has_pq_cert =
+        prev_service_info.has_value() && prev_service_info->pq_cert.has_value();
+      const bool pq_identity_required = ccf::crypto::mldsa_supported() ||
+        signing_identities->has(IdentityType::PQ) || prev_service_has_pq_cert;
+      if (pq_identity_required && !pq_service_cert.has_value())
+      {
+        throw std::logic_error("An ML-DSA service certificate is required");
+      }
+
+      std::optional<Identity> pq_signing_identity;
+      if (pq_service_cert.has_value())
+      {
+        const auto pq_service_key = ccf::crypto::COSEKey::from_der_cert(
+          ccf::crypto::cert_pem_to_der(pq_service_cert.value()));
+        if (pq_service_key.mldsa_public_key() == nullptr)
+        {
+          throw std::logic_error(
+            "PQ service signing key must be an ML-DSA key");
+        }
+        pq_signing_identity = signing_identity_from_key(pq_service_key);
+      }
 
       size_t recovery_count = 0;
       std::optional<ccf::kv::Version> prev_service_created_at = std::nullopt;
 
       if (service->has())
       {
-        const auto prev_service_info = service->get();
         if (!prev_service_info.has_value())
         {
           throw std::logic_error("Failed to get previous service info");
@@ -559,21 +447,23 @@ namespace ccf
         recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
       }
 
-      const auto service_cert_der = ccf::crypto::cert_pem_to_der(service_cert);
-      // Current contract is to keep the existing service key for signing.
-      tx.wo<SigningIdentities>(Tables::SIGNING_IDENTITIES)
-        ->put(
-          IdentityType::CLASSICAL,
-          {IdentityKind::X509_SPKI_DER,
-           ccf::crypto::public_key_der_from_cert(service_cert_der)});
+      // Publish the keys atomically with their service certificates.
+      signing_identities->put(IdentityType::CLASSICAL, signing_identity);
+      if (pq_signing_identity.has_value())
+      {
+        signing_identities->put(IdentityType::PQ, pq_signing_identity.value());
+      }
 
-      service->put(
-        {service_cert,
-         recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-         prev_service_created_at,
-         recovery_count,
-         service_data,
-         create_txid});
+      const ServiceInfo service_info{
+        .cert = service_cert,
+        .pq_cert = pq_service_cert,
+        .status =
+          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
+        .previous_service_identity_version = prev_service_created_at,
+        .recovery_count = recovery_count,
+        .service_data = service_data,
+        .current_service_create_txid = create_txid};
+      service->put(service_info);
     }
 
     static bool is_service_created(
@@ -585,14 +475,25 @@ namespace ccf
         service_info->cert == expected_service_cert;
     }
 
-    static bool endorse_previous_identity(
-      ccf::kv::Tx& tx, const ccf::crypto::ECKeyPair_OpenSSL& service_key)
+  private:
+    // Endorsement, signed with the service key of identity_type, of the key
+    // which signed the previous endorsement of that type if back_endorse, or
+    // else of the service key itself. Returns nullopt, already logged, if it
+    // cannot be signed.
+    template <typename KeyPair>
+    static std::optional<ccf::CoseEndorsement>
+    sign_previous_identity_endorsement(
+      ccf::kv::Tx& tx,
+      IdentityType identity_type,
+      const KeyPair& service_key,
+      bool back_endorse,
+      int64_t iat)
     {
       auto* service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();
 
       auto* previous_identity_endorsement =
-        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+        tx.ro<ccf::PreviousServiceIdentityEndorsement>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
 
       ccf::CoseEndorsement endorsement{};
@@ -601,10 +502,10 @@ namespace ccf
 
       endorsement.endorsing_key = service_key.public_key_der();
 
-      if (previous_identity_endorsement->has(IdentityType::CLASSICAL))
+      if (back_endorse)
       {
         const auto prev_endorsement =
-          previous_identity_endorsement->get(IdentityType::CLASSICAL);
+          previous_identity_endorsement->get(identity_type);
         if (!prev_endorsement.has_value())
         {
           throw std::logic_error("Failed to get previous endorsement");
@@ -628,7 +529,7 @@ namespace ccf
 
         endorsement.previous_version =
           previous_identity_endorsement->get_version_of_previous_write(
-            IdentityType::CLASSICAL);
+            identity_type);
 
         key_to_endorse = prev_endorsement->endorsing_key;
 
@@ -638,17 +539,19 @@ namespace ccf
         if (!previous_service_last_signed_root->has())
         {
           LOG_FAIL_FMT(
-            "Failed to sign previous service identity: no last signed root");
-          return false;
+            "Failed to sign previous {} service identity: no last signed root",
+            identity_type);
+          return std::nullopt;
         }
 
         auto root_opt = previous_service_last_signed_root->get();
         if (!root_opt.has_value())
         {
           LOG_FAIL_FMT(
-            "Failed to sign previous service identity: no last signed root "
-            "value");
-          return false;
+            "Failed to sign previous {} service identity: no last signed root "
+            "value",
+            identity_type);
+          return std::nullopt;
         }
         const auto root = root_opt.value();
         previous_root.assign(root.h.begin(), root.h.end());
@@ -672,6 +575,18 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
+      // Checks the published identity of this type against its certificate
+      const auto signing_identity =
+        get_service_signing_identity(tx, identity_type);
+      if (
+        !signing_identity.has_value() ||
+        !is_same_key(signing_identity.value(), endorsement.endorsing_key))
+      {
+        throw std::logic_error(fmt::format(
+          "Endorsing key is not the {} service signing identity",
+          identity_type));
+      }
+
       auto from_txid = endorsement.endorsement_epoch_begin.to_str();
       std::string to_txid{};
       if (endorsement.endorsement_epoch_end)
@@ -679,46 +594,97 @@ namespace ccf
         to_txid = endorsement.endorsement_epoch_end->to_str();
       }
 
-      const auto time_since_epoch =
-        std::chrono::duration_cast<std::chrono::seconds>(
-          std::chrono::system_clock::now().time_since_epoch())
-          .count();
-
-      auto key_der = service_key.private_key_der();
-      CoseBuffer key_err;
-      auto cose_key =
-        CoseKey::from_private(key_der.data(), key_der.size(), key_err);
-      if (key_err.is_set())
+      try
       {
-        LOG_FAIL_FMT("Failed to create signing key: {}", key_err.to_string());
-        return false;
+        endorsement.endorsement = cose::sign_endorsement(
+          service_key, iat, from_txid, to_txid, previous_root, key_to_endorse);
       }
-
-      CoseBuffer cose_buf;
-      CoseBuffer cose_err;
-      auto rc = cose_sign_endorsement(
-        cose_key,
-        time_since_epoch,
-        reinterpret_cast<const uint8_t*>(from_txid.data()),
-        from_txid.size(),
-        reinterpret_cast<const uint8_t*>(to_txid.data()),
-        to_txid.size(),
-        previous_root.data(),
-        previous_root.size(),
-        key_to_endorse.data(),
-        key_to_endorse.size(),
-        cose_buf,
-        cose_err);
-      if (rc != 0 || !cose_buf.is_set())
+      catch (const std::exception& error)
       {
         LOG_FAIL_FMT(
-          "Failed to sign previous service identity: {}",
-          cose_err.is_set() ? cose_err.to_string() : "unknown error");
+          "Failed to sign previous {} service identity: {}",
+          identity_type,
+          error.what());
+        return std::nullopt;
+      }
+
+      return endorsement;
+    }
+
+  public:
+    // Endorses, with the service key of each identity type, the previous
+    // service identity of that type, or the service key itself if there is
+    // none. pq_service_key is nullptr for a service without a PQ identity.
+    // Writes the endorsements of every type or none, and returns false if they
+    // cannot be signed (already logged).
+    static bool endorse_previous_identity(
+      ccf::kv::Tx& tx,
+      const ccf::crypto::ECKeyPair_OpenSSL& service_key,
+      const ccf::crypto::MLDSAKeyPairPtr& pq_service_key)
+    {
+      auto* previous_identity_endorsement =
+        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+
+      const auto iat = std::chrono::duration_cast<std::chrono::seconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+
+      const auto classical_endorsement = sign_previous_identity_endorsement(
+        tx,
+        IdentityType::CLASSICAL,
+        service_key,
+        previous_identity_endorsement->has(IdentityType::CLASSICAL),
+        iat);
+      if (!classical_endorsement.has_value())
+      {
         return false;
       }
-      endorsement.endorsement = cose_buf.to_vector();
 
-      previous_identity_endorsement->put(IdentityType::CLASSICAL, endorsement);
+      std::optional<ccf::CoseEndorsement> pq_endorsement = std::nullopt;
+      if (pq_service_key != nullptr)
+      {
+        // The PQ chain continues only from a PQ endorsement written with the
+        // previous CLASSICAL one, by the opening of the previous service, so
+        // that the PQ back-endorsement has the same epochs and previous root
+        // as the CLASSICAL one. Otherwise the previous service, if any, had no
+        // PQ identity, and the PQ chain starts with a self-endorsement.
+        const auto previous_pq_version =
+          previous_identity_endorsement->get_version_of_previous_write(
+            IdentityType::PQ);
+        const bool continue_pq_chain = previous_pq_version.has_value() &&
+          previous_pq_version ==
+            previous_identity_endorsement->get_version_of_previous_write(
+              IdentityType::CLASSICAL);
+        if (previous_pq_version.has_value() && !continue_pq_chain)
+        {
+          LOG_INFO_FMT(
+            "Previous PQ service identity endorsement at {} was not written by "
+            "the previous service, starting a new PQ endorsement chain",
+            previous_pq_version.value());
+        }
+
+        pq_endorsement = sign_previous_identity_endorsement(
+          tx, IdentityType::PQ, *pq_service_key, continue_pq_chain, iat);
+        if (!pq_endorsement.has_value())
+        {
+          return false;
+        }
+      }
+      else if (get_service_signing_identity(tx, IdentityType::PQ).has_value())
+      {
+        throw std::logic_error(
+          "No ML-DSA service key for the published PQ service signing "
+          "identity");
+      }
+
+      previous_identity_endorsement->put(
+        IdentityType::CLASSICAL, classical_endorsement.value());
+      if (pq_endorsement.has_value())
+      {
+        previous_identity_endorsement->put(
+          IdentityType::PQ, pq_endorsement.value());
+      }
       return true;
     }
 
@@ -803,6 +769,25 @@ namespace ccf
       return service_status.has_value() &&
         (service_status.value() == ServiceStatus::RECOVERING ||
          service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES);
+    }
+
+    /// Prevents a downgrade: recovering a ledger whose service has an ML-DSA
+    /// identity on a build without ML-DSA would silently drop that identity.
+    /// @throws std::logic_error in that case
+    static void check_service_identity_supported(ccf::kv::ReadOnlyTx& tx)
+    {
+      if (ccf::crypto::mldsa_supported())
+      {
+        return;
+      }
+      const auto active_service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
+      if (active_service.has_value() && active_service->pq_cert.has_value())
+      {
+        throw std::logic_error(
+          "Cannot recover a ledger whose service has an ML-DSA identity with "
+          "a build without ML-DSA support. Use a build with OpenSSL 3.5 or "
+          "newer to recover this ledger.");
+      }
     }
 
     static void trust_node(
@@ -975,7 +960,9 @@ namespace ccf
     }
 
     static void trust_node_snp_tcb_version(
-      ccf::kv::Tx& tx, const pal::snp::AttestationReport& attestation)
+      ccf::kv::Tx& tx,
+      const pal::snp::AttestationReport& attestation,
+      bool recovering)
     {
       if (attestation == nullptr)
       {
@@ -1010,14 +997,50 @@ namespace ccf
           tav_snp_attestation_report_cpuid_mod_id(attestation.get()),
           tav_snp_attestation_report_cpuid_step(attestation.get())));
       }
-      auto* h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);
       const uint8_t* data = nullptr;
       size_t size = 0;
       tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
-      h->put(
+      trust_node_snp_tcb_version(
+        tx,
         cpuid.hex_str(),
-        pal::snp::TcbVersionRaw({data, size}).to_policy(product));
+        pal::snp::TcbVersionRaw({data, size}).to_policy(product),
+        recovering);
+    }
+
+    // On start, the reported TCB version is set as the minimum for the CPUID.
+    // On recovery, an existing minimum is kept if it admits the reported TCB
+    // version, and is otherwise replaced by it, so that the recovering node is
+    // admitted. Either way, the minimum is one of the two values, unmodified,
+    // never a combination of them.
+    static void trust_node_snp_tcb_version(
+      ccf::kv::Tx& tx,
+      const std::string& cpuid,
+      pal::snp::TcbVersionPolicy tcb_version,
+      bool recovering)
+    {
+      auto* tcb_versions =
+        tx.rw<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+      auto existing = recovering ? tcb_versions->get(cpuid) : std::nullopt;
+      if (existing.has_value())
+      {
+        if (pal::snp::TcbVersionPolicy::is_valid(existing.value(), tcb_version))
+        {
+          LOG_INFO_FMT(
+            "SNP minimum TCB version for CPUID {} unchanged on recovery: {}",
+            cpuid,
+            nlohmann::json(existing.value()).dump());
+          return;
+        }
+
+        LOG_INFO_FMT(
+          "SNP minimum TCB version for CPUID {} set to {} on recovery, as the "
+          "existing minimum {} does not admit it",
+          cpuid,
+          nlohmann::json(tcb_version).dump(),
+          nlohmann::json(existing.value()).dump());
+      }
+      tcb_versions->put(cpuid, tcb_version);
     }
 
     static void init_configuration(
@@ -1032,78 +1055,6 @@ namespace ccf
       }
 
       config->put(configuration);
-    }
-
-    static bool set_recovery_threshold(ccf::kv::Tx& tx, size_t threshold)
-    {
-      auto* config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
-
-      if (threshold == 0)
-      {
-        LOG_FAIL_FMT("Cannot set recovery threshold to 0");
-        return false;
-      }
-
-      auto service_status = get_service_status(tx);
-      if (!service_status.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get active service");
-        return false;
-      }
-
-      if (
-        service_status.value() == ServiceStatus::RECOVERING ||
-        service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
-      {
-        // During recovery, the recovery threshold cannot be modified.
-        // Otherwise, the threshold could be passed without triggering the end
-        // of recovery procedure.
-        LOG_FAIL_FMT(
-          "Cannot set recovery threshold: service is currently recovering");
-        return false;
-      }
-      if (service_status.value() == ServiceStatus::OPEN)
-      {
-        auto active_recovery_participants_count =
-          get_active_recovery_participants(tx).size();
-        auto active_recovery_owners_count =
-          get_active_recovery_owners(tx).size();
-
-        if (
-          active_recovery_owners_count != 0 &&
-          active_recovery_participants_count == 0)
-        {
-          if (threshold > 1)
-          {
-            LOG_FAIL_FMT(
-              "Cannot set recovery threshold to {} when only "
-              "active consortium members ({}) that are of type recovery owner "
-              "exist.",
-              threshold,
-              active_recovery_owners_count);
-            return false;
-          }
-        }
-        else if (threshold > active_recovery_participants_count)
-        {
-          LOG_FAIL_FMT(
-            "Cannot set recovery threshold to {} as it is greater than the "
-            "number of active recovery participant members ({})",
-            threshold,
-            active_recovery_participants_count);
-          return false;
-        }
-      }
-
-      auto current_config = config->get();
-      if (!current_config.has_value())
-      {
-        throw std::logic_error("Configuration should already be set");
-      }
-
-      current_config->recovery_threshold = threshold;
-      config->put(current_config.value());
-      return true;
     }
 
     static size_t get_recovery_threshold(ccf::kv::ReadOnlyTx& tx)

@@ -1,6 +1,6 @@
 ccf-inclusion-proof = {
   &(leaf: 1) => ccf-leaf
-  &(path: 2) => [+ ccf-proof-element]
+  &(path: 2) => [* ccf-proof-element]
 }
 
 ccf-leaf = [

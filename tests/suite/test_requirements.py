@@ -3,6 +3,7 @@
 
 import functools
 
+from infra import test_reporting
 from infra.member import RecoveryRole
 from infra.snp import SNP_SUPPORT
 from loguru import logger as LOG
@@ -17,7 +18,8 @@ def description(desc):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             LOG.opt(depth=1).info(f'Test: {desc} {(kwargs or "")}')
-            return func(*args, **kwargs)
+            with test_reporting.test_case(func, desc):
+                return func(*args, **kwargs)
 
         return wrapper
 
@@ -149,15 +151,6 @@ def installed_package(*p):
             raise TestRequirementsNotMet(
                 f'Incorrect app. Requires "{", ".join(p)}", not "{args.package}"'
             )
-
-    return ensure_reqs(check)
-
-
-def no_http2():
-    # HTTP/2 does not support forwarding
-    def check(network, args, *nargs, **kwargs):
-        if args.http2:
-            raise TestRequirementsNotMet("Test not run with HTTP/2")
 
     return ensure_reqs(check)
 

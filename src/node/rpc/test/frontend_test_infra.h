@@ -9,9 +9,9 @@
 #include "ccf/service/signed_req.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
+#include "kv/test/null_tx_history.h"
 #include "kv/test/stub_consensus.h"
-#include "node/history.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
@@ -122,6 +122,7 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
   return std::make_unique<ccf::NetworkIdentity>(
     "CN=CCF test network",
     ccf::crypto::service_identity_curve_choice,
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65,
     ident_valid_from,
     2);
 }

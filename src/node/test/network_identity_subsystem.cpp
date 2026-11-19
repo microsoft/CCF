@@ -4,11 +4,17 @@
 #include "node/rpc/network_identity_subsystem.h"
 
 #include "ccf/ds/locking.h"
-#include "cose/cose_rs_ffi.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/mldsa_support.h"
+#include "kv/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
 #include "node/rpc/network_identity_accessors.h"
+#include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_chain_helpers.h"
+#include "node/rpc/serialization.h"
 #include "node/snapshot_serdes.h"
+#include "service/tables/signing_identities.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
@@ -64,9 +70,67 @@ namespace
     {
       return part_of_network;
     }
+
     ccf::CurrentServiceIdentity get_current_service_identity() override
     {
       return {current_service_from, topmost};
+    }
+  };
+
+  // Serves the current service identity from a real KV store, through the
+  // same read_current_service_identity that NodeStateAccessor uses. Only
+  // is_part_of_network, which NodeStateAccessor forwards unchanged from the
+  // node state, is faked.
+  class StoreNodeStateAccessor : public ccf::INodeStateAccessor
+  {
+  public:
+    std::shared_ptr<ccf::kv::Store> store;
+    // Unused by the reader, but a service record must have one.
+    ccf::crypto::Pem service_cert;
+
+    StoreNodeStateAccessor()
+    {
+      store = std::make_shared<ccf::kv::Store>();
+      store->set_consensus(std::make_shared<ccf::kv::test::StubConsensus>());
+      store->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+      store->initialise_term(2);
+      service_cert =
+        ccf::crypto::ECKeyPair_OpenSSL(ccf::crypto::CurveID::SECP384R1)
+          .self_sign("CN=Test Service", "20240101000000Z", "20250101000000Z");
+    }
+
+    [[nodiscard]] bool is_part_of_network() const override
+    {
+      return true;
+    }
+
+    ccf::CurrentServiceIdentity get_current_service_identity() override
+    {
+      auto tx = store->create_read_only_tx();
+      return ccf::read_current_service_identity(tx);
+    }
+
+    // Commit a service record and, optionally, a new previous-identity
+    // endorsement in one transaction, as the transactions that create and
+    // open a service do.
+    void commit_service(
+      ccf::ServiceStatus status,
+      ccf::TxID create_txid,
+      const std::optional<ccf::CoseEndorsement>& endorsement = std::nullopt)
+    {
+      auto tx = store->create_tx();
+      ccf::ServiceInfo info;
+      info.cert = service_cert;
+      info.status = status;
+      info.current_service_create_txid = create_txid;
+      tx.rw<ccf::Service>(ccf::Tables::SERVICE)->put(info);
+      if (endorsement.has_value())
+      {
+        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+          ->put(ccf::IdentityType::CLASSICAL, endorsement.value());
+      }
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   };
 
@@ -148,7 +212,7 @@ namespace
   };
 
   // ChainBuilder -- mints real COSE-signed endorsements via the same
-  // cose-rs path production uses. Layout mirrors production:
+  // CCF crypto path production uses. Layout mirrors production:
   //
   //   * Service S_0 self-endorses, producing entry e_0. e_0 has no
   //     epoch_end and no previous_version. Its epoch_begin is the create
@@ -251,6 +315,7 @@ namespace
       REQUIRE(!entries.empty());
       return entries.back();
     }
+
     std::map<ccf::SeqNo, ccf::CoseEndorsement> historical_entries() const
     {
       std::map<ccf::SeqNo, ccf::CoseEndorsement> m;
@@ -272,31 +337,13 @@ namespace
     {
       const auto begin_str = begin.to_str();
       const auto end_str = end.has_value() ? end->to_str() : std::string{};
-      auto priv_der = key.private_key_der();
-      CoseBuffer key_err;
-      auto cose_key =
-        CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
-      REQUIRE(cose_key.is_set());
-
-      CoseBuffer out;
-      CoseBuffer sign_err;
-      auto rc = cose_sign_endorsement(
-        cose_key,
+      return ccf::cose::sign_endorsement(
+        key,
         /*iat=*/1700000000,
-        reinterpret_cast<const uint8_t*>(begin_str.data()),
-        begin_str.size(),
-        end.has_value() ? reinterpret_cast<const uint8_t*>(end_str.data()) :
-                          nullptr,
-        end.has_value() ? end_str.size() : 0,
-        previous_root.data(),
-        previous_root.size(),
-        payload.data(),
-        payload.size(),
-        out,
-        sign_err);
-      REQUIRE(rc == 0);
-      REQUIRE(out.is_set());
-      return out.to_vector();
+        begin_str,
+        end_str,
+        previous_root,
+        payload);
     }
   };
 
@@ -317,6 +364,7 @@ namespace
       identity = std::make_unique<ccf::NetworkIdentity>(
         "CN=Test Service",
         ccf::crypto::CurveID::SECP384R1,
+        ccf::crypto::MLDSAParameterSet::ML_DSA_65,
         "20240101000000Z",
         365);
     }
@@ -743,6 +791,133 @@ TEST_CASE(
   REQUIRE(sub->get_trusted_keys().size() == 3);
 }
 
+TEST_CASE("read_current_service_identity reports a create txid only when open")
+{
+  StoreNodeStateAccessor node_state;
+  ChainBuilder cb;
+  cb.add_self({2, 1});
+  const ccf::TxID create_txid{2, 1};
+
+  INFO("An empty store has no current service identity");
+  auto empty = node_state.get_current_service_identity();
+  REQUIRE_FALSE(empty.create_txid.has_value());
+  REQUIRE_FALSE(empty.endorsement.has_value());
+
+  for (const auto status :
+       {ccf::ServiceStatus::OPENING,
+        ccf::ServiceStatus::RECOVERING,
+        ccf::ServiceStatus::WAITING_FOR_RECOVERY_SHARES})
+  {
+    CAPTURE(status);
+    node_state.commit_service(status, create_txid, cb.topmost_entry());
+    auto current = node_state.get_current_service_identity();
+    REQUIRE_FALSE(current.create_txid.has_value());
+    REQUIRE_FALSE(current.endorsement.has_value());
+  }
+
+  node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid);
+  auto open = node_state.get_current_service_identity();
+  REQUIRE(open.create_txid == create_txid);
+  REQUIRE(open.endorsement.has_value());
+  REQUIRE(open.endorsement->endorsing_key == cb.current_pkey_der());
+}
+
+TEST_CASE(
+  "read_current_service_identity checks the signing identity against the "
+  "service certificate")
+{
+  StoreNodeStateAccessor node_state;
+  const ccf::TxID create_txid{2, 1};
+  node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid);
+  const auto other_key =
+    ccf::crypto::ECKeyPair_OpenSSL(ccf::crypto::CurveID::SECP384R1);
+
+  INFO("A matching published signing identity is accepted");
+  {
+    auto tx = node_state.store->create_tx();
+    tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+      ->put(
+        ccf::IdentityType::CLASSICAL,
+        ccf::signing_identity_from_cert(node_state.service_cert));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(node_state.get_current_service_identity().create_txid == create_txid);
+
+  INFO("A signing identity for another key is rejected");
+  {
+    auto tx = node_state.store->create_tx();
+    const auto other_cert =
+      other_key.self_sign("CN=Other", "20240101000000Z", "20250101000000Z");
+    tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+      ->put(
+        ccf::IdentityType::CLASSICAL,
+        ccf::signing_identity_from_cert(other_cert));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE_THROWS_WITH_AS(
+    node_state.get_current_service_identity(),
+    "Service signing identity does not match its service certificate",
+    std::logic_error);
+}
+
+TEST_CASE(
+  "Joiner replaying a recovery from a pre-recovery snapshot retries until the "
+  "recovered identity is in its KV")
+{
+  // The joiner's KV starts from a snapshot of the service before a recovery,
+  // while its network identity is the recovered one, received on join. It
+  // then replays the recovery's transactions. Each stage is committed to a
+  // real store and read through read_current_service_identity.
+  SubsystemFixture f;
+  ChainBuilder cb;
+  const ccf::TxID genesis{2, 1};
+  const ccf::TxID last_before_recovery{2, 200};
+  cb.add_self(genesis).add_next(genesis, last_before_recovery);
+  const auto recovered_create_txid = cb.synthesised_current_service_from();
+  const auto& original_endorsement = cb.entries.at(0);
+  const auto& recovery_endorsement = cb.entries.at(1);
+  f.use_identity_key(cb.current_key_pair());
+  f.historical->entries = cb.historical_entries();
+
+  auto node_state = std::make_shared<StoreNodeStateAccessor>();
+
+  INFO("The snapshot has the original service open, self-endorsed");
+  node_state->commit_service(
+    ccf::ServiceStatus::OPEN, genesis, original_endorsement);
+  auto stale = node_state->get_current_service_identity();
+  REQUIRE(stale.create_txid == genesis);
+  REQUIRE(stale.endorsement.has_value());
+  REQUIRE(stale.endorsement->endorsing_key != cb.current_pkey_der());
+
+  auto sub = std::make_unique<ccf::NetworkIdentitySubsystem>(
+    node_state, f.historical, f.identity, f.scheduler);
+  sub->start_with_config(SubsystemFixture::default_config());
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+  REQUIRE(f.scheduler->pending_delayed_count() == 1);
+
+  INFO("Replay reaches the recovered service, created but not yet open");
+  for (const auto status :
+       {ccf::ServiceStatus::RECOVERING,
+        ccf::ServiceStatus::WAITING_FOR_RECOVERY_SHARES})
+  {
+    CAPTURE(status);
+    node_state->commit_service(status, recovered_create_txid);
+    f.scheduler->fire_delayed_once();
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+    REQUIRE(f.scheduler->pending_delayed_count() == 1);
+  }
+
+  INFO("Replay reaches the opening, which endorses the original identity");
+  node_state->commit_service(
+    ccf::ServiceStatus::OPEN, recovered_create_txid, recovery_endorsement);
+  f.scheduler->fire_delayed_once();
+  f.scheduler->run_to_completion();
+
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+  const auto keys = sub->get_trusted_keys();
+  REQUIRE(keys.size() == 2);
+}
+
 TEST_CASE("Failed: bad signature on topmost detected during bootstrap")
 {
   SubsystemFixture f;
@@ -1013,4 +1188,88 @@ TEST_CASE(
     // target_status.
     REQUIRE(sub.endorsements_fetching_status() == ccf::FetchStatus::Failed);
   }
+}
+
+TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")
+{
+  const std::string valid_from = "20240101000000Z";
+  // A non-default parameter set shows the configured choice is honoured
+  const auto parameter_set = ccf::crypto::MLDSAParameterSet::ML_DSA_44;
+  const ccf::NetworkIdentity identity(
+    "CN=Test Service,O=CCF",
+    ccf::crypto::CurveID::SECP384R1,
+    parameter_set,
+    valid_from,
+    365);
+  const auto classical = ccf::crypto::make_verifier(identity.cert);
+
+  const auto json = nlohmann::json(identity);
+  REQUIRE(json.contains("pq_cert") == ccf::crypto::mldsa_supported());
+  REQUIRE(json.contains("pq_priv_key") == ccf::crypto::mldsa_supported());
+  REQUIRE(json.get<ccf::NetworkIdentity>() == identity);
+
+  if (!ccf::crypto::mldsa_supported())
+  {
+    REQUIRE_FALSE(identity.pq_cert.has_value());
+    REQUIRE_FALSE(identity.pq_priv_key.has_value());
+    REQUIRE(identity.get_pq_key_pair() == nullptr);
+    return;
+  }
+
+  REQUIRE(identity.pq_cert.has_value());
+  REQUIRE(identity.pq_priv_key.has_value());
+  const auto pq = ccf::crypto::make_verifier(identity.pq_cert.value());
+  REQUIRE(pq->is_self_signed());
+  REQUIRE(pq->subject_der() == classical->subject_der());
+  REQUIRE(pq->validity_period() == classical->validity_period());
+  REQUIRE(
+    ccf::crypto::make_mldsa_key_pair(
+      identity.pq_priv_key.value(), parameter_set)
+      ->public_key_der() == pq->public_key_der());
+  const auto key_pair = identity.get_pq_key_pair();
+  REQUIRE(key_pair != nullptr);
+  REQUIRE(key_pair->get_parameter_set() == parameter_set);
+  REQUIRE(key_pair->public_key_der() == pq->public_key_der());
+}
+
+TEST_CASE("A classical-only NetworkIdentity has no PQ key pair")
+{
+  ccf::NetworkIdentity identity;
+  identity.priv_key = ccf::crypto::make_ec_key_pair()->private_key_pem();
+  REQUIRE(identity.get_key_pair() != nullptr);
+  REQUIRE(identity.get_pq_key_pair() == nullptr);
+}
+
+TEST_CASE(
+  "NetworkIdentity renews its ML-DSA certificate like the classical one")
+{
+  ccf::NetworkIdentity identity(
+    "CN=Test Service,O=CCF",
+    ccf::crypto::CurveID::SECP384R1,
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65,
+    "20240101000000Z",
+    1);
+
+  const std::string renewed_from = "20250101000000Z";
+  const auto classical =
+    ccf::crypto::make_verifier(identity.renew_certificate(renewed_from, 30));
+  const auto renewed = identity.renew_pq_certificate(renewed_from, 30);
+
+  if (!ccf::crypto::mldsa_supported())
+  {
+    REQUIRE_FALSE(renewed.has_value());
+    return;
+  }
+
+  REQUIRE(renewed.has_value());
+  const auto pq = ccf::crypto::make_verifier(renewed.value());
+  const auto initial = ccf::crypto::make_verifier(identity.pq_cert.value());
+  REQUIRE(pq->is_self_signed());
+  REQUIRE(pq->subject_der() == classical->subject_der());
+  REQUIRE(pq->validity_period() == classical->validity_period());
+  REQUIRE(pq->validity_period() != initial->validity_period());
+  REQUIRE(pq->public_key_der() == initial->public_key_der());
+
+  REQUIRE_FALSE(
+    ccf::NetworkIdentity().renew_pq_certificate(renewed_from, 30).has_value());
 }

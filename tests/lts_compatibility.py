@@ -41,8 +41,23 @@ FINAL_RELEASE_TAG = re.compile(r"^ccf-(\d+)\.0\.(\d+)$")
 # hardcoded in CCF.
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
+# Releases before 7.0 write snapshots with JSON receipts, which later releases
+# reject
+FIRST_RELEASE_WITH_COSE_SNAPSHOT_RECEIPTS = "ccf-7.0.0"
 
-def validate_compatibility_report(report):
+
+def writes_cose_snapshot_receipts(version):
+    return not infra.node.CCFVersion(version) < infra.node.CCFVersion(
+        FIRST_RELEASE_WITH_COSE_SNAPSHOT_RECEIPTS
+    )
+
+
+def validate_compatibility_report(report, branch):
+    # A development branch can still point at a final release tag, but discovery
+    # uses development-branch targets rather than release-validation targets.
+    if not infra.github.is_release_branch(infra.github.sanitise_branch_name(branch)):
+        return
+
     current_tag = report["version"]
     current_match = FINAL_RELEASE_TAG.fullmatch(current_tag)
     if current_match is None:
@@ -73,9 +88,16 @@ def validate_compatibility_report(report):
     if data_compatibility is not None:
         ledger_versions = data_compatibility["with previous ledger"]
         snapshot_versions = data_compatibility["with previous snapshots"]
+        # The snapshot pass covers the releases whose snapshots later steps
+        # start from
+        expected_snapshot_versions = [
+            version
+            for version in ledger_versions
+            if writes_cose_snapshot_receipts(version)
+        ]
         assert (
-            ledger_versions == snapshot_versions
-        ), "Ledger and snapshot compatibility covered different releases"
+            snapshot_versions == expected_snapshot_versions
+        ), f"Ledger and snapshot compatibility covered different releases: expected snapshots of {expected_snapshot_versions}, got {snapshot_versions}"
         expected_versions = set()
         if previous_lts is not None:
             expected_versions.add(previous_lts)
@@ -184,7 +206,7 @@ def test_new_service(
     LOG.info("Add node to new service")
 
     valid_from = str(
-        infra.crypto.datetime_to_X509time(datetime.datetime.now(datetime.timezone.utc))
+        infra.crypto.datetime_to_X509time(datetime.datetime.now(datetime.UTC))
     )
 
     kwargs = {}
@@ -465,7 +487,7 @@ def run_code_upgrade_from(
                     args,
                     valid_from=str(  # Pre-2.0 nodes require X509 time format
                         infra.crypto.datetime_to_X509time(
-                            datetime.datetime.now(datetime.timezone.utc)
+                            datetime.datetime.now(datetime.UTC)
                         )
                     ),
                 )
@@ -543,56 +565,13 @@ def run_code_upgrade_from(
                         primary, infra.platform_detection.get_platform(), old_host_data
                     )
 
-            for index, node in enumerate(old_nodes):
+            for node in old_nodes:
                 network.retire_node(primary, node)
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
                     # Submit tx and wait for commit after node retirement. See
                     # https://github.com/microsoft/CCF/issues/1713 for more detail.
                     network.txs.issue(network, number_txs=1, repeat=True)
-                    # This block is here to test the transition period from a network that
-                    # does not support custom claims to one that does. It can be removed after
-                    # the transition is complete.
-                    #
-                    # The new build, being unreleased, doesn't have a version at all
-                    if not primary.major_version:
-                        LOG.info("Upgrade to new JS app")
-                        # Upgrade to a version of the app containing an endpoint that
-                        # registers custom claims
-                        network.consortium.set_js_app_from_dir(
-                            primary, args.new_js_app_bundle
-                        )
-                        LOG.info("Run transaction with additional claim")
-                        # With wait_for_sync, the client checks that all nodes, including
-                        # the minority of old ones, have acked the transaction
-                        msg_idx = network.txs.idx + 1
-                        txid = network.txs.issue(
-                            network, number_txs=1, record_claim=True, wait_for_sync=True
-                        )
-                        assert len(network.txs.pub[msg_idx]) == 1
-                        claims = network.txs.pub[msg_idx][-1]["msg"]
-
-                        LOG.info(
-                            "Check receipts are fine, including transaction with claims"
-                        )
-                        test_random_receipts(
-                            network,
-                            args,
-                            lts=True,
-                            additional_seqnos={txid.seqno: claims.encode()},
-                            log_capture=[],
-                        )
-                        # Also check receipts on an old node
-                        if index + 1 < len(old_nodes):
-                            next_node = old_nodes[index + 1]
-                            test_random_receipts(
-                                network,
-                                args,
-                                lts=True,
-                                additional_seqnos={txid.seqno: None},
-                                node=next_node,
-                                log_capture=[],
-                            )
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")
@@ -613,6 +592,24 @@ def run_code_upgrade_from(
                 expected_subject_name=service_subject_name,
                 node_container_image=to_container_image,
             )
+            if not primary.major_version:
+                # test_new_service installs the new bundle only after every old
+                # node has left, so old nodes retain their version-matched app.
+                LOG.info("Run transaction with additional claim")
+                primary, _ = network.find_primary()
+                msg_idx = network.txs.idx + 1
+                txid = network.txs.issue(
+                    network, number_txs=1, record_claim=True, wait_for_sync=True
+                )
+                assert len(network.txs.pub[msg_idx]) == 1
+                claims = network.txs.pub[msg_idx][-1]["msg"]
+                test_random_receipts(
+                    network,
+                    args,
+                    lts=True,
+                    additional_seqnos={txid.seqno: claims.encode()},
+                    log_capture=[],
+                )
             network.create_and_wait_for_ledger_chunk()
 
 
@@ -667,27 +664,25 @@ def run_live_compatibility_with_latest(
 
 @reqs.description("Run ledger compatibility since first LTS")
 def run_ledger_compatibility_since_first(
-    args, local_branch, use_snapshot, test_jwt_cleanup
+    args, repo, lts_releases, use_snapshot, test_jwt_cleanup
 ):
     """
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
 
-    The recovery process uses snapshot is `use_snapshot` is True. Otherwise, the
-    entire historical ledger is used.
+    The supplied release selection is shared between the ledger and snapshot passes.
+    Snapshots are used if `use_snapshot` is True. Otherwise, the entire historical
+    ledger is used.
+
+    Returns the releases whose data later steps recovered from: every release for
+    the ledger pass, and the releases which write COSE snapshot receipts for the
+    snapshot pass.
     """
 
     LOG.info("Use snapshot: {}", use_snapshot)
-    repo = infra.github.Repository()
-    lts_releases = repo.get_supported_lts_releases(local_branch)
-
-    LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
+    LOG.info(f"LTS releases: {list(lts_releases.values())}")
 
     lts_versions = []
-
-    # Add an empty entry to release to indicate local checkout
-    # Note: dicts are ordered from Python3.7
-    lts_releases[None] = None
 
     # These variables are the previous service's info
     ledger_dir = None
@@ -703,13 +698,15 @@ def run_ledger_compatibility_since_first(
         # their trust store rather than a governance-managed CA bundle.
         trust_store.trust(jwt_issuer)
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
-        for idx, (_, lts_release) in enumerate(lts_releases.items()):
+        # None is the final local-checkout step.
+        for idx, lts_release in enumerate([*lts_releases.values(), None]):
             if lts_release:
                 version, install_path = repo.install_release(
                     lts_release,
                     platform=infra.platform_detection.get_platform(),
                 )
-                lts_versions.append(version)
+                if not use_snapshot or writes_cose_snapshot_receipts(version):
+                    lts_versions.append(version)
                 set_js_args(args, install_path)
             else:
                 version = args.ccf_version
@@ -735,6 +732,12 @@ def run_ledger_compatibility_since_first(
                     "ccf-4.0.0-rc1"
                 ):
                     kwargs["reconfiguration_type"] = "OneTransaction"
+
+                # The nodes of this step start from the eol snapshots, or from
+                # the snapshots handed over by the previous step
+                started_from_snapshots = use_snapshot and (
+                    idx == 0 or snapshots_dir is not None
+                )
 
                 if idx == 0:
                     LOG.info(
@@ -856,14 +859,18 @@ def run_ledger_compatibility_since_first(
                         test_jwt_cleanup=run_jwt_cleanup,
                     )
 
-                snapshots_dir = (
-                    network.get_committed_snapshots(primary) if use_snapshot else None
-                )
+                # Snapshots written by releases before 7.0 carry JSON receipts,
+                # which later releases reject. Operators remove them before
+                # upgrading, so the next step recovers from the ledger alone.
+                if use_snapshot and writes_cose_snapshot_receipts(version):
+                    snapshots_dir = network.get_committed_snapshots(primary)
+                else:
+                    snapshots_dir = None
 
                 network.save_service_identity(args)
 
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
-                check_file_invariants = use_snapshot
+                check_file_invariants = started_from_snapshots
 
                 LOG.info(
                     f"Stopping network recovering from version {previous_version} to {version}"
@@ -934,7 +941,6 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts info log on release builds
     args.log_level = "info"
 
-    repo = infra.github.Repository()
     local_branch = infra.github.GitEnv.local_branch()
 
     if args.dry_run:
@@ -954,7 +960,7 @@ if __name__ == "__main__":
     if args.release_install_path:
         version = run_live_compatibility_with_latest(
             args,
-            repo,
+            None,
             local_branch,
             lts_install_path=args.release_install_path,
             lts_container_image=args.release_install_image,
@@ -965,6 +971,7 @@ if __name__ == "__main__":
             {f"with release ({args.release_install_path})": version}
         )
     else:
+        repo = infra.github.Repository()
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
         latest_lts_version = run_live_compatibility_with_latest(
@@ -995,9 +1002,11 @@ if __name__ == "__main__":
 
         if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
+            lts_releases = repo.get_supported_lts_releases(local_branch)
             lts_versions = run_ledger_compatibility_since_first(
                 args,
-                local_branch,
+                repo,
+                lts_releases,
                 use_snapshot=False,
                 test_jwt_cleanup=False,
             )
@@ -1006,7 +1015,8 @@ if __name__ == "__main__":
             )
             lts_versions = run_ledger_compatibility_since_first(
                 args,
-                local_branch,
+                repo,
+                lts_releases,
                 use_snapshot=True,
                 test_jwt_cleanup=True,
             )
@@ -1026,6 +1036,9 @@ if __name__ == "__main__":
             with open(
                 args.compatibility_report_file, encoding="utf-8"
             ) as compatibility_report_file:
-                validate_compatibility_report(json.load(compatibility_report_file))
+                validate_compatibility_report(
+                    json.load(compatibility_report_file),
+                    os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
+                )
 
     LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")

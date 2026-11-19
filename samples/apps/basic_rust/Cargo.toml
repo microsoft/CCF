@@ -1,0 +1,15 @@
+[package]
+name = "ccf-basic-rust"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "ccf_basic_rust_app"
+crate-type = ["staticlib"]
+
+[dependencies]
+ccf-app = { path = "../../../src/rust/ccf-app" }
+
+[profile.release]
+lto = true
+codegen-units = 1

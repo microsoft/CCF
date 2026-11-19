@@ -39,6 +39,7 @@ namespace ccf::crypto
      {CurveID::SECP521R1, "Secp521R1"}});
 
   static constexpr CurveID service_identity_curve_choice = CurveID::SECP384R1;
+
   // SNIPPET_END: supported_curves
 
   // Get message digest algorithm to use for given elliptic curve
@@ -53,11 +54,17 @@ namespace ccf::crypto
         throw std::logic_error(fmt::format("Invalid ECDSA curve: {}", ec));
       }
       case CurveID::SECP384R1:
+      {
         return MDType::SHA384;
+      }
       case CurveID::SECP256R1:
+      {
         return MDType::SHA256;
+      }
       case CurveID::SECP521R1:
+      {
         return MDType::SHA512;
+      }
       default:
       {
         throw std::logic_error(fmt::format("Unhandled CurveId: {}", ec));

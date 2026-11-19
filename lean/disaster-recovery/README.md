@@ -1,132 +1,168 @@
 # Lean disaster recovery model
 
-This package contains the canonical Lean model of CCF's C++ recovery decision
-protocol and its permanent safety proofs.
+This package contains a Lean model of CCF's recovery decision protocol (`src/node/recovery_decision_protocol.cpp`), its safety properties, machine-checked proofs of those properties, and a replayer that checks recorded C++ runs against the model.
+The public proof API is `DisasterRecovery.Properties`; its full theorem statements link to implementations under `DisasterRecovery/Proofs/`.
+
+## Contents
+
+| Purpose                               | Location                                        |
+| ------------------------------------- | ----------------------------------------------- |
+| Safety theorems and witness lemmas    | `DisasterRecovery/Properties.lean`              |
+| Single-node protocol                  | `DisasterRecovery/Model/Local.lean`             |
+| Network composition                   | `DisasterRecovery/Model.lean`, `../common/CCF/` |
+| Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`        |
+| Proof implementations                 | `DisasterRecovery/Proofs/`                      |
+| Executable checks and concrete traces | `DisasterRecovery/Tests/`                       |
+| Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`         |
+| Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`             |
+| Replayer executable and test traces   | `replayer/`                                     |
+
+Human review covers the model, the full theorem and lemma statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
+The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
+Lake checks independent proof modules in parallel; the global witness constructions share the execution helpers in `Proofs/Evaluation.lean`.
 
 ## Model
 
-`DisasterRecovery.Protocol.Model` models one protocol node. Its state machine
-covers Gossiping, Voting, Opening, Joining, and Open, including the separate
-timeout lane, retries, duplicate receives, strict-majority voting, failover,
-restart, and completion.
+`Model/Local.lean` defines one node.
+Its phases are gossiping, voting, opening, joining, and open.
+It also models a timeout lane, retries, failover, and restart.
+`Local.step` returns `none` for a disabled event.
+For an enabled event it returns the next state and invokes the host's `send` and `notify` callbacks.
+A rejected receive is an enabled step that emits a notification.
+`Validation.accepted` and `Validation.rejected` represent the results of the C++ quote and certificate checks.
+The model does not define that cryptography.
 
-`DisasterRecovery.Protocol.Global` lifts the local transition function to a
-system with active nodes, in-flight messages, immutable send history, and
-terminal effects. Deliveries consume previously sent envelopes, so receives
-cannot appear without a modeled send.
+[`CCF.MultiNodeTransitionSystem`](../common/CCF/MultiNodeTransitionSystem.lean) in the [common package](../common/README.md) composes copies of one local protocol into a message-passing network.
+Each step executes one node once, collects its outputs with `Capabilities.record`, and appends its sends to the queue.
+Delivery consumes any queued envelope, not only the first.
+Notifications are not stored in the global state.
 
-The model follows the current C++ behavior in which a successfully validated
-location is not rejected merely because it is absent from
-`expectedLocations`. In particular, an accepted gossip from an unexpected
-location can satisfy a size threshold. `CanonicalTests.lean` checks this
-intentional accepted-unexpected-location behavior so that the implementation
-discrepancy remains explicit.
+`Model.lean` supplies each node's recovered TxID and adds `Config.Valid` to the initial-state predicate.
+The model records no history.
+The proofs reconstruct sends and notifications by re-executing the recorded actions.
 
-`Validation.accepted` and `Validation.rejected` are the boundary at which the
-model receives the result of C++ quote and certificate validation. The model
-does not formalize or prove the cryptography that produces that result.
+## Properties
 
-## Review guide
+The local properties are invariants of `Local.step`.
+They hold for every node state, not only reachable ones.
+Each quantifies a `LocalStep` record and assumes `ValidStep`: re-executing the step yields exactly the recorded after-state and outputs.
 
-Start with `DisasterRecovery/Properties.lean`: it exposes 9 system-level
-`theorem` statements, each with an explicit application of its checked proof.
-Review those statements and every definition or assumption they use in
-`DisasterRecovery/Protocol/`. Machine checking does not establish that the
-model matches the C++ implementation or that its assumptions describe a real
-deployment.
+The global properties quantify a `GlobalTrace config`, a valid finite or infinite execution recording an initial state and actions paired with their destination states.
+See the [shared trace definitions](../common/README.md#transition-systems) for indexed access and the finite-trace domain convention.
+`Trace.NotificationAt` states that the recorded action at step `i`, taken by `node` between states `i` and `i + 1`, emitted a given notification.
 
-The 124 supporting declarations are `lemma`s in
-`DisasterRecovery/Proofs/`. Their implementations can normally be omitted from
-line-by-line human review once the build and axiom audit pass. Mathlib's
-`lemma` is a synonym for `theorem`, not a weaker form of checking. The public
-statements remain explicitly linked to these lemmas rather than being detached
-specifications.
+`quorum_opener_unique` states that all `opening quorum` notifications in a trace originate from one node.
 
-Declaration namespaces follow the module paths. Model definitions live under
-`DisasterRecovery.Protocol.<Module>`, supporting lemmas under
-`DisasterRecovery.Proofs.<Module>`, and the 9 reviewed theorems under
-`DisasterRecovery.Properties`. For example,
-`DisasterRecovery.Properties.gossip_freezes_after_choice` explicitly applies
-`DisasterRecovery.Proofs.Model.gossip_freezes_after_choice` from
-`DisasterRecovery/Proofs/Model.lean`. Local and global properties share the
-`DisasterRecovery.Properties` namespace; their `Config` types come from the
-corresponding protocol modules.
+`deadlock_free` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every recovery configuration.
+Enabled stutters after completion count, so this does not assert eventual recovery or fairness.
+The corresponding witness supplies a reachable initial state for every valid recovery configuration.
 
-Only the Lean files under `DisasterRecovery/Proofs/` are marked
-`linguist-generated` in the repository's `.gitattributes`, so GitHub can collapse
-them without collapsing the review-required model and properties. Changes to imports, the review boundary,
-the toolchain, dependencies, or checking machinery still require human review.
-`DisasterRecovery.lean`, `CanonicalTests.lean`, the Lake configuration and lockfile,
-and the CI workflow are part of that review surface.
+`quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies the CCF consensus protocol's vote freshness check against a strict majority of the recovered ledgers.
+`LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/cft.h`.
+The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
+The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
-## Proof coverage and limits
+Each safety theorem has a corresponding `_witness` lemma asserting that, for every valid configuration, some valid trace or step satisfies its premises.
+`ValidConfig` restricts `Model.Config` to configurations satisfying the existing `Config.Valid` predicate without changing the model configuration type.
+The full-gossip witness includes a failover opening and requires at least two expected locations, since a single vote already forms a quorum in a single-location configuration.
+`Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
 
-`DisasterRecovery.Proofs.Model` proves local transition-safety properties.
+Freshness is a necessary condition for election, not a definition of commitment in CCF.
+`update_commit` additionally requires a current-term signature replicated on a majority, and the [consensus safety properties](../consensus/Consensus/Properties.lean) are stated on committed log prefixes.
+The model stores only the last signed TxID of each ledger, so this package does not prove committed-prefix preservation.
+Eventual-progress and fairness properties are out of scope.
 
-`DisasterRecovery.Proofs.Invariants` proves global well-formedness,
-message provenance, locality of transitions, append-only send history, and
-monotonic terminal histories for reachable states.
+## Trace validation
 
-`DisasterRecovery.Proofs.Quorum` proves that votes are unique and backed by
-prior sends, strict-majority quorums intersect, and any two quorum openings in
-a reachable execution select the same opener. This safety result is independent
-of scheduling assumptions.
-
-`DisasterRecovery.Proofs.Committed` proves TxID maximum properties and
-committed-prefix preservation under two explicit premises:
-
-- `DurableCommit` requires at least one configured recovered ledger to cover
-  the committed TxID.
-- `FullGossipSelection` requires a real sent vote whose selection snapshot
-  contains exactly the configured recovered TxIDs.
-
-A quorum opening alone does not imply `FullGossipSelection`, because voting may
-begin after a gossip timeout. The committed-prefix result deliberately does not
-derive or hide either durability or full-gossip evidence.
-
-Liveness, fairness, progress, and termination properties are out of scope at
-this stage.
-
-## Files
-
-| File                                        | Review role     | Purpose                                              |
-| ------------------------------------------- | --------------- | ---------------------------------------------------- |
-| `DisasterRecovery/Properties.lean`          | Human           | Selected system properties and checked proof links   |
-| `DisasterRecovery/Protocol/Model.lean`      | Human           | C++-aligned local transition model                   |
-| `DisasterRecovery/Protocol/Global.lean`     | Human           | Distributed transitions and reachability             |
-| `DisasterRecovery/Protocol/Invariants.lean` | Human           | Well-formedness and message-provenance predicates    |
-| `DisasterRecovery/Protocol/Quorum.lean`     | Human           | Vote and quorum-opening predicates                   |
-| `DisasterRecovery/Protocol/Committed.lean`  | Human           | Prefix ordering, durability and full-gossip premises |
-| `DisasterRecovery/Proofs/*.lean`            | Machine-checked | Supporting lemmas and proof implementations          |
-| `DisasterRecovery.lean`                     | Human           | Complete library import and audit root               |
-| `CanonicalTests.lean`                       | Human           | Executable canonical behavior checks                 |
+`DisasterRecovery/TraceValidation.lean` and the modules in `DisasterRecovery/TraceValidation/` check C++ runs recorded with the `CCF_RECOVERY_TRACE` environment variable set against `Model.transitionSystem`.
+[`replayer/README.md`](replayer/README.md) describes the records, the reduction rules, where CI runs it, and what a successful replay does and does not show.
 
 ## Validation
 
-Run from this directory:
+Run the following commands from this directory:
 
 ```console
-lake exe cache get
-lake exe mk_all --check --lib DisasterRecovery
-lake build --wfail
+lake build --wfail --fail-fast
+lake exe check-imports
+lake build CCF
 lake lint
-lake exe canonical-checks
+lake exe runLinter --no-build CCF DisasterRecovery replayer.Main
+./replayer/check-fixtures.sh
+lake check --inadvisably-no-sandbox
 ```
 
-`lake build --wfail` treats build warnings, including uses of `sorry` and
-`admit`, as errors. `lake lint` runs
-[`axiom-audit`](https://github.com/leanprover-community/axiom-audit) over the
-`DisasterRecovery` library's transitive axiom dependencies. Only `propext`,
-`Classical.choice`, and `Quot.sound` are allowed, so `sorryAx`, user-defined
-axioms, and `native_decide` dependencies are rejected.
+`--wfail` treats all build warnings, including `sorry`, as errors.
+`--fail-fast` stops scheduling new build jobs after the first failure.
+`lake lint` runs Lean's built-in linters.
+The Lake package enables the complete `linter.extra` set (duplicated namespaces, unnecessary `<;>`, unreachable tactics, and unused decidability instances), plus `linter.missingDocs`, `linter.omit`, `linter.loopingSimpArgs`, `linter.redundantVisibility`, and `linter.unusedVariables.analyzeTactics`.
+These supplement Lean's default checks, and linter findings fail validation.
+The options are set in `lakefile.toml` so ordinary builds use them too; `lake lint` also runs the environment checks on the built declarations.
+The opt-ins are explicit rather than `linter.all`, which would enable every optional linter registered by dependencies.
+Lean's internal-module and collection-variable naming conventions, and its debugging-only `linter.tacticCheckInstances`, are not enabled.
 
-The build compiles the reviewed statements and their proof implementations;
-`lake exe canonical-checks` separately exercises the transition model.
-`mk_all --check` verifies that `DisasterRecovery.lean` imports every library
-module, preventing newly added proofs from being silently omitted from the
-build and audit. Run `lake exe mk_all --lib DisasterRecovery` to refresh the
-import root when adding a module.
+The package also sets `autoImplicit = false`, requiring declaration headers to bind their parameters explicitly rather than silently introducing undeclared names.
+This applies to ordinary Lake builds as well as CI.
 
-When refreshing the auditor dependency, use
-`lake --keep-toolchain update axiomAudit` to retain the package's pinned
-Lean and Mathlib versions.
+The model, proofs, tests, and replayer use Lean's module system.
+The properties entrypoint publicly imports the model types and property helpers used by its statements, while its implementation imports remain private.
+Proof modules and the assembled root follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional facilities explicitly rather than relying on incidental reexports.
+`@[expose] public section` keeps definitions used by cross-module proofs transparent; runtime-only helpers remain private.
+`mk_all --module` generates the corresponding package-level import root.
+
+Proofs that evaluate upstream implementations use narrowly scoped `import all` directives to retain access to those definitions.
+
+`runLinter` uses Batteries' declaration-lint driver, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
+It lints our declarations rather than dependencies, and findings fail the command.
+The package's default targets are the complete library and the replayer executable.
+Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.
+Their runner is namespaced, leaving the replayer as the only `main` entrypoint so both targets can be checked together.
+
+`lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets, then rechecks the export with Lean's kernel.
+It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
+The checked targets include the complete library import root, canonical tests, and replayer, not just the exported property theorems.
+These supplement the executable model and trace tests.
+The `--inadvisably-no-sandbox` flag allows the check to build the shared modules directly from `../common`.
+It disables build isolation, not proof or axiom checking; run it only on code you trust.
+CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.
+Additional bundled checkers are not enabled.
+
+### CI package isolation
+
+The [Lean workflow](../../.github/workflows/lean.yml) checks `consensus`, `common`, `consistency`, `disaster-recovery`, and `kv` in one matrix with fail-fast disabled, using the same [package workflow](../../.github/workflows/lean-package.yml).
+Each invocation has its own checkout and writable build directories, including `common/.lake`, because the packages reference `../common` without copying it.
+Kernel and axiom checking precedes import/architecture checking, formatting, linting, and package-specific fixtures.
+Common receives its own kernel, import, and lint checks; the disaster-recovery formatting selector also covers common and tracked Lean files outside `lean/`.
+Recovery schema validation, positive/negative replay fixtures, and viewer dump generation run in the disaster-recovery job.
+
+Native CCF consensus and KV captures run independently of package checking.
+The [CCF consensus replay job](../consensus/replay/README.md#ci-captures-and-replay) and the KV replay job each wait only for their corresponding native captures and build their own replay executable without depending on the package matrix.
+The final check retains the name `Lean models and proofs` and requires all package checks, captures, and replay to succeed.
+Failed, cancelled, skipped, or missing prerequisites cannot yield a successful gate; a cancelled workflow may cancel the gate itself.
+The gate also rejects package inventory drift.
+Adding or removing a package requires updating the workflow matrix, gate inventory, reusable workflow input validation, and formatting ownership.
+
+Concurrency trades additional simultaneous runners and repeated dependency setup/builds for potential wall-time reduction.
+It is not a same-hardware speedup, and actual latency and aggregate runner minutes need matched CI measurements.
+
+See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.
+To update a tool dependency without changing the toolchain, run `lake update --keep-toolchain <package>`.
+
+## Formatting
+
+Install Lean via [elan](https://lean-lang.org/install/) before the first formatting check.
+From the repository root, check every tracked `.lean` file:
+
+```console
+scripts/lean-format-checks.sh
+```
+
+To apply formatting fixes, run:
+
+```console
+scripts/lean-format-checks.sh -f
+```
+
+The script builds the model's imported modules and runs the pinned leanfmt dependency.
+The Lean CI workflow runs the same check after the proof checks.
+Files outside `lean/` are included; untracked files and downloaded dependencies are excluded.
+Add new Lean files to Git before running the check.

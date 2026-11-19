@@ -1,28 +1,39 @@
-Consensus Protocol
-==================
+CCF consensus protocol
+======================
 
-The consensus protocol for CCF implements Crash Fault Tolerance (:term:`CFT`) and is based on `Raft <https://raft.github.io/>`_. The key differences between the original Raft protocol (as described in the `Raft paper <https://raft.github.io/raft.pdf>`_), and CCF Raft are as follows:
+The CCF consensus protocol implements Crash Fault Tolerance (:term:`CFT`) and is derived from `Raft <https://raft.github.io/raft.pdf>`_.
+The key differences from the original protocol are as follows:
 
-* Transactions in CCF Raft are not considered to be committed until a subsequent signed transaction has been committed. More information can be found :doc:`here </architecture/merkle_tree>`. Transactions in the ledger before the last signed transactions are discarded during leader election.
-* CCF Raft does not support node restart as the unique identity of each node is tied to the node process launch. If a node fails and is replaced, it must rejoin Raft via reconfiguration.
-* In CCF Raft, clients receive an early response with a :term:`Transaction ID` (view and sequence number) before the transaction has been replicated to Raft's ledger. The client can later use this transaction ID to verify that the transaction has been committed by Raft.
-* CCF Raft uses an additional mechanism so a newly elected leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged. This enables the leader to bring the follower up to date more quickly. CCF Raft also batches appendEntries messages.
+* Transactions in CCF are not considered committed until a subsequent signed transaction has been committed.
+  More information can be found :doc:`here </architecture/merkle_tree>`.
+  Transactions in the ledger before the last signed transactions are discarded during leader election.
+* CCF does not support node restart as the unique identity of each node is tied to the node process launch.
+  If the process running a node fails and is replaced by a new one, even on the same machine, it must be explicitly retired and the replacement must join the network via reconfiguration.
+* In CCF, clients receive an early response with a :term:`Transaction ID` (view and sequence number) before the transaction has been replicated to the ledger.
+  The client can later use this transaction ID to verify that the transaction has been committed.
+* CCF uses an additional mechanism so a newly elected leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged.
+  This enables the leader to bring the follower up to date more quickly.
+  It also batches appendEntries messages.
 
 CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CCF node JSON configuration:
 
-- ``consensus.message_timeout`` is the Raft heartbeat timeout. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``consensus.election_timeout``.
-- ``consensus.election_timeout`` is the Raft election timeout. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
+- ``consensus.message_timeout`` is the heartbeat timeout.
+  The leader sends heartbeats to its followers at regular intervals defined by this timeout.
+  This should be set to a significantly lower value than ``consensus.election_timeout``.
+- ``consensus.election_timeout`` is the election timeout.
+  If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
 
 Extensions for Omission Faults
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The CFT consensus implementation in CCF also supports some extensions for :term:`omission fault`.
+The CCF consensus protocol also supports some extensions for :term:`omission fault`.
 This may happen when the network is unreliable and may lead to one or more nodes being isolated from the rest of the network.
 
 Supported extensions include:
 
 - "CheckQuorum": the primary node automatically steps down, in the same view, if it does not hear back (via ``AppendEntriesResponse`` messages) from a majority of backups within a ``consensus.election_timeout`` period. This prevents an isolated primary node from still processing client write requests without being able to commit them.
 - "NoTimeoutRetirement": a primary node that completes its retirement sends a ``ProposeRequestVote`` message to the most up-to-date node in the new configuration, causing that node to run for election without waiting for time out.
+  The successor is the node with the highest match index; ties are broken by the most recent active configuration containing each node, then by the highest node ID in string order.
   - A ``ProposeRequestVote`` message is also sent when a primary receives a termination signal. This reduces downtime when the orchestrator must suddenly retire the primary's host, but there is insufficient time to reconfigure the network first.
 - "PreVote": followers must first request a pre-vote before starting a new election. This prevents followers from starting elections (and increasing the view) when they are isolated from the rest of the network.
 
@@ -32,8 +43,7 @@ Replica State Machine
 Membership
 ~~~~~~~~~~
 
-Any node of the network is always in one of two membership states. The dotted arrows in the
-state diagram indicate a transition on rollback:
+Any node of the network is always in one of two membership states. The dotted arrows in the state diagram indicate a transition on rollback:
 
 .. mermaid::
 
@@ -46,8 +56,7 @@ The membership state a node is currently is provided in the output of the :http:
 Simplified Leadership
 ~~~~~~~~~~~~~~~~~~~~~
 
-Main consensus states and transitions. Nodes are not in any consensus state if they are not in the ``Active`` membership state yet,
-but once they are, they transition between all the consensus states as the network evolves:
+Main consensus states and transitions. Nodes are not in any consensus state if they are not in the ``Active`` membership state yet, but once they are, they transition between all the consensus states as the network evolves:
 
 .. mermaid::
 
@@ -68,16 +77,20 @@ Reconfiguration of the network is controlled via updates to the :ref:`audit/buil
 Reconfiguration
 ~~~~~~~~~~~~~~~
 
-This discusses changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
-
 For a live service, reconfiguration is materialised in two separate transactions:
 
   - Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's status to ``TRUSTED`` or ``RETIRED`` is a *reconfiguration transaction*.
   - Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's retired_committed to ``TRUE`` is a *retirement committed transaction*.
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines.
+Transactions before an uncommitted reconfiguration transaction do not need acknowledgements from the new configuration it defines: they commit once their signature has a quorum in each active configuration defined at or before that signature.
 
-Disaster recovery is an exception to this retirement sequence. Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance. When the recovery service is created, its recovery transaction deletes the previous service's entries from ``nodes.info`` directly, and those deletions remove the old nodes from the new consensus configuration. The previous nodes do not transition through ``RETIRED`` or ``retired_committed`` because the old service is unavailable and does not participate in the recovery service's consensus. See :ref:`operations/recovery:Disaster Recovery`.
+Disaster recovery is an exception to this retirement sequence.
+Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance.
+When the recovery service is created, its recovery transaction deletes the previous service's entries from ``nodes.info`` directly, and those deletions remove the old nodes from the new consensus configuration.
+Once the deletions are globally committed, every node, including those which joined from a snapshot taken before the recovery, also stops tracking the deleted nodes, as it does for ``retired_committed`` nodes: they are no longer sent ``AppendEntries`` and no longer appear in :http:GET:`/node/consensus`.
+The previous nodes do not transition through ``RETIRED`` or ``retired_committed`` because the old service is unavailable and does not participate in the recovery service's consensus.
+See :ref:`operations/recovery:Disaster Recovery`.
 
 The following sample illustrates the addition of a single node to a one-node network:
 
@@ -179,9 +192,7 @@ In our example above, the election timeout on Node 1 simply expires and causes N
 Retirement details
 ~~~~~~~~~~~~~~~~~~
 
-Normal retirement of a node in a live service runs through five phases, as indicated by the following diagram. Previous-service nodes deleted during disaster recovery do not enter these phases. Live retirement starts with a reconfiguration transaction (RTX), involves
-two additional elements of state and ends with a retirement committed transaction (RTCX), whose commitment indicates that all future primaries are aware RTX is committed,
-and no longer require nodes in the old configuration to make progress.
+Normal retirement of a node in a live service runs through five phases, as indicated by the following diagram. Previous-service nodes deleted during disaster recovery do not enter these phases. Live retirement starts with a reconfiguration transaction (RTX), involves two additional elements of state and ends with a retirement committed transaction (RTCX), whose commitment indicates that all future primaries are aware RTX is committed, and no longer require nodes in the old configuration to make progress.
 
 - Retirement index (RI): Index at which node is set to ``Retired`` in ``public:ccf.gov.nodes.info``
 - Retirement Committable Index (RCI): Index at which the retirement transaction first becomes committable, ie. the first signature following the transaction.
@@ -206,15 +217,14 @@ A node permanently transitions to the ``Completed`` phase once it has observed c
 
 Until the very last phase (``RetiredCommitted``) is reached, a retiring leader will continue to act as leader, although it will not execute new transactions once it observes RCI. 
 
-Note that because the rollback triggered when a node becomes aware of a new view never preserves unsigned transactions,
-and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.
+Note that because the rollback triggered when a node becomes aware of a new view never preserves unsigned transactions, and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.
 
 PreVote Extensions
 ~~~~~~~~~~~~~~~~~~
 
 If a node's ``RequestVote`` requests are able to reach the cluster, but it is unable to hear the ``AppendEntries`` messages from the current leader (for example, due to network partitioning), it may start new elections, incrementing its view, which deposes the leader and disrupts the cluster.
 
-To mitigate this, the PreVote extension requires that a follower first become ``PreVoteCandidate`` and receive a quorum of speculative pre-votes, proving that they could be elected using the standard Raft election conditions, before becoming ``Candidate`` and potentially disrupting the cluster.
+To mitigate this, the PreVote extension requires that a follower first become ``PreVoteCandidate`` and receive a quorum of speculative pre-votes, proving that they could be elected under the CCF consensus protocol, before becoming ``Candidate`` and potentially disrupting the cluster.
 
 More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current view and sends out ``RequestPreVote`` messages.
 If the ``PreVoteCandidate`` hears from a current leader, or a new leader, it reverts back to being a ``Follower``.
@@ -280,3 +290,9 @@ Supposing we have a cluster of nodes which currently do not support PreVote, we 
 
 To enable PreVote safely, we must first migrate the cluster to support PreVote messages, and then enable PreVote.
 During the migration to enable PreVote, the pre-vote candidates will be less likely to be elected leader, as the other followers may preempt the pre-vote candidate and become candidates themselves.
+
+Formal and trace validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The CCF consensus protocol is modelled in Lean, with machine-checked safety proofs, and traces of the C++ implementation are replayed against the model in CI.
+See :doc:`/architecture/verification` for details.

@@ -17,26 +17,6 @@
 
 namespace ccf
 {
-  struct GetCommit
-  {
-    using In = void;
-
-    struct Out
-    {
-      ccf::TxID transaction_id;
-      std::vector<ccf::TxID> view_history;
-    };
-  };
-
-  struct GetTxStatus
-  {
-    struct Out
-    {
-      ccf::TxID transaction_id;
-      TxStatus status{};
-    };
-  };
-
   struct GetCode
   {
     struct Version
@@ -71,6 +51,7 @@ namespace ccf
     {
       ServiceStatus service_status{};
       ccf::crypto::Pem service_certificate;
+      std::optional<ccf::crypto::Pem> pq_service_certificate;
       std::optional<ccf::View> current_view;
       std::optional<NodeId> primary_id;
       size_t recovery_count{};
@@ -100,11 +81,6 @@ namespace ccf
     {
       std::vector<GetNode::NodeInfo> nodes;
     };
-  };
-
-  struct GetAPI
-  {
-    using Out = nlohmann::json;
   };
 
   struct VerifyReceipt

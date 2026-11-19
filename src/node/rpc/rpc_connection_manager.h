@@ -673,8 +673,8 @@ namespace ccf
     ~RPCConnectionManager() override
     {
       // By this point either stop() has already run (the normal path, from
-      // Enclave::run() while the loop was still going), in which case this is
-      // a no-op, or node startup failed before the event loop was ever
+      // Enclave::run_main() while the loop was still going), in which case this
+      // is a no-op, or node startup failed before the event loop was ever
       // entered - which is exactly LoopState::NotRunning.
       stop(ccf::tls::OpenSSLServer::LoopState::NotRunning);
     }

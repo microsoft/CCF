@@ -1,0 +1,257 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
+#include "ccf/crypto/mldsa_key_pair.h"
+
+#include "crypto/openssl/mldsa.h"
+
+#include <openssl/opensslv.h>
+
+#if OPENSSL_VERSION_PREREQ(3, 5)
+
+#  include "crypto/openssl/csr.h"
+#  include "crypto/openssl/mldsa_key_pair.h"
+
+#  include <openssl/pem.h>
+#  include <openssl/x509.h>
+#  include <stdexcept>
+
+namespace ccf::crypto
+{
+  MLDSAKeyPair_OpenSSL::MLDSAKeyPair_OpenSSL(MLDSAParameterSet parameter_set)
+  {
+    OpenSSL::Unique_EVP_PKEY_CTX ctx(mldsa::openssl_name(parameter_set));
+    OpenSSL::CHECK1(EVP_PKEY_keygen_init(ctx));
+    EVP_PKEY* generated = nullptr;
+    OpenSSL::CHECK1(EVP_PKEY_generate(ctx, &generated));
+    OpenSSL::CHECKNULL(generated);
+    key.reset(generated);
+    OpenSSL::check_key(key, true);
+  }
+
+  MLDSAKeyPair_OpenSSL::MLDSAKeyPair_OpenSSL(
+    const Pem& pem, std::optional<MLDSAParameterSet> expected)
+  {
+    OpenSSL::Unique_BIO mem(pem);
+    auto* decoded = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
+    if (decoded == nullptr)
+    {
+      throw std::invalid_argument(fmt::format(
+        "Malformed ML-DSA private key PEM: {}", OpenSSL::first_error()));
+    }
+    key.reset(decoded);
+    mldsa::parameter_set(key, expected);
+    OpenSSL::check_key(key, true);
+  }
+
+  MLDSAKeyPair_OpenSSL::MLDSAKeyPair_OpenSSL(
+    std::span<const uint8_t> der, std::optional<MLDSAParameterSet> expected)
+  {
+    const auto* cursor = der.data();
+    // The PKCS#8 structure decoder selects the key type from the
+    // AlgorithmIdentifier, which keeps OpenSSL's legacy format probing out
+    // of the path.
+    auto* decoded =
+      d2i_PKCS8_PRIV_KEY_INFO(nullptr, &cursor, static_cast<long>(der.size()));
+    if (decoded == nullptr)
+    {
+      throw std::invalid_argument(fmt::format(
+        "Malformed ML-DSA private key DER: {}", OpenSSL::first_error()));
+    }
+    const OpenSSL::Unique_PKCS8_PRIV_KEY_INFO info(decoded);
+    if (cursor != der.data() + der.size())
+    {
+      throw std::invalid_argument("Unexpected data after ML-DSA private key");
+    }
+    auto* converted = EVP_PKCS82PKEY(info);
+    if (converted == nullptr)
+    {
+      throw std::invalid_argument(fmt::format(
+        "ML-DSA provider rejected the key material: {}",
+        OpenSSL::first_error()));
+    }
+    key.reset(converted);
+    mldsa::parameter_set(key, expected);
+    OpenSSL::check_key(key, true);
+  }
+
+  MLDSAParameterSet MLDSAKeyPair_OpenSSL::get_parameter_set() const
+  {
+    return MLDSAPublicKey_OpenSSL::get_parameter_set();
+  }
+
+  Pem MLDSAKeyPair_OpenSSL::private_key_pem() const
+  {
+    // BIO_s_mem clears its buffer on growth and release.
+    OpenSSL::Unique_BIO bio;
+    OpenSSL::CHECK1(PEM_write_bio_PrivateKey(
+      bio, key, nullptr, nullptr, 0, nullptr, nullptr));
+    const auto data = OpenSSL::bio_contents(bio);
+    return {data.data(), data.size()};
+  }
+
+  std::vector<uint8_t> MLDSAKeyPair_OpenSSL::private_key_der() const
+  {
+    OpenSSL::Unique_BIO bio;
+    // i2d_PrivateKey_bio prefers a type-specific structure and only falls
+    // back to PKCS#8, so request the PrivateKeyInfo encoder explicitly.
+    OpenSSL::CHECK1(
+      i2d_PKCS8PrivateKey_bio(bio, key, nullptr, nullptr, 0, nullptr, nullptr));
+    const auto data = OpenSSL::bio_contents(bio);
+    return {data.begin(), data.end()};
+  }
+
+  Pem MLDSAKeyPair_OpenSSL::public_key_pem() const
+  {
+    return MLDSAPublicKey_OpenSSL::public_key_pem();
+  }
+
+  std::vector<uint8_t> MLDSAKeyPair_OpenSSL::public_key_der() const
+  {
+    return MLDSAPublicKey_OpenSSL::public_key_der();
+  }
+
+  std::vector<uint8_t> MLDSAKeyPair_OpenSSL::public_key_raw() const
+  {
+    return MLDSAPublicKey_OpenSSL::public_key_raw();
+  }
+
+  std::vector<uint8_t> MLDSAKeyPair_OpenSSL::sign(
+    std::span<const uint8_t> contents, std::span<const uint8_t> context) const
+  {
+    OpenSSL::Unique_EVP_MD_CTX ctx;
+    EVP_PKEY_CTX* pctx = nullptr;
+    OpenSSL::CHECK1(EVP_DigestSignInit_ex(
+      ctx, &pctx, nullptr, nullptr, nullptr, key, nullptr));
+    if (!context.empty())
+    {
+      mldsa::set_context(pctx, context);
+    }
+
+    const auto signature_size = EVP_PKEY_get_size(key);
+    OpenSSL::CHECKPOSITIVE(signature_size);
+    std::vector<uint8_t> signature(static_cast<size_t>(signature_size));
+    auto written = signature.size();
+    OpenSSL::CHECK1(EVP_DigestSign(
+      ctx, signature.data(), &written, contents.data(), contents.size()));
+    if (written != signature.size())
+    {
+      throw std::runtime_error(
+        "ML-DSA provider returned an unexpected signature size");
+    }
+    return signature;
+  }
+
+  bool MLDSAKeyPair_OpenSSL::verify(
+    std::span<const uint8_t> contents,
+    std::span<const uint8_t> signature,
+    std::span<const uint8_t> context)
+  {
+    return MLDSAPublicKey_OpenSSL::verify(contents, signature, context);
+  }
+
+  Pem MLDSAKeyPair_OpenSSL::create_csr(
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
+  {
+    // Pure ML-DSA signs the request directly, so no digest is given.
+    return OpenSSL::csr_to_pem(OpenSSL::make_csr(
+      key,
+      nullptr,
+      OpenSSL::subject_name_from_string(subject_name),
+      subject_alt_names,
+      public_key));
+  }
+
+  Pem MLDSAKeyPair_OpenSSL::create_csr(
+    const std::vector<uint8_t>& subject_name_der,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
+  {
+    return OpenSSL::csr_to_pem(OpenSSL::make_csr(
+      key,
+      nullptr,
+      OpenSSL::subject_name_from_der(subject_name_der),
+      subject_alt_names,
+      public_key));
+  }
+
+  Pem MLDSAKeyPair_OpenSSL::sign_csr_impl(
+    const std::optional<Pem>& issuer_cert,
+    const Pem& signing_request,
+    const std::string& valid_from,
+    const std::string& valid_to,
+    bool ca,
+    Signer signer) const
+  {
+    return OpenSSL::sign_csr(
+      key,
+      nullptr,
+      issuer_cert,
+      signing_request,
+      valid_from,
+      valid_to,
+      ca,
+      signer);
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(MLDSAParameterSet parameter_set)
+  {
+    return std::make_shared<MLDSAKeyPair_OpenSSL>(parameter_set);
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(const Pem& pem)
+  {
+    return std::make_shared<MLDSAKeyPair_OpenSSL>(pem);
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(std::span<const uint8_t> der)
+  {
+    return std::make_shared<MLDSAKeyPair_OpenSSL>(der);
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(
+    const Pem& pem, MLDSAParameterSet expected)
+  {
+    return std::make_shared<MLDSAKeyPair_OpenSSL>(pem, expected);
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(
+    std::span<const uint8_t> der, MLDSAParameterSet expected)
+  {
+    return std::make_shared<MLDSAKeyPair_OpenSSL>(der, expected);
+  }
+}
+#else // Remove this fallback after dropping AL3 support.
+
+namespace ccf::crypto
+{
+  MLDSAKeyPairPtr make_mldsa_key_pair(MLDSAParameterSet /*parameter_set*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(const Pem& /*pem*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(std::span<const uint8_t> /*der*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(
+    const Pem& /*pem*/, MLDSAParameterSet /*expected*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(
+    std::span<const uint8_t> /*der*/, MLDSAParameterSet /*expected*/)
+  {
+    mldsa::unsupported();
+  }
+}
+#endif // OPENSSL_VERSION_PREREQ

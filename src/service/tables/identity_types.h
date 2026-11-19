@@ -6,6 +6,7 @@
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <cstdint>
+#include <fmt/format.h>
 #include <map>
 #include <stdexcept>
 #include <vector>
@@ -34,12 +35,15 @@ namespace ccf
     X509_CERT_DER = 0,
     /// DER-encoded X.509 SubjectPublicKeyInfo public key.
     X509_SPKI_DER = 1,
+    /// CBOR-encoded COSE_Key public key (RFC 9052 Section 7).
+    COSE_KEY = 2,
   };
 
   DECLARE_JSON_ENUM(
     IdentityKind,
     {{IdentityKind::X509_CERT_DER, "X509_CERT_DER"},
-     {IdentityKind::X509_SPKI_DER, "X509_SPKI_DER"}});
+     {IdentityKind::X509_SPKI_DER, "X509_SPKI_DER"},
+     {IdentityKind::COSE_KEY, "COSE_KEY"}});
 
   using IdentityValue = std::vector<uint8_t>;
 
@@ -59,6 +63,38 @@ namespace ccf
 
   using Identities = std::map<IdentityType, Identity>;
 }
+
+FMT_BEGIN_NAMESPACE
+
+template <>
+struct formatter<ccf::IdentityType>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::IdentityType& identity_type, FormatContext& ctx) const
+    -> decltype(ctx.out())
+  {
+    switch (identity_type)
+    {
+      case ccf::IdentityType::CLASSICAL:
+      {
+        return format_to(ctx.out(), "CLASSICAL");
+      }
+      case ccf::IdentityType::PQ:
+      {
+        return format_to(ctx.out(), "PQ");
+      }
+    }
+    return format_to(ctx.out(), "{}", static_cast<uint64_t>(identity_type));
+  }
+};
+
+FMT_END_NAMESPACE
 
 namespace ccf::kv::serialisers
 {
@@ -80,12 +116,18 @@ namespace ccf::kv::serialisers
       switch (value)
       {
         case static_cast<uint64_t>(ccf::IdentityType::CLASSICAL):
+        {
           return ccf::IdentityType::CLASSICAL;
+        }
         case static_cast<uint64_t>(ccf::IdentityType::PQ):
+        {
           return ccf::IdentityType::PQ;
+        }
         default:
+        {
           throw std::logic_error(
             fmt::format("Unknown identity type: {}", value));
+        }
       }
     }
   };

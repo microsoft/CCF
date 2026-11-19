@@ -5,6 +5,7 @@
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/ds/locking.h"
 #include "kv/kv_types.h"
 #include "service/tables/secrets.h"
 #include "service/tables/shares.h"
@@ -22,10 +23,13 @@ namespace ccf
     'C', 'o', 'm', 'm', 'i', 't', ' ', 'S'};
   static std::span<const uint8_t> commit_secret_label{
     commit_secret_label_, sizeof(commit_secret_label_)};
+
   struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
     std::shared_ptr<ccf::crypto::KeyAesGcm> key;
+    std::unique_ptr<ccf::crypto::KeyAesGcm::Context> context;
+    ccf::ds::Mutex context_lock;
     std::optional<ccf::kv::Version> previous_secret_stored_version =
       std::nullopt;
     ccf::crypto::HashBytes commit_secret;
@@ -40,6 +44,39 @@ namespace ccf
     [[nodiscard]] const ccf::crypto::HashBytes& get_commit_secret() const
     {
       return commit_secret;
+    }
+
+    void encrypt(
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::vector<uint8_t>& cipher,
+      uint8_t tag[ccf::crypto::GCM_SIZE_TAG])
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(context_lock);
+      context->encrypt(iv, plain, aad, cipher, tag);
+    }
+
+    void encrypt(
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> cipher,
+      uint8_t tag[ccf::crypto::GCM_SIZE_TAG])
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(context_lock);
+      context->encrypt(iv, plain, aad, cipher, tag);
+    }
+
+    bool decrypt(
+      std::span<const uint8_t> iv,
+      const uint8_t tag[ccf::crypto::GCM_SIZE_TAG],
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
+      std::vector<uint8_t>& plain)
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(context_lock);
+      return context->decrypt(iv, tag, cipher, aad, plain);
     }
 
     bool operator==(const LedgerSecret& other) const
@@ -62,6 +99,7 @@ namespace ccf
     LedgerSecret(const LedgerSecret& other) :
       raw_key(other.raw_key),
       key(ccf::crypto::make_key_aes_gcm(other.raw_key)),
+      context(key->make_context()),
       previous_secret_stored_version(other.previous_secret_stored_version),
       commit_secret(derive_commit_secret(raw_key))
     {}
@@ -72,6 +110,7 @@ namespace ccf
         std::nullopt) :
       raw_key(raw_key_),
       key(ccf::crypto::make_key_aes_gcm(std::move(raw_key_))),
+      context(key->make_context()),
       previous_secret_stored_version(previous_secret_stored_version_),
       commit_secret(derive_commit_secret(raw_key))
     {}
@@ -97,7 +136,7 @@ namespace ccf
     encrypted_ls.deserialise(encrypted_previous_secret_raw);
     std::vector<uint8_t> decrypted_ls_raw;
 
-    if (!ledger_secret->key->decrypt(
+    if (!ledger_secret->decrypt(
           encrypted_ls.hdr.get_iv(),
           encrypted_ls.hdr.tag,
           encrypted_ls.cipher,

@@ -21,7 +21,7 @@ jobs:
   long-asan:
     if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-test') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-test')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     name: "ASAN"
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -42,6 +42,10 @@ jobs:
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
 
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
+
       - name: "Build Debug (Long Test)"
         run: |
           set -ex
@@ -59,7 +63,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-asan
           path: |
@@ -67,6 +71,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
@@ -74,7 +79,7 @@ jobs:
   long-tsan:
     if: *check_trigger_conditions
     name: "TSAN"
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --privileged --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -95,6 +100,10 @@ jobs:
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
 
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
+
       - name: "Build Debug (Long Test)"
         run: |
           set -ex
@@ -112,7 +121,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-tsan
           path: |
@@ -120,6 +129,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
@@ -130,7 +140,7 @@ jobs:
   long-e2e-debug:
     if: *check_trigger_conditions
     name: Long e2e - Debug
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -150,6 +160,10 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
 
       - name: "Build"
         run: |
@@ -187,7 +201,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-e2e-debug
           path: |
@@ -195,6 +209,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
             build_fuzz/fuzz-artifacts/**
@@ -204,7 +219,7 @@ jobs:
   long-e2e-release:
     if: *check_trigger_conditions
     name: Long e2e - Release
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -225,6 +240,10 @@ jobs:
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
 
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
+
       - name: "Build"
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
@@ -241,7 +260,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-e2e-release
           path: |
@@ -249,6 +268,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
@@ -261,7 +281,7 @@ jobs:
   e2e-long-combined:
     if: *check_trigger_conditions
     name: Long Shuffled/LTS/Snmalloc
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -320,7 +340,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-long-combined
           path: |
@@ -328,6 +348,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore

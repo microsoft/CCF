@@ -626,19 +626,7 @@ const actions = new Map([
           ccf.jsonCompatibleToBuf(member_info),
         );
 
-        const rawSignature =
-          ccf.kv["public:ccf.internal.signatures"].get(getSingletonKvKey());
-        if (rawSignature === undefined) {
-          ccf.kv["public:ccf.gov.members.acks"].set(rawMemberId);
-        } else {
-          const signature = ccf.bufToJsonCompatible(rawSignature);
-          const ack = {};
-          ack.state_digest = signature.root;
-          ccf.kv["public:ccf.gov.members.acks"].set(
-            rawMemberId,
-            ccf.jsonCompatibleToBuf(ack),
-          );
-        }
+        ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
       },
     ),
   ],
@@ -918,11 +906,13 @@ const actions = new Map([
               ["readwrite", "readonly", "historical"],
               `${prefix2}.mode`,
             );
-            checkEnum(
-              info.forwarding_required,
-              ["sometimes", "always", "never"],
-              `${prefix2}.forwarding_required`,
-            );
+            if (info.forwarding_required !== undefined) {
+              checkEnum(
+                info.forwarding_required,
+                ["sometimes", "always", "never"],
+                `${prefix2}.forwarding_required`,
+              );
+            }
 
             const redirection_strategy = info.redirection_strategy;
             if (redirection_strategy !== undefined) {

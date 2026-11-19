@@ -23,7 +23,14 @@ cd build
 
 Use `-R` for name regexes and `-L` for labels. `./tests.sh` without a filter runs all registered tests; do not make this the default for a small change. Pure C++ unit tests and test discovery may use `ctest` directly from the build directory without Python setup. Use `--no-tests=error` for execution so an empty selection is not mistaken for passing tests.
 
-Labels include `unit`, `e2e`, `partitions`, `perf`, `benchmark`, `raft_scenario`, `suite`, `lts_compatibility`, `snp`, and CI routing labels `bucket_a`, `bucket_b`, `bucket_c`. Registration depends on build options; inspect the configured inventory rather than assuming a named test exists.
+Labels include `unit`, `e2e`, `partitions`, `perf`, `benchmark`, `cft_scenario`, `suite`, `lts_compatibility`, `snp`, and CI routing labels `bucket_a`, `bucket_b`, `bucket_c`. Registration depends on build options; inspect the configured inventory rather than assuming a named test exists.
+
+`cft_scenario_test` runs the [consensus scenarios](../../../tests/cft_scenarios/README.md), Lean programs linked into `cft_driver`. If CMake cannot find `lake` when configuring, it does not build `cft_driver` and disables the test; install Lean and reconfigure rather than reporting the disabled test as passing.
+
+The release workflow sets `CCF_USE_RELEASED_PYTHON_PACKAGE=1` so `tests.sh`, installed-package tests, and sandboxes install the latest released `ccf` package from PyPI with `uv pip install --upgrade --reinstall-package ccf ccf`, replacing any previously installed editable SDK.
+Without this flag, development and normal CI tests retain their editable local SDK installation.
+Installed sandboxes still default to the SDK version matching the installed CCF release.
+An existing caller-supplied `VENV_DIR` is reused without reinstalling packages; `tests.sh` selects the SDK before exporting its environment to child sandboxes.
 
 ### Compatibility
 
@@ -57,6 +64,8 @@ Configure with `-DCOVERAGE=ON`, build instrumented targets, and run the selected
 ```
 
 These paths assume `build` is immediately under the repository root. For another layout, use the actual path to `scripts/coverage.sh` while retaining the build working directory. The script consumes `.profraw` files and the generated `coverage_binaries.txt`; building alone does not produce coverage.
+
+To combine coverage from another build directory of the same revision, compiler and options, such as one on a different platform, run `../scripts/coverage.sh --merge-only -o <name>.profdata` there, then pass the resulting file to the reporting run with `--add-profile <name>.profdata`. llvm-cov excludes functions compiled differently from reports and warns that they have mismatched data.
 
 Text and HTML reports include only framework sources under `src/` and `include/`, excluding test and performance code. First-party C++ static libraries are instrumented, but only linked binaries are report inputs; archives are not counted a second time. Their coverage runtime link requirement also applies to consumers of installed instrumented libraries. Rust is not instrumented by the C++ coverage flags.
 

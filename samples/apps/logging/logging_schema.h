@@ -89,6 +89,7 @@ namespace loggingapp
       std::optional<std::string> next_link;
     };
   };
+
   DECLARE_JSON_TYPE(LoggingGetHistoricalRange::Entry);
   DECLARE_JSON_REQUIRED_FIELDS(
     LoggingGetHistoricalRange::Entry, seqno, id, msg);
@@ -105,6 +106,7 @@ namespace loggingapp
       std::optional<ccf::SerialisedCoseEndorsements> endorsements;
     };
   };
+
   DECLARE_JSON_TYPE(LoggingGetCoseEndorsements::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetCoseEndorsements::Out, endorsements);
 
@@ -115,6 +117,7 @@ namespace loggingapp
       ccf::SerialisedCoseSignature cose_signature;
     };
   };
+
   DECLARE_JSON_TYPE(LoggingGetCoseSignature::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetCoseSignature::Out, cose_signature);
 

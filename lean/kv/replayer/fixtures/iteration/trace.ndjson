@@ -1,0 +1,19 @@
+{"schema":1,"seq":1,"type":"trace_start"}
+{"name":"iteration visits entries and reports callback decisions","seq":2,"type":"case_begin"}
+{"seq":3,"store":1,"type":"store_create"}
+{"seq":4,"store":1,"tx":1,"type":"tx_create"}
+{"global":0,"seq":5,"store":1,"term":0,"tx":1,"type":"snapshot","version":0}
+{"global":0,"map":"a","seq":6,"store":1,"tx":1,"type":"map_acquire","version":0}
+{"key":"00","map":"a","seq":7,"store":1,"tx":1,"type":"put","value":"11"}
+{"iteration":1,"map":"a","seq":8,"store":1,"tx":1,"type":"foreach_begin"}
+{"iteration":1,"key":"00","map":"a","seq":9,"store":1,"tx":1,"type":"foreach_entry","value":"11"}
+{"iteration":1,"map":"a","seq":10,"store":1,"tx":1,"type":"foreach_continue","value":true}
+{"iteration":1,"map":"a","seq":11,"store":1,"tx":1,"type":"foreach_end"}
+{"iteration":2,"map":"a","seq":12,"store":1,"tx":1,"type":"foreach_begin"}
+{"iteration":2,"key":"00","map":"a","seq":13,"store":1,"tx":1,"type":"foreach_entry","value":"11"}
+{"iteration":2,"map":"a","seq":14,"store":1,"tx":1,"type":"foreach_continue","value":false}
+{"iteration":2,"map":"a","seq":15,"store":1,"tx":1,"type":"foreach_end"}
+{"seq":16,"store":1,"tx":1,"type":"tx_end"}
+{"seq":17,"store":1,"type":"store_end"}
+{"failed":false,"name":"iteration visits entries and reports callback decisions","seq":18,"type":"case_end"}
+{"events":18,"seq":19,"type":"trace_end"}

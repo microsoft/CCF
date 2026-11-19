@@ -6,7 +6,7 @@
 #include "crypto/cbor_tags.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 #include <tav/cbor.hpp>
 

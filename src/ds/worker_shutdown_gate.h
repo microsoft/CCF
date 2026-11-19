@@ -90,6 +90,7 @@ namespace ccf::ds
     struct UnregisterGuard
     {
       std::shared_ptr<WorkerShutdownGate> gate;
+
       ~UnregisterGuard()
       {
         gate->unregister();

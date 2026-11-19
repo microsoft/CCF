@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
@@ -23,6 +24,9 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <optional>
+#include <span>
+#include <string_view>
+#include <vector>
 
 namespace ccf::crypto::OpenSSL
 {
@@ -51,14 +55,24 @@ namespace ccf::crypto::OpenSSL
     return "unknown error";
   }
 
+  /// Reads the first (oldest) error on this thread's OpenSSL error queue,
+  /// usually the root cause, then clears the queue and returns the error
+  /// string. Unlike ERR_get_error(), this leaves no entries to leak into
+  /// later, unrelated errors.
+  inline std::string first_error()
+  {
+    const auto ec = ERR_peek_error();
+    ERR_clear_error();
+    return error_string(ec);
+  }
+
   /// Throws if rc is not 1
   inline void CHECK1(int rc)
   {
     if (rc != 1)
     {
-      unsigned long ec = ERR_get_error();
-      throw std::runtime_error(fmt::format(
-        "OpenSSL error (rc={}, ec={}): {}", rc, ec, error_string(ec)));
+      throw std::runtime_error(
+        fmt::format("OpenSSL error (rc={}): {}", rc, first_error()));
     }
   }
 
@@ -67,7 +81,8 @@ namespace ccf::crypto::OpenSSL
   {
     if (ptr == nullptr)
     {
-      throw std::runtime_error("OpenSSL error: missing object");
+      throw std::runtime_error(
+        fmt::format("OpenSSL error (missing object): {}", first_error()));
     }
   }
 
@@ -76,9 +91,8 @@ namespace ccf::crypto::OpenSSL
   {
     if (expect != actual)
     {
-      unsigned long ec = ERR_get_error();
-      throw std::runtime_error(fmt::format(
-        "OpenSSL error (rc={}, ec={}): {}", actual, ec, error_string(ec)));
+      throw std::runtime_error(
+        fmt::format("OpenSSL error (rc={}): {}", actual, first_error()));
     }
   }
 
@@ -87,9 +101,8 @@ namespace ccf::crypto::OpenSSL
   {
     if (val <= 0)
     {
-      unsigned long ec = ERR_get_error();
-      throw std::runtime_error(fmt::format(
-        "OpenSSL error (rc={}, ec={}): {}", val, ec, error_string(ec)));
+      throw std::runtime_error(
+        fmt::format("OpenSSL error (rc={}): {}", val, first_error()));
     }
   }
 
@@ -116,6 +129,7 @@ namespace ccf::crypto::OpenSSL
     {
       CHECKNULL(p.get());
     }
+
     /// C-tor with pointer created in base class
     Unique_SSL_OBJECT(T* ptr, void (*dtor)(T*), bool check_null = true) :
       p(ptr, dtor)
@@ -125,21 +139,25 @@ namespace ccf::crypto::OpenSSL
         CHECKNULL(p.get());
       }
     }
+
     /// Type cast to underlying pointer
     operator T*()
     {
       return p.get();
     }
+
     /// Type cast to underlying pointer
     operator T*() const
     {
       return p.get();
     }
+
     /// Reset pointer, free old if any
     void reset(T* other)
     {
       p.reset(other);
     }
+
     /// Release pointer, so it's freed elsewhere (CAUTION!)
     T* release()
     {
@@ -152,21 +170,39 @@ namespace ccf::crypto::OpenSSL
     Unique_BIO() :
       Unique_SSL_OBJECT(BIO_new(BIO_s_mem()), [](auto x) { BIO_free(x); })
     {}
-    Unique_BIO(const void* buf, int len) :
-      Unique_SSL_OBJECT(BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
+
+    Unique_BIO(const void* buf, size_t len) :
+      Unique_SSL_OBJECT(new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
     {}
-    Unique_BIO(std::span<const uint8_t> s) :
-      Unique_SSL_OBJECT(
-        BIO_new_mem_buf(s.data(), s.size()), [](auto x) { BIO_free(x); })
-    {}
+
+    Unique_BIO(std::span<const uint8_t> s) : Unique_BIO(s.data(), s.size()) {}
+
     Unique_BIO(const Pem& pem) :
       Unique_SSL_OBJECT(
         BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
     {}
+
+    // The BIO only views the buffer; reject temporaries, which would dangle.
+    Unique_BIO(const std::vector<uint8_t>&&) = delete;
+    Unique_BIO(const Pem&&) = delete;
+
     Unique_BIO(SSL_CTX* ctx) :
       Unique_SSL_OBJECT(
         BIO_new_ssl_connect(ctx), [](auto x) { BIO_free_all(x); })
     {}
+
+  private:
+    // BIO_new_mem_buf takes an int length, and treats a negative length as a
+    // NUL-terminated string, so a size_t must not be narrowed implicitly.
+    static BIO* new_mem_buf(const void* buf, size_t len)
+    {
+      if (len > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "Buffer size {} exceeds the maximum of {} bytes", len, INT_MAX));
+      }
+      return BIO_new_mem_buf(buf, static_cast<int>(len));
+    }
   };
 
   struct Unique_SSL_CTX : public Unique_SSL_OBJECT<SSL_CTX, nullptr, nullptr>
@@ -185,6 +221,7 @@ namespace ccf::crypto::OpenSSL
     : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
   {
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
     Unique_PKEY(BIO* mem) :
       Unique_SSL_OBJECT(
         PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr), EVP_PKEY_free)
@@ -201,6 +238,7 @@ namespace ccf::crypto::OpenSSL
     Unique_EVP_PKEY_CTX(EVP_PKEY* key) :
       Unique_SSL_OBJECT(EVP_PKEY_CTX_new(key, nullptr), EVP_PKEY_CTX_free)
     {}
+
     Unique_EVP_PKEY_CTX(int key_type = EVP_PKEY_EC) :
       Unique_SSL_OBJECT(
         EVP_PKEY_CTX_new_id(key_type, nullptr), EVP_PKEY_CTX_free)
@@ -224,6 +262,7 @@ namespace ccf::crypto::OpenSSL
     : public Unique_SSL_OBJECT<X509_REQ, X509_REQ_new, X509_REQ_free>
   {
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
     Unique_X509_REQ(BIO* mem) :
       Unique_SSL_OBJECT(
         PEM_read_bio_X509_REQ(mem, nullptr, nullptr, nullptr), X509_REQ_free)
@@ -234,6 +273,7 @@ namespace ccf::crypto::OpenSSL
     : public Unique_SSL_OBJECT<X509_CRL, X509_CRL_new, X509_CRL_free>
   {
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
     Unique_X509_CRL(BIO* mem) :
       Unique_SSL_OBJECT(
         PEM_read_bio_X509_CRL(mem, nullptr, nullptr, nullptr), X509_CRL_free)
@@ -264,11 +304,13 @@ namespace ccf::crypto::OpenSSL
   struct Unique_X509 : public Unique_SSL_OBJECT<X509, X509_new, X509_free>
   {
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
     // p == nullptr is OK (e.g. wrong format)
     Unique_X509(BIO* mem, bool pem, bool check_null = false) :
       Unique_SSL_OBJECT(
         pem ? read_pem(mem) : d2i_X509_bio(mem, nullptr), X509_free, check_null)
     {}
+
     Unique_X509(X509* cert, bool check_null) :
       Unique_SSL_OBJECT(cert, X509_free, check_null)
     {}
@@ -371,6 +413,7 @@ namespace ccf::crypto::OpenSSL
         sk_X509_EXTENSION_pop_free(x, X509_EXTENSION_free);
       })
     {}
+
     Unique_STACK_OF_X509_EXTENSIONS(STACK_OF(X509_EXTENSION) * exts) :
       Unique_SSL_OBJECT(
         exts,
@@ -383,6 +426,7 @@ namespace ccf::crypto::OpenSSL
     : public Unique_SSL_OBJECT<ECDSA_SIG, ECDSA_SIG_new, ECDSA_SIG_free>
   {
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
     Unique_ECDSA_SIG(ECDSA_SIG* ecdsa_sig) :
       Unique_SSL_OBJECT(ecdsa_sig, ECDSA_SIG_free)
     {}
@@ -399,6 +443,7 @@ namespace ccf::crypto::OpenSSL
     : public Unique_SSL_OBJECT<ASN1_TIME, ASN1_TIME_new, ASN1_TIME_free>
   {
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
     Unique_X509_TIME(const std::string& s) :
       Unique_SSL_OBJECT(ASN1_TIME_new(), ASN1_TIME_free, /*check_null=*/false)
     {
@@ -406,9 +451,11 @@ namespace ccf::crypto::OpenSSL
       CHECK1(ASN1_TIME_set_string(*this, t.c_str()));
       CHECK1(ASN1_TIME_normalize(*this));
     }
+
     Unique_X509_TIME(ASN1_TIME* t) :
       Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
     {}
+
     Unique_X509_TIME(const ccf::nonstd::SystemClock::time_point& t) :
       Unique_X509_TIME(ccf::ds::to_x509_time_string(t))
     {}
@@ -433,6 +480,7 @@ namespace ccf::crypto::OpenSSL
     Unique_EC_POINT(const EC_GROUP* group) :
       Unique_SSL_OBJECT(EC_POINT_new(group), EC_POINT_free, /*check_null=*/true)
     {}
+
     Unique_EC_POINT(EC_POINT* point) :
       Unique_SSL_OBJECT(point, EC_POINT_free, /*check_null=*/true)
     {}
@@ -446,10 +494,33 @@ namespace ccf::crypto::OpenSSL
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
   };
 
+  struct Unique_ASN1_OBJECT
+    : public Unique_SSL_OBJECT<ASN1_OBJECT, ASN1_OBJECT_new, ASN1_OBJECT_free>
+  {
+    using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
+    Unique_ASN1_OBJECT(ASN1_OBJECT* object) :
+      Unique_SSL_OBJECT(object, ASN1_OBJECT_free)
+    {}
+  };
+
+  struct Unique_PKCS8_PRIV_KEY_INFO : public Unique_SSL_OBJECT<
+                                        PKCS8_PRIV_KEY_INFO,
+                                        PKCS8_PRIV_KEY_INFO_new,
+                                        PKCS8_PRIV_KEY_INFO_free>
+  {
+    using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
+    Unique_PKCS8_PRIV_KEY_INFO(PKCS8_PRIV_KEY_INFO* info) :
+      Unique_SSL_OBJECT(info, PKCS8_PRIV_KEY_INFO_free)
+    {}
+  };
+
   struct Unique_EVP_PKEY
     : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
   {
     Unique_EVP_PKEY() = default;
+
     Unique_EVP_PKEY(EVP_PKEY* key) : Unique_SSL_OBJECT(key, EVP_PKEY_free) {}
   };
 
@@ -461,4 +532,51 @@ namespace ccf::crypto::OpenSSL
         d2i_X509_REQ_bio(mem, nullptr), X509_REQ_free)
     {}
   };
+
+  /// Returns the bytes accumulated in a memory BIO.
+  inline std::span<const uint8_t> bio_contents(BIO* bio)
+  {
+    BUF_MEM* buffer = nullptr;
+    CHECKPOSITIVE(BIO_get_mem_ptr(bio, &buffer));
+    CHECKNULL(buffer);
+    if (buffer->length == 0)
+    {
+      throw std::runtime_error("OpenSSL error: empty memory BIO");
+    }
+    CHECKNULL(buffer->data);
+    return {reinterpret_cast<const uint8_t*>(buffer->data), buffer->length};
+  }
+
+  /// Runs the algorithm's key checks on a decoded or generated key.
+  /// Decoding establishes that the encoding is well formed; these checks ask
+  /// the algorithm whether the key material itself is valid: public_check
+  /// validates the public components, private_check validates the private
+  /// components, and pairwise_check confirms that the two halves belong
+  /// together. Applying them at admission gives every import and generation
+  /// path the same acceptance rule. A rejected key throws
+  /// std::invalid_argument; a provider failure throws std::runtime_error.
+  inline void check_key(EVP_PKEY* key, bool has_private)
+  {
+    const auto check = [](int rc, std::string_view which) {
+      if (rc == 1)
+      {
+        return;
+      }
+      if (rc == 0)
+      {
+        throw std::invalid_argument(
+          fmt::format("Key failed {} check: {}", which, first_error()));
+      }
+      throw std::runtime_error(fmt::format(
+        "OpenSSL error in {} key check (rc={}): {}", which, rc, first_error()));
+    };
+    Unique_EVP_PKEY_CTX ctx(key);
+    check(EVP_PKEY_public_check(ctx), "public");
+    if (!has_private)
+    {
+      return;
+    }
+    check(EVP_PKEY_private_check(ctx), "private");
+    check(EVP_PKEY_pairwise_check(ctx), "pairwise");
+  }
 }

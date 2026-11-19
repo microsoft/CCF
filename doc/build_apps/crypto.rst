@@ -25,10 +25,7 @@ Hashing
 Asymmetric Keys
 -----------------------
 
-CCF supports EC and RSA keys; public keys are held in [RSA|EC]PublicKey objects and
-private keys in [RSA|EC]KeyPair objects. [RSA|EC]KeyPair automatically generate random
-keys when constructed via :cpp:func:`ECKeyPairPtr ccf::crypto::make_ec_key_pair(CurveID)` or
-:cpp:func:`RSAKeyPairPtr ccf::crypto::make_rsa_key_pair(size_t, size_t)`.
+CCF supports EC and RSA keys; public keys are held in [RSA|EC]PublicKey objects and private keys in [RSA|EC]KeyPair objects. [RSA|EC]KeyPair automatically generate random keys when constructed via :cpp:func:`ECKeyPairPtr ccf::crypto::make_ec_key_pair(CurveID)` or :cpp:func:`RSAKeyPairPtr ccf::crypto::make_rsa_key_pair(size_t, size_t)`.
 
 .. doxygenclass:: ccf::crypto::ECPublicKey
   :project: CCF
@@ -58,6 +55,35 @@ keys when constructed via :cpp:func:`ECKeyPairPtr ccf::crypto::make_ec_key_pair(
 .. doxygenfunction:: ccf::crypto::make_rsa_key_pair(size_t, size_t)
   :project: CCF
 
+ML-DSA Signing Keys
+~~~~~~~~~~~~~~~~~~~
+
+CCF supports ML-DSA (FIPS 204) keys with OpenSSL 3.5 or newer; public keys are held in MLDSAPublicKey objects and private keys in MLDSAKeyPair objects. Signatures are pure ML-DSA over the message, with an optional context string of at most 255 bytes.
+Private keys are exported in plaintext, so callers are responsible for protecting the returned buffers.
+
+.. doxygenclass:: ccf::crypto::MLDSAPublicKey
+  :project: CCF
+  :members:
+
+.. doxygenclass:: ccf::crypto::MLDSAKeyPair
+  :project: CCF
+  :members:
+
+.. doxygenenum:: ccf::crypto::MLDSAParameterSet
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_mldsa_key_pair(MLDSAParameterSet)
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_mldsa_key_pair(const Pem&, MLDSAParameterSet)
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_mldsa_public_key(const Pem&, MLDSAParameterSet)
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_mldsa_public_key_from_raw
+  :project: CCF
+
 Symmetric Keys
 --------------------
 
@@ -75,6 +101,26 @@ Verification of signatures is supported via the :cpp:class:`Verifier` class.
 .. doxygenclass:: ccf::crypto::Verifier
   :project: CCF
   :members:
+
+COSE Keys
+---------
+
+EC2 (P-256, P-384 or P-521), OKP (Ed25519), RSA and AKP (ML-DSA, RFC 9964) public keys can be held as COSE_Keys (RFC 9052), which are parsed, validated and encoded by :cpp:class:`ccf::crypto::COSEKey`, and verify COSE_Sign1 signatures through a verifier made by :cpp:func:`ccf::crypto::make_cose_verifier_from_key`.
+
+.. doxygenclass:: ccf::crypto::COSEKey
+  :project: CCF
+  :members:
+
+.. doxygenenum:: ccf::crypto::COSEKeyType
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_cose_verifier_from_key(const COSEKey&)
+  :project: CCF
+
+An application that has already parsed a certificate with OpenSSL, for example to validate its chain, can take its key without parsing the certificate again.
+
+.. doxygenfunction:: ccf::crypto::OpenSSL::cose_key_from_x509
+  :project: CCF
 
 
 Key Wrapping

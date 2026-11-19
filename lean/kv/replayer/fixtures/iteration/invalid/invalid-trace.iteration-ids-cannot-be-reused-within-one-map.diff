@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -12 +12 @@
+-{"iteration":2,"map":"a","seq":12,"store":1,"tx":1,"type":"foreach_begin"}
++{"iteration":1,"map":"a","seq":12,"store":1,"tx":1,"type":"foreach_begin"}

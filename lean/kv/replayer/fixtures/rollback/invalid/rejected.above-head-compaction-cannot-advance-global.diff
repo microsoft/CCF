@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -216 +216 @@
+-{"requested":2,"seq":216,"store":7,"type":"compact","version":0}
++{"requested":2,"seq":216,"store":7,"type":"compact","version":2}

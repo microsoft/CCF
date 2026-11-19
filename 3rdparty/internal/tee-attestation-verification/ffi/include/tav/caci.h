@@ -22,14 +22,14 @@ extern "C" {
  * Ownership and lifetime:
  * - Use tav_verify_snp_attestation from tav/snp.h to verify the SNP report and
  *   obtain an owned TavSnpAttestationReport.
- * - tav_verify_caci_uvm_endorsement returns an owned TavCborValue containing
+ * - tav_verify_caci_uvm_endorsement returns an owned TavCborHandle containing
  *   the verified UVM COSE/CBOR document. Inspect it with the CBOR accessors in
- *   tav/cose.h and release it with tav_cbor_value_free.
+ *   tav/cbor.h directly, and release it with tav_cbor_free.
  * - tav_verify_caci_attestation writes an owned TavByteBuffer* through
  *   out_report_data. Read it with tav_byte_buffer_data/tav_byte_buffer_len and
  *   release it with tav_byte_buffer_free.
  * - Freeing NULL owned handles and NULL byte buffers is a no-op.
- * - Owned handle out-parameters (TavCborValue **) and byte-buffer
+ * - Owned handle out-parameters (TavCborHandle **) and byte-buffer
  *   out-parameters (TavByteBuffer **) are write-only: they are reset to NULL
  *   before any fallible work and set to an owned value only on
  *   success.
@@ -42,6 +42,7 @@ extern "C" {
 
 /*
  * Verify an ACI/UVM endorsement COSE blob against a caller-pinned did:x509 root.
+ * The endorsement size is unchecked: bound untrusted input before calling.
  *
  * trusted_didx509 is a UTF-8 byte slice and does not need to be NUL-terminated.
  * out_uvm_endorsement must point to a writable handle slot. It is reset to NULL
@@ -52,7 +53,7 @@ TAV_CACI_API TavError *tav_verify_caci_uvm_endorsement(
     size_t uvm_endorsement_len,
     const char *trusted_didx509,
     size_t trusted_didx509_len,
-    TavCborValue **out_uvm_endorsement);
+    TavCborHandle **out_uvm_endorsement);
 
 /*
  * Verify the relying-party CACI policy over staged verified artifacts.
@@ -82,7 +83,7 @@ TAV_CACI_API TavError *tav_verify_caci_attestation(
     size_t minimum_tcb_count,
     const uint8_t *trusted_policy_digests,
     size_t trusted_policy_digest_count,
-    const TavCborValue *uvm_endorsement,
+    const TavCborHandle *uvm_endorsement,
     const char *uvm_feed,
     size_t uvm_feed_len,
     uint64_t minimum_svn,

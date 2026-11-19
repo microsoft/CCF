@@ -1,0 +1,1382 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
+#include <openssl/opensslv.h>
+
+static_assert(
+  OPENSSL_VERSION_PREREQ(3, 5), "ML-DSA tests require OpenSSL 3.5 or newer");
+
+#include "ccf/crypto/base64.h"
+#include "ccf/crypto/cose_key.h"
+#include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/ec_key_pair.h"
+#include "ccf/crypto/eddsa_key_pair.h"
+#include "ccf/crypto/mldsa_key_pair.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/verifier.h"
+#include "ccf/ds/hex.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
+#include "crypto/cose.h"
+#include "crypto/openssl/mldsa.h"
+#include "crypto/openssl/mldsa_key_pair.h"
+#include "crypto/test/mldsa_vectors.h"
+
+#include <algorithm>
+#include <array>
+#include <doctest/doctest.h>
+#include <future>
+#include <openssl/core_names.h>
+#include <openssl/err.h>
+#include <openssl/objects.h>
+#include <openssl/x509.h>
+#include <optional>
+#include <string>
+#include <tav/cbor.hpp>
+#include <type_traits>
+
+using namespace ccf::crypto;
+
+namespace
+{
+  struct ParameterSetInfo
+  {
+    MLDSAParameterSet id;
+    const char* name;
+    int nid;
+    // FIPS 204 table 2: public key, expanded private key and signature
+    // sizes; s2 offset within skEncode follows rho (32), K (32), tr (64) and
+    // l packed s1 polynomials.
+    // https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.204.pdf
+    size_t public_key_size;
+    size_t expanded_key_size;
+    size_t s2_offset;
+    size_t signature_size;
+    // RFC 9964 COSE algorithm identifier
+    int64_t cose_alg;
+  };
+
+  constexpr std::array PARAMETER_SETS = {
+    ParameterSetInfo{
+      MLDSAParameterSet::ML_DSA_44,
+      LN_ML_DSA_44,
+      NID_ML_DSA_44,
+      1312,
+      2560,
+      512,
+      2420,
+      -48},
+    ParameterSetInfo{
+      MLDSAParameterSet::ML_DSA_65,
+      LN_ML_DSA_65,
+      NID_ML_DSA_65,
+      1952,
+      4032,
+      768,
+      3309,
+      -49},
+    ParameterSetInfo{
+      MLDSAParameterSet::ML_DSA_87,
+      LN_ML_DSA_87,
+      NID_ML_DSA_87,
+      2592,
+      4896,
+      800,
+      4627,
+      -50},
+  };
+
+  const ParameterSetInfo& info_for(MLDSAParameterSet id)
+  {
+    for (const auto& info : PARAMETER_SETS)
+    {
+      if (info.id == id)
+      {
+        return info;
+      }
+    }
+    throw std::logic_error("Unknown parameter set in test table");
+  }
+
+  constexpr size_t MAX_CONTEXT_BYTES = 255;
+
+  constexpr std::array<uint8_t, 7> message = {0, 1, 2, 127, 128, 254, 255};
+  constexpr std::array<uint8_t, 4> context = {0, 65, 0, 255};
+
+  static_assert(!std::is_copy_constructible_v<MLDSAPublicKey_OpenSSL>);
+  static_assert(!std::is_copy_assignable_v<MLDSAPublicKey_OpenSSL>);
+  static_assert(!std::is_copy_constructible_v<MLDSAKeyPair_OpenSSL>);
+  static_assert(!std::is_copy_assignable_v<MLDSAKeyPair_OpenSSL>);
+  static_assert(std::has_virtual_destructor_v<MLDSAKeyPair>);
+  static_assert(std::has_virtual_destructor_v<MLDSAPublicKey>);
+
+  OpenSSL::Unique_PKEY native_public(std::span<const uint8_t> der)
+  {
+    const auto* cursor = der.data();
+    OpenSSL::Unique_PKEY key(
+      d2i_PUBKEY(nullptr, &cursor, static_cast<long>(der.size())),
+      EVP_PKEY_free);
+    CHECK(cursor == der.data() + der.size());
+    return key;
+  }
+
+  OpenSSL::Unique_PKEY native_private(std::span<const uint8_t> der)
+  {
+    const auto* cursor = der.data();
+    OpenSSL::Unique_PKEY key(
+      d2i_AutoPrivateKey(nullptr, &cursor, static_cast<long>(der.size())),
+      EVP_PKEY_free,
+      false);
+    OpenSSL::CHECKNULL(static_cast<EVP_PKEY*>(key));
+    CHECK(cursor == der.data() + der.size());
+    return key;
+  }
+
+  OSSL_PARAM context_param(std::span<const uint8_t> ctx_bytes)
+  {
+    if (ctx_bytes.empty())
+    {
+      return OSSL_PARAM_construct_end();
+    }
+    return OSSL_PARAM_construct_octet_string(
+      OSSL_SIGNATURE_PARAM_CONTEXT_STRING,
+      const_cast<uint8_t*>(ctx_bytes.data()),
+      ctx_bytes.size());
+  }
+
+  bool native_verify(
+    EVP_PKEY* key,
+    std::span<const uint8_t> contents,
+    std::span<const uint8_t> signature,
+    std::span<const uint8_t> ctx_bytes = {})
+  {
+    OpenSSL::Unique_EVP_MD_CTX ctx;
+    OSSL_PARAM params[] = {
+      context_param(ctx_bytes), OSSL_PARAM_construct_end()};
+    OpenSSL::CHECK1(EVP_DigestVerifyInit_ex(
+      ctx, nullptr, nullptr, nullptr, nullptr, key, params));
+    return EVP_DigestVerify(
+             ctx,
+             signature.data(),
+             signature.size(),
+             contents.data(),
+             contents.size()) == 1;
+  }
+
+  std::vector<uint8_t> native_sign(
+    EVP_PKEY* key,
+    std::span<const uint8_t> contents,
+    std::span<const uint8_t> ctx_bytes = {})
+  {
+    OpenSSL::Unique_EVP_MD_CTX ctx;
+    OSSL_PARAM params[] = {
+      context_param(ctx_bytes), OSSL_PARAM_construct_end()};
+    OpenSSL::CHECK1(EVP_DigestSignInit_ex(
+      ctx, nullptr, nullptr, nullptr, nullptr, key, params));
+    size_t size = 0;
+    OpenSSL::CHECK1(
+      EVP_DigestSign(ctx, nullptr, &size, contents.data(), contents.size()));
+    std::vector<uint8_t> signature(size);
+    OpenSSL::CHECK1(EVP_DigestSign(
+      ctx, signature.data(), &size, contents.data(), contents.size()));
+    signature.resize(size);
+    return signature;
+  }
+
+  Pem pem_from_der(std::span<const uint8_t> der, const char* label)
+  {
+    OpenSSL::Unique_BIO bio;
+    OpenSSL::CHECKPOSITIVE(
+      PEM_write_bio(bio, label, "", der.data(), static_cast<long>(der.size())));
+    const auto data = OpenSSL::bio_contents(bio);
+    return Pem(data);
+  }
+
+  // Decodes the base64 body between the PEM boundary lines, independently of
+  // the parsers under test
+  std::vector<uint8_t> der_from_pem(const Pem& pem)
+  {
+    const auto& text = pem.str();
+    const auto body_begin = text.find('\n') + 1;
+    const auto body_end = text.rfind("-----END");
+    REQUIRE(body_begin > 0);
+    REQUIRE(body_end != std::string::npos);
+    REQUIRE(body_begin < body_end);
+    std::string base64;
+    for (const char c : text.substr(body_begin, body_end - body_begin))
+    {
+      if (c != '\n' && c != '\r')
+      {
+        base64.push_back(c);
+      }
+    }
+    return ccf::crypto::raw_from_b64(base64);
+  }
+
+  std::vector<uint8_t> asn1_field(
+    int tag,
+    std::span<const uint8_t> contents,
+    int tag_class = V_ASN1_UNIVERSAL,
+    bool constructed = false)
+  {
+    constructed = constructed || tag == V_ASN1_SEQUENCE || tag == V_ASN1_SET;
+    const auto size =
+      ASN1_object_size(static_cast<int>(constructed), contents.size(), tag);
+    OpenSSL::CHECKPOSITIVE(size);
+    std::vector<uint8_t> result(static_cast<size_t>(size));
+    auto* cursor = result.data();
+    ASN1_put_object(
+      &cursor, static_cast<int>(constructed), contents.size(), tag, tag_class);
+    std::ranges::copy(contents, cursor);
+    return result;
+  }
+
+  std::vector<uint8_t> public_encoding(
+    int algorithm_nid, std::span<const uint8_t> public_key)
+  {
+    auto* oid = OBJ_nid2obj(algorithm_nid);
+    OpenSSL::CHECKNULL(oid);
+    const auto size = i2d_ASN1_OBJECT(oid, nullptr);
+    OpenSSL::CHECKPOSITIVE(size);
+    std::vector<uint8_t> algorithm(size);
+    auto* cursor = algorithm.data();
+    OpenSSL::CHECKEQUAL(size, i2d_ASN1_OBJECT(oid, &cursor));
+    auto fields = asn1_field(V_ASN1_SEQUENCE, algorithm);
+    std::vector<uint8_t> bits = {0};
+    bits.insert(bits.end(), public_key.begin(), public_key.end());
+    const auto bit_string = asn1_field(V_ASN1_BIT_STRING, bits);
+    fields.insert(fields.end(), bit_string.begin(), bit_string.end());
+    return asn1_field(V_ASN1_SEQUENCE, fields);
+  }
+
+  template <typename F>
+  void check_rejected_import(F&& import)
+  {
+    CHECK_THROWS_AS(import(), std::invalid_argument);
+  }
+
+  std::vector<uint8_t> private_encoding(
+    int algorithm_nid,
+    std::span<const uint8_t> inner,
+    int version = 0,
+    int algorithm_parameters = V_ASN1_UNDEF)
+  {
+    OpenSSL::Unique_PKCS8_PRIV_KEY_INFO info;
+    auto* object = OBJ_nid2obj(algorithm_nid);
+    OpenSSL::CHECKNULL(object);
+    OpenSSL::Unique_ASN1_OBJECT algorithm(OBJ_dup(object));
+    const auto free_bytes = [](unsigned char* bytes) { OPENSSL_free(bytes); };
+    std::unique_ptr<unsigned char, decltype(free_bytes)> copy(
+      static_cast<unsigned char*>(OPENSSL_memdup(inner.data(), inner.size())),
+      free_bytes);
+    OpenSSL::CHECKNULL(copy.get());
+    OpenSSL::CHECK1(PKCS8_pkey_set0(
+      info,
+      algorithm,
+      version,
+      algorithm_parameters,
+      nullptr,
+      copy.get(),
+      inner.size()));
+    algorithm.release();
+    (void)copy.release();
+    const auto size = i2d_PKCS8_PRIV_KEY_INFO(info, nullptr);
+    OpenSSL::CHECKPOSITIVE(size);
+    std::vector<uint8_t> der(size);
+    auto* cursor = der.data();
+    OpenSSL::CHECKEQUAL(size, i2d_PKCS8_PRIV_KEY_INFO(info, &cursor));
+    return der;
+  }
+
+  std::vector<uint8_t> native_bytes(
+    EVP_PKEY* key, const char* param, size_t size)
+  {
+    std::vector<uint8_t> bytes(size);
+    size_t written = 0;
+    OpenSSL::CHECK1(EVP_PKEY_get_octet_string_param(
+      key, param, bytes.data(), bytes.size(), &written));
+    REQUIRE(written == size);
+    return bytes;
+  }
+}
+
+TEST_SUITE_BEGIN("ML-DSA");
+
+TEST_CASE("ML-DSA generation, serialization, signing and verification")
+{
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      const auto parameters = info.id;
+      auto key = make_mldsa_key_pair(parameters);
+      CHECK(key->get_parameter_set() == parameters);
+      const auto public_der = key->public_key_der();
+      auto public_pem = make_mldsa_public_key(key->public_key_pem());
+      auto public_key = make_mldsa_public_key(public_der);
+      auto private_pem = make_mldsa_key_pair(key->private_key_pem());
+      auto private_der = make_mldsa_key_pair(key->private_key_der());
+      for (const auto& imported : {private_pem, private_der})
+      {
+        CHECK(imported->get_parameter_set() == parameters);
+        CHECK(imported->public_key_der() == public_der);
+        CHECK(imported->public_key_pem() == key->public_key_pem());
+      }
+      for (const auto& imported : {public_key, public_pem})
+      {
+        CHECK(imported->get_parameter_set() == parameters);
+        CHECK(imported->public_key_der() == public_der);
+        CHECK(imported->public_key_pem() == key->public_key_pem());
+      }
+      for (size_t round = 0; round < 4; ++round)
+      {
+        const auto signature = key->sign(message, context);
+        CHECK(signature.size() == info.signature_size);
+        for (const auto& verifier : {key, private_pem, private_der})
+        {
+          CHECK(verifier->verify(message, signature, context));
+          CHECK(public_key->verify(
+            message, verifier->sign(message, context), context));
+        }
+        CHECK(public_key->verify(message, signature, context));
+        CHECK(public_pem->verify(message, signature, context));
+      }
+      auto native_pub = native_public(public_der);
+      auto native_priv = native_private(key->private_key_der());
+      CHECK(native_verify(
+        native_pub, message, key->sign(message, context), context));
+      CHECK(public_key->verify(
+        message, native_sign(native_priv, message, context), context));
+    }
+  }
+}
+
+TEST_CASE("ML-DSA message and context boundaries")
+{
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      const auto parameters = info.id;
+      auto key = make_mldsa_key_pair(parameters);
+      auto public_key = make_mldsa_public_key(key->public_key_der());
+      std::array<uint8_t, MAX_CONTEXT_BYTES> max_context{};
+      max_context.front() = 255;
+      max_context.back() = 128;
+      const std::array<uint8_t, MAX_CONTEXT_BYTES + 1> oversized_context{};
+      const std::array<std::vector<uint8_t>, 4> messages = {
+        std::vector<uint8_t>{},
+        std::vector<uint8_t>{0},
+        std::vector<uint8_t>(32, 127),
+        std::vector<uint8_t>(size_t{1024} * 1024, 255)};
+      for (const auto& contents : messages)
+      {
+        INFO("Message length: " << contents.size());
+        const auto signature = key->sign(contents);
+        CHECK(public_key->verify(contents, signature));
+        CHECK_FALSE(public_key->verify(contents, signature, context));
+        const auto contextual = key->sign(contents, max_context);
+        CHECK(public_key->verify(contents, contextual, max_context));
+        CHECK_FALSE(public_key->verify(contents, contextual));
+      }
+      // OpenSSL rejects contexts above 255 bytes when the parameter is set.
+      const auto plain_signature = key->sign(message);
+      CHECK_THROWS((void)key->sign(message, oversized_context));
+      CHECK_THROWS(
+        (void)public_key->verify(message, plain_signature, oversized_context));
+      CHECK_THROWS(
+        (void)key->verify(message, plain_signature, oversized_context));
+      // A rejected context throws even when the signature size is invalid.
+      CHECK_THROWS((void)public_key->verify(message, {}, oversized_context));
+      CHECK_THROWS((void)key->verify(message, {}, oversized_context));
+      CHECK(public_key->verify(message, key->sign(message)));
+    }
+  }
+}
+
+TEST_CASE("ML-DSA rejects corrupted signatures, messages and wrong keys")
+{
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key = make_mldsa_key_pair(info.id);
+      auto verifier = make_mldsa_public_key(key->public_key_der());
+      const auto signature = key->sign(message, context);
+      auto corrupt_message = message;
+      corrupt_message[0] ^= 1;
+      auto wrong_context = context;
+      wrong_context[0] ^= 1;
+      CHECK_FALSE(verifier->verify(corrupt_message, signature, context));
+      CHECK_FALSE(verifier->verify(message, signature, wrong_context));
+      CHECK_FALSE(verifier->verify(message, signature));
+      CHECK_FALSE(verifier->verify(message, {}, context));
+      for (const size_t position :
+           {size_t(0), signature.size() / 2, signature.size() - 1})
+      {
+        auto corrupted = signature;
+        corrupted[position] ^= 1;
+        CHECK_FALSE(verifier->verify(message, corrupted, context));
+      }
+      auto shorter = signature;
+      shorter.pop_back();
+      CHECK_FALSE(verifier->verify(message, shorter, context));
+      auto longer = signature;
+      longer.push_back(0);
+      CHECK_FALSE(verifier->verify(message, longer, context));
+      auto wrong_key = make_mldsa_key_pair(info.id);
+      CHECK_FALSE(wrong_key->verify(message, signature, context));
+      for (const auto& other : PARAMETER_SETS)
+      {
+        if (other.id != info.id)
+        {
+          auto wrong_parameters = make_mldsa_key_pair(other.id);
+          CHECK_FALSE(wrong_parameters->verify(message, signature, context));
+        }
+      }
+      CHECK(verifier->verify(message, signature, context));
+    }
+  }
+}
+
+TEST_CASE("ML-DSA imports reject malformed encodings")
+{
+  CHECK_THROWS_AS(
+    make_mldsa_key_pair(static_cast<MLDSAParameterSet>(255)),
+    std::invalid_argument);
+  CHECK_THROWS(make_mldsa_key_pair(Pem{}));
+  CHECK_THROWS(make_mldsa_public_key(Pem{}));
+  CHECK_THROWS(make_mldsa_key_pair(std::span<const uint8_t>{}));
+  CHECK_THROWS(make_mldsa_public_key(std::span<const uint8_t>{}));
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      const auto parameters = info.id;
+      auto key = make_mldsa_key_pair(parameters);
+      const auto private_der = key->private_key_der();
+      const auto public_der = key->public_key_der();
+      const auto private_pem = key->private_key_pem();
+      const auto public_pem = key->public_key_pem();
+      CHECK_THROWS(make_mldsa_key_pair(public_der));
+      CHECK_THROWS(make_mldsa_key_pair(public_pem));
+      CHECK_THROWS(make_mldsa_public_key(private_der));
+      CHECK_THROWS(make_mldsa_public_key(private_pem));
+      for (const bool is_private : {false, true})
+      {
+        const auto& der = is_private ? private_der : public_der;
+        const auto& pem = is_private ? private_pem : public_pem;
+        const auto load_der = [&](std::span<const uint8_t> encoded) {
+          if (is_private)
+          {
+            make_mldsa_key_pair(encoded);
+          }
+          else
+          {
+            make_mldsa_public_key(encoded);
+          }
+        };
+        const auto load_pem = [&](const Pem& encoded) {
+          if (is_private)
+          {
+            make_mldsa_key_pair(encoded);
+          }
+          else
+          {
+            make_mldsa_public_key(encoded);
+          }
+        };
+        CHECK_THROWS_AS(
+          load_der(std::span(der).first(der.size() - 1)),
+          std::invalid_argument);
+        auto trailing = der;
+        trailing.push_back(0);
+        CHECK_THROWS_AS(load_der(trailing), std::invalid_argument);
+        auto bad_base64 = pem.str();
+        bad_base64[bad_base64.find('\n') + 1] = '!';
+        CHECK_THROWS_AS(load_pem(Pem(bad_base64)), std::invalid_argument);
+      }
+    }
+  }
+}
+
+TEST_CASE("ML-DSA expanded private keys and corrupted key material")
+{
+  // FIPS 204 skEncode fields start with rho (32), K (32), then tr (64).
+  constexpr size_t RHO_OFFSET = 0;
+  constexpr size_t PUBLIC_KEY_HASH_OFFSET = 64;
+  constexpr size_t SECRET_POLYNOMIAL_OFFSET = 128;
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      OpenSSL::Unique_PKEY native(
+        EVP_PKEY_Q_keygen(nullptr, nullptr, info.name), EVP_PKEY_free);
+      const auto expanded =
+        native_bytes(native, OSSL_PKEY_PARAM_PRIV_KEY, info.expanded_key_size);
+      const auto encoded =
+        private_encoding(info.nid, asn1_field(V_ASN1_OCTET_STRING, expanded));
+      const auto native_signature = native_sign(native, message, context);
+      auto imported = make_mldsa_key_pair(encoded);
+      CHECK(imported->get_parameter_set() == info.id);
+      CHECK(imported->verify(message, native_signature, context));
+      CHECK(native_verify(
+        native, message, imported->sign(message, context), context));
+      auto pem_key = make_mldsa_key_pair(pem_from_der(encoded, "PRIVATE KEY"));
+      CHECK(pem_key->public_key_der() == imported->public_key_der());
+
+      for (const size_t position :
+           {RHO_OFFSET,
+            PUBLIC_KEY_HASH_OFFSET,
+            SECRET_POLYNOMIAL_OFFSET,
+            size_t{200},
+            info.s2_offset,
+            expanded.size() - 1})
+      {
+        auto corrupted = expanded;
+        corrupted[position] ^= 1;
+        CHECK_THROWS_WITH_AS(
+          make_mldsa_key_pair(private_encoding(
+            info.nid, asn1_field(V_ASN1_OCTET_STRING, corrupted))),
+          doctest::Contains("ML-DSA provider rejected the key material"),
+          std::invalid_argument);
+        CHECK(ERR_peek_error() == 0);
+      }
+      for (const size_t length :
+           {size_t(0), expanded.size() - 1, expanded.size() + 1})
+      {
+        const std::vector<uint8_t> corrupted(length, 0);
+        CHECK_THROWS(make_mldsa_key_pair(private_encoding(
+          info.nid, asn1_field(V_ASN1_OCTET_STRING, corrupted))));
+      }
+    }
+  }
+}
+
+TEST_CASE("ML-DSA rejects other key families")
+{
+  auto ec = make_ec_key_pair();
+  auto rsa = make_rsa_key_pair();
+  auto eddsa = make_eddsa_key_pair();
+  for (const auto& pem :
+       {ec->private_key_pem(),
+        rsa->private_key_pem(),
+        eddsa->private_key_pem()})
+  {
+    CHECK_THROWS_AS(make_mldsa_key_pair(pem), std::invalid_argument);
+  }
+  for (const auto& pem :
+       {ec->public_key_pem(), rsa->public_key_pem(), eddsa->public_key_pem()})
+  {
+    CHECK_THROWS_AS(make_mldsa_public_key(pem), std::invalid_argument);
+  }
+  CHECK_THROWS_AS(
+    make_mldsa_public_key(ec->public_key_der()), std::invalid_argument);
+  CHECK_THROWS_AS(
+    make_mldsa_key_pair(ec->private_key_der()), std::invalid_argument);
+}
+
+TEST_CASE("ML-DSA key lifetime and concurrent operations")
+{
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      const auto parameters = info.id;
+      MLDSAPublicKeyPtr public_key;
+      std::vector<uint8_t> signature;
+      {
+        auto key = make_mldsa_key_pair(parameters);
+        public_key = make_mldsa_public_key(key->public_key_der());
+        signature = key->sign(message);
+        std::vector<std::future<bool>> results;
+        results.reserve(4);
+        for (size_t worker = 0; worker < 4; ++worker)
+        {
+          results.push_back(std::async(std::launch::async, [key, public_key] {
+            for (size_t round = 0; round < 8; ++round)
+            {
+              if (!public_key->verify(
+                    message, key->sign(message, context), context))
+              {
+                return false;
+              }
+            }
+            return true;
+          }));
+        }
+        for (auto& result : results)
+        {
+          CHECK(result.get());
+        }
+      }
+      CHECK(public_key->verify(message, signature));
+      for (size_t round = 0; round < 12; ++round)
+      {
+        auto key = make_mldsa_key_pair(parameters);
+        auto imported = make_mldsa_key_pair(key->private_key_der());
+        auto der = key->public_key_der();
+        der.push_back(0);
+        CHECK_THROWS(make_mldsa_public_key(der));
+        CHECK(imported->verify(message, key->sign(message)));
+      }
+    }
+  }
+}
+
+TEST_CASE("ML-DSA parameter-set pinning at admission")
+{
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      const auto parameters = info.id;
+      auto key = make_mldsa_key_pair(parameters);
+      const auto private_pem = key->private_key_pem();
+      const auto private_der = key->private_key_der();
+      const auto public_pem = key->public_key_pem();
+      const auto public_der = key->public_key_der();
+      CHECK(
+        make_mldsa_key_pair(private_pem, parameters)->get_parameter_set() ==
+        parameters);
+      CHECK(
+        make_mldsa_key_pair(private_der, parameters)->get_parameter_set() ==
+        parameters);
+      CHECK(
+        make_mldsa_public_key(public_pem, parameters)->get_parameter_set() ==
+        parameters);
+      CHECK(
+        make_mldsa_public_key(public_der, parameters)->get_parameter_set() ==
+        parameters);
+      for (const auto& other : PARAMETER_SETS)
+      {
+        const auto expected = other.id;
+        if (expected == parameters)
+        {
+          continue;
+        }
+        check_rejected_import(
+          [&] { make_mldsa_key_pair(private_pem, expected); });
+        check_rejected_import(
+          [&] { make_mldsa_key_pair(private_der, expected); });
+        check_rejected_import(
+          [&] { make_mldsa_public_key(public_pem, expected); });
+        check_rejected_import(
+          [&] { make_mldsa_public_key(public_der, expected); });
+      }
+    }
+  }
+}
+
+namespace
+{
+  OpenSSL::Unique_X509 parse_cert(const Pem& cert)
+  {
+    OpenSSL::Unique_BIO bio(cert);
+    return {bio, true, true};
+  }
+
+  bool has_subject_alt_name(const Pem& cert)
+  {
+    return X509_get_ext_by_NID(parse_cert(cert), NID_subject_alt_name, -1) >= 0;
+  }
+}
+
+TEST_CASE("ML-DSA certificates")
+{
+  const std::string subject = "CN=CCF Service";
+  const std::string valid_from = "20260101000000Z";
+  const std::string valid_to = "20270101000000Z";
+  const std::vector<SubjectAltName> node_sans = {
+    {"node.example.com", false}, {"10.0.0.1", true}};
+  // Both service certificates must encode one name and validity period.
+  const auto classical =
+    make_verifier(make_ec_key_pair()->self_sign(subject, valid_from, valid_to));
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key = make_mldsa_key_pair(info.id);
+      const auto cert = key->self_sign(subject, valid_from, valid_to);
+      const auto signature = key->sign(message);
+
+      for (const auto& verifier :
+           {make_verifier(cert), make_verifier(cert_pem_to_der(cert))})
+      {
+        CHECK(verifier->public_key_der() == key->public_key_der());
+        CHECK(verifier->public_key_pem() == key->public_key_pem());
+        CHECK(verifier->subject() == classical->subject());
+        CHECK(verifier->validity_period() == classical->validity_period());
+        CHECK(verifier->is_self_signed());
+        CHECK(verifier->verify_certificate({&cert}, {}, true));
+        CHECK(verifier->verify(message, signature));
+        CHECK_FALSE(verifier->verify(context, signature));
+        CHECK_THROWS_AS(
+          (void)verifier->verify(message, signature, MDType::SHA256),
+          std::invalid_argument);
+        CHECK_THROWS_AS(
+          (void)verifier->verify_hash(std::vector<uint8_t>(32, 0), signature),
+          std::logic_error);
+      }
+      CHECK(get_subject_name(cert) == subject);
+      CHECK(
+        make_mldsa_public_key(make_verifier(cert)->public_key_der(), info.id)
+          ->verify(message, signature));
+      CHECK(
+        make_verifier(key->self_sign(subject, valid_from, valid_to))
+          ->serial_number() != make_verifier(cert)->serial_number());
+      CHECK_FALSE(has_subject_alt_name(cert));
+
+      auto other = make_mldsa_key_pair(info.id);
+      const auto other_cert = other->self_sign(subject, valid_from, valid_to);
+      {
+        const auto x509 = parse_cert(cert);
+        CHECK(X509_get_signature_nid(x509) == info.nid);
+        CHECK(X509_verify(x509, X509_get0_pubkey(x509)) == 1);
+        CHECK(X509_check_ca(x509) == 1);
+        CHECK(X509_verify(x509, native_public(other->public_key_der())) != 1);
+        ERR_clear_error();
+      }
+
+      // A node requests a certificate for its own key, the service issues it.
+      auto node_key = make_mldsa_key_pair(info.id);
+      const auto csr = node_key->create_csr("CN=CCF Node", node_sans);
+      const auto endorsed = key->sign_csr(cert, csr, valid_from, valid_to);
+      const auto endorsed_verifier = make_verifier(endorsed);
+      CHECK(endorsed_verifier->public_key_der() == node_key->public_key_der());
+      CHECK(get_subject_name(endorsed) == "CN=CCF Node");
+      CHECK(
+        endorsed_verifier->validity_period() == classical->validity_period());
+      CHECK_FALSE(endorsed_verifier->is_self_signed());
+      CHECK(endorsed_verifier->verify_certificate({&cert}, {}, true));
+      CHECK_FALSE(
+        endorsed_verifier->verify_certificate({&other_cert}, {}, true));
+      CHECK(endorsed_verifier->verify(message, node_key->sign(message)));
+      CHECK_FALSE(endorsed_verifier->verify(message, signature));
+      CHECK(has_subject_alt_name(endorsed));
+      {
+        const auto x509 = parse_cert(endorsed);
+        CHECK(X509_get_signature_nid(x509) == info.nid);
+        CHECK(X509_check_ca(x509) == 0);
+        CHECK(X509_verify(x509, native_public(key->public_key_der())) == 1);
+      }
+
+      // The issuer requests on behalf of a key it does not hold, as when
+      // re-endorsing a previous identity, so the request carries the
+      // issuer's signature instead of the subject's.
+      const auto reissue_csr =
+        key->create_csr("CN=Previous Service", {}, node_key->public_key_pem());
+      const auto reissued = key->sign_csr(
+        cert,
+        reissue_csr,
+        valid_from,
+        valid_to,
+        true,
+        MLDSAKeyPair::Signer::ISSUER);
+      CHECK(
+        make_verifier(reissued)->public_key_der() ==
+        node_key->public_key_der());
+      CHECK(get_subject_name(reissued) == "CN=Previous Service");
+      CHECK(make_verifier(reissued)->verify_certificate({&cert}, {}, true));
+      CHECK(X509_check_ca(parse_cert(reissued)) == 1);
+
+      // A request must carry the signature of the party named as its signer.
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(cert, reissue_csr, valid_from, valid_to),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(
+          cert, csr, valid_from, valid_to, false, MLDSAKeyPair::Signer::ISSUER),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(cert, cert, valid_from, valid_to),
+        std::runtime_error);
+      ERR_clear_error();
+
+      CHECK_THROWS_AS(
+        (void)key->self_sign(subject, valid_to, valid_from), std::logic_error);
+      CHECK_THROWS_AS(
+        (void)key->self_sign(subject, "not a time", valid_to),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->self_sign("NOTAFIELD=x", valid_from, valid_to),
+        std::runtime_error);
+      ERR_clear_error();
+
+      // A multi-RDN subject whose printed form cannot be parsed back is
+      // copied exactly when passed as DER, as when the PQ certificate takes
+      // the classical certificate's subject.
+      const auto multi_rdn = make_ec_key_pair()->self_sign(
+        "CN=CCF Service,O=CCF User", valid_from, valid_to);
+      const auto subject_der = make_verifier(multi_rdn)->subject_der();
+      CHECK_THROWS((void)key->self_sign(
+        get_subject_name(multi_rdn), valid_from, valid_to));
+      const auto copied = key->self_sign(subject_der, valid_from, valid_to);
+      CHECK(make_verifier(copied)->subject_der() == subject_der);
+      CHECK(make_verifier(copied)->subject() == get_subject_name(multi_rdn));
+      const auto copied_csr =
+        key->create_csr(subject_der, {}, node_key->public_key_pem());
+      CHECK(
+        make_verifier(key->sign_csr(
+                        cert,
+                        copied_csr,
+                        valid_from,
+                        valid_to,
+                        false,
+                        MLDSAKeyPair::Signer::ISSUER))
+          ->subject_der() == subject_der);
+      CHECK_THROWS_AS(
+        (void)key->create_csr(std::vector<uint8_t>{'n', 'o', 'p', 'e'}),
+        std::invalid_argument);
+      auto trailing_byte = subject_der;
+      trailing_byte.push_back(0);
+      CHECK_THROWS_AS(
+        (void)key->create_csr(trailing_byte), std::invalid_argument);
+      ERR_clear_error();
+    }
+  }
+}
+
+TEST_CASE("ML-DSA raw public keys")
+{
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key = make_mldsa_key_pair(info.id);
+      const auto raw = key->public_key_raw();
+      CHECK(raw.size() == info.public_key_size);
+      CHECK(
+        make_mldsa_public_key(key->public_key_der())->public_key_raw() == raw);
+
+      const auto imported = make_mldsa_public_key_from_raw(raw, info.id);
+      CHECK(imported->get_parameter_set() == info.id);
+      CHECK(imported->public_key_der() == key->public_key_der());
+      CHECK(imported->public_key_raw() == raw);
+      CHECK(imported->verify(message, key->sign(message)));
+
+      for (const auto& other : PARAMETER_SETS)
+      {
+        if (other.id != info.id)
+        {
+          CAPTURE(other.name);
+          CHECK_THROWS_AS(
+            (void)make_mldsa_public_key_from_raw(raw, other.id),
+            std::invalid_argument);
+        }
+      }
+      auto truncated = raw;
+      truncated.pop_back();
+      CHECK_THROWS_AS(
+        (void)make_mldsa_public_key_from_raw(truncated, info.id),
+        std::invalid_argument);
+      auto extended = raw;
+      extended.push_back(0);
+      CHECK_THROWS_AS(
+        (void)make_mldsa_public_key_from_raw(extended, info.id),
+        std::invalid_argument);
+      ERR_clear_error();
+    }
+  }
+}
+
+TEST_CASE("ML-DSA AKP COSE_Key")
+{
+  using namespace tav::cbor;
+  constexpr int64_t LABEL_KTY = 1;
+  constexpr int64_t LABEL_KID = 2;
+  constexpr int64_t LABEL_ALG = 3;
+  constexpr int64_t LABEL_PUB = -1;
+  constexpr int64_t KTY_AKP = 7;
+
+  // {1: 7, 3: alg, -1: pub}, with an optional kid, as RFC 9964 Section 3
+  const auto akp_cbor = [&](
+                          int64_t alg,
+                          const std::vector<uint8_t>& pub,
+                          std::optional<std::vector<uint8_t>> kid =
+                            std::nullopt) {
+    std::vector<MapItem> items;
+    items.emplace_back(make_signed(LABEL_KTY), make_signed(KTY_AKP));
+    if (kid.has_value())
+    {
+      items.emplace_back(make_signed(LABEL_KID), make_bytes(kid.value()));
+    }
+    items.emplace_back(make_signed(LABEL_ALG), make_signed(alg));
+    items.emplace_back(make_signed(LABEL_PUB), make_bytes(pub));
+    return make_map(std::move(items)).det_serialize();
+  };
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key_pair = make_mldsa_key_pair(info.id);
+      const auto raw = key_pair->public_key_raw();
+      const auto spki = key_pair->public_key_der();
+      const COSEKey key(make_mldsa_public_key(spki));
+      CHECK(key.kty() == COSEKeyType::AKP);
+      CHECK_FALSE(key.alg().has_value());
+      CHECK(key.akp_parameters().value().alg == info.cose_alg);
+      CHECK(key.akp_parameters().value().pub == raw);
+      CHECK_FALSE(key.ec2_parameters().has_value());
+      CHECK_FALSE(key.rsa_parameters().has_value());
+      CHECK_FALSE(key.okp_parameters().has_value());
+      CHECK(key.mldsa_public_key() != nullptr);
+      CHECK(key.ec_public_key() == nullptr);
+      CHECK(key.rsa_public_key() == nullptr);
+      CHECK(key.eddsa_public_key() == nullptr);
+
+      const auto encoded = key.to_cbor(info.cose_alg);
+      CHECK(encoded == akp_cbor(info.cose_alg, raw));
+      CHECK(
+        key.to_cbor(info.cose_alg, "kid-1") ==
+        akp_cbor(
+          info.cose_alg, raw, std::vector<uint8_t>{'k', 'i', 'd', '-', '1'}));
+      // The thumbprint covers kty, alg and pub (RFC 9964 Section 6)
+      CHECK(key.thumbprint_sha256() == Sha256Hash(encoded));
+      for (const auto& other : PARAMETER_SETS)
+      {
+        if (other.id != info.id)
+        {
+          CAPTURE(other.name);
+          CHECK_THROWS_AS(
+            (void)key.to_cbor(other.cose_alg), std::runtime_error);
+        }
+      }
+      CHECK_THROWS_AS(
+        (void)key.to_cbor(ccf::cose::alg::ES384), std::runtime_error);
+
+      const auto parsed = COSEKey::from_cbor(encoded);
+      CHECK(parsed.kty() == COSEKeyType::AKP);
+      CHECK(parsed.alg() == info.cose_alg);
+      CHECK(parsed.akp_parameters().value().alg == info.cose_alg);
+      CHECK(parsed.akp_parameters().value().pub == raw);
+      CHECK(parsed.mldsa_public_key()->get_parameter_set() == info.id);
+      CHECK(parsed.mldsa_public_key()->public_key_der() == spki);
+      CHECK(parsed.to_cbor(info.cose_alg) == encoded);
+      CHECK(parsed.thumbprint_sha256() == key.thumbprint_sha256());
+      CHECK(
+        COSEKey::from_cbor(key.to_cbor(info.cose_alg, "kid-1"))
+          .to_cbor(info.cose_alg) == encoded);
+
+      // Other imports of the same key
+      const auto cert = key_pair->self_sign(
+        "CN=CCF Service", "20260101000000Z", "20270101000000Z");
+      for (const auto& imported :
+           {COSEKey::from_der_public_key(spki),
+            COSEKey::from_der_cert(cert_pem_to_der(cert))})
+      {
+        CHECK(imported.kty() == COSEKeyType::AKP);
+        CHECK_FALSE(imported.alg().has_value());
+        CHECK(imported.to_cbor(info.cose_alg) == encoded);
+      }
+      CHECK_THROWS_AS(
+        (void)COSEKey::from_der_public_key(raw), std::invalid_argument);
+      CHECK_THROWS_AS(
+        (void)COSEKey::from_der_cert(spki), std::invalid_argument);
+      ERR_clear_error();
+    }
+  }
+}
+
+TEST_CASE("ML-DSA COSE_Sign1 ledger signatures")
+{
+  using namespace tav::cbor;
+  using ccf::cose::header::iana::ALG;
+  const std::vector<uint8_t> root(32, 0xab);
+  // The classical signature over the same header fields
+  const auto ec_key = make_ec_key_pair(CurveID::SECP384R1);
+  const auto ec_envelope = ccf::cose::sign_ledger(
+    *ec_key, "kid", 1700000000, "iss", "sub", "2.1", root);
+  const auto ec_phdr = nondet_parse(nondet_parse(ec_envelope)
+                                      .tag_at(ccf::cbor::tag::COSE_SIGN_1)
+                                      .array_at(0)
+                                      .as_bytes());
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      CHECK(ccf::cose::algorithm_for_parameter_set(info.id) == info.cose_alg);
+      CHECK(ccf::cose::parameter_set_for_algorithm(info.cose_alg) == info.id);
+      auto key = make_mldsa_key_pair(info.id);
+      const auto envelope = ccf::cose::sign_ledger(
+        *key, "kid", 1700000000, "iss", "sub", "2.1", root);
+      const auto fields =
+        nondet_parse(envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+      REQUIRE(fields.size() == 4);
+      const auto phdr_bytes = fields.array_at(0).as_bytes();
+      const auto phdr = nondet_parse(phdr_bytes);
+      CHECK(phdr.map_at(make_signed(ALG)).as_signed() == info.cose_alg);
+      CHECK(fields.array_at(1).size() == 0);
+      CHECK(fields.array_at(2).as_simple() == SimpleValue::Null);
+      const auto sig = fields.array_at(3).as_bytes();
+      CHECK(sig.size() == info.signature_size);
+
+      // Only the algorithm differs from the classical protected header
+      CHECK(std::ranges::equal(
+        ccf::cbor::with_entry(ec_phdr, ALG, make_signed(info.cose_alg))
+          .det_serialize(),
+        phdr_bytes));
+
+      // Pure ML-DSA over the Sig_structure, with an empty context
+      const auto tbs = ccf::cose::make_cose_sign1_tbs(phdr_bytes, root);
+      CHECK(key->verify(tbs, sig));
+      CHECK_FALSE(key->verify(tbs, sig, context));
+
+      // The key as published (AKP COSE_Key), as an SPKI, and as a certificate
+      const COSEKey cose_key(make_mldsa_public_key(key->public_key_der()));
+      const auto cert =
+        key->self_sign("CN=CCF Service", "20260101000000Z", "20270101000000Z");
+      for (const auto& verifier :
+           {make_cose_verifier_from_key(cose_key),
+            make_cose_verifier_from_key(
+              COSEKey::from_cbor(cose_key.to_cbor(info.cose_alg))),
+            make_cose_verifier_from_key(key->public_key_der()),
+            make_cose_verifier_from_pem_cert(cert)})
+      {
+        CHECK(verifier->verify_detached(envelope, root));
+        std::span<uint8_t> authenticated;
+        CHECK_FALSE(verifier->verify(envelope, authenticated));
+        const auto embedded =
+          ccf::cose::make_cose_sign1_envelope(phdr_bytes, root, sig, false);
+        REQUIRE(verifier->verify(embedded, authenticated));
+        CHECK(std::ranges::equal(authenticated, root));
+
+        auto wrong_root = root;
+        wrong_root.back() ^= 0xff;
+        CHECK_FALSE(verifier->verify_detached(envelope, wrong_root));
+        for (const auto size : {size_t{0}, sig.size() - 1, sig.size() + 1})
+        {
+          CAPTURE(size);
+          std::vector<uint8_t> malformed(sig.begin(), sig.end());
+          malformed.resize(size);
+          CHECK_FALSE(verifier->verify_decomposed(
+            phdr_bytes, root, malformed, info.cose_alg));
+        }
+
+        // The algorithm is pinned to the key's parameter set
+        for (const auto& other : PARAMETER_SETS)
+        {
+          CAPTURE(other.name);
+          CHECK(
+            verifier->verify_decomposed(
+              phdr_bytes, root, sig, other.cose_alg) == (other.id == info.id));
+        }
+        CHECK_FALSE(verifier->verify_decomposed(
+          phdr_bytes, root, sig, ccf::cose::alg::ES384));
+
+        // Classical and ML-DSA verifiers reject each other's signatures
+        CHECK_FALSE(verifier->verify_detached(ec_envelope, root));
+      }
+      CHECK_FALSE(make_cose_verifier_from_key(ec_key->public_key_der())
+                    ->verify_detached(envelope, root));
+      CHECK_FALSE(make_cose_verifier_from_key(
+                    COSEKey(make_mldsa_public_key(
+                      make_mldsa_key_pair(info.id)->public_key_der())))
+                    ->verify_detached(envelope, root));
+    }
+  }
+}
+
+TEST_CASE("ML-DSA COSE_Sign1 endorsements")
+{
+  using namespace tav::cbor;
+  using ccf::cose::header::iana::ALG;
+  const std::vector<uint8_t> root(32, 0xab);
+  const auto ec_key = make_ec_key_pair(CurveID::SECP384R1);
+  const auto protected_header = [](const std::vector<uint8_t>& envelope) {
+    const auto phdr = nondet_parse(envelope)
+                        .tag_at(ccf::cbor::tag::COSE_SIGN_1)
+                        .array_at(0)
+                        .as_bytes();
+    return std::vector<uint8_t>(phdr.begin(), phdr.end());
+  };
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key = make_mldsa_key_pair(info.id);
+      const auto endorsed = make_mldsa_key_pair(info.id)->public_key_der();
+      const auto cert =
+        key->self_sign("CN=CCF Service", "20260101000000Z", "20270101000000Z");
+
+      const auto check = [&](
+                           std::string_view epoch_end,
+                           std::span<const uint8_t> previous_root) {
+        const auto envelope = ccf::cose::sign_endorsement(
+          *key, 1700000000, "2.1", epoch_end, previous_root, endorsed);
+        const auto ec_envelope = ccf::cose::sign_endorsement(
+          *ec_key, 1700000000, "2.1", epoch_end, previous_root, endorsed);
+
+        // Only the algorithm differs from the classical protected header
+        const auto phdr_bytes = protected_header(envelope);
+        const auto ec_phdr_bytes = protected_header(ec_envelope);
+        CHECK(std::ranges::equal(
+          ccf::cbor::with_entry(
+            nondet_parse(ec_phdr_bytes), ALG, make_signed(info.cose_alg))
+            .det_serialize(),
+          phdr_bytes));
+
+        const auto fields =
+          nondet_parse(envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+        REQUIRE(fields.size() == 4);
+        CHECK(fields.array_at(1).size() == 0);
+        CHECK(std::ranges::equal(fields.array_at(2).as_bytes(), endorsed));
+        CHECK(fields.array_at(3).as_bytes().size() == info.signature_size);
+
+        // The endorsing key as stored with endorsements (SPKI), as published
+        // (AKP COSE_Key), and as a certificate
+        const COSEKey cose_key(make_mldsa_public_key(key->public_key_der()));
+        for (const auto& verifier :
+             {make_cose_verifier_from_key(key->public_key_der()),
+              make_cose_verifier_from_key(
+                COSEKey::from_cbor(cose_key.to_cbor(info.cose_alg))),
+              make_cose_verifier_from_pem_cert(cert)})
+        {
+          std::span<uint8_t> authenticated;
+          REQUIRE(verifier->verify(envelope, authenticated));
+          CHECK(std::ranges::equal(authenticated, endorsed));
+          CHECK_FALSE(verifier->verify(ec_envelope, authenticated));
+        }
+        std::span<uint8_t> authenticated;
+        CHECK_FALSE(make_cose_verifier_from_key(ec_key->public_key_der())
+                      ->verify(envelope, authenticated));
+        CHECK_FALSE(make_cose_verifier_from_key(
+                      make_mldsa_key_pair(info.id)->public_key_der())
+                      ->verify(envelope, authenticated));
+        return envelope;
+      };
+
+      INFO("Back-endorsement");
+      const auto back_endorsement = check("3.4", root);
+      const auto validity = extract_cose_endorsement_validity(back_endorsement);
+      CHECK(validity.from_txid == "2.1");
+      CHECK(validity.to_txid == "3.4");
+
+      INFO("Self-endorsement, with no epoch end or previous root");
+      check({}, {});
+    }
+  }
+}
+
+TEST_CASE("ML-DSA NIST ACVP pure sigVer known answers")
+{
+  for (const auto& vector : mldsa_test_vectors::ACVP_SIG_VER)
+  {
+    const auto pk = ccf::ds::from_hex(std::string(vector.public_key));
+    const auto contents = ccf::ds::from_hex(std::string(vector.message));
+    const auto signature = ccf::ds::from_hex(std::string(vector.signature));
+    const auto ctx = ccf::ds::from_hex(std::string(vector.context));
+    REQUIRE_FALSE(ctx.empty());
+    auto key = make_mldsa_public_key(
+      public_encoding(info_for(vector.parameters).nid, pk), vector.parameters);
+    CHECK(key->verify(contents, signature, ctx) == vector.test_passed);
+    CHECK_FALSE(key->verify(contents, signature));
+  }
+}
+
+TEST_CASE("ML-DSA RFC 9881 example certificates and private keys")
+{
+  // Certificates and keys produced by another implementation, with the
+  // encoding rules of RFC 9881 sections 2 to 6 checked on the certificate.
+  for (const auto& example : mldsa_test_vectors::RFC9881_EXAMPLES)
+  {
+    const auto& info = info_for(example.parameters);
+    SUBCASE(info.name)
+    {
+      const Pem cert{std::string(example.certificate)};
+      const Pem public_key_pem{std::string(example.public_key)};
+      const auto spki = der_from_pem(public_key_pem);
+
+      for (const auto& verifier :
+           {make_verifier(cert), make_verifier(cert_pem_to_der(cert))})
+      {
+        CHECK(verifier->public_key_der() == spki);
+        CHECK(verifier->subject() == "O=IETF, CN=LAMPS WG");
+        CHECK(
+          verifier->serial_number() ==
+          "159FFE6F22FD5CC42C524DF6FD5E28D0DE38F34E");
+        CHECK(
+          verifier->validity_period() ==
+          std::make_pair(
+            std::string("20200203043210Z"), std::string("20400129043210Z")));
+        CHECK(verifier->is_self_signed());
+        // Valid until 2040, so the validity period is checked as well
+        CHECK(verifier->verify_certificate({&cert}));
+      }
+      CHECK(
+        make_mldsa_public_key(public_key_pem, info.id)->public_key_der() ==
+        spki);
+      CHECK(
+        make_mldsa_public_key(spki, info.id)->get_parameter_set() == info.id);
+
+      {
+        const auto x509 = parse_cert(cert);
+        CHECK(X509_get_signature_nid(x509) == info.nid);
+        CHECK(X509_verify(x509, X509_get0_pubkey(x509)) == 1);
+
+        // The algorithm identifiers of the signature and of the public key
+        // carry the parameter set's OID and no parameters
+        const ASN1_BIT_STRING* signature = nullptr;
+        const X509_ALGOR* signature_algorithm = nullptr;
+        X509_get0_signature(&signature, &signature_algorithm, x509);
+        CHECK(
+          X509_ALGOR_cmp(signature_algorithm, X509_get0_tbs_sigalg(x509)) == 0);
+        const unsigned char* public_key = nullptr;
+        int public_key_length = 0;
+        X509_ALGOR* public_key_algorithm = nullptr;
+        OpenSSL::CHECK1(X509_PUBKEY_get0_param(
+          nullptr,
+          &public_key,
+          &public_key_length,
+          &public_key_algorithm,
+          X509_get_X509_PUBKEY(x509)));
+        for (const X509_ALGOR* algorithm :
+             {signature_algorithm,
+              static_cast<const X509_ALGOR*>(public_key_algorithm)})
+        {
+          const ASN1_OBJECT* oid = nullptr;
+          int parameters_type = 0;
+          X509_ALGOR_get0(&oid, &parameters_type, nullptr, algorithm);
+          CHECK(OBJ_obj2nid(oid) == info.nid);
+          CHECK(parameters_type == V_ASN1_UNDEF);
+        }
+
+        // Both BIT STRINGs hold the FIPS 204 encodings with no unused bits
+        CHECK(static_cast<size_t>(signature->length) == info.signature_size);
+        CHECK((signature->flags & ASN1_STRING_FLAG_BITS_LEFT) != 0);
+        CHECK((signature->flags & 0x07) == 0);
+        CHECK(static_cast<size_t>(public_key_length) == info.public_key_size);
+      }
+
+      // Every private key form is the key of the certificate, and signatures
+      // made with it verify under the certificate
+      const auto verifier = make_verifier(cert);
+      for (const auto& [form, pem] :
+           {std::pair{"seed", example.seed_private_key},
+            std::pair{"expanded", example.expanded_private_key},
+            std::pair{"both", example.both_private_key}})
+      {
+        CAPTURE(form);
+        const Pem private_pem{std::string(pem)};
+        for (const auto& key :
+             {make_mldsa_key_pair(private_pem),
+              make_mldsa_key_pair(der_from_pem(private_pem))})
+        {
+          CHECK(key->get_parameter_set() == info.id);
+          CHECK(key->public_key_der() == spki);
+          CHECK(verifier->verify(message, key->sign(message)));
+        }
+      }
+    }
+  }
+
+  SUBCASE("inconsistent seed and expanded private keys")
+  {
+    const auto& keys =
+      mldsa_test_vectors::RFC9881_INCONSISTENT_ML_DSA_44_PRIVATE_KEYS;
+    for (size_t index = 0; index < keys.size(); index++)
+    {
+      CAPTURE(index);
+      const Pem private_pem{std::string(keys[index])};
+      CHECK_THROWS_WITH_AS(
+        make_mldsa_key_pair(private_pem),
+        doctest::Contains("Malformed ML-DSA private key PEM"),
+        std::invalid_argument);
+      CHECK_THROWS_WITH_AS(
+        make_mldsa_key_pair(der_from_pem(private_pem)),
+        doctest::Contains("ML-DSA provider rejected the key material"),
+        std::invalid_argument);
+      CHECK(ERR_peek_error() == 0);
+    }
+  }
+}
+
+TEST_CASE("ML-DSA RFC 9964 example COSE_Keys and COSE_Sign1 messages")
+{
+  using namespace tav::cbor;
+  // Keys, thumbprints and signatures produced by another implementation
+  for (const auto& example : mldsa_test_vectors::RFC9964_EXAMPLES)
+  {
+    const auto& info = info_for(example.parameters);
+    SUBCASE(info.name)
+    {
+      const auto raw = ccf::ds::from_hex(std::string(example.raw_public_key));
+      const auto cose_key = ccf::ds::from_hex(std::string(example.cose_key));
+      const auto sign1 = ccf::ds::from_hex(std::string(example.sign1));
+      REQUIRE(raw.size() == info.public_key_size);
+
+      // {2: kid, 1: 7, 3: alg, -1: pub, -2: priv}
+      const auto example_key = nondet_parse(cose_key);
+      REQUIRE(example_key.size() == 5);
+      CHECK(example_key.map_at(make_signed(1)).as_signed() == 7);
+      CHECK(example_key.map_at(make_signed(3)).as_signed() == info.cose_alg);
+      CHECK(std::ranges::equal(
+        example_key.map_at(make_signed(-1)).as_bytes(), raw));
+      const auto kid = example_key.map_at(make_signed(2)).as_bytes();
+      REQUIRE(kid.size() == Sha256Hash::SIZE);
+      const auto seed = example_key.map_at(make_signed(-2)).as_bytes();
+      REQUIRE(seed.size() == 32);
+
+      const COSEKey key(make_mldsa_public_key_from_raw(raw, info.id));
+      CHECK(key.akp_parameters().value().alg == info.cose_alg);
+      CHECK(key.akp_parameters().value().pub == raw);
+      // kid is the RFC 9679 thumbprint (RFC 9964 Section 6)
+      CHECK(
+        key.thumbprint_sha256() ==
+        Sha256Hash::from_span(kid.first<Sha256Hash::SIZE>()));
+
+      // The encoded public key is the example without kid and priv. The
+      // example is encoded as a5, the kid item (02 5820 kid), the kty, alg
+      // and pub items in deterministic order (01 07, 03 38xx, 20 59xxxx pub),
+      // then the priv item (21 5820 seed), so those three items are copied
+      // from it.
+      const size_t kid_item_size = 1 + 2 + kid.size();
+      const size_t priv_item_size = 1 + 2 + seed.size();
+      const size_t kty_alg_pub_size = 2 + 3 + 4 + raw.size();
+      REQUIRE(
+        cose_key.size() ==
+        1 + kid_item_size + kty_alg_pub_size + priv_item_size);
+      CHECK(cose_key[0] == 0xa5);
+      CHECK(cose_key[1] == 0x02);
+      CHECK(cose_key[1 + kid_item_size] == 0x01);
+      CHECK(cose_key[cose_key.size() - priv_item_size] == 0x21);
+      std::vector<uint8_t> expected = {0xa3};
+      expected.insert(
+        expected.end(),
+        cose_key.begin() + 1 + kid_item_size,
+        cose_key.end() - priv_item_size);
+      CHECK(key.to_cbor(info.cose_alg) == expected);
+
+      const auto parsed = COSEKey::from_cbor(expected);
+      CHECK(parsed.alg() == info.cose_alg);
+      CHECK(parsed.akp_parameters().value().pub == raw);
+      CHECK(parsed.thumbprint_sha256() == key.thumbprint_sha256());
+      CHECK(parsed.to_cbor(info.cose_alg) == expected);
+      // The example carries the seed, so it is not accepted as a public key
+      CHECK_THROWS_WITH_AS(
+        (void)COSEKey::from_cbor(cose_key),
+        doctest::Contains("priv"),
+        std::invalid_argument);
+
+      // COSE_Sign1 with protected header {1: alg, 4: kid}, whose signature
+      // was made with the key over Sig_structure with an empty context
+      const auto verifier = make_cose_verifier_from_key(key);
+      std::span<uint8_t> payload;
+      CHECK(verifier->verify(sign1, payload));
+      CHECK(
+        std::string(payload.begin(), payload.end()) ==
+        "hello post quantum signatures");
+      auto tampered = sign1;
+      tampered[tampered.size() - 1] ^= 0x01;
+      CHECK_FALSE(verifier->verify(tampered, payload));
+      ERR_clear_error();
+    }
+  }
+}
+
+TEST_SUITE_END;

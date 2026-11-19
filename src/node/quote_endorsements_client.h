@@ -60,18 +60,6 @@ namespace ccf
     size_t server_retries_count = 0;
     size_t total_retries_count = 0;
 
-    struct QuoteEndorsementsClientMsg
-    {
-      QuoteEndorsementsClientMsg(
-        std::shared_ptr<QuoteEndorsementsClient> self_, Server server_) :
-        self(std::move(self_)),
-        server(std::move(server_))
-      {}
-
-      std::shared_ptr<QuoteEndorsementsClient> self;
-      Server server;
-    };
-
     void handle_success_response_unsafe(std::vector<uint8_t>&& data)
     {
       auto& server = servers.front();

@@ -5,12 +5,13 @@
 
 namespace ccf::nonstd
 {
-  // Iterators for map-keys and map-values
+  // Iterator for map keys
   template <typename TMapIterator>
   class KeyIterator : public TMapIterator
   {
   public:
     KeyIterator() : TMapIterator() {}
+
     KeyIterator(TMapIterator it) : TMapIterator(it) {}
 
     using Key =
@@ -29,25 +30,4 @@ namespace ccf::nonstd
     }
   };
 
-  template <typename TMapIterator>
-  class ValueIterator : public TMapIterator
-  {
-  public:
-    ValueIterator() : TMapIterator() {}
-    ValueIterator(TMapIterator it) : TMapIterator(it) {}
-
-    using Value =
-      typename std::iterator_traits<TMapIterator>::value_type::second_type;
-    using value_type = Value;
-
-    Value* operator->()
-    {
-      return TMapIterator::operator->()->second;
-    }
-
-    Value operator*()
-    {
-      return TMapIterator::operator*().second;
-    }
-  };
 }

@@ -31,7 +31,7 @@ TEST_CASE("NodeClient obtains owned snapshots of current certificates")
     "-----BEGIN CERTIFICATE-----\nself\n-----END CERTIFICATE-----");
   std::optional<ccf::crypto::Pem> endorsed_node_cert;
 
-  TestNodeClient node_client(nullptr, nullptr, [&]() {
+  TestNodeClient node_client(nullptr, [&]() {
     return endorsed_node_cert.value_or(self_signed_node_cert);
   });
 

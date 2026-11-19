@@ -1,0 +1,5 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_5.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_5.out
+@@ -190,2 +189,0 @@
+-RDP_TRACE {"batch":46,"kind":"send","message":"iamopen","node":"2","pre_version":63,"sequence":189,"target":"0"}
+-RDP_TRACE {"batch":46,"kind":"send","message":"iamopen","node":"2","pre_version":63,"sequence":190,"target":"1"}

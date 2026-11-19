@@ -9,5 +9,6 @@ namespace ccf::kv
 {
   using RawKvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
   using SizeKvStoreSerialiser = GenericSerialiseWrapper<SizeWriter>;
+  using SpanKvStoreSerialiser = GenericSerialiseWrapper<SpanWriter>;
   using RawKvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;
 }

@@ -23,6 +23,7 @@ namespace ccf::pal::snp
     std::string certificate_chain;
     std::string tcbm;
   };
+
   DECLARE_JSON_TYPE(ACIReportEndorsements);
   DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
     ACIReportEndorsements,
@@ -52,6 +53,7 @@ namespace ccf::pal::snp
 
       bool operator==(const EndpointInfo&) const = default;
     };
+
     using Server = std::list<EndpointInfo>;
 
     // First server in list is always used first and other servers are provided
@@ -65,6 +67,7 @@ namespace ccf::pal::snp
     AMD = 1,
     THIM = 2,
   };
+
   DECLARE_JSON_ENUM(
     EndorsementsEndpointType,
     {{EndorsementsEndpointType::Azure, "Azure"},
@@ -80,6 +83,7 @@ namespace ccf::pal::snp
 
     bool operator==(const EndorsementsServer&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndorsementsServer);
   DECLARE_JSON_REQUIRED_FIELDS(EndorsementsServer);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -203,6 +207,7 @@ namespace ccf::pal::snp
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::pal::snp::EndorsementEndpointsConfiguration::EndpointInfo>
 {
@@ -221,4 +226,5 @@ struct formatter<ccf::pal::snp::EndorsementEndpointsConfiguration::EndpointInfo>
       ctx.out(), "http{}://{}:{}", e.tls ? "s" : "", e.host, e.port);
   }
 };
+
 FMT_END_NAMESPACE

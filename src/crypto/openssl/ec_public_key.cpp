@@ -4,6 +4,7 @@
 #include "crypto/openssl/ec_public_key.h"
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/bignum.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 
@@ -25,8 +26,9 @@ namespace ccf::crypto
   using namespace OpenSSL;
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL() = default;
+
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(EVP_PKEY* key) :
-    PublicKey_OpenSSL(key)
+    key(key, EVP_PKEY_free)
   {
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
@@ -34,25 +36,31 @@ namespace ccf::crypto
         "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
-  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem) :
-    PublicKey_OpenSSL(pem)
+
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    ECPublicKey_OpenSSL(pkey.release())
+  {}
+
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem)
   {
+    Unique_BIO mem(pem);
+    key.reset(PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr));
+    OpenSSL::CHECKNULL(key);
+
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
       throw std::logic_error(
         "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
+
   ECPublicKey_OpenSSL::~ECPublicKey_OpenSSL() = default;
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     Unique_BIO buf(der);
-    key = d2i_PUBKEY_bio(buf, &key);
-    if (key == nullptr)
-    {
-      throw std::runtime_error("Could not read DER");
-    }
+    key.reset(d2i_PUBKEY_bio(buf, nullptr));
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
@@ -72,8 +80,8 @@ namespace ccf::crypto
     std::pair<Unique_BIGNUM, Unique_BIGNUM> xy;
     auto x_raw = raw_from_b64url(jwk.x);
     auto y_raw = raw_from_b64url(jwk.y);
-    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), xy.first));
-    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), xy.second));
+    xy.first = bn_from_bytes(x_raw);
+    xy.second = bn_from_bytes(y_raw);
 
     return xy;
   }
@@ -98,7 +106,6 @@ namespace ccf::crypto
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
   {
-    key = EVP_PKEY_new();
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     auto buf = ec_point_public_from_jwk(jwk);
 
@@ -113,8 +120,11 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(
-      pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
+    EVP_PKEY* parsed = nullptr;
+    const auto rc = EVP_PKEY_fromdata(
+      pctx, &parsed, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params));
+    key.reset(parsed);
+    CHECK1(rc);
   }
 
   CurveID ECPublicKey_OpenSSL::get_curve_id() const
@@ -123,13 +133,21 @@ namespace ccf::crypto
     switch (nid)
     {
       case NID_secp384r1:
+      {
         return CurveID::SECP384R1;
+      }
       case NID_X9_62_prime256v1:
+      {
         return CurveID::SECP256R1;
+      }
       case NID_secp521r1:
+      {
         return CurveID::SECP521R1;
+      }
       default:
+      {
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+      }
     }
     return CurveID::NONE;
   }
@@ -165,17 +183,27 @@ namespace ccf::crypto
     switch (gid)
     {
       case CurveID::NONE:
+      {
         return NID_undef;
+      }
       case CurveID::SECP384R1:
+      {
         return NID_secp384r1;
+      }
       case CurveID::SECP256R1:
+      {
         return NID_X9_62_prime256v1;
+      }
       case CurveID::SECP521R1:
+      {
         return NID_secp521r1;
+      }
       case CurveID::CURVE25519:
       case CurveID::X25519:
+      {
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
+      }
     }
     return NID_undef;
   }
@@ -221,10 +249,8 @@ namespace ccf::crypto
     bool ok = rc == 1;
     if (!ok)
     {
-      int ec = ERR_get_error();
-      LOG_DEBUG_FMT(
-        "OpenSSL signature verification failure: {}",
-        OpenSSL::error_string(ec));
+      const auto error = OpenSSL::first_error();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
     }
 
     return ok;
@@ -290,18 +316,16 @@ namespace ccf::crypto
 
     if (pkey == nullptr)
     {
-      EVP_PKEY_free(pkey);
-
       throw std::logic_error(fmt::format(
         "Error loading public key. Curve: {}, err: {}",
         curve_name,
-        OpenSSL::error_string(ERR_get_error())));
+        OpenSSL::first_error()));
     }
 
-    Unique_PKEY pk(pkey);
-    EVP_PKEY_up_ref(pk);
-    EVP_PKEY_free(pkey);
-    return pk;
+    // Take over the single reference that EVP_PKEY_fromdata returned, rather
+    // than duplicating the key (as Unique_PKEY(EVP_PKEY*) does), so that the
+    // result is the sole owner and no caller has to drop an extra reference.
+    return {pkey, EVP_PKEY_free};
   }
 
   ECPublicKey::Coordinates ECPublicKey_OpenSSL::coordinates() const
@@ -323,8 +347,8 @@ namespace ccf::crypto
     int sz = (EC_GROUP_get_degree(group) + CHAR_BIT - 1) / CHAR_BIT;
     r.x.resize(sz);
     r.y.resize(sz);
-    BN_bn2binpad(x, r.x.data(), sz);
-    BN_bn2binpad(y, r.y.data(), sz);
+    CHECKPOSITIVE(BN_bn2binpad(x, r.x.data(), sz));
+    CHECKPOSITIVE(BN_bn2binpad(y, r.y.data(), sz));
     return r;
   }
 

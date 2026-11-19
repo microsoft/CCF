@@ -44,6 +44,7 @@ namespace ccf
     JwtIssuer issuer;
     std::optional<JwtIssuer> constraint;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(OpenIDJWKMetadata);
   DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadata, issuer, public_key);
   DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadata, constraint);
@@ -57,6 +58,7 @@ namespace ccf
     JwtIssuer issuer;
     std::optional<JwtIssuer> constraint;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(OpenIDJWKMetadataLegacy);
   DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadataLegacy, issuer, cert);
   DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadataLegacy, constraint);
@@ -83,6 +85,7 @@ namespace ccf
       return keys != rhs.keys;
     }
   };
+
   DECLARE_JSON_TYPE(JsonWebKeySet);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeySet, keys);
 }

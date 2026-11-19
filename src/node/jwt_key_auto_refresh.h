@@ -8,6 +8,7 @@
 #include "ccf/service/tables/jwt.h"
 #include "http/http_builder.h"
 #include "http_client/curl.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/rpc/http_rpc_context.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/rpc_map.h"
@@ -19,6 +20,8 @@
 #include <curl/curl.h>
 #include <fmt/format.h>
 #include <map>
+#include <memory>
+#include <optional>
 
 namespace ccf
 {
@@ -588,8 +591,20 @@ namespace ccf
         return;
       }
 
-      auto tx = network.tables->create_read_only_tx();
-      auto* jwt_issuers = tx.ro(network.jwt_issuers);
+      std::unique_ptr<ccf::kv::ReadOnlyTx> tx;
+      ccf::JwtIssuers::ReadOnlyHandle* jwt_issuers = nullptr;
+      if (!ccf::retry_on_compacted_version_conflict(
+            "JWT key auto-refresh: Issuer lookup", [&] {
+              tx = network.tables->create_read_only_tx_ptr();
+              jwt_issuers = tx->ro(network.jwt_issuers);
+            }))
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Could not read issuers after repeated "
+          "compaction conflicts, skipping refresh");
+        return;
+      }
+
       jwt_issuers->foreach(
         [this](const JwtIssuer& issuer, const JwtIssuerMetadata& metadata) {
           if (stopped.load())
@@ -609,9 +624,22 @@ namespace ccf
         return;
       }
 
-      auto tx = network.tables->create_read_only_tx();
-      auto* jwt_issuers = tx.ro(network.jwt_issuers);
-      const auto metadata = jwt_issuers->get(issuer);
+      std::optional<JwtIssuerMetadata> metadata;
+      if (!ccf::retry_on_compacted_version_conflict(
+            fmt::format("JWT key auto-refresh: Lookup of issuer '{}'", issuer),
+            [&] {
+              auto tx = network.tables->create_read_only_tx();
+              metadata = tx.ro(network.jwt_issuers)->get(issuer);
+            }))
+      {
+        LOG_FAIL_FMT(
+          "JWT key auto-refresh: Could not read issuer '{}' after repeated "
+          "compaction conflicts, scheduling retry",
+          issuer);
+        schedule_retry(issuer);
+        return;
+      }
+
       if (!metadata.has_value())
       {
         LOG_DEBUG_FMT(

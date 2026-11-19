@@ -26,30 +26,16 @@ namespace ccf
   private:
     static constexpr auto KZ_KEY_SIZE = ccf::crypto::GCM_DEFAULT_KEY_SIZE;
     bool has_wrapped = false;
-    size_t num_shares;
-    size_t recovery_threshold;
     ccf::crypto::sharing::Share secret;
     std::vector<ccf::crypto::sharing::Share> shares;
 
   public:
     SharedLedgerSecretWrappingKey(
-      size_t num_shares_, size_t recovery_threshold_) :
-      num_shares(num_shares_),
-      recovery_threshold(recovery_threshold_)
+      size_t num_shares_, size_t recovery_threshold_)
     {
-      shares.resize(num_shares);
+      shares.resize(num_shares_);
       ccf::crypto::sharing::sample_secret_and_shares(
-        secret, shares, recovery_threshold);
-    }
-
-    [[nodiscard]] size_t get_num_shares() const
-    {
-      return num_shares;
-    }
-
-    [[nodiscard]] size_t get_recovery_threshold() const
-    {
-      return recovery_threshold;
+        secret, shares, recovery_threshold_);
     }
 
     [[nodiscard]] std::vector<std::vector<uint8_t>> get_shares() const

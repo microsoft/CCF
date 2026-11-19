@@ -1,0 +1,2 @@
+JWT/JWK auto-refresh and SEV-SNP endorsement fetches now verify outbound TLS against the node host's system trust store, with optional `SSL_CERT_FILE` and `SSL_CERT_DIR` overrides as described in [JWT authentication](doc/build_apps/auth/jwt.rst#setting-up-a-token-issuer-with-automatic-key-refresh).
+The `set_ca_cert_bundle` and `remove_ca_cert_bundle` governance actions have been removed, `set_jwt_issuer` ignores `ca_cert_bundle_name`, and `/gov/service/jwk` no longer reports governed CA bundles.

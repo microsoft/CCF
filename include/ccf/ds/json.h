@@ -176,6 +176,7 @@ namespace std
     }
   }
 }
+
 // NOLINTEND(cert-dcl58-cpp)
 
 // FOREACH macro machinery for counting args

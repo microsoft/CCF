@@ -17,6 +17,9 @@ jobs:
     runs-on: [gha-vmss-d16av7-ci]
     container:
       image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -40,7 +43,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DTEST_MLDSA=ON ..
           grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
@@ -60,7 +63,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual A"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-al4-virtual-a
           path: |
@@ -68,6 +71,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
@@ -75,9 +79,12 @@ jobs:
 
   vmss-virtual-b:
     name: "AL4 VMSS Virtual B" # End-to-end tests (bucket_b)
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-b]
     container:
       image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -128,7 +135,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual B"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-al4-virtual-b
           path: |
@@ -136,6 +143,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
@@ -143,9 +151,12 @@ jobs:
 
   vmss-virtual-c:
     name: "AL4 VMSS Virtual C" # End-to-end tests (bucket_c)
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -162,6 +173,10 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
 
       - name: "Build Debug"
         run: |
@@ -185,7 +200,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual C"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-al4-virtual-c
           path: |
@@ -193,6 +208,7 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore

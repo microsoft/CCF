@@ -20,7 +20,7 @@
 #include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
 #include "node/js_policy.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 #include <cstring>
 #include <tav/cbor.hpp>
@@ -176,6 +176,7 @@ namespace ccf
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
   std::optional<pal::snp::Attestation> AttestationProvider::get_snp_attestation(
     const QuoteInfo& quote_info)
   {
@@ -199,6 +200,7 @@ namespace ccf
       &legacy_report, quote_info.quote.data(), sizeof(pal::snp::Attestation));
     return legacy_report;
   }
+
 #pragma GCC diagnostic pop
 
   std::optional<HostData> AttestationProvider::get_host_data(

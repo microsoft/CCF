@@ -17,7 +17,7 @@ namespace ccf
   class GovEndpointRegistry : public CommonEndpointRegistry
   {
   private:
-    static constexpr auto LATEST_API_DOCUMENT_VERSION = "5.0.0";
+    static constexpr auto LATEST_API_DOCUMENT_VERSION = "5.0.1";
 
     NetworkState& network;
     ShareManager share_manager;

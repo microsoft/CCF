@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#![forbid(unsafe_code)]
+
 //! ACI/UVM endorsement verification.
 //!
 //! This crate verifies an ACI COSE_Sign1 endorsement against a verified
@@ -12,6 +14,9 @@
 //! 2. Verify the UVM endorsement COSE, its `x5chain`, and its `did:x509` root.
 //! 3. Bind the two verified artifacts by checking that the UVM launch
 //!    measurement matches the attestation report measurement.
+//!
+//! The UVM endorsement is parsed before anything authenticates it, and its
+//! size is unchecked: bound untrusted input before calling.
 //!
 
 mod didx509;
@@ -130,7 +135,8 @@ pub mod synchronous {
     /// Verify an ACI/UVM endorsement independently of the attestation report.
     ///
     /// This verifies the COSE_Sign1 signature, the `x5chain`, and that the
-    /// chain root matches `trusted_didx509`.
+    /// chain root matches `trusted_didx509`. The endorsement size is
+    /// unchecked: bound untrusted input before calling.
     pub fn verify_uvm_endorsement<'a>(
         uvm_endorsement: &'a [u8],
         trusted_didx509: &str,
@@ -360,6 +366,8 @@ pub mod asynchronous {
     /// chain root matches `trusted_didx509`. This is stage 2 of the ACI flow;
     /// call [`verify_caci_attestation`] afterwards to bind the UVM
     /// endorsement to the verified attestation report and relying-party policy.
+    /// The endorsement size is unchecked: bound untrusted input before
+    /// calling.
     pub async fn verify_uvm_endorsement<'a>(
         uvm_endorsement: &'a [u8],
         trusted_didx509: &str,

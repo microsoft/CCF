@@ -429,6 +429,54 @@ function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
   );
 }
 
+function setPQServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
+  const rawConfig =
+    ccf.kv["public:ccf.gov.service.config"].get(getSingletonKvKey());
+  if (rawConfig === undefined) {
+    throw new Error("Service configuration could not be found");
+  }
+  const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
+
+  const default_validity_period_days = 365;
+  const max_allowed_cert_validity_period_days =
+    serviceConfig.maximum_service_certificate_validity_days ??
+    default_validity_period_days;
+
+  if (
+    validityPeriodDays !== undefined &&
+    validityPeriodDays > max_allowed_cert_validity_period_days
+  ) {
+    throw new Error(
+      `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`,
+    );
+  }
+
+  const serviceInfoTable = "public:ccf.gov.service.info";
+  const rawServiceInfo = ccf.kv[serviceInfoTable].get(getSingletonKvKey());
+  if (rawServiceInfo === undefined) {
+    throw new Error("Service info could not be found");
+  }
+  const serviceInfo = ccf.bufToJsonCompatible(rawServiceInfo);
+  if (serviceInfo.pq_cert === undefined) {
+    throw new Error("Service has no ML-DSA identity");
+  }
+
+  const renewed_pq_service_certificate =
+    ccf.network.generatePQNetworkCertificate(
+      validFrom,
+      validityPeriodDays ?? max_allowed_cert_validity_period_days,
+    );
+  if (renewed_pq_service_certificate === undefined) {
+    throw new Error("This node holds no ML-DSA service key");
+  }
+
+  serviceInfo.pq_cert = renewed_pq_service_certificate;
+  ccf.kv[serviceInfoTable].set(
+    getSingletonKvKey(),
+    ccf.jsonCompatibleToBuf(serviceInfo),
+  );
+}
+
 function setNodeCertificateValidityPeriod(
   nodeId,
   nodeInfo,
@@ -647,19 +695,7 @@ const actions = new Map([
           ccf.jsonCompatibleToBuf(member_info),
         );
 
-        const rawSignature =
-          ccf.kv["public:ccf.internal.signatures"].get(getSingletonKvKey());
-        if (rawSignature === undefined) {
-          ccf.kv["public:ccf.gov.members.acks"].set(rawMemberId);
-        } else {
-          const signature = ccf.bufToJsonCompatible(rawSignature);
-          const ack = {};
-          ack.state_digest = signature.root;
-          ccf.kv["public:ccf.gov.members.acks"].set(
-            rawMemberId,
-            ccf.jsonCompatibleToBuf(ack),
-          );
-        }
+        ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
       },
     ),
   ],
@@ -939,11 +975,13 @@ const actions = new Map([
               ["readwrite", "readonly", "historical"],
               `${prefix2}.mode`,
             );
-            checkEnum(
-              info.forwarding_required,
-              ["sometimes", "always", "never"],
-              `${prefix2}.forwarding_required`,
-            );
+            if (info.forwarding_required !== undefined) {
+              checkEnum(
+                info.forwarding_required,
+                ["sometimes", "always", "never"],
+                `${prefix2}.forwarding_required`,
+              );
+            }
 
             const redirection_strategy = info.redirection_strategy;
             if (redirection_strategy !== undefined) {
@@ -1606,6 +1644,33 @@ const actions = new Map([
       },
       function (args) {
         setServiceCertificateValidityPeriod(
+          args.valid_from,
+          args.validity_period_days,
+        );
+      },
+    ),
+  ],
+  [
+    "set_pq_service_certificate_validity",
+    new Action(
+      function (args) {
+        checkType(args.valid_from, "string", "valid_from");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days",
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days",
+          );
+        }
+      },
+      function (args) {
+        setPQServiceCertificateValidityPeriod(
           args.valid_from,
           args.validity_period_days,
         );

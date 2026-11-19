@@ -3,36 +3,42 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/hash_bytes.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/hex.h"
+#include "ccf/ds/json.h"
+#include "ccf/ds/net_address.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "ccf/kv/version.h"
-#include "ccf/node/cose_signatures_config.h"
-#include "ccf/node/startup_config.h"
-#include "ccf/service/consensus_type.h"
-#include "ccf/service/reconfiguration_type.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "kv/ledger_chunker_interface.h"
 #include "serialised_entry_format.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <list>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -204,6 +210,11 @@ namespace ccf::kv
     [[nodiscard]] virtual Configuration::Nodes get_latest_configuration_unsafe()
       const = 0;
     virtual ConsensusDetails get_details() = 0;
+    // Trace that the transaction at seqno sets retired_committed on node_ids.
+    // Must not change consensus state: set_retired_committed does that once
+    // the transaction is globally committed.
+    virtual void trace_retired_committed_tx(
+      ccf::SeqNo seqno, const std::vector<NodeId>& node_ids) = 0;
   };
 
   using BatchVector = std::vector<std::tuple<
@@ -315,6 +326,12 @@ namespace ccf::kv
 
     virtual void start_map(const std::string& name, SecurityDomain domain) = 0;
     virtual void serialise_raw(const std::vector<uint8_t>& raw) = 0;
+    // Appends a size-prefixed payload of the given size, written in place by
+    // fill, to avoid an intermediate copy of large payloads. fill is passed
+    // the payload's span, of exactly size bytes, and must write all of it.
+    // Serialisers which only measure sizes do not call fill.
+    virtual void serialise_raw_in_place(
+      size_t size, const std::function<void(std::span<uint8_t>)>& fill) = 0;
     virtual void serialise_view_history(
       const std::vector<Version>& view_history) = 0;
     virtual void serialise_entry_version(const Version& version) = 0;
@@ -349,6 +366,9 @@ namespace ccf::kv
     virtual uint64_t deserialise_write_header() = 0;
     virtual std::tuple<SerialisedKey, SerialisedValue> deserialise_write() = 0;
     virtual std::vector<uint8_t> deserialise_raw() = 0;
+    // As deserialise_raw(), without copying. The returned span is only valid
+    // while both the deserialiser and the data it was initialised with are.
+    virtual std::span<const uint8_t> deserialise_raw_span() = 0;
     virtual std::vector<Version> deserialise_view_history() = 0;
     virtual uint64_t deserialise_remove_header() = 0;
     virtual SerialisedKey deserialise_remove() = 0;
@@ -412,9 +432,14 @@ namespace ccf::kv
     virtual void set_term(ccf::kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
+    // Called once the node is part of the network and may sign. Also enables
+    // on-demand signatures via try_emit_signature(), which are suppressed
+    // until then.
     virtual void start_signature_emit_timer() = 0;
+    // pq_keypair is nullptr for a service without an ML-DSA identity.
     virtual void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> keypair,
+      ccf::crypto::MLDSAKeyPairPtr pq_keypair,
       const COSESignaturesConfig& cose_signatures) = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
   };
@@ -429,7 +454,10 @@ namespace ccf::kv
     virtual bool is_backup() = 0;
     virtual bool is_candidate() = 0;
     virtual bool can_replicate() = 0;
-    virtual bool is_at_max_capacity() = 0;
+
+    // Whether frontends should shed new requests due to local overload.
+    // This does not prevent consensus from processing replication traffic.
+    virtual bool should_apply_backpressure() = 0;
 
     enum class SignatureDisposition : uint8_t
     {
@@ -457,16 +485,28 @@ namespace ccf::kv
     virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;
 
+    // The caller authenticates the sender and message before dispatch. The
+    // message contains only the CCF consensus protocol message struct; the
+    // payload contains appended ledger entries, which still require ledger
+    // validation. Both views are borrowed for the duration of this call.
     virtual void recv_message(
-      const NodeId& from, const uint8_t* data, size_t size) = 0;
+      const NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> payload = {}) = 0;
 
     virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
-    virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
 
     virtual void set_retired_committed(
       ccf::SeqNo /*seqno*/, const std::vector<NodeId>& node_ids)
+    {}
+
+    // Called once the deletion of these nodes from the service's node table
+    // is globally committed, for instance when a recovery deletes the
+    // previous service's nodes without retiring them first.
+    virtual void remove_deleted_nodes(
+      ccf::SeqNo /*seqno*/, const std::vector<NodeId>& /*node_ids*/)
     {}
 
     virtual void nominate_successor() {}
@@ -555,6 +595,60 @@ namespace ccf::kv
       const ccf::TxID& tx_id,
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) = 0;
+
+    // As above, writing into the given spans. plain and cipher may be the same
+    // buffer (in-place encryption), but must otherwise not overlap each other,
+    // serialised_header or additional_data. Implementations must support
+    // in-place encryption: this default implementation copies plain first.
+    virtual bool encrypt(
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> additional_data,
+      std::span<uint8_t> serialised_header,
+      std::span<uint8_t> cipher,
+      const ccf::TxID& tx_id,
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false)
+    {
+      std::vector<uint8_t> plain_bytes;
+      std::vector<uint8_t> aad_bytes;
+      if (!plain.empty())
+      {
+        plain_bytes.assign(plain.begin(), plain.end());
+      }
+      if (!additional_data.empty())
+      {
+        aad_bytes.assign(additional_data.begin(), additional_data.end());
+      }
+      std::vector<uint8_t> header;
+      std::vector<uint8_t> output;
+      if (!encrypt(
+            plain_bytes,
+            aad_bytes,
+            header,
+            output,
+            tx_id,
+            entry_type,
+            historical_hint))
+      {
+        return false;
+      }
+      if (
+        header.size() != serialised_header.size() ||
+        output.size() != cipher.size())
+      {
+        throw std::logic_error("Incorrect transaction encryption output size");
+      }
+      if (!header.empty())
+      {
+        std::copy(header.begin(), header.end(), serialised_header.begin());
+      }
+      if (!output.empty())
+      {
+        std::copy(output.begin(), output.end(), cipher.begin());
+      }
+      return true;
+    }
+
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -563,6 +657,60 @@ namespace ccf::kv
       Version version,
       Term& term,
       bool historical_hint = false) = 0;
+
+    // Implementations should override this to avoid copying the inputs, which
+    // may be as large as a snapshot.
+    virtual bool decrypt(
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      std::vector<uint8_t>& plain,
+      Version version,
+      Term& term,
+      bool historical_hint = false)
+    {
+      return decrypt(
+        std::vector<uint8_t>(cipher.begin(), cipher.end()),
+        std::vector<uint8_t>(additional_data.begin(), additional_data.end()),
+        std::vector<uint8_t>(
+          serialised_header.begin(), serialised_header.end()),
+        plain,
+        version,
+        term,
+        historical_hint);
+    }
+
+    // Decrypts data in place, replacing the ciphertext with the plaintext.
+    // data must not overlap additional_data or serialised_header. If this
+    // returns false, data holds no unauthenticated plaintext, but its contents
+    // are otherwise unspecified. Implementations should override this to avoid
+    // a second buffer of data's size: this default decrypts into one, and
+    // copies the plaintext back.
+    virtual bool decrypt_in_place(
+      std::span<uint8_t> data,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      Version version,
+      Term& term,
+      bool historical_hint = false)
+    {
+      std::vector<uint8_t> plain;
+      if (
+        !decrypt(
+          std::span<const uint8_t>(data),
+          additional_data,
+          serialised_header,
+          plain,
+          version,
+          term,
+          historical_hint) ||
+        plain.size() != data.size())
+      {
+        return false;
+      }
+      std::copy(plain.begin(), plain.end(), data.begin());
+      return true;
+    }
 
     virtual void rollback(Version version) = 0;
 
@@ -580,6 +728,7 @@ namespace ccf::kv
         "ce:{}.{}:{}", tx_id.view, tx_id.seqno, ccf::ds::to_hex(nonce));
     }
   };
+
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
   class AbstractSnapshotter
@@ -592,6 +741,7 @@ namespace ccf::kv
     virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;
     virtual void rollback(ccf::kv::Version v) = 0;
   };
+
   using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
 
   class AbstractChangeSet
@@ -614,6 +764,7 @@ namespace ccf::kv
   };
 
   class AbstractStore;
+
   class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
                       public GetName
   {
@@ -643,9 +794,6 @@ namespace ccf::kv
     virtual void unlock() = 0;
     virtual SecurityDomain get_security_domain() = 0;
     virtual void clear() = 0;
-
-    virtual AbstractMap* clone(AbstractStore* store) = 0;
-    virtual void swap(AbstractMap* map) = 0;
   };
 
   class Tx;
@@ -682,8 +830,8 @@ namespace ccf::kv
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
-    virtual std::optional<std::tuple<Version, Version, Version>> next_version(
-      bool commit_new_map, Term expected_commit_term) = 0;
+    virtual std::optional<std::tuple<Version, Version>> next_version(
+      Term expected_commit_term) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
@@ -760,10 +908,12 @@ namespace ccf::kv
   {
   public:
     ScopedStoreMapsLock() = delete;
+
     ScopedStoreMapsLock(StorePointer _store) : store(std::move(_store))
     {
       store->lock_maps();
     }
+
     ~ScopedStoreMapsLock()
     {
       store->unlock_maps();

@@ -19,6 +19,8 @@ The micro-benchmark tests can be run from the CCF build directory:
 
 These test performance-critical features of CCF such as certificate verification and KV alterations.
 
+The picobench runner does not change CPU affinity. For reproducible comparisons, use the same CPU affinity and machine configuration for both runs. On Linux, use ``taskset`` when an explicit CPU selection is needed, allowing enough CPUs for multi-threaded benchmarks such as ``task_bench``.
+
 
 End-to-end performance tests
 ----------------------------
@@ -31,46 +33,42 @@ The end-to-end service performance tests can also be from the CCF build director
 
 Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The Python test wrappers print throughput and latency summary statistics when the test completes.
 
+All Locust benchmarks enable buffered Fluentd export of ``ccf.log`` to a local Forward collector.
+The ``fluentd`` observability-overhead benchmark exports all CCF tags (``ccf``) with the same buffered delivery policy.
+Run it alone from the build directory; CTest sets ``CCF_BENCHMARK_FLUENTD=1`` for this test:
+
+.. code-block:: bash
+
+    ./tests.sh -VV -R '^fluentd$' -C perf --no-tests=error
+
+Each Locust run saves collector tags, record and byte counts, process counts and exporter drops in ``workspace/<test-label>_common/<signature-interval>ms_fluentd.json`` under the build directory.
+For the ``fluentd`` test above, this is ``workspace/fluentd_common/20ms_fluentd.json``.
+See :ref:`observability_export` for the event format and delivery guarantees.
+
 For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``plot_tx_times`` Python script which produces plots from this data.
 
 Profiling
 ---------
 
-End-to-end performance tests can be run with the Linux utility ``perf``
-attached to the nodes to produce profile data. Set the ``CCF_PERF`` environment
-variable before running a test to enable this:
+End-to-end performance tests can be run with the Linux utility ``perf`` attached to the nodes to produce profile data. Set the ``CCF_PERF`` environment variable before running a test to enable this:
 
 .. code-block:: bash
 
     CCF_PERF=1 ./tests.sh -VV -R '^basic_blocking_locust$' -C perf
 
-By default, nodes run under
-``perf record -m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet``.
+By default, nodes run under ``perf record -m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet``.
 These options keep profiling reliable and useful in development containers:
 
-- ``-m 16`` limits the mmap data buffer to 16 pages, avoiding failures caused
-    by the low ``perf_event_mlock_kb`` limit in constrained environments such as
-    Codespaces.
-- ``-e task-clock:u`` selects the software task-clock event and records only
-    user-space execution. Unlike hardware counters, this event remains available
-    when the host does not expose a hardware PMU; excluding the kernel also
-    avoids inaccessible kernel symbols.
-- ``-F 99`` samples at 99 Hz, bounding collection overhead while retaining
-    enough detail for whole-test profiles.
-- ``-g --call-graph dwarf`` records call chains using DWARF stack unwinding,
-    which preserves the C++ stacks needed by ``perf report`` and flame graphs.
-- ``--quiet`` suppresses non-fatal recording warnings that would otherwise be
-    mixed into each node's error log.
+- ``-m 16`` limits the mmap data buffer to 16 pages, avoiding failures caused by the low ``perf_event_mlock_kb`` limit in constrained environments such as Codespaces.
+- ``-e task-clock:u`` selects the software task-clock event and records only user-space execution.
+  Unlike hardware counters, this event remains available when the host does not expose a hardware PMU; excluding the kernel also avoids inaccessible kernel symbols.
+- ``-F 99`` samples at 99 Hz, bounding collection overhead while retaining enough detail for whole-test profiles.
+- ``-g --call-graph dwarf`` records call chains using DWARF stack unwinding, which preserves the C++ stacks needed by ``perf report`` and flame graphs.
+- ``--quiet`` suppresses non-fatal recording warnings that would otherwise be mixed into each node's error log.
 
-Set ``CCF_PERF_ARGS`` to replace these recording options. The harness always
-appends ``-o perf.data --`` so that each node writes to a predictable path in
-its workspace directory and the remaining arguments invoke the node.
+Set ``CCF_PERF_ARGS`` to replace these recording options. The harness always appends ``-o perf.data --`` so that each node writes to a predictable path in its workspace directory and the remaining arguments invoke the node.
 
-The profiling process requires permission to use ``perf_event_open``. The
-CCF development containers install ``perf`` and grant the ``PERFMON``
-capability. Hardware performance counters may still be unavailable when the
-host does not expose a hardware PMU; the default software task-clock event
-remains available in that case.
+The profiling process requires permission to use ``perf_event_open``. The CCF development containers install ``perf`` and grant the ``PERFMON`` capability. Hardware performance counters may still be unavailable when the host does not expose a hardware PMU; the default software task-clock event remains available in that case.
 
 Inspect the recorded profile directly with:
 

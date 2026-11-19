@@ -6,7 +6,6 @@ import os
 import shutil
 import ssl
 import tempfile
-import threading
 import time
 import uuid
 from contextlib import AbstractContextManager
@@ -19,6 +18,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509 import load_pem_x509_certificate
 from loguru import logger as LOG
 
+import infra.concurrency
 import infra.crypto
 from infra.log_capture import flush_info
 from infra.node import CCFVersion
@@ -116,7 +116,7 @@ class OpenIDProviderServer(AbstractContextManager):
                 self.httpd.socket,
                 server_side=True,
             )
-            self.thread = threading.Thread(None, self.httpd.serve_forever)
+            self.thread = infra.concurrency.Thread(None, self.httpd.serve_forever)
             self.thread.setDaemon(True)
             self.bind_port = self.httpd.socket.getsockname()[1]
             self.metadata = {"jwks_uri": f"https://{self.host}:{self.bind_port}/keys"}

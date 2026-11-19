@@ -19,6 +19,7 @@
   "command": {
     "type": "Recover",
     "service_certificate_file": "service_cert.pem",
+    "pq_service_certificate_file": "pq_service_cert.pem",
     "recover": {
       "initial_service_certificate_validity_days": 1,
       "previous_service_identity_file": "previous_service_cert.pem"
@@ -27,7 +28,9 @@
   "ledger": {
     "directory": "ledger",
     "read_only_directories": [],
-    "chunk_size": "5MB"
+    "chunk_size": "5MB",
+    "max_read_size": "64MB",
+    "max_pending_append_bytes": "16MB"
   },
   "snapshots": {
     "directory": "snapshots",
@@ -57,10 +60,8 @@
   "tick_interval": "1ms",
   "slow_io_logging_threshold": "10000us",
   "client_connection_timeout": "2000ms",
-  "worker_threads": 0,
-  "memory": {
-    "circuit_size": "16MB",
-    "max_msg_size": "64MB",
-    "max_fragment_size": "256KB"
+  "worker_threads": 1,
+  "node_to_node": {
+    "max_message_size": "64MB"
   }
 }

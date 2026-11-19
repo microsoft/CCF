@@ -45,7 +45,7 @@ def tx_id(string):
 def retry(call, urls, **kwargs):
     """
     Retry http calls if they time out (process suspended during execution),
-    or return a non-200/204 code (unable to forward because primary unknown).
+    or return a non-200/204 code (unable to redirect because primary unknown).
     Pick a random URL, to avoid getting stuck too long on a suspended node.
     """
     response = None
@@ -59,7 +59,7 @@ def retry(call, urls, **kwargs):
 
 
 def run(targets, cacert):
-    session = httpx.Client(verify=cacert)
+    session = httpx.Client(verify=cacert, follow_redirects=True)
     tx = -1
     key_urls = [f"{target}/records/{KEY}" for target in targets]
     while True:

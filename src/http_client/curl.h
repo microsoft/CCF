@@ -130,6 +130,7 @@ namespace ccf::http_client
 
     // Move semantics
     UniqueCURL(UniqueCURL&& other) noexcept : p(std::move(other.p)) {}
+
     UniqueCURL& operator=(UniqueCURL&& other) noexcept
     {
       p = std::move(other.p);
@@ -213,16 +214,13 @@ namespace ccf::http_client
     ~UniqueCURLM() = default;
     UniqueCURLM(const UniqueCURLM&) = delete;
     UniqueCURLM& operator=(const UniqueCURLM&) = delete;
+
     UniqueCURLM(UniqueCURLM&& other) noexcept : p(std::move(other.p)) {}
+
     UniqueCURLM& operator=(UniqueCURLM&& other) noexcept
     {
       p = std::move(other.p);
       return *this;
-    }
-
-    [[nodiscard]] CURLM* release()
-    {
-      return p.release();
     }
 
     operator CURLM*() const
@@ -238,10 +236,13 @@ namespace ccf::http_client
 
   public:
     UniqueSlist() : p(nullptr, [](auto x) { curl_slist_free_all(x); }) {}
+
     ~UniqueSlist() = default;
     UniqueSlist(const UniqueSlist&) = delete;
     UniqueSlist& operator=(const UniqueSlist&) = delete;
+
     UniqueSlist(UniqueSlist&& other) noexcept : p(std::move(other.p)) {}
+
     UniqueSlist& operator=(UniqueSlist&& other) noexcept
     {
       p = std::move(other.p);
@@ -325,15 +326,23 @@ namespace ccf::http_client
       switch (origin)
       {
         case SEEK_SET:
+        {
           break;
+        }
         case SEEK_CUR:
+        {
           base = buffer.size() - unsent.size();
           break;
+        }
         case SEEK_END:
+        {
           base = buffer.size();
           break;
+        }
         default:
+        {
           return false;
+        }
       }
 
       size_t position = 0;
@@ -614,11 +623,15 @@ namespace ccf::http_client
       switch (static_cast<int>(http_method.value()))
       {
         case HTTP_GET:
+        {
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPGET, 1L);
           break;
+        }
         case HTTP_HEAD:
+        {
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_NOBODY, 1L);
           break;
+        }
         case HTTP_PUT:
         {
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
@@ -637,8 +650,8 @@ namespace ccf::http_client
             curl_handle,
             CURLOPT_INFILESIZE_LARGE,
             static_cast<curl_off_t>(request_body->size()));
+          break;
         }
-        break;
         case HTTP_POST:
         {
           // CURLOPT_POST takes a long: a non-zero value (1L) selects a
@@ -660,11 +673,13 @@ namespace ccf::http_client
             curl_handle,
             CURLOPT_POSTFIELDSIZE_LARGE,
             static_cast<curl_off_t>(request_body->size()));
+          break;
         }
-        break;
         default:
+        {
           throw std::logic_error(
             fmt::format("Unsupported HTTP method: {}", method.c_str()));
+        }
       }
 
       if (request_body != nullptr)
@@ -1252,6 +1267,7 @@ namespace ccf::http_client
           break;
         }
         case CURL_POLL_REMOVE:
+        {
           if (socket_context != nullptr)
           {
             LOG_DEBUG_FMT(
@@ -1265,9 +1281,12 @@ namespace ccf::http_client
               curl_multi_assign(self->curl_request_curlm, s, nullptr));
           }
           break;
+        }
         default:
+        {
           LOG_FAIL_FMT("Unknown action in curl_socket_callback: {}", action);
           return 0;
+        }
       }
       return 0;
     }
@@ -1459,6 +1478,7 @@ namespace ccf::http_client
         LOG_FAIL_FMT("Unknown error closing CurlmLibuvContext");
       }
     }
+
     static void on_close(uv_handle_t* handle)
     {
       auto& close_count = static_cast<CurlmLibuvContextImpl*>(handle->data)
@@ -1469,6 +1489,7 @@ namespace ccf::http_client
         static_cast<CurlmLibuvContextImpl*>(handle->data)->on_close();
       }
     }
+
     void on_close()
     {
       // We are being notified asynchronously that libuv has finished closing
@@ -1505,6 +1526,7 @@ namespace ccf::http_client
       }
       return *instance();
     }
+
     CurlmLibuvContextSingleton(uv_loop_t* loop)
     {
       if (instance() != nullptr)
@@ -1514,6 +1536,7 @@ namespace ccf::http_client
       }
       instance() = std::make_unique<CurlmLibuvContext>(loop);
     }
+
     ~CurlmLibuvContextSingleton()
     {
       instance().reset(); // Clean up the instance

@@ -24,6 +24,8 @@
 //     SSL_write_ex().
 // ===========================================================================
 
+#include "tls/socket_utils.h"
+
 #include <arpa/inet.h>
 #include <cerrno>
 #include <condition_variable>
@@ -66,8 +68,7 @@ namespace ccf::tls
     // Datagrams handled per readable event. The handler runs inline on the
     // loop thread, so an unbounded drain would let a UDP flood starve every
     // other handle on the loop. The socket stays level-triggered, so any
-    // remainder is picked up on the next iteration. This replaces the read
-    // quota the previous ringbuffer-based UDP transport applied.
+    // remainder is picked up on the next iteration.
     static constexpr size_t max_datagrams_per_event = 64;
 
     uv_loop_t* loop = nullptr;
@@ -198,7 +199,7 @@ namespace ccf::tls
       // underneath it.
       if (sock >= 0)
       {
-        ::close(sock);
+        details::close_socket(sock);
         sock = -1;
       }
 
@@ -242,7 +243,7 @@ namespace ccf::tls
           bound = true;
           break;
         }
-        ::close(sock);
+        details::close_socket(sock);
         sock = -1;
       }
       freeaddrinfo(res);
@@ -382,7 +383,7 @@ namespace ccf::tls
     {
       if (sock >= 0)
       {
-        ::close(sock);
+        details::close_socket(sock);
         sock = -1;
       }
     }

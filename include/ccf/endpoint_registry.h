@@ -283,6 +283,8 @@ namespace ccf::endpoints
       const std::string& path,
       const std::vector<EndpointDefinitionPtr>& matches);
 
+    // Runs on a task-system worker and may overlap endpoint execution or ticks
+    // for other registries. Ticks for this registry do not overlap each other.
     virtual void tick([[maybe_unused]] std::chrono::milliseconds duration);
 
     void set_consensus(ccf::kv::Consensus* c);

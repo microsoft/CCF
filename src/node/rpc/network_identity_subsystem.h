@@ -4,7 +4,7 @@
 
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/network_identity_interface.h"
-#include "ccf/node/startup_config.h"
+#include "ccf/node/configuration.h"
 #include "crypto/cose.h"
 #include "ds/internal_logger.h"
 #include "node/identity.h"

@@ -5,27 +5,40 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/symmetric_key.h"
 
+#include <climits>
 #include <openssl/crypto.h>
 
 namespace ccf::crypto
 {
+  // Chosen chunk size, not a GCM limit. EVP_CipherUpdate takes an int length;
+  // 16 MiB keeps calls below INT_MAX and chunk-boundary tests inexpensive.
+  constexpr size_t GCM_MAX_UPDATE_SIZE = size_t{16} * 1024 * 1024;
+
+  // Largest GCM plaintext (SP 800-38D, Section 5.2.1.1: 2^39 - 256 bits),
+  // which not all providers enforce. This is not an AAD limit.
+  constexpr size_t GCM_MAX_DATA_SIZE = (size_t{1} << 36) - 32;
+
+  // Largest RFC 5649 key wrap input. Both the input and the wrapped output,
+  // 8 * ceil(n / 8) + 8 bytes, must fit the int lengths taken and returned by
+  // the single EVP update call; key wrap is not a streaming mode, so the
+  // input cannot be chunked.
+  constexpr size_t AES_KEY_WRAP_PAD_MAX_SIZE = size_t{INT_MAX} - 15;
+
   class KeyAesGcm_OpenSSL : public KeyAesGcm
   {
   private:
     const std::vector<uint8_t> key;
-    const EVP_CIPHER* evp_cipher = nullptr;
+    const EVP_CIPHER* evp_cipher;
     const EVP_CIPHER* evp_cipher_wrap_pad;
 
   public:
-    KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey);
+    KeyAesGcm_OpenSSL(std::span<const uint8_t> raw_key);
     KeyAesGcm_OpenSSL(const KeyAesGcm_OpenSSL& that) = delete;
-    KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that) noexcept;
-    ~KeyAesGcm_OpenSSL() override
-    {
-      OPENSSL_cleanse(const_cast<uint8_t*>(key.data()), key.size());
-    }
+    ~KeyAesGcm_OpenSSL() override;
 
     [[nodiscard]] size_t key_size() const override;
+
+    [[nodiscard]] std::unique_ptr<Context> make_context() const override;
 
     void encrypt(
       std::span<const uint8_t> iv,
@@ -34,12 +47,26 @@ namespace ccf::crypto
       std::vector<uint8_t>& cipher,
       uint8_t tag[GCM_SIZE_TAG]) const override;
 
+    void encrypt(
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> cipher,
+      uint8_t tag[GCM_SIZE_TAG]) const override;
+
     bool decrypt(
       std::span<const uint8_t> iv,
       const uint8_t tag[GCM_SIZE_TAG],
       std::span<const uint8_t> cipher,
       std::span<const uint8_t> aad,
       std::vector<uint8_t>& plain) const override;
+
+    bool decrypt(
+      std::span<const uint8_t> iv,
+      const uint8_t tag[GCM_SIZE_TAG],
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> plain) const override;
 
     // @brief RFC 5649 AES key wrap with padding (CKM_AES_KEY_WRAP_PAD)
     // @param plain Plaintext key to wrap

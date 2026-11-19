@@ -14,6 +14,11 @@ namespace ccf::tasks
 
     virtual void do_action() = 0;
 
+    // Only called for abandoned actions, never while executing. Implementations
+    // must tolerate repeated notification if an action was queued more than
+    // once.
+    virtual void on_shutdown() noexcept {}
+
     [[nodiscard]] virtual const std::string& get_name() const = 0;
   };
 
@@ -34,6 +39,11 @@ namespace ccf::tasks
     void do_action() override
     {
       fn();
+    }
+
+    void on_shutdown() noexcept override
+    {
+      fn = {};
     }
 
     [[nodiscard]] const std::string& get_name() const override
@@ -63,6 +73,7 @@ namespace ccf::tasks
 
     void enqueue_on_board();
     void do_task_implementation() override;
+    void on_shutdown() noexcept override;
 
     // Non-public constructor argument type, so this can only be constructed by
     // this class (ensuring shared ptr ownership)

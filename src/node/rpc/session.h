@@ -32,6 +32,11 @@ namespace ccf
         data(std::move(d)),
         self(std::move(s))
       {}
+
+      void on_shutdown() noexcept override
+      {
+        self.reset();
+      }
     };
 
     struct HandleIncomingDataTask : public SessionDataTask
@@ -47,6 +52,7 @@ namespace ccf
         {
           ThreadedSession& session;
           size_t bytes;
+
           ~ReportConsumed()
           {
             session.on_inbound_consumed(bytes);

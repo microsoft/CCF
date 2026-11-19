@@ -48,6 +48,10 @@ namespace ccf::cose::edit
    * Useful to add a proof to a signature to turn it into a receipt, to
    * add a receipt to a signed statement to turn it into a transparent
    * statement, or simply to strip the unprotected header from a COSE Sign1.
+   * All bytes outside the unprotected header are preserved, including
+   * non-preferred length encodings. An empty replacement map is encoded as
+   * the single byte 0xa0. The input must be a valid, tagged COSE_Sign1 with
+   * definite-length items; malformed or unsupported encodings are rejected.
    *
    * @param cose_input The COSE_Sign1 message to edit.
    * @param descriptor An object describing whether and how to set the
@@ -55,4 +59,19 @@ namespace ccf::cose::edit
    */
   std::vector<uint8_t> set_unprotected_header(
     const std::span<const uint8_t>& cose_input, const desc::Type& descriptor);
+
+  /**
+   * Detach the payload of a COSE_Sign1 message, replacing it with nil as
+   * described in RFC 9052 section 4.1.
+   *
+   * The protected header and signature are preserved byte-for-byte, and the
+   * unprotected header is retained, so the result still verifies against the
+   * original payload with ccf::crypto::COSEVerifier::verify_detached. Useful
+   * to avoid storing a payload twice when it is already recorded elsewhere.
+   * Detaching an already detached message is a no-op.
+   *
+   * @param cose_input The COSE_Sign1 message to edit.
+   */
+  std::vector<uint8_t> detach_payload(
+    const std::span<const uint8_t>& cose_input);
 }

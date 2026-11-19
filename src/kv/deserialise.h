@@ -4,12 +4,11 @@
 
 #include "apply_changes.h"
 #include "ds/internal_logger.h"
+#include "kv/claims.h"
 #include "kv/committable_tx.h"
+#include "kv/internal_table_names.h"
 #include "kv/ledger_chunker_interface.h"
 #include "kv_types.h"
-#include "service/tables/shares.h"
-#include "service/tables/signatures.h"
-#include "service/tables/snapshot_evidence.h"
 
 #include <vector>
 
@@ -29,16 +28,18 @@ namespace ccf::kv
       ccf::kv::OrderedChanges& changes,
       ccf::kv::MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
-      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
-      bool ignore_strict_versions = false) = 0;
+      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest) = 0;
 
+    // committable is true when the entry is a signature, i.e. when applying
+    // it yields ApplyResult::PASS_SIGNATURE
     virtual bool commit_deserialised(
       ccf::kv::OrderedChanges& changes,
       ccf::kv::Version v,
       ccf::kv::Term term,
       const MapCollection& new_maps,
       ccf::kv::ConsensusHookPtrs& hooks,
-      bool track_deletes_on_missing_keys) = 0;
+      bool track_deletes_on_missing_keys,
+      bool committable) = 0;
   };
 
   class CFTExecutionWrapper : public AbstractExecutionWrapper
@@ -98,8 +99,7 @@ namespace ccf::kv
             changes,
             new_maps,
             claims_digest,
-            commit_evidence_digest,
-            true))
+            commit_evidence_digest))
       {
         return ApplyResult::FAIL;
       }
@@ -118,43 +118,51 @@ namespace ccf::kv
         }
       }
 
+      const bool signature_in =
+        (changes.find(ccf::Tables::SIGNATURES) != changes.end());
+      const bool cose_signature_in =
+        (changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end());
+      const bool committable = signature_in || cose_signature_in;
+
       if (!store->commit_deserialised(
             changes,
             version,
             term,
             new_maps,
             hooks,
-            track_deletes_on_missing_keys))
+            track_deletes_on_missing_keys,
+            committable))
       {
         return ApplyResult::FAIL;
       }
       auto success = ApplyResult::PASS;
 
-      const bool signature_in =
-        (changes.find(ccf::Tables::SIGNATURES) != changes.end());
-      const bool cose_signature_in =
-        (changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end());
-
-      if (signature_in || cose_signature_in)
+      if (committable)
       {
         const bool merkle_tree_in =
           changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) != changes.end();
         switch (changes.size())
         {
           case 2:
+          {
             if (merkle_tree_in && (cose_signature_in != signature_in))
             {
               break;
             }
+          }
           case 3:
+          {
             if (merkle_tree_in && cose_signature_in && signature_in)
             {
               break;
             }
+          }
           default:
+          {
             LOG_DEBUG_FMT(
               "Unexpected contents in signature transaction {}", version);
             return ApplyResult::FAIL;
+          }
         }
 
         if (history)
