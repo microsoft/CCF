@@ -3538,7 +3538,10 @@ TEST_CASE("Canonical chunk discovery observes restores in the main directory")
         "ledger_1-3.committed.ignored",
         "ledger_1-3.committed_prefix",
         "junk_1-3.committed",
-        "ledger_1-3a.committed"})
+        "ledger_1-3a.committed",
+        "ledger_01-3.committed",
+        "ledger_1--1.committed",
+        "ledger_0-3.committed"})
   {
     fs::copy_file(archived, fs::path(ledger_dir) / name);
   }
@@ -3579,8 +3582,8 @@ TEST_CASE("Reads of committed recovery chunks are ordered with open")
   // the rename would report a spurious NotFound. No such window exists:
   // committed recovery files stay in Ledger::files until open, so commit()
   // never advances end_of_committed_files_idx past them and they are never
-  // classified as immutable. Their reads therefore run inside the lane, in
-  // strict order with open, on both sides of the rename.
+  // classified as immutable during recovery. Their reads therefore run inside
+  // the lane, in strict order with open, on both sides of the rename.
   auto dir = AutoDeleteFolder(ledger_dir);
   Ledger ledger(ledger_dir);
   ccf::tasks::JobBoard job_board;
@@ -3597,6 +3600,7 @@ TEST_CASE("Reads of committed recovery chunks are ordered with open")
   const auto open_name = fs::path(ledger_dir) / "ledger_1-1.committed";
   REQUIRE(fs::exists(recovery_name));
   REQUIRE_FALSE(ledger.is_in_committed_file(1));
+  REQUIRE_FALSE(subsystem.committed_ledger_path_with_idx(1).has_value());
 
   // Pre-open read: runs inline in the lane, before the rename, and leaves no
   // separate read task on the board.
@@ -3614,6 +3618,7 @@ TEST_CASE("Reads of committed recovery chunks are ordered with open")
   run_all_tasks(job_board);
   REQUIRE_FALSE(fs::exists(recovery_name));
   REQUIRE(fs::exists(open_name));
+  REQUIRE_FALSE(subsystem.committed_ledger_path_with_idx(1).has_value());
 
   // Post-open read: still not classified as committed, still inline, and
   // finds the file under its new name.
@@ -3626,6 +3631,13 @@ TEST_CASE("Reads of committed recovery chunks are ordered with open")
   REQUIRE(after_open.has_value());
   REQUIRE(after_open->status == consensus::LedgerRangeStatus::Found);
   REQUIRE(after_open->entries == entry);
+
+  // The next normal chunk commit advances the boundary past the renamed file.
+  REQUIRE(subsystem.append(
+    make_ledger_entry(2, ccf::kv::FORCE_LEDGER_CHUNK_AFTER), true));
+  REQUIRE(subsystem.commit(2));
+  run_all_tasks(job_board);
+  REQUIRE(subsystem.committed_ledger_path_with_idx(1) == open_name);
 }
 
 TEST_CASE("Typed ledger shutdown completes accepted mutations only")
