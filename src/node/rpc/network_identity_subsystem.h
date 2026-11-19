@@ -45,6 +45,17 @@ namespace ccf
     bool has_predecessors{false};
     size_t fetch_attempts{0};
 
+    // PQ chain. A service with a PQ identity writes its PQ endorsement in the
+    // transaction which writes the classical one, so both chains are fetched
+    // from the same transactions. The PQ chain may stop earlier, at the
+    // self-endorsement of the service which introduced the PQ identity.
+    // Set when the current service has a PQ identity
+    std::optional<std::vector<uint8_t>> current_pq_key_der;
+    // Whether the oldest PQ endorsement fetched so far has a predecessor
+    bool pq_fetching{false};
+    std::map<SeqNo, CoseEndorsement> pq_endorsements;
+    TrustedKeysPQ pq_trusted_keys;
+
   public:
     NetworkIdentitySubsystem(
       std::shared_ptr<INodeStateAccessor> node_state_accessor_,
@@ -93,14 +104,10 @@ namespace ccf
     [[nodiscard]] std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const override
     {
+      check_fetched(
+        fmt::format("COSE endorsements chain requested for seqno {}", seqno));
+      // Settled, so unchanged since the check
       const auto status = fetch_status.load();
-      if (status != FetchStatus::Done && status != FetchStatus::Partial)
-      {
-        throw IdentityHistoryNotFetched(fmt::format(
-          "COSE endorsements chain requested for seqno {} but identity "
-          "history fetching has not been completed yet",
-          seqno));
-      }
 
       if (!current_service_from.has_value())
       {
@@ -145,14 +152,7 @@ namespace ccf
     [[nodiscard]] ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const override
     {
-      const auto status = fetch_status.load();
-      if (status != FetchStatus::Done && status != FetchStatus::Partial)
-      {
-        throw IdentityHistoryNotFetched(fmt::format(
-          "Trusted key requested for seqno {} but identity history "
-          "fetching has not been completed yet",
-          seqno));
-      }
+      check_fetched(fmt::format("Trusted key requested for seqno {}", seqno));
       if (trusted_keys.empty())
       {
         throw std::logic_error(fmt::format(
@@ -177,17 +177,75 @@ namespace ccf
 
     [[nodiscard]] TrustedKeys get_trusted_keys() const override
     {
-      const auto status = fetch_status.load();
-      if (status != FetchStatus::Done && status != FetchStatus::Partial)
-      {
-        throw IdentityHistoryNotFetched(
-          "Trusted keys requested but identity history fetching has not "
-          "completed yet");
-      }
+      check_fetched("Trusted keys requested");
       return trusted_keys;
     }
 
+    [[nodiscard]] std::optional<CoseEndorsementsChain>
+    get_cose_endorsements_chain_pq(ccf::SeqNo seqno) const override
+    {
+      check_fetched(fmt::format(
+        "PQ COSE endorsements chain requested for seqno {}", seqno));
+
+      if (!current_pq_key_der.has_value() || !current_service_from.has_value())
+      {
+        return std::nullopt;
+      }
+
+      if (seqno >= current_service_from->seqno)
+      {
+        return CoseEndorsementsChain{};
+      }
+
+      // Earlier seqnos are covered from the service which introduced the PQ
+      // identity, or in Partial from the earliest fetched PQ endorsement
+      auto it = pq_endorsements.upper_bound(seqno);
+      if (it == pq_endorsements.begin())
+      {
+        return std::nullopt;
+      }
+
+      CoseEndorsementsChain result;
+      for (--it; it != pq_endorsements.end(); ++it)
+      {
+        result.push_back(it->second.endorsement);
+      }
+      std::reverse(result.begin(), result.end());
+      return result;
+    }
+
+    [[nodiscard]] ccf::crypto::MLDSAPublicKeyPtr get_trusted_identity_for_pq(
+      ccf::SeqNo seqno) const override
+    {
+      check_fetched(
+        fmt::format("Trusted PQ key requested for seqno {}", seqno));
+
+      auto it = pq_trusted_keys.upper_bound(seqno);
+      if (it == pq_trusted_keys.begin())
+      {
+        return nullptr;
+      }
+      return std::prev(it)->second;
+    }
+
+    [[nodiscard]] TrustedKeysPQ get_trusted_keys_pq() const override
+    {
+      check_fetched("Trusted PQ keys requested");
+      return pq_trusted_keys;
+    }
+
   protected:
+    void check_fetched(const std::string& request) const
+    {
+      const auto status = fetch_status.load();
+      if (status != FetchStatus::Done && status != FetchStatus::Partial)
+      {
+        throw IdentityHistoryNotFetched(fmt::format(
+          "{} but identity history fetching has not been completed yet",
+          request));
+      }
+    }
+
     // Returns true if a retry was scheduled. Returns false if the
     // budget is exhausted.
     [[nodiscard]] bool schedule_retry(std::function<void()> fn)
@@ -229,27 +287,169 @@ namespace ccf
 
       try
       {
-        if (!endorsements.empty())
-        {
-          auto next = endorsements.begin();
-          auto prev = next++;
-          while (next != endorsements.end())
-          {
-            verify_endorsements_connected(next->second, prev->second);
-            ++prev;
-            ++next;
-          }
-          validate_chain_front_connection(prev->second, *current_service_from);
-        }
-        build_trusted_key_chain();
+        trusted_keys = build_trusted_key_chain<ccf::crypto::ECPublicKeyPtr>(
+          endorsements,
+          network_identity->get_key_pair()->public_key_der(),
+          *current_service_from,
+          [](const std::vector<uint8_t>& der) {
+            return ccf::crypto::make_ec_public_key(der);
+          });
       }
       catch (const std::exception& e)
       {
         fail_fetching(e.what());
       }
 
+      if (current_pq_key_der.has_value())
+      {
+        try
+        {
+          if (pq_fetching && target_status == FetchStatus::Done)
+          {
+            throw std::logic_error(
+              "the classical endorsements chain ends before the PQ one");
+          }
+          pq_trusted_keys =
+            build_trusted_key_chain<ccf::crypto::MLDSAPublicKeyPtr>(
+              pq_endorsements,
+              current_pq_key_der.value(),
+              *current_service_from,
+              [](const std::vector<uint8_t>& der) {
+                return ccf::crypto::make_mldsa_public_key(der);
+              });
+        }
+        catch (const std::exception& e)
+        {
+          fail_pq_fetching(e.what());
+        }
+      }
+
       log_status(target_status);
       fetch_status.store(target_status);
+    }
+
+    [[noreturn]] void fail_pq_fetching(const std::string& err)
+    {
+      fail_fetching(fmt::format("PQ endorsements chain: {}", err));
+    }
+
+    // Starts the PQ chain when the current service has a PQ identity. The
+    // classical endorsement has already been matched to the current service,
+    // and the PQ one was written with it.
+    void start_pq_chain(const CurrentServiceIdentity& current)
+    {
+      // A build without ML-DSA never holds a PQ identity
+      if (!ccf::crypto::mldsa_supported())
+      {
+        return;
+      }
+
+      const auto pq_key = network_identity->get_pq_key_pair();
+      if (pq_key == nullptr)
+      {
+        // Every node of a service with a PQ identity holds its PQ key
+        if (current.pq_endorsement.has_value())
+        {
+          fail_pq_fetching(
+            "a PQ endorsement was written when the current service opened, "
+            "but the network identity of this node has no PQ key");
+        }
+        return;
+      }
+
+      const auto& current_pq_key =
+        current_pq_key_der.emplace(pq_key->public_key_der());
+      if (
+        current.pq_endorsement.has_value() &&
+        current.pq_endorsement->endorsing_key != current_pq_key)
+      {
+        fail_pq_fetching(fmt::format(
+          "the PQ endorsement written when the current service opened is "
+          "signed by public key {}, which is not the current PQ service "
+          "public key {}",
+          ccf::ds::to_hex(current.pq_endorsement->endorsing_key),
+          ccf::ds::to_hex(current_pq_key)));
+      }
+
+      pq_fetching = true;
+    }
+
+    // Adds the PQ endorsement written with the given classical one, which is
+    // about to be processed, until the PQ chain stops at its self-endorsement
+    void process_pq_endorsement(
+      const std::optional<CoseEndorsement>& pq_endorsement,
+      const CoseEndorsement& classical)
+    {
+      if (!pq_fetching)
+      {
+        return;
+      }
+
+      if (!pq_endorsement.has_value())
+      {
+        fail_pq_fetching(fmt::format(
+          "no PQ endorsement was written with the classical endorsement for "
+          "{} - {}",
+          classical.endorsement_epoch_begin.to_str(),
+          format_epoch(classical.endorsement_epoch_end)));
+      }
+      const auto& endorsement = pq_endorsement.value();
+
+      try
+      {
+        validate_fetched_endorsement(endorsement);
+      }
+      catch (const std::exception& e)
+      {
+        fail_pq_fetching(e.what());
+      }
+
+      const auto from = endorsement.endorsement_epoch_begin.seqno;
+      if (is_self_endorsement(endorsement))
+      {
+        // As for classical, the self-endorsement starts the oldest PQ epoch
+        // fetched, which is the current one when no service endorsed it
+        if (!current_service_from.has_value())
+        {
+          // Invariant: the PQ chain starts after current_service_from is set
+          fail_pq_fetching(
+            "Unset current_service_from when fetching a self-endorsement");
+        }
+        const auto oldest_from = pq_endorsements.empty() ?
+          current_service_from->seqno :
+          pq_endorsements.begin()->first;
+        if (from != oldest_from)
+        {
+          fail_pq_fetching(fmt::format(
+            "fetched self-endorsement at {} which has not been seen",
+            endorsement.endorsement_epoch_begin.to_str()));
+        }
+        LOG_INFO_FMT("Got PQ self-endorsement at {}, stopping PQ chain", from);
+        pq_fetching = false;
+        return;
+      }
+
+      if (
+        endorsement.endorsement_epoch_begin !=
+          classical.endorsement_epoch_begin ||
+        endorsement.endorsement_epoch_end != classical.endorsement_epoch_end ||
+        endorsement.previous_version != classical.previous_version)
+      {
+        fail_pq_fetching(fmt::format(
+          "endorsement for {} - {} does not match the classical endorsement "
+          "for {} - {} written with it",
+          endorsement.endorsement_epoch_begin.to_str(),
+          format_epoch(endorsement.endorsement_epoch_end),
+          classical.endorsement_epoch_begin.to_str(),
+          format_epoch(classical.endorsement_epoch_end)));
+      }
+
+      // The classical endorsement over the same epoch is skipped if ill-formed
+      // and rejected if already fetched
+      if (!has_ill_formed_epoch_range(endorsement))
+      {
+        pq_endorsements.emplace(from, endorsement);
+      }
     }
 
     static void log_status(FetchStatus status)
@@ -323,6 +523,8 @@ namespace ccf
       }
 
       current_service_from = current.create_txid;
+      start_pq_chain(current);
+      process_pq_endorsement(current.pq_endorsement, endorsement.value());
 
       if (is_self_endorsement(endorsement.value()))
       {
@@ -429,17 +631,32 @@ namespace ccf
       complete_fetching(FetchStatus::Done);
     }
 
-    void build_trusted_key_chain()
+    // Checks that the endorsements of a chain are connected up to the current
+    // service, with valid signatures and linked keys, and returns the key
+    // trusted from the start of each epoch
+    template <typename KeyPtr, typename MakeKey>
+    static std::map<SeqNo, KeyPtr> build_trusted_key_chain(
+      const std::map<SeqNo, CoseEndorsement>& chain,
+      const std::vector<uint8_t>& current_pkey,
+      const ccf::TxID& current_from,
+      MakeKey make_key)
     {
-      if (!current_service_from.has_value())
+      if (!chain.empty())
       {
-        throw std::logic_error(
-          "Attempting to build trusted key chain but no current service "
-          "created seqno fetched");
+        auto next = chain.begin();
+        auto prev = next++;
+        while (next != chain.end())
+        {
+          verify_endorsements_connected(next->second, prev->second);
+          ++prev;
+          ++next;
+        }
+        validate_chain_front_connection(prev->second, current_from);
       }
 
+      std::map<SeqNo, KeyPtr> keys;
       std::span<const uint8_t> previous_key_der{};
-      for (const auto& [seqno, endorsement] : endorsements)
+      for (const auto& [seqno, endorsement] : chain)
       {
         std::vector<uint8_t> endorsed_key;
         try
@@ -460,9 +677,8 @@ namespace ccf
           "Adding trusted seq {} key {}",
           endorsement.endorsement_epoch_begin.seqno,
           ccf::crypto::b64_from_raw(endorsed_key));
-        trusted_keys.insert(
-          {endorsement.endorsement_epoch_begin.seqno,
-           ccf::crypto::make_ec_public_key(endorsed_key)});
+        keys.insert(
+          {endorsement.endorsement_epoch_begin.seqno, make_key(endorsed_key)});
 
         if (
           !previous_key_der.empty() &&
@@ -484,8 +700,6 @@ namespace ccf
         previous_key_der = endorsement.endorsing_key;
       }
 
-      const auto& current_pkey =
-        network_identity->get_key_pair()->public_key_der();
       if (
         !previous_key_der.empty() &&
         !std::equal(
@@ -503,26 +717,25 @@ namespace ccf
 
       LOG_INFO_FMT(
         "Adding trusted seq {} key {}",
-        current_service_from->seqno,
+        current_from.seqno,
         ccf::crypto::b64_from_raw(current_pkey));
-      trusted_keys.insert(
-        {current_service_from->seqno,
-         ccf::crypto::make_ec_public_key(current_pkey)});
+      keys.insert({current_from.seqno, make_key(current_pkey)});
+      return keys;
     }
 
     void fetch_next_at(ccf::SeqNo seq)
     {
-      std::optional<CoseEndorsement> endorsement;
+      std::optional<WrittenEndorsements> written;
       try
       {
-        endorsement = historical_state_accessor->get_endorsement_at(seq);
+        written = historical_state_accessor->get_endorsements_at(seq);
       }
       catch (const std::exception& e)
       {
         fail_fetching(e.what());
       }
 
-      if (!endorsement.has_value())
+      if (!written.has_value())
       {
         if (!schedule_retry([this, seq]() { this->fetch_next_at(seq); }))
         {
@@ -540,14 +753,15 @@ namespace ccf
 
       try
       {
-        validate_fetched_endorsement(endorsement.value());
+        validate_fetched_endorsement(written->classical);
       }
       catch (const std::exception& e)
       {
         fail_fetching(e.what());
       }
 
-      process_endorsement(endorsement.value());
+      process_pq_endorsement(written->pq, written->classical);
+      process_endorsement(written->classical);
     }
   };
 }

@@ -11,13 +11,26 @@
 
 namespace ccf
 {
-  // The current service's identity, with the create-txid and endorsement read
+  // The current service's identity, with the create-txid and endorsements read
   // together from the same KV transaction.
   struct CurrentServiceIdentity
   {
     std::optional<TxID> create_txid;
 
     std::optional<CoseEndorsement> endorsement;
+
+    // The PQ endorsement written with the CLASSICAL one, by the opening of a
+    // service with a PQ identity
+    std::optional<CoseEndorsement> pq_endorsement;
+  };
+
+  // The previous service identity endorsements written by one transaction
+  struct WrittenEndorsements
+  {
+    CoseEndorsement classical;
+
+    // Written by the opening of a service with a PQ identity
+    std::optional<CoseEndorsement> pq;
   };
 
   struct INodeStateAccessor
@@ -26,9 +39,9 @@ namespace ccf
 
     [[nodiscard]] virtual bool is_part_of_network() const = 0;
 
-    // Read the current service create-txid and previous-identity endorsement
+    // Read the current service create-txid and previous-identity endorsements
     // together, only when the service status is OPEN. This guarantees they
-    // belong to the same service, because the endorsement is written in the
+    // belong to the same service, because the endorsements are written in the
     // same transaction that opens the service.
     virtual CurrentServiceIdentity get_current_service_identity() = 0;
   };
@@ -37,10 +50,10 @@ namespace ccf
   {
     virtual ~IHistoricalStateAccessor() = default;
 
-    // Endorsement entry at the given historical kv version, or nullopt
+    // Endorsements written at the given historical kv version, or nullopt
     // if the historical state is not yet loaded. Implementations may
-    // throw on hard errors.
-    virtual std::optional<CoseEndorsement> get_endorsement_at(SeqNo) = 0;
+    // throw on hard errors, including a missing CLASSICAL endorsement.
+    virtual std::optional<WrittenEndorsements> get_endorsements_at(SeqNo) = 0;
   };
 
   struct TaskScheduler

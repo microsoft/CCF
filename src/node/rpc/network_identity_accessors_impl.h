@@ -18,9 +18,9 @@
 
 namespace ccf
 {
-  // Read the service record and the previous-identity endorsement from the
+  // Read the service record and the previous-identity endorsements from the
   // same read-only transaction (one KV snapshot), and only report the
-  // create-txid when the service is OPEN. The endorsement is written in the
+  // create-txid when the service is OPEN. The endorsements are written in the
   // same transaction that opens the service, so this guarantees they belong to
   // the same service.
   inline CurrentServiceIdentity read_current_service_identity(
@@ -58,9 +58,20 @@ namespace ccf
     }
 
     result.create_txid = service_info->current_service_create_txid;
-    result.endorsement = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
-                             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-                           ->get(ccf::IdentityType::CLASSICAL);
+    auto* endorsements = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
+      ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+    result.endorsement = endorsements->get(ccf::IdentityType::CLASSICAL);
+    // A PQ endorsement belongs to the current service only if the transaction
+    // which opened it wrote the PQ endorsement with the CLASSICAL one
+    const auto classical_version =
+      endorsements->get_version_of_previous_write(ccf::IdentityType::CLASSICAL);
+    if (
+      classical_version.has_value() &&
+      classical_version ==
+        endorsements->get_version_of_previous_write(ccf::IdentityType::PQ))
+    {
+      result.pq_endorsement = endorsements->get(ccf::IdentityType::PQ);
+    }
     return result;
   }
 
@@ -108,7 +119,7 @@ namespace ccf
       historical_cache(std::move(historical_cache_))
     {}
 
-    std::optional<CoseEndorsement> get_endorsement_at(SeqNo seq) override
+    std::optional<WrittenEndorsements> get_endorsements_at(SeqNo seq) override
     {
       auto state = historical_cache->get_state_at(
         ccf::historical::CompoundHandle{
@@ -125,12 +136,12 @@ namespace ccf
           "missing",
           seq));
       }
+      // The historical store holds the writes of the transaction at seq only
       auto htx = state->store->create_read_only_tx();
-      auto endorsement =
-        htx
-          .template ro<ccf::PreviousServiceIdentityEndorsement>(
-            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-          ->get(ccf::IdentityType::CLASSICAL);
+      auto* endorsements =
+        htx.template ro<ccf::PreviousServiceIdentityEndorsement>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+      auto endorsement = endorsements->get(ccf::IdentityType::CLASSICAL);
       if (!endorsement.has_value())
       {
         throw std::runtime_error(fmt::format(
@@ -138,7 +149,9 @@ namespace ccf
           "historical state",
           seq));
       }
-      return endorsement;
+      return WrittenEndorsements{
+        .classical = std::move(endorsement.value()),
+        .pq = endorsements->get(ccf::IdentityType::PQ)};
     }
   };
 
