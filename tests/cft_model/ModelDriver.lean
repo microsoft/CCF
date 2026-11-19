@@ -1,7 +1,8 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
-import Consensus.Replay.Interpreter
+import Consensus.Model
 import Scenarios
+import Std.Time
 
 /-!
 Runs the consensus scenarios on the Lean model of the protocol, without the implementation.
@@ -15,9 +16,11 @@ The model does not say when a timer fires, when a primary sends, or which messag
 delivered next: those are inputs to it. This module decides them as the scenario driver
 and `cft.h` do, with a clock for each node, the queue of each sender, and the connections
 between nodes.
+
+It writes a trace of what the model does, in the records which the implementation traces:
+a step of the model is one call of `cft.h`, which traces several events as it goes.
 -/
 
-open Lean (Json toJson)
 open Consensus Consensus.Model.Node
 open CCF (Finset)
 open CCF.MultiNodeTransitionSystem (nodeState removeOne)
@@ -33,6 +36,83 @@ private def requestTimeout : Nat := 10
 /-- The election timeout of a scenario node, in milliseconds. -/
 private def electionTimeout : Nat := 100
 
+/-- The bytes of entries which a primary of `cft.h` replicates before it sends them. -/
+private def sizeLimit : Nat := 20000
+
+/-! ## JSON -/
+
+/--
+JSON whose objects keep the order of their fields, so that a record is written as the
+scenario test writes that of the implementation.
+-/
+inductive Value where
+  | number (value : Nat)
+  | text (value : String)
+  | flag (value : Bool)
+  | list (items : List Value)
+  | object (fields : List (String × Value))
+
+/-- A string as Python writes it in JSON: other than printable ASCII is escaped. -/
+private def quote (text : String) : String :=
+  let unit (code : Nat) : String :=
+    let digits := String.ofList (Nat.toDigits 16 code)
+    "\\u" ++ "".pushn '0' (4 - digits.length) ++ digits
+  let escape (c : Char) : String :=
+    if c == '"' then
+      "\\\""
+    else if c == '\\' then
+      "\\\\"
+    else if c == '\n' then
+      "\\n"
+    else if c == '\r' then
+      "\\r"
+    else if c == '\t' then
+      "\\t"
+    else if c.toNat == 8 then
+      "\\b"
+    else if c.toNat == 12 then
+      "\\f"
+    else if 32 <= c.toNat && c.toNat <= 126 then
+      c.toString
+    else if c.toNat < 65536 then
+      unit c.toNat
+    else
+      -- A surrogate pair
+      unit (55296 + (c.toNat - 65536) / 1024) ++ unit (56320 + (c.toNat - 65536) % 1024)
+  "\"" ++ String.join (text.toList.map escape) ++ "\""
+
+/-- A value on one line, with the separators of Python. -/
+partial def Value.render : Value → String
+  | .number value => toString value
+  | .text value => quote value
+  | .flag value => if value then "true" else "false"
+  | .list items => "[" ++ ", ".intercalate (items.map render) ++ "]"
+  | .object fields =>
+      "{"
+      ++ ", ".intercalate
+          (fields.map fun (key, value) => quote key ++ ": " ++ value.render)
+      ++ "}"
+
+/-! ## Driver -/
+
+/-- What `cft.h` keeps to decide how many entries a primary sends in one message. -/
+structure Batching where
+  /-- The entries which the node has replicated since it last sent before the end of a batch. -/
+  count : Nat := 0
+  /-- The bytes of those entries. -/
+  size : Nat := 0
+  /-- A hundred times the moving average of the entries which fit in `sizeLimit`. -/
+  window : Nat := 0
+  /-- The most entries of one message. -/
+  limit : Nat := 20
+
+/-- As `update_batch_size` in `cft.h`. -/
+private def Batching.resized (batching : Batching) : Batching :=
+  let average := if batching.count == 0 then sizeLimit else batching.size / batching.count
+  let fit := if average == 0 then sizeLimit / 2 else sizeLimit / average
+  let window := batching.window - batching.window / 100 + fit
+  { batching with window, limit := max (window / 100) 1 }
+
 /-- The model, and what the scenario driver and `cft.h` keep beside it. -/
 structure Driver where
   /-- The node which `startNode` created. -/
@@ -42,14 +122,15 @@ structure Driver where
   elapsed : NodeID → Nat := fun _ => 0
   /-- For a primary, milliseconds since each peer acknowledged it. -/
   sinceAck : NodeID → NodeID → Nat := fun _ _ => 0
+  batching : NodeID → Batching := fun _ => {}
   /-- The pairs of nodes of which the first can send to the second. -/
   connections : List (NodeID × NodeID) := []
   nextRequest : Nat := 1
   commands : Nat := 0
-  /-- What the command which is running has done to the model. -/
-  actions : Array Json := #[]
-  /-- The trace: a record of each command which has run. -/
-  records : Array Json := #[]
+  /-- The messages sent by the step which is being traced, whose events are not yet written. -/
+  outbox : List Envelope := []
+  /-- The trace: the `msg` of each record. -/
+  records : Array Value := #[]
 
 instance : Inhabited Driver :=
   ⟨{}⟩
@@ -83,6 +164,9 @@ private def nodeName (node : NodeID) : String :=
       fun place => (node / 256 ^ (nameBytes - 1 - place) % 256).toUInt8
   String.fromUTF8! ⟨(bytes.takeWhile (· != 0)).toArray⟩
 
+private def named (node : NodeID) : Value :=
+  .text (nodeName node)
+
 /-- The nodes, in the order of their names. -/
 private def nodeIds : IO (List NodeID) :=
   return (← driver.get).state.nodes.map (·.1)
@@ -100,10 +184,6 @@ private def leadership (state : NodeState) : String :=
   | .candidate => "Candidate"
   | .primary => "Leader"
 
-/-- Whether `node` has not seen its retirement. -/
-private def isActive (node : NodeID) (state : NodeState) : Bool :=
-  (state.retirement node).phase == .noRetirementObserved
-
 private def retirementPhase (node : NodeID) (state : NodeState) : Option String :=
   match (state.retirement node).phase with
   | .noRetirementObserved => none
@@ -112,48 +192,467 @@ private def retirementPhase (node : NodeID) (state : NodeState) : Option String 
   | .retirementCompleted => some "Completed"
   | .retiredCommitted => some "RetiredCommitted"
 
+/-- Whether `node` has not seen its retirement. -/
+private def isActive (node : NodeID) (state : NodeState) : Bool :=
+  (retirementPhase node state).isNone
+
 /-! ## Trace -/
 
-/-- The state of a node, with the names which the trace of the implementation gives it. -/
-private def stateJson (node : NodeID) (state : NodeState) : Json :=
-  Json.mkObj
+/-- The state of a node, as the implementation traces it. -/
+structure Snapshot where
+  node : NodeID
+  view : Nat
+  last : Nat
+  commit : Nat
+  leadership : String
+  /-- The phase of its retirement, once it has seen it. -/
+  phase : Option String
+  retirementIdx : Option Nat
+  retirementCommittableIdx : Option Nat
+  retiredCommittedIdx : Option Nat
+  /-- The first of the signatures after its commit index, and the last if there is another. -/
+  committable : List Nat
+deriving BEq
+
+private def snapshot (node : NodeID) (state : NodeState) : Snapshot :=
+  let retirement := state.retirement node
+  let signatures :=
+    (state.log.zipIdx 1).filterMap
+      fun (entry, index) =>
+        if index > state.commitIndex && entry.content.isSignature then
+          some index
+        else
+          none
+  {
+    node
+    view := state.currentTerm
+    last := state.log.length
+    commit := state.commitIndex
+    leadership := leadership state
+    phase := retirementPhase node state
+    retirementIdx := retirement.index
+    retirementCommittableIdx := retirement.committableIndex
+    retiredCommittedIdx := state.retiredCommittedIndex
+    committable :=
+      match signatures with
+      | [] => []
+      | first :: rest => first :: rest.getLast?.toList
+  }
+
+private def Snapshot.value (shown : Snapshot) : Value :=
+  let index (key : String) (value : Option Nat) : List (String × Value) :=
+    value.toList.map fun value => (key, .number value)
+  .object
     ([
-        ("node_id", toJson (nodeName node)),
-        ("current_view", toJson state.currentTerm),
-        ("last_idx", toJson state.log.length),
-        ("commit_idx", toJson state.commitIndex),
-        ("leadership_state", toJson (leadership state)),
-        ("membership_state", toJson (if isActive node state then "Active" else "Retired"))
+        ("node_id", named shown.node),
+        ("current_view", .number shown.view),
+        ("last_idx", .number shown.last),
+        ("commit_idx", .number shown.commit),
+        ("leadership_state", .text shown.leadership),
+        ("membership_state", .text (if shown.phase.isSome then "Retired" else "Active"))
       ]
-      ++ (retirementPhase node state).toList.map
-          fun phase => ("retirement_phase", toJson phase))
+      ++ shown.phase.toList.map (fun phase => ("retirement_phase", .text phase))
+      ++ index "retirement_idx" shown.retirementIdx
+      ++ index "retirement_committable_idx" shown.retirementCommittableIdx
+      ++ index "retired_committed_idx" shown.retiredCommittedIdx
+      ++ [("committable_indices", .list (shown.committable.map .number))])
 
-/-- A model action, with its message as the trace of the implementation gives a packet. -/
-private def actionFields : Model.Action → List (String × Json)
-  | .local node input =>
-      ("node_id", toJson (nodeName node))
-      :: match input with
-          | .append entries => [("action", "append"), ("entries", toJson entries.length)]
-          | .sendEntries destination endIndex =>
-              [
-                ("action", "sendEntries"),
-                ("to_node_id", toJson (nodeName destination)),
-                ("idx", toJson endIndex)
-              ]
-          | .timeout .election => [("action", "timeout"), ("kind", "election")]
-          | .timeout .checkQuorum => [("action", "timeout"), ("kind", "checkQuorum")]
-          | .nominateSuccessor => [("action", "nominateSuccessor")]
-          | .initAsBackup _ => [("action", "initAsBackup")]
-  | .deliver envelope =>
+private def nodesValue (nodes : Finset NodeID) : Value :=
+  .object (nodes.sort.map fun node => (nodeName node, .object [("address", .text ":")]))
+
+/-- The configurations which a node has not yet replaced by a committed one. -/
+private def configurations (state : NodeState) : String × Value :=
+  (
+    "configurations",
+    .list
+      (state.activeConfigurations.map
+        fun configuration =>
+          .object
+            [
+              ("idx", .number configuration.index),
+              ("nodes", nodesValue configuration.nodes),
+              ("rid", .number configuration.index)
+            ])
+  )
+
+/-- The fields of `add_configuration`, for the configuration `members` at `index`. -/
+private def added (state : NodeState) (index : Nat) (members : Finset NodeID)
+    : List (String × Value) :=
+  [
+    configurations state,
+    ("idx", .number index),
+    ("nodes", nodesValue members),
+    ("rid", .number index)
+  ]
+
+/-- A message, as the implementation traces its packet. -/
+private def packet : Message → Value
+  | .appendEntriesRequest request =>
+      .object
+        [
+          ("msg", .text "append_entries"),
+          ("idx", .number (request.prevLogIndex + request.entries.length)),
+          ("prev_idx", .number request.prevLogIndex),
+          ("term", .number request.term),
+          ("prev_term", .number request.prevLogTerm),
+          ("leader_commit_idx", .number request.primaryCommit),
+          (
+            "term_of_idx",
+            .number (request.entries.getLast?.map Entry.term |>.getD request.prevLogTerm)
+          ),
+          ("contains_new_view", .flag false)
+        ]
+  | .appendEntriesResponse response =>
+      .object
+        [
+          ("msg", .text "append_entries_response"),
+          ("term", .number response.term),
+          ("last_log_idx", .number response.lastLogIndex),
+          ("success", .text (if response.success then "OK" else "FAIL"))
+        ]
+  | .requestVoteRequest request => vote "request_vote" request
+  | .requestPreVoteRequest request => vote "request_pre_vote" request
+  | .requestVoteResponse response => voted "request_vote_response" response
+  | .requestPreVoteResponse response => voted "request_pre_vote_response" response
+  | .proposeRequestVoteRequest term =>
+      .object [("msg", .text "propose_request_vote"), ("term", .number term)]
+where
+  vote (msg : String) (request : RequestVoteRequest) : Value :=
+    .object
       [
-        ("node_id", toJson (nodeName envelope.target)),
-        ("action", "receive"),
-        ("from_node_id", toJson (nodeName envelope.source)),
-        ("packet", Replay.messageJson envelope.payload)
+        ("msg", .text msg),
+        ("term", .number request.term),
+        ("last_committable_idx", .number request.lastCommittableIndex),
+        ("term_of_last_committable_idx", .number request.lastCommittableTerm)
+      ]
+  voted (msg : String) (response : RequestVoteResponse) : Value :=
+    .object
+      [
+        ("msg", .text msg),
+        ("term", .number response.term),
+        ("vote_granted", .flag response.voteGranted)
       ]
 
-private def record (fields : List (String × Json)) : IO Unit :=
-  driver.modify fun d => { d with actions := d.actions.push (Json.mkObj fields) }
+private def write (msg : Value) : IO Unit :=
+  driver.modify fun d => { d with records := d.records.push msg }
+
+/-- Write an event: what `function` of the implementation traces. -/
+private def event (function : String) (fields : List (String × Value)) : IO Unit :=
+  write (.object (("function", .text function) :: fields))
+
+/-- Write an event with the state of `node`. -/
+private def stateEvent (function : String) (node : NodeID) (state : NodeState)
+    (fields : List (String × Value) := [])
+    : IO Unit :=
+  event function (("state", (snapshot node state).value) :: fields)
+
+/-- The next message sent by the step which is being traced, if `kind` holds of it. -/
+private def nextSent (kind : Message → Bool := fun _ => true) : IO (Option Envelope) :=
+  return (← driver.get).outbox.head?.filter (kind ·.payload)
+
+/-- Write the event for the next message which the step sent, from a node shown as `shown`. -/
+private def sentEvent (function : String) (shown : Snapshot)
+    (fields : List (String × Value) := [])
+    : IO Unit := do
+  let envelope :: rest := (← driver.get).outbox
+  | fail s!"The model sent no message to trace as {function}"
+  driver.modify fun d => { d with outbox := rest }
+  event function
+    ([
+        ("state", shown.value),
+        ("packet", packet envelope.payload),
+        ("to_node_id", named envelope.target)
+      ]
+      ++ fields)
+
+private def isEntries : Message → Bool
+  | .appendEntriesRequest _ => true
+  | _ => false
+
+private def isVoteRequest : Message → Bool
+  | .requestVoteRequest _ => true
+  | _ => false
+
+private def isPreVoteRequest : Message → Bool
+  | .requestPreVoteRequest _ => true
+  | _ => false
+
+private def isNomination : Message → Bool
+  | .proposeRequestVoteRequest _ => true
+  | _ => false
+
+/--
+`send_append_entries`, for the next message which the step sent, and the state of its
+sender after. `shown` is how `cft.h` traces the sender, and `shownSent` the index which it
+holds as sent before, if they are not those of the model.
+-/
+private def entriesSent (node : NodeID) (state : NodeState)
+    (shown : Option Snapshot := none) (shownSent : Option Nat := none)
+    : IO NodeState := do
+  let some envelope ← nextSent isEntries
+  | fail s!"The model sent no entries to trace for node {nodeName node}"
+  let .appendEntriesRequest request := envelope.payload | return state
+  let peer := envelope.target
+  sentEvent "send_append_entries" (shown.getD (snapshot node state))
+    [
+      ("match_idx", .number (state.matchIndex peer)),
+      ("sent_idx", .number (shownSent.getD (state.sentIndex peer)))
+    ]
+  return {
+    state with
+      sentIndex :=
+        CCF.Function.update state.sentIndex peer
+          (request.prevLogIndex + request.entries.length)
+  }
+
+/--
+`commit`: `node` commits up to `index`, if that is after its commit index, and its state
+after. A primary whose retirement is then committed nominates its successor: `cft.h` does
+so while it is still primary, before it records the phase of its retirement.
+-/
+private def committed (node : NodeID) (state : NodeState) (index : Nat)
+    : IO NodeState := do
+  if index <= state.commitIndex then
+    return state
+  stateEvent "commit" node state [("idx", .number index), configurations state]
+  let after := state.recordCommit node index
+  if state.role == .primary then
+    if let some envelope ← nextSent isNomination then
+      let shown :=
+        { snapshot node after with leadership := "Leader", phase := some "Completed" }
+      event "step_down_and_nominate_successor"
+        [
+          ("state", shown.value),
+          configurations state,
+          ("to_node_id", named envelope.target)
+        ]
+      sentEvent "send_propose_request_vote" shown
+  return after
+
+/--
+`become_leader`, and what `cft.h` does at once as primary: commit, if the node needs no
+other to do so, and send to each peer.
+-/
+private def becameLeader (node : NodeID) (state : NodeState) : IO NodeState := do
+  let mut leader := primaryState state
+  stateEvent "become_leader" node leader [configurations leader]
+  leader ← committed node leader (highestCommittableIndex leader node)
+  while (← nextSent isEntries).isSome do
+    leader ← entriesSent node leader
+  return leader
+
+/--
+`become_candidate`, which elects a node at once if its own vote is a quorum, and asks the
+others for theirs.
+-/
+private def becameCandidate (node : NodeID) (state : NodeState) : IO NodeState := do
+  let candidate : NodeState :=
+    {
+      state with
+        role := .candidate
+        currentTerm := state.currentTerm + 1
+        votedFor := some node
+        primaryKnown := false
+        votesGranted := {node}
+        preVotesGranted := ∅
+    }
+  stateEvent "become_candidate" node candidate [configurations candidate]
+  let mut state := candidate
+  if hasQuorum candidate.activeConfigurations candidate.votesGranted
+      ∧ Not (candidate.isRetiredCommitted node) then
+    state ← becameLeader node candidate
+  while (← nextSent isVoteRequest).isSome do
+    sentEvent "send_request_vote" (snapshot node state)
+  return state
+
+/-- An election timeout: `become_pre_vote_candidate`, and the requests for a pre-vote. -/
+private def timedOut (node : NodeID) (pre : NodeState) : IO NodeState := do
+  let state : NodeState :=
+    {
+      pre with
+        role := .preVoteCandidate, primaryKnown := false, preVotesGranted := {node}
+    }
+  stateEvent "become_pre_vote_candidate" node state [configurations state]
+  if hasQuorum state.activeConfigurations state.preVotesGranted then
+    becameCandidate node state
+  else
+    while (← nextSent isPreVoteRequest).isSome do
+      sentEvent "send_request_vote" (snapshot node state)
+    return state
+
+/-- `replicate`: a primary appends `entries` in one batch. -/
+private def replicated (node : NodeID) (pre : NodeState) (entries : List AppendEntryInput)
+    : IO NodeState := do
+  stateEvent "replicate" node pre
+  let mut state := pre
+  for entry in entries do
+    let index := state.log.length + 1
+    let metadata := entry.content.metadata
+    stateEvent "replicate_entry" node state
+      [
+        ("view", .number state.currentTerm),
+        ("seqno", .number index),
+        ("globally_committable", .flag entry.content.isSignature)
+      ]
+    for retired in metadata.retirementConfirmations.sort do
+      event "retired_committed_tx"
+        [
+          ("node_id", named node),
+          ("seqno", .number index),
+          ("retired_node_id", named retired)
+        ]
+    let appended : NodeState :=
+      {
+        state with
+          log := state.log ++ [{ term := state.currentTerm, content := entry.content }]
+      }
+    if let some members := metadata.configuration then
+      stateEvent "add_configuration" node state (added state index members)
+      -- cft.h has seen the configuration, which may retire the node, before it holds the entry.
+      -- It takes a node which the configuration adds to hold the entry, and sends it none.
+      let shown := { snapshot node appended with last := state.log.length }
+      for peer in ((members \ eligiblePeers state node).erase node).sort do
+        state :=
+          {
+            state with
+              sentIndex := CCF.Function.update state.sentIndex peer state.log.length
+          }
+        state ← entriesSent node state (shown := some shown) (shownSent := some index)
+    state := { appended with sentIndex := state.sentIndex }
+    unless entry.flushes.isEmpty do
+      stateEvent "batch_flush" node state
+      for _ in entry.flushes do
+        state ← entriesSent node state
+  committed node state (highestCommittableIndex state node)
+
+/-- The events of `node` receiving `message` from `source`, and its state after. -/
+private def received (node source : NodeID) (message : Message) (pre : NodeState)
+    : IO NodeState := do
+  let receive (function : String) (fields : List (String × Value) := []) : IO Unit :=
+    stateEvent function node pre
+      ([("packet", packet message), ("from_node_id", named source)] ++ fields)
+  -- become_aware_of_new_term
+  let follow (term : Nat) : IO NodeState := do
+    let state := becomeAwareOfNewTerm pre term
+    stateEvent "become_follower" node state [configurations state]
+    return state
+  let known := decide (source ∈ eligiblePeers pre node)
+  match message with
+  | .appendEntriesRequest request =>
+      receive "recv_append_entries"
+      let mut state := pre
+      if pre.currentTerm < request.term
+          || (pre.currentTerm == request.term
+              && (pre.role == .candidate || pre.role == .preVoteCandidate)) then
+        state ← follow request.term
+      -- Without a response, cft.h ignored the message
+      let some response ← nextSent | return state
+      let accepted :=
+        match response.payload with
+        | .appendEntriesResponse response => response.success
+        | _ => false
+      if accepted then
+        if let some index := firstTermConflictIndex state request then
+          state :=
+            { state with log := state.log.take (index - 1), isNewFollower := false }
+        let limit :=
+          min request.primaryCommit (request.prevLogIndex + request.entries.length)
+        let commit (state : NodeState) : IO NodeState :=
+          committed node state
+            (max state.commitIndex (maxCommittableIndexUpTo state.log limit))
+        for entry in request.entries.drop (state.log.length - request.prevLogIndex) do
+          stateEvent "execute_append_entries_sync" node state
+            [("from_node_id", named source)]
+          let before := state
+          let index := state.log.length + 1
+          state := { state with log := state.log ++ [entry] }
+          for retired in entry.content.metadata.retirementConfirmations.sort do
+            event "retired_committed_tx"
+              [
+                ("node_id", named node),
+                ("seqno", .number index),
+                ("retired_node_id", named retired)
+              ]
+          if let some members := entry.content.metadata.configuration then
+            -- cft.h holds the entry before it sees the configuration in it
+            event "add_configuration"
+              (("state", ({ snapshot node before with last := index }).value)
+                :: added before index members)
+          if entry.content.isSignature then
+            state ← commit state
+        state ← commit state
+      sentEvent "send_append_entries_response" (snapshot node state)
+      return state
+  | .appendEntriesResponse response =>
+      -- cft.h ignores the response of a node which it does not know, before it traces it
+      unless known do
+        return pre
+      receive "recv_append_entries_response"
+        [
+          ("match_idx", .number (pre.matchIndex source)),
+          ("sent_idx", .number (pre.sentIndex source))
+        ]
+      if pre.role != .primary then
+        return pre
+      if pre.currentTerm < response.term then
+        follow response.term
+      else if response.success && response.term == pre.currentTerm then
+        let state :=
+          {
+            pre with
+              matchIndex :=
+                CCF.Function.update pre.matchIndex source
+                  (max (pre.matchIndex source) response.lastLogIndex)
+          }
+        committed node state (highestCommittableIndex state node)
+      else
+        return pre
+  | .requestVoteRequest request | .requestPreVoteRequest request =>
+      receive "recv_request_vote"
+      let state ← if pre.currentTerm < request.term then follow request.term else pure pre
+      sentEvent "send_request_vote_response" (snapshot node state)
+      return state
+  | .requestVoteResponse response =>
+      receive "recv_request_vote_response"
+      if !known then
+        return pre
+      else if pre.currentTerm < response.term then
+        follow response.term
+      else if
+        pre.role == .candidate
+        && response.term == pre.currentTerm
+        && response.voteGranted then
+        let state := { pre with votesGranted := insert source pre.votesGranted }
+        if hasQuorum state.activeConfigurations state.votesGranted
+            ∧ Not (state.isRetiredCommitted node) then
+          becameLeader node state
+        else
+          return state
+      else
+        return pre
+  | .requestPreVoteResponse response =>
+      receive "recv_request_vote_response"
+      if !known then
+        return pre
+      else if pre.currentTerm < response.term then
+        follow response.term
+      else if
+        pre.role == .preVoteCandidate
+        && response.term == pre.currentTerm
+        && response.voteGranted then
+        let state := { pre with preVotesGranted := insert source pre.preVotesGranted }
+        if hasQuorum state.activeConfigurations state.preVotesGranted then
+          becameCandidate node state
+        else
+          return state
+      else
+        return pre
+  | .proposeRequestVoteRequest term =>
+      receive "recv_propose_request_vote"
+      if term = pre.currentTerm ∧ canStartElection pre node then
+        becameCandidate node pre
+      else
+        return pre
 
 /-! ## Timers -/
 
@@ -214,8 +713,14 @@ private def updateTimers (node : NodeID) (pre post : NodeState) (action : Model.
 
 /-! ## Model steps -/
 
-/-- Take a step of the model, and record it. `false` if the model does not allow it. -/
-private def step? (action : Model.Action) : IO Bool := do
+/--
+Take a step of the model, and write the events which the implementation traces for it:
+`events` does, from the state of the node before the step, and gives its state after.
+`false` if the model does not allow the step, which then writes nothing.
+-/
+private def perform (action : Model.Action)
+    (events : NodeState → NodeState → IO NodeState)
+    : IO Bool := do
   let d ← driver.get
   let some first := d.first | fail "No node has started"
   let node :=
@@ -223,33 +728,22 @@ private def step? (action : Model.Action) : IO Bool := do
     | .local node _ => node
     | .deliver envelope => envelope.target
   let some pre := nodeState d.state node | fail s!"Node {nodeName node} does not exist"
-  match Model.networkStep ({first} : Finset NodeID) d.state action with
-  | none =>
-      record (actionFields action ++ [("allowed", toJson false)])
-      return false
-  | some after =>
-      let some post := nodeState after node | fail s!"Node {nodeName node} does not exist"
-      let kept :=
-        match action with
-        | .local .. => d.state.network.length
-        | .deliver _ => d.state.network.length - 1
-      let sent := after.network.drop kept
-      driver.set { d with state := after }
-      record
-        (actionFields action
-          ++ [(
-                "sent",
-                toJson
-                  (sent.map
-                    fun envelope =>
-                      Json.mkObj
-                        [
-                          ("to_node_id", toJson (nodeName envelope.target)),
-                          ("packet", Replay.messageJson envelope.payload)
-                        ])
-              )])
-      updateTimers node pre post action sent
-      return true
+  let some after := Model.networkStep ({first} : Finset NodeID) d.state action
+  | return false
+  let some post := nodeState after node | fail s!"Node {nodeName node} does not exist"
+  let kept :=
+    match action with
+    | .local .. => d.state.network.length
+    | .deliver _ => d.state.network.length - 1
+  let sent := after.network.drop kept
+  driver.set { d with state := after, outbox := sent }
+  let traced ← events pre post
+  -- The events are those of the step: they show each message sent, and end in its state
+  unless (← driver.get).outbox.isEmpty && snapshot node traced == snapshot node post do
+    fail
+      s!"The events traced for a step of node {nodeName node} are not those of the model"
+  updateTimers node pre post action sent
+  return true
 
 /-! ## Messages -/
 
@@ -259,12 +753,11 @@ private def queue (source : NodeID) : IO (List Envelope) :=
 
 /-- Lose a message: it is no longer undelivered. -/
 private def lose (envelope : Envelope) : IO Unit := do
-  record
+  stateEvent "drop_pending_to" envelope.source (← get envelope.source)
     [
-      ("node_id", toJson (nodeName envelope.source)),
-      ("action", "lose"),
-      ("to_node_id", toJson (nodeName envelope.target)),
-      ("packet", Replay.messageJson envelope.payload)
+      ("from_node_id", named envelope.source),
+      ("to_node_id", named envelope.target),
+      ("packet", packet envelope.payload)
     ]
   driver.modify
     fun d =>
@@ -307,7 +800,9 @@ private def dispatch (envelope : Envelope) : IO Bool := do
               <= (← get envelope.source).log.length))
     | _ => pure true
   if connected && held then
-    if ← step? (.deliver envelope) then
+    let events (pre _post : NodeState) : IO NodeState :=
+      received envelope.target envelope.source envelope.payload pre
+    if ← perform (.deliver envelope) events then
       return true
   lose envelope
   return false
@@ -356,18 +851,29 @@ private def endOfTerm (log : List Entry) (start : Nat) : Nat :=
   let term := termAt log start
   start + ((log.drop start).takeWhile (·.term == term)).length
 
-/-- Send to `peer` what `node` has not sent it, a term at a time, as `send_append_entries`. -/
-private partial def sendEntriesTo (node peer : NodeID) : IO Unit := do
-  let state ← get node
-  let last := state.log.length
-  let start := state.sentIndex peer + 1
-  let stop := if start > last then last else endOfTerm state.log start
-  if (← step? (.local node (.sendEntries peer stop))) && stop != last then
-    sendEntriesTo node peer
+/--
+The last index of each message in which a primary with `log` sends a peer the entries
+after `sent`, as `send_append_entries` in `cft.h`: at most `limit` entries, of one term.
+A primary with no entry to send sends one message without any.
+-/
+private def ranges (log : List Entry) (sent limit : Nat) : List Nat :=
+  go (log.length + 1) sent
+where
+  go : Nat → Nat → List Nat
+    | 0, _ => []
+    | fuel + 1, sent =>
+        let start := sent + 1
+        let stop :=
+          if start > log.length then
+            log.length
+          else
+            min (start + limit - 1) (endOfTerm log start)
+        if stop == log.length then [stop] else stop :: go fuel stop
 
 /-- Advance the clock of `node`, as `periodic` in `cft.h`. -/
 private def periodic (node : NodeID) (ms : Nat) : IO Unit := do
   let state ← get node
+  stateEvent "tick" node state
   driver.modify
     fun d =>
       { d with elapsed := fun other => d.elapsed other + if other == node then ms else 0 }
@@ -375,8 +881,18 @@ private def periodic (node : NodeID) (ms : Nat) : IO Unit := do
   if state.role == .primary then
     if elapsed >= requestTimeout then
       restart node
+      driver.modify
+        fun d =>
+          {
+            d with
+              batching := CCF.Function.update d.batching node (d.batching node).resized
+          }
+      let limit := ((← driver.get).batching node).limit
       for peer in (eligiblePeers state node).sort do
-        sendEntriesTo node peer
+        for stop in ranges state.log (state.sentIndex peer) limit do
+          let events (pre _post : NodeState) : IO NodeState := entriesSent node pre
+          unless ← perform (.local node (.sendEntries peer stop)) events do
+            break
     driver.modify
       fun d =>
         {
@@ -392,9 +908,13 @@ private def periodic (node : NodeID) (ms : Nat) : IO Unit := do
     -- A primary steps down unless a majority of each configuration has acknowledged it
     unless (← get node).activeConfigurations.all
             fun configuration => live configuration >= configuration.nodes.card / 2 + 1 do
-      discard <| step? (.local node (.timeout .checkQuorum))
+      let events (_pre post : NodeState) : IO NodeState := do
+        stateEvent "become_follower" node post [configurations post]
+        return post
+      discard <| perform (.local node (.timeout .checkQuorum)) events
   else if elapsed >= electionTimeout && !decide (state.isRetiredCommitted node) then
-    discard <| step? (.local node (.timeout .election))
+    let events (pre _post : NodeState) : IO NodeState := timedOut node pre
+    discard <| perform (.local node (.timeout .election)) events
 
 /-! ## Replication -/
 
@@ -420,15 +940,77 @@ private def findPrimary (term : Text) : IO (Option NodeID) := do
   | some (node, _) => return some node
   | none => fail s!"Found no primary in term {term.text}"
 
-private def transaction (metadata : TransactionMetadata := {}) : IO EntryContent := do
+/-- An entry to replicate, with the bytes which the scenario driver replicates for it. -/
+abbrev Replicated := EntryContent × Nat
+
+/--
+The bytes which the scenario driver replicates for an entry of `kind` whose data has
+`bytes`: JSON which names the kind, and holds the data in base64.
+-/
+private def entryBytes (kind : String) (bytes : Nat) : Nat :=
+  21 + kind.utf8ByteSize + 4 * ((bytes + 2) / 3)
+
+/-- The bytes of the JSON in which the scenario driver replicates `nodes`, with their addresses. -/
+private def nodesBytes (nodes : List NodeID) : Nat :=
+  2 + (nodes.length - 1) + (nodes.map fun node => (nodeName node).utf8ByteSize + 18).sum
+
+/-- A number for a transaction, which no other has. -/
+private def newRequest : IO Nat := do
   let request := (← driver.get).nextRequest
   driver.modify fun d => { d with nextRequest := request + 1 }
-  return .transaction request metadata
+  return request
 
-/-- Append `contents` in one batch on the primary in `term`, if there is one. -/
-private def append (term : Text) (contents : List EntryContent) : IO Unit := do
+private def signed : Replicated :=
+  (.signature, entryBytes "raw" "signature".utf8ByteSize)
+
+private def transaction (data : String) : IO Replicated :=
+  return (.transaction (← newRequest) {}, entryBytes "raw" data.utf8ByteSize)
+
+private def reconfiguration (members : List NodeID) : IO Replicated :=
+  return (
+    .transaction (← newRequest) { configuration := some (Finset.ofList members) },
+    entryBytes "reconfiguration" (nodesBytes members)
+  )
+
+private def retirement (retired : List NodeID) : IO Replicated :=
+  return (
+    .transaction (← newRequest) { retirementConfirmations := Finset.ofList retired },
+    entryBytes "retired_committed" (nodesBytes retired)
+  )
+
+/--
+Append `entries` in one batch on the primary in `term`, if there is one. As `cft.h`, the
+primary sends what it has not sent once the entries which it has replicated reach
+`sizeLimit`, and not only at its next tick.
+-/
+private def append (term : Text) (entries : List Replicated) : IO Unit := do
   let some primary ← findPrimary term | return
-  unless ← step? (.local primary (.append (contents.map fun content => { content }))) do
+  let state ← get primary
+  let mut batching := (← driver.get).batching primary
+  let mut log := state.log
+  let mut sent := state.sentIndex
+  let mut inputs : Array AppendEntryInput := #[]
+  for (content, size) in entries do
+    let before : NodeState := { state with log }
+    if let some members := content.metadata.configuration then
+      for peer in ((members \ eligiblePeers before primary).erase primary).sort do
+        sent := CCF.Function.update sent peer log.length
+    log := log ++ [{ term := state.currentTerm, content }]
+    batching :=
+      { batching with count := batching.count + 1, size := batching.size + size }
+    let mut flushes : List (NodeID × Nat) := []
+    if batching.size >= sizeLimit then
+      batching := { batching.resized with count := 0, size := 0 }
+      for peer in (eligiblePeers { state with log } primary).sort do
+        let stops := ranges log (sent peer) batching.limit
+        flushes := flushes ++ stops.map (peer, ·)
+        sent := CCF.Function.update sent peer log.length
+    inputs := inputs.push { content, flushes }
+  driver.modify
+    fun d => { d with batching := CCF.Function.update d.batching primary batching }
+  let events (pre _post : NodeState) : IO NodeState :=
+    replicated primary pre inputs.toList
+  unless ← perform (.local primary (.append inputs.toList)) events do
     fail s!"The model does not let node {nodeName primary} append these entries"
 
 /-! ## Membership -/
@@ -442,7 +1024,11 @@ private def addNode (node : NodeID) : IO Unit := do
   let fresh := (node, Model.initialNodeState ({first} : Finset NodeID) node)
   let (before, after) := d.state.nodes.partition (·.1 < node)
   driver.set { d with state := { d.state with nodes := before ++ fresh :: after } }
-  unless ← step? (.local node (.initAsBackup [])) do
+  let events (pre post : NodeState) : IO NodeState := do
+    stateEvent "init_as_backup" node pre [("seqno", .number 0), ("view", .number 0)]
+    stateEvent "become_follower" node post [configurations post]
+    return post
+  unless ← perform (.local node (.initAsBackup [])) events do
     fail s!"The model does not let node {nodeName node} join"
   restart node
 
@@ -457,8 +1043,7 @@ private def reconfigure (term : Text) (joining out : List NodeID) : IO Unit := d
     for other in ← nodeIds do
       if other != node then
         connect other node
-  let members := (← nodeIds).filter (!out.contains ·)
-  append term [← transaction { configuration := some (Finset.ofList members) }]
+  append term [← reconfiguration ((← nodeIds).filter (!out.contains ·))]
 
 /-! ## Assertions -/
 
@@ -512,7 +1097,7 @@ private def loopUntilSync : IO Unit := do
   let some (term, primary) ← latestPrimary
   | fail "Can't currently loop until sync, no primary"
   let active ← (← nodeIds).filterM fun node => return isActive node (← get node)
-  append (toString term : String) [.signature]
+  append (toString term : String) [signed]
   for node in active do
     for other in ← nodeIds do
       if other != node then
@@ -528,36 +1113,21 @@ private def loopUntilSync : IO Unit := do
 /-! ## Commands -/
 
 /--
-Run a command: record it, with what it did to the model and the state in which it leaves
-each node, and name it if it fails. The commit index of every node must then be safe,
-which the scenario driver does not check after a command which only reads.
+Run a command: record it, as the scenario driver does, and name it if it fails. The commit
+index of every node must then be safe, which the scenario driver does not check after a
+command which only reads.
 -/
 private def command (name : String) (run : IO Unit) (reads : Bool := false)
     : IO Unit := do
-  driver.modify fun d => { d with commands := d.commands + 1, actions := #[] }
-  let problem ←
-    try
-      run
-      unless reads do
-        for node in ← nodeIds do
-          checkCommitSafety node
-      pure none
-    catch error =>
-      pure (some s!"Step {(← driver.get).commands} ({name}) failed: {error}")
-  let d ← driver.get
-  let fields :=
-    [
-      ("cmd", toJson name),
-      ("actions", Json.arr d.actions),
-      (
-        "nodes",
-        Json.arr (d.state.nodes.map fun (node, state) => stateJson node state).toArray
-      )
-    ]
-    ++ problem.toList.map fun error => ("error", toJson error)
-  driver.set { d with records := d.records.push (Json.mkObj fields) }
-  if let some error := problem then
-    fail error
+  driver.modify fun d => { d with commands := d.commands + 1 }
+  write (.object [("cmd", .text name)])
+  try
+    run
+    unless reads do
+      for node in ← nodeIds do
+        checkCommitSafety node
+  catch error =>
+    fail s!"Step {(← driver.get).commands} ({name}) failed: {error}"
 
 /-- The text of a command, as the scenario driver records it. -/
 private def text (name : String) (arguments : List String) : String :=
@@ -572,13 +1142,27 @@ def startNode (node : Text) : IO Unit :=
     let id ← nodeId node
     if (← driver.get).first.isSome then
       fail "Start node already exists"
+    let state := Model.initialNodeState ({id} : Finset NodeID) id
+    let size := entryBytes "reconfiguration" (nodesBytes [id])
     driver.modify
       fun d =>
         {
           d with
             first := some id
-            state := { nodes := [(id, Model.initialNodeState ({id} : Finset NodeID) id)] }
+            state := { nodes := [(id, state)] }
+            batching := CCF.Function.update d.batching id { count := 1, size }
         }
+    -- The model starts with the node as primary of its own configuration, which cft.h replicates
+    let empty := { state with log := [] }
+    stateEvent "become_leader" id empty [configurations empty]
+    stateEvent "replicate" id empty
+    stateEvent "replicate_entry" id empty
+      [
+        ("view", .number state.currentTerm),
+        ("seqno", .number 1),
+        ("globally_committable", .flag false)
+      ]
+    stateEvent "add_configuration" id empty (added empty 1 {id})
 
 @[export model_cft_trust_node]
 def trustNode (term node : Text) : IO Unit :=
@@ -609,14 +1193,20 @@ def cleanupNodes (term : Text) (nodes : List Text) : IO Unit :=
     let retired ← nodes.mapM nodeId
     for node in retired do
       discard <| get node
-    append term [← transaction { retirementConfirmations := Finset.ofList retired }]
+    append term [← retirement retired]
 
 @[export model_cft_nominate_successor]
 def nominateSuccessor (node : Text) : IO Unit :=
   command (text "nominate_successor" [node.text]) do
     let id ← nodeId node
-    discard <| get id
-    discard <| step? (.local id .nominateSuccessor)
+    stateEvent "nomination" id (← get id)
+    let events (pre _post : NodeState) : IO NodeState := do
+      if let some envelope ← nextSent isNomination then
+        stateEvent "step_down_and_nominate_successor" id pre
+          [configurations pre, ("to_node_id", named envelope.target)]
+        sentEvent "send_propose_request_vote" (snapshot id pre)
+      return pre
+    discard <| perform (.local id .nominateSuccessor) events
 
 @[export model_cft_nodes]
 def nodes (ids : List Text) : IO Unit :=
@@ -634,14 +1224,14 @@ def replicateNewConfiguration (term : Text) (nodes : List Text) : IO Unit :=
     for node in members do
       unless (← nodeIds).contains node do
         addNode node
-    append term [← transaction { configuration := some (Finset.ofList members) }]
+    append term [← reconfiguration members]
 
 @[export model_cft_replicate]
 def replicate (term : Text) (entries : List Text) : IO Unit :=
   command (text "replicate" (term.text :: texts entries)) do
     append term
       (← entries.mapM
-          fun entry => if entry.text == "$" then pure .signature else transaction)
+          fun entry => if entry.text == "$" then pure signed else transaction entry.text)
 
 @[export model_cft_periodic_one]
 def periodicOne (node : Text) (ms : UInt64) : IO Unit :=
@@ -711,8 +1301,12 @@ def dispatchAllCommand : IO Unit :=
 @[export model_cft_drop_pending]
 def dropPending (node : Text) : IO Unit :=
   command (text "drop_pending" [node.text]) do
-    for envelope in ← queue (← nodeId node) do
-      lose envelope
+    let pending ← queue (← nodeId node)
+    -- The scenario driver drops the messages to each node in turn
+    for target in ← nodeIds do
+      for envelope in pending do
+        if envelope.target == target then
+          lose envelope
 
 @[export model_cft_drop_pending_to]
 def dropPendingTo (source target : Text) : IO Unit :=
@@ -821,16 +1415,25 @@ def loopUntilSyncCommand : IO Unit :=
 def start (_fluentd : List String) : IO Unit :=
   driver.set {}
 
-/-- Confirm that the network can still make progress, as the scenario driver does. -/
+/--
+Confirm that the network can still make progress, as the scenario driver does after a
+scenario, which is not a command of the trace.
+-/
 @[export model_cft_finish]
 def finish : IO Unit :=
-  command "finish" loopUntilSync
+  loopUntilSync
+
+/-- The process, as the implementation identifies it in each record: by its ID and the time. -/
+private def processId : IO String := do
+  let now ← Std.Time.Timestamp.now
+  return s!"{← IO.Process.getPID}-{now.toNanosecondsSinceUnixEpoch.val}"
 
 /--
-Run a scenario on the model, and write its trace to `file`, if given: a line for each
-command. Give what went wrong, if anything did.
+Run a scenario on the model, and write its trace to `file`, if given: a record on each line,
+numbered from 0 as those of the implementation. Give what went wrong, if anything did.
 -/
-def run (steps : IO Unit) (file : Option System.FilePath) : IO (Option String) := do
+def run (steps : IO Unit) (process : String) (file : Option System.FilePath)
+    : IO (Option String) := do
   start []
   let problem ←
     try
@@ -840,8 +1443,14 @@ def run (steps : IO Unit) (file : Option System.FilePath) : IO (Option String) :
     catch error =>
       pure (some (toString error))
   if let some file := file then
+    let line (msg : Value) (sequence : Nat) : String :=
+      (Value.object
+        [("process_id", .text process), ("h_ts", .number sequence), ("msg", msg)]).render
+      ++ "\n"
     IO.FS.writeFile file
-      (String.join ((← driver.get).records.toList.map (·.compress ++ "\n")))
+      (String.join
+        ((← driver.get).records.toList.zipIdx.map
+          fun (msg, sequence) => line msg sequence))
   return problem
 
 end ModelDriver
@@ -853,6 +1462,7 @@ each to the directory named by the second argument, if given.
 -/
 def main (args : List String) : IO UInt32 := do
   let registered := (← scenarios.get).reverse
+  let process ← ModelDriver.processId
   match args with
   | ["--all"] | ["--all", _] =>
       let directory := args[1]?.map System.FilePath.mk
@@ -860,7 +1470,7 @@ def main (args : List String) : IO UInt32 := do
         IO.FS.createDirAll directory
       let mut failed := 0
       for (name, steps) in registered do
-        match ← ModelDriver.run steps (directory.map (· / s!"{name}.ndjson")) with
+        match ← ModelDriver.run steps process (directory.map (· / s!"{name}.ndjson")) with
         | none => IO.println s!"{name}: ok"
         | some problem =>
             failed := failed + 1
@@ -872,7 +1482,7 @@ def main (args : List String) : IO UInt32 := do
       | do
         IO.eprintln s!"Unknown scenario '{name}'"
         return 2
-      match ← ModelDriver.run steps (args[1]?.map System.FilePath.mk) with
+      match ← ModelDriver.run steps process (args[1]?.map System.FilePath.mk) with
       | none =>
           IO.println s!"{name}: ok"
           return 0
