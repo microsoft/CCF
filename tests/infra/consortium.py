@@ -662,8 +662,7 @@ class Consortium:
             # lts_compatibility tests.
             "key_filter": "all",
             "issuer": obj["issuer"],
-            # Only required by releases up to and including 7.0.16, and ignored
-            # by later constitutions.
+            # Required for auto-refresh on releases that use governance CA bundles.
             "ca_cert_bundle_name": obj.get("ca_cert_bundle_name"),
             "auto_refresh": obj.get("auto_refresh", False),
             "jwks": obj.get("jwks"),
@@ -689,9 +688,8 @@ class Consortium:
 
     def set_ca_cert_bundle(self, remote_node, cert_name, cert_bundle_path):
         """
-        Only supported by releases up to and including 7.0.16, whose
-        constitutions still define the set_ca_cert_bundle action. Used by
-        lts_compatibility tests to let those releases auto-refresh JWT keys.
+        Used by lts_compatibility tests to enable JWT auto-refresh on releases
+        whose constitutions still define the set_ca_cert_bundle action.
         """
         proposal_body, careful_vote = self.make_proposal(
             "set_ca_cert_bundle",

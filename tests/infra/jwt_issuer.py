@@ -174,19 +174,20 @@ class NodeTrustStore(AbstractContextManager):
     """
     PEM bundle passed to nodes via SSL_CERT_FILE, so that their outbound TLS
     connections trust the self-signed certificates of test OpenID servers.
-    It starts from the system roots, since SSL_CERT_FILE replaces the system
-    CA bundle, and issuers are appended as they are created.
+    By default it starts from the system roots, since SSL_CERT_FILE replaces
+    the system CA bundle. Issuers are appended as they are created.
     """
 
-    def __init__(self):
+    def __init__(self, *, include_system_roots=True):
         self._lock = threading.Lock()
         self._file = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed in __exit__
             prefix="ccf_trust_store_", mode="w+"
         )
-        with open(system_ca_bundle(), encoding="utf-8") as system_roots:
-            shutil.copyfileobj(system_roots, self._file)
-        self._file.write("\n")
-        self._file.flush()
+        if include_system_roots:
+            with open(system_ca_bundle(), encoding="utf-8") as system_roots:
+                shutil.copyfileobj(system_roots, self._file)
+            self._file.write("\n")
+            self._file.flush()
 
     def __exit__(self, *exc_info):
         self._file.close()
@@ -212,6 +213,14 @@ class JwtIssuer:
     # Older release lines require a governance-managed CA bundle for
     # auto-refresh. CCF 8 and local builds use the node's trust store.
     FIRST_MAJOR_WITH_NODE_TRUST_STORE = 8
+
+    @classmethod
+    def uses_node_trust_store(cls, version):
+        return (
+            version is None
+            or CCFVersion(version).parsed_version.major
+            >= cls.FIRST_MAJOR_WITH_NODE_TRUST_STORE
+        )
 
     def _generate_auth_data(self, cn=None):
         if self._alg == JwtAlg.RS256:
@@ -327,11 +336,7 @@ class JwtIssuer:
         primary, _ = network.find_primary()
 
         issuer = {"issuer": self.issuer_url, "auto_refresh": self.auto_refresh}
-        if (
-            self.auto_refresh
-            and primary.major_version is not None
-            and primary.major_version < self.FIRST_MAJOR_WITH_NODE_TRUST_STORE
-        ):
+        if self.auto_refresh and not self.uses_node_trust_store(primary.version):
             with tempfile.NamedTemporaryFile(
                 prefix="ccf", mode="w+"
             ) as ca_cert_bundle_fp:

@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+from contextlib import ExitStack
 
 import ccf.ledger
 import infra.crypto
@@ -395,10 +396,17 @@ def run_code_upgrade_from(
     fv_skip_verify_chunking = infra.node.CCFVersion(from_version) < ccf621
     tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf621
 
-    with jwt_issuer.start_openid_server(), infra.jwt_issuer.NodeTrustStore() as trust_store:
-        # CCF 8 and local builds verify the OpenID server's certificate against
-        # their trust store rather than a governance-managed CA bundle.
-        trust_store.trust(jwt_issuer)
+    with jwt_issuer.start_openid_server(), ExitStack() as cleanup:
+        from_uses_node_trust = jwt_issuer.uses_node_trust_store(from_version)
+        to_uses_node_trust = jwt_issuer.uses_node_trust_store(to_version)
+        trust_env = {}
+        if from_uses_node_trust or to_uses_node_trust:
+            # This virtual-only test fetches JWT keys from its local provider.
+            trust_store = cleanup.enter_context(
+                infra.jwt_issuer.NodeTrustStore(include_system_roots=False)
+            )
+            trust_store.trust(jwt_issuer)
+            trust_env = trust_store.env
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
             args.nodes,
@@ -411,7 +419,7 @@ def run_code_upgrade_from(
             skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
             disable_openapi_validation(network)
-            kwargs = {"env": trust_store.env}
+            kwargs = {"env": trust_env} if from_uses_node_trust else {}
             if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion(
                 "ccf-4.0.0-rc1"
             ):
@@ -467,8 +475,9 @@ def run_code_upgrade_from(
             new_nodes = []
             fetch_recent_snapshot = True
             for _ in range(len(old_nodes)):
-                kwargs = {"env": trust_store.env}
-                kwargs["fetch_recent_snapshot"] = fetch_recent_snapshot
+                kwargs = {"fetch_recent_snapshot": fetch_recent_snapshot}
+                if to_uses_node_trust:
+                    kwargs["env"] = trust_env
                 if not fetch_recent_snapshot:
                     kwargs["copy_ledger"] = True
 
@@ -727,7 +736,11 @@ def run_ledger_compatibility_since_first(
                     "version": version,
                     "skip_verify_chunking": True,  # Old ledger files will have incorrect chunking
                 }
-                kwargs = {"env": trust_store.env}
+                kwargs = (
+                    {"env": trust_store.env}
+                    if jwt_issuer.uses_node_trust_store(version)
+                    else {}
+                )
                 if not infra.node.CCFVersion(version) > infra.node.CCFVersion(
                     "ccf-4.0.0-rc1"
                 ):
