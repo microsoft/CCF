@@ -14,11 +14,11 @@ on:
   workflow_dispatch:
     inputs:
       from_version:
-        description: CCF version to build on Azure Linux 3 (defaults to previous release)
+        description: CCF version to build on Azure Linux 3 (defaults to latest stable 7.x)
         required: false
         type: string
       to_version:
-        description: CCF version to build on Azure Linux 4 (defaults to latest release)
+        description: CCF version to build on Azure Linux 4 (defaults to latest 8.0.0 prerelease)
         required: false
         type: string
 
@@ -55,23 +55,50 @@ jobs:
           TO_VERSION: ${{ inputs.to_version }}
         run: |
           set -euo pipefail
-          release_tags=$(gh release list \
+          release_data=$(gh release list \
             --repo "$GITHUB_REPOSITORY" \
             --exclude-drafts \
-            --exclude-pre-releases \
-            --limit 2 \
-            --json tagName \
-            --jq '.[].tagName')
-          mapfile -t release_tags <<< "$release_tags"
-          if [[ ${#release_tags[@]} -ne 2 ]] ||
-            [[ "${release_tags[0]}" != ccf-* ]] ||
-            [[ "${release_tags[1]}" != ccf-* ]]; then
-            echo "Expected two stable CCF releases, found: ${release_tags[*]}" >&2
+            --limit 1000 \
+            --json tagName,isPrerelease \
+            --jq '[.[] | {tagName, isPrerelease}]')
+          versions=$(RELEASE_DATA="$release_data" python3 - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+
+          releases = json.loads(os.environ["RELEASE_DATA"])
+          stable = []
+          prereleases = []
+          for release in releases:
+              tag = release["tagName"]
+              match = re.fullmatch(r"ccf-7\.(\d+)\.(\d+)", tag)
+              if match:
+                  stable.append((int(match.group(1)), int(match.group(2)), tag))
+                  continue
+
+              match = re.fullmatch(r"ccf-8\.0\.0-(dev|rc)(\d+)", tag)
+              if match and release["isPrerelease"]:
+                  stage, number = match.groups()
+                  prereleases.append((stage == "rc", int(number), tag))
+
+          if not stable:
+              sys.exit("No published stable CCF 7.x release found")
+          if not prereleases:
+              sys.exit("No published CCF 8.0.0 dev or rc prerelease found")
+
+          print(max(stable)[2])
+          print(max(prereleases)[2])
+          PY
+          )
+          mapfile -t release_versions <<< "$versions"
+          if [[ ${#release_versions[@]} -ne 2 ]]; then
+            echo "Expected stable 7.x and 8.0.0 prerelease versions" >&2
             exit 1
           fi
 
-          from_version=${FROM_VERSION:-${release_tags[1]#ccf-}}
-          to_version=${TO_VERSION:-${release_tags[0]#ccf-}}
+          from_version=${FROM_VERSION:-${release_versions[0]#ccf-}}
+          to_version=${TO_VERSION:-${release_versions[1]#ccf-}}
           echo "from_version=$from_version" >> "$GITHUB_OUTPUT"
           echo "to_version=$to_version" >> "$GITHUB_OUTPUT"
 
