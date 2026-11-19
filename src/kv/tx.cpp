@@ -105,14 +105,13 @@ namespace ccf::kv
 
   void BaseTx::check_read_epoch(const std::string& map_name)
   {
+    const auto read_rollback_count = pimpl->read_rollback_count;
     if (
-      pimpl->read_rollback_count.has_value() &&
-      !pimpl->store->check_rollback_count(pimpl->read_rollback_count.value()))
+      read_rollback_count.has_value() &&
+      !pimpl->store->check_rollback_count(read_rollback_count.value()))
     {
-      throw CompactedVersionConflict(fmt::format(
-        "Unable to acquire map {} at {} after store rollback",
-        map_name,
-        pimpl->read_txid->seqno));
+      throw CompactedVersionConflict(
+        fmt::format("Unable to acquire map {} after store rollback", map_name));
     }
   }
 
