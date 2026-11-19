@@ -652,7 +652,7 @@ namespace ccf
           ccf::crypto::make_cose_verifier_from_pem_cert(target_identity);
         if (verifier->verify_detached(receipt_bytes, receipt.merkle_root))
         {
-          LOG_DEBUG_FMT(
+          LOG_INFO_FMT(
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
             snapshot_seqno);
@@ -667,7 +667,7 @@ namespace ccf
         direct_verification_error = e.what();
       }
 
-      LOG_DEBUG_FMT(
+      LOG_INFO_FMT(
         "Recovery snapshot at {} is not directly signed by the configured "
         "previous service identity ({}); scanning the public ledger suffix "
         "for COSE endorsements",
@@ -689,7 +689,7 @@ namespace ccf
           "Snapshot receipt signature verification failed under the "
           "endorsed snapshot service identity");
       }
-      LOG_DEBUG_FMT(
+      LOG_INFO_FMT(
         "Validated {} recovery snapshot endorsement(s) in memory",
         scan.endorsements.size());
       return claims_digest;
