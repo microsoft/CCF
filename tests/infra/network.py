@@ -259,11 +259,16 @@ class Network:
         next_node_id=0,
         skip_verify_chunking=False,
         ipv6=False,
+        node_env=None,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
         # per_node_args_override = {3: {"election_timeout_ms": 2000}}
         self.per_node_args_override = {}
+
+        if node_env is None and existing_network is not None:
+            node_env = existing_network.node_env
+        self.node_env = dict(node_env or {})
 
         if existing_network is None:
             self.consortium = None
@@ -359,6 +364,7 @@ class Network:
             library_dir or self.library_dir,
             debug,
             ipv6=self.ipv6,
+            default_env=self.node_env,
             **kwargs,
         )
         node.openapi_validator = self.openapi_validator
