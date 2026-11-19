@@ -639,7 +639,13 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``previous_service_identity_endorsement``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+Endorsements of service identities by the identities that succeed them, keyed by service signing identity type.
+When a service opens, it signs with the key of each identity type an endorsement of the key that signed the previous endorsement of that type, or of its own key if there is none, so that each type chains service identities across disaster recoveries.
+
+**Key** Identity type as a little-endian 64-bit unsigned integer.
+``CLASSICAL`` (0) is written by every service.
+``PQ`` (1) is written by a service with an ML-DSA identity, in the same transaction.
+It endorses the previous ``PQ`` endorsing key over the same epochs, and with the same previous Merkle root, as ``CLASSICAL``, or its own key if the previous service had no ML-DSA identity.
 
 **Value**
 
