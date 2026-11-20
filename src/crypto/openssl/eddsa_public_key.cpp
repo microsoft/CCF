@@ -6,6 +6,9 @@
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 
+#include <format>
+#include <utility>
+
 namespace ccf::crypto
 {
   using namespace OpenSSL;
@@ -47,7 +50,7 @@ namespace ccf::crypto
       EVP_PKEY_new_raw_public_key(curve, nullptr, x_raw.data(), x_raw.size());
     if (key == nullptr)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Error constructing EdDSA public key from JWK: {}",
         OpenSSL::first_error()));
     }
@@ -115,8 +118,8 @@ namespace ccf::crypto
       case CurveID::SECP256R1:
       case CurveID::SECP521R1:
       {
-        throw std::logic_error(
-          fmt::format("unsupported OpenSSL CurveID {}", gid));
+        throw std::logic_error(std::format(
+          "unsupported OpenSSL CurveID {}", std::to_underlying(gid)));
       }
     }
     return NID_undef;
@@ -137,7 +140,7 @@ namespace ccf::crypto
       }
       default:
       {
-        throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+        throw std::runtime_error(std::format("Unknown OpenSSL curve {}", nid));
       }
     }
     return CurveID::NONE;

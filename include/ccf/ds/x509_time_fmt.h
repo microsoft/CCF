@@ -5,9 +5,7 @@
 #include "ccf/ds/nonstd.h"
 
 #include <chrono>
-#define FMT_HEADER_ONLY
-#include <fmt/chrono.h>
-#include <fmt/format.h>
+#include <format>
 #include <iomanip>
 #include <sstream>
 #include <time.h>
@@ -19,20 +17,34 @@ namespace ccf::ds
   {
     // Returns ASN1 time string (YYYYMMDDHHMMSSZ) from time_t, as per
     // https://www.openssl.org/docs/man1.1.1/man3/ASN1_UTCTIME_set.html
-    return fmt::format("{:%Y%m%d%H%M%SZ}", time);
+    return std::format(
+      "{:04}{:02}{:02}{:02}{:02}{:02}Z",
+      time.tm_year + 1900LL,
+      time.tm_mon + 1,
+      time.tm_mday,
+      time.tm_hour,
+      time.tm_min,
+      time.tm_sec);
   }
 
   static inline std::string to_x509_time_string(
     const ccf::nonstd::SystemClock::time_point& time)
   {
-    return to_x509_time_string(
-      fmt::gmtime(ccf::nonstd::SystemClock::to_time_t(time)));
+    const auto seconds = ccf::nonstd::SystemClock::to_time_t(time);
+    std::tm utc{};
+    if (::gmtime_r(&seconds, &utc) == nullptr)
+    {
+      throw std::runtime_error("Unable to convert certificate time to UTC");
+    }
+    return to_x509_time_string(utc);
   }
 
   static inline std::string to_x509_time_string(
     const std::chrono::system_clock::time_point& time)
   {
-    return to_x509_time_string(fmt::gmtime(time));
+    return to_x509_time_string(ccf::nonstd::SystemClock::time_point(
+      std::chrono::duration_cast<ccf::nonstd::SystemClock::duration>(
+        time.time_since_epoch())));
   }
 
   static inline ccf::nonstd::SystemClock::time_point time_point_from_string(
@@ -132,7 +144,7 @@ namespace ccf::ds
     // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 
     throw std::runtime_error(
-      fmt::format("'{}' does not match any accepted time format", time));
+      std::format("'{}' does not match any accepted time format", time));
   }
 
   static inline std::string to_x509_time_string(const std::string& time)

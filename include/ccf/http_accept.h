@@ -7,6 +7,7 @@
 #include "ccf/odata_error.h"
 #include "ccf/rpc_exception.h"
 
+#include <format>
 #include <string_view>
 
 namespace ccf::http
@@ -95,7 +96,7 @@ namespace ccf::http
         throw ccf::RpcException(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidHeaderValue,
-          fmt::format(
+          std::format(
             "Entry in Accept header is not a valid MIME type: {}", element));
       }
 
@@ -111,7 +112,7 @@ namespace ccf::http
           throw ccf::RpcException(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidHeaderValue,
-            fmt::format(
+            std::format(
               "Could not parse q-factor from MIME type in Accept header: "
               "{}",
               element));

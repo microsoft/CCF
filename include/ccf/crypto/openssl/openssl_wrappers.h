@@ -3,15 +3,12 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
-
-#define FMT_HEADER_ONLY
-
 #include "ccf/ds/x509_time_fmt.h"
 
 #include <algorithm>
 #include <chrono>
 #include <climits>
-#include <fmt/format.h>
+#include <format>
 #include <memory>
 #include <openssl/asn1.h>
 #include <openssl/bn.h>
@@ -72,7 +69,7 @@ namespace ccf::crypto::OpenSSL
     if (rc != 1)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", rc, first_error()));
+        std::format("OpenSSL error (rc={}): {}", rc, first_error()));
     }
   }
 
@@ -82,7 +79,7 @@ namespace ccf::crypto::OpenSSL
     if (ptr == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (missing object): {}", first_error()));
+        std::format("OpenSSL error (missing object): {}", first_error()));
     }
   }
 
@@ -92,7 +89,7 @@ namespace ccf::crypto::OpenSSL
     if (expect != actual)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", actual, first_error()));
+        std::format("OpenSSL error (rc={}): {}", actual, first_error()));
     }
   }
 
@@ -102,7 +99,7 @@ namespace ccf::crypto::OpenSSL
     if (val <= 0)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", val, first_error()));
+        std::format("OpenSSL error (rc={}): {}", val, first_error()));
     }
   }
 
@@ -198,7 +195,7 @@ namespace ccf::crypto::OpenSSL
     {
       if (len > INT_MAX)
       {
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "Buffer size {} exceeds the maximum of {} bytes", len, INT_MAX));
       }
       return BIO_new_mem_buf(buf, static_cast<int>(len));
@@ -565,9 +562,9 @@ namespace ccf::crypto::OpenSSL
       if (rc == 0)
       {
         throw std::invalid_argument(
-          fmt::format("Key failed {} check: {}", which, first_error()));
+          std::format("Key failed {} check: {}", which, first_error()));
       }
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "OpenSSL error in {} key check (rc={}): {}", which, rc, first_error()));
     };
     Unique_EVP_PKEY_CTX ctx(key);

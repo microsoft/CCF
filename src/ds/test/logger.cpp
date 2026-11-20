@@ -1,21 +1,159 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/ds/join.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ds/internal_logger.h"
 #include "ds/time_bound_logger.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <ctime>
 #include <doctest/doctest.h>
+#include <format>
 #include <iostream>
+#include <limits>
+#include <map>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <thread>
 #include <utility>
 #include <vector>
+
+TEST_CASE("Joined ranges preserve element formatting")
+{
+  const std::vector<uint8_t> bytes{0, 9, 16, 127, 128, 255};
+  CHECK(
+    std::format("[{}]", ccf::ds::join(bytes, ", ")) ==
+    "[0, 9, 16, 127, 128, 255]");
+  CHECK(
+    std::format("{:02x}", ccf::ds::join(bytes, " ")) == "00 09 10 7f 80 ff");
+  CHECK(
+    std::format("{:02X}", ccf::ds::join(bytes.rbegin(), bytes.rend(), "")) ==
+    "FF807F100900");
+  CHECK(
+    std::format(
+      "{}",
+      ccf::ds::join(
+        std::counted_iterator(bytes.begin(), 2), std::default_sentinel, ",")) ==
+    "0,9");
+  CHECK(std::format("{}", ccf::ds::join(std::array<int, 0>{}, ",")).empty());
+  CHECK(std::format("{}", ccf::ds::join(std::array{42}, ",")) == "42");
+  CHECK(
+    std::format("{}", ccf::ds::join(std::array{1, 2, 3}, ", ")) == "1, 2, 3");
+  CHECK(
+    std::format("{:>3}", ccf::ds::join(std::array{1, 20}, "|")) == "  1| 20");
+  CHECK(
+    std::format("{:0{}}", ccf::ds::join(std::array{1, 20}, "|"), 3) ==
+    "001|020");
+  CHECK(std::format("{}", ccf::ds::join(std::array{"a", "b"}, "/")) == "a/b");
+  const std::map<int, int> values{{1, 10}, {2, 20}};
+  CHECK(
+    std::format("{}", ccf::ds::join(std::views::keys(values), ",")) == "1,2");
+  CHECK(
+    std::format(
+      "{}",
+      ccf::ds::join(
+        std::views::iota(1, 5) |
+          std::views::filter([](int value) { return value % 2 == 0; }),
+        ", ")) == "2, 4");
+
+  const auto range = ccf::ds::join(bytes, "");
+  CHECK_THROWS_AS(
+    (void)std::vformat("{:s}", std::make_format_args(range)),
+    std::format_error);
+  CHECK_THROWS_AS(
+    (void)std::vformat("{", std::make_format_args(range)), std::format_error);
+}
+
+TEST_CASE("UTC timestamps retain their precision and calendar range")
+{
+  std::tm calendar{};
+  calendar.tm_year = 2024 - 1900;
+  calendar.tm_mon = 1;
+  calendar.tm_mday = 29;
+  calendar.tm_hour = 12;
+  calendar.tm_min = 34;
+  calendar.tm_sec = 56;
+  const timespec time{0, 123456789};
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "2024-02-29T12:34:56.123456Z");
+  CHECK(
+    ccf::logger::get_timestamp(calendar, timespec{0, 999}) ==
+    "2024-02-29T12:34:56.000000Z");
+  CHECK(ccf::ds::to_x509_time_string(calendar) == "20240229123456Z");
+
+  for (const auto* input :
+       {"19500101000000Z", "19700101000000Z", "99991231235959Z"})
+  {
+    CHECK(
+      ccf::ds::to_x509_time_string(ccf::ds::time_point_from_string(input)) ==
+      input);
+  }
+  CHECK(
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::time_point{}) ==
+    "19700101000000Z");
+  CHECK(
+    ccf::ds::to_x509_time_string(
+      std::chrono::system_clock::time_point{} -
+      std::chrono::milliseconds(1500)) == "19691231235959Z");
+  CHECK(
+    ccf::ds::to_x509_time_string(
+      std::chrono::system_clock::time_point{} -
+      std::chrono::milliseconds(500)) == "19700101000000Z");
+  CHECK_THROWS_AS(
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::time_point::max()),
+    std::runtime_error);
+
+  std::tm far_future{};
+  far_future.tm_year = std::numeric_limits<int>::max();
+  far_future.tm_mday = 1;
+  CHECK(
+    ccf::logger::get_timestamp(far_future, timespec{}) ==
+    "2147485547-01-01T00:00:00.000000Z");
+  CHECK(ccf::ds::to_x509_time_string(far_future) == "21474855470101000000Z");
+}
+
+TEST_CASE("Logger timestamp preserves padding at year boundaries")
+{
+  std::tm calendar{};
+  calendar.tm_mday = 1;
+  calendar.tm_sec = 60;
+  const timespec time{0, 1999};
+
+  calendar.tm_year = -1901;
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "-001-01-01T00:00:60.000001Z");
+  calendar.tm_year = -1900;
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "0000-01-01T00:00:60.000001Z");
+  calendar.tm_year = 9999 - 1900;
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "9999-01-01T00:00:60.000001Z");
+  calendar.tm_year = 10000 - 1900;
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "10000-01-01T00:00:60.000001Z");
+}
+
+TEST_CASE("Disabled logging does not evaluate format arguments")
+{
+  const auto previous_level = ccf::logger::config::level();
+  ccf::logger::config::level() = ccf::LoggerLevel::FATAL;
+  size_t evaluated = 0;
+  CCF_APP_INFO("{}", ++evaluated);
+  LOG_DEBUG_FMT("{}", ++evaluated);
+  CHECK(evaluated == 0);
+  ccf::logger::config::level() = previous_level;
+}
 
 TEST_CASE("Thread IDs are provided by the logger headers")
 {
@@ -181,14 +319,13 @@ TEST_CASE("Application log formatting preserves text and JSON messages")
   CCF_APP_INFO(
     "value={:.2f} hex={:02x} enum={} optional={}",
     1.25,
-    fmt::join(bytes, ""),
-    ccf::LoggerLevel::INFO,
-    std::optional{7});
+    ccf::ds::join(bytes, ""),
+    std::to_underlying(ccf::LoggerLevel::INFO),
+    std::optional{7}.value());
   CCF_APP_INFO("escaped={{}}\n{}\0{}", "before", "after");
 
   const std::vector<std::string> expected = {
-    "value=1.25 hex=00017fff enum=2 optional=optional(7)",
-    "escaped={}\nbefore\0after"s};
+    "value=1.25 hex=00017fff enum=2 optional=7", "escaped={}\nbefore\0after"s};
   REQUIRE(text_logs.size() == expected.size());
   REQUIRE(json_logs.size() == expected.size());
   for (size_t i = 0; i < expected.size(); ++i)
@@ -397,6 +534,47 @@ constexpr auto custom_tag = "my tag";
 constexpr auto custom_long_tag =
   "A very long tag that may need to be truncated";
 #define CUSTOM_LOG_LONG CCF_LOG_FMT(INFO, custom_long_tag)
+
+TEST_CASE("Text logger preserves padding, truncation and message bytes")
+{
+  using namespace std::string_literals;
+
+  const auto check = [](
+                       uint16_t thread,
+                       std::string_view tag,
+                       std::string_view filename,
+                       std::string_view expected_preamble) {
+    ccf::logger::LogLine line(ccf::LoggerLevel::INFO, tag, filename, 123);
+    line.thread_id = thread;
+    line.msg = "before\0after\n"s;
+
+    const auto text = ccf::logger::format_to_text(line);
+    const auto timestamp_end = text.find(' ');
+    REQUIRE(timestamp_end != std::string::npos);
+    CHECK(
+      text.substr(timestamp_end) ==
+      std::format(" {:<3} {:<45}| {}\n", thread, expected_preamble, line.msg));
+  };
+
+  check(7, "", "file.cpp", "[info ] file.cpp:123 ");
+  check(65535, "app", "file.cpp", "[info ][app] file.cpp:123 ");
+  check(
+    123, "", std::string(33, 'x'), "[info ] " + std::string(32, 'x') + ":123 ");
+  check(0, std::string(40, 'x'), "file.cpp", "[info ][" + std::string(37, 'x'));
+  check(42, "\xe7\x95\x8c", "file.cpp", "[info ][\xe7\x95\x8c] file.cpp:123 ");
+  check(42, "\xcc\x81", "file.cpp", "[info ][\xcc\x81] file.cpp:123 ");
+  check(
+    42,
+    "\xe7\x95\x8c",
+    "f\xc3\xa9.cpp",
+    "[info ][\xe7\x95\x8c] f\xc3\xa9.cpp:123 ");
+  check(42, "a\tb", "file.cpp", "[info ][a\tb] file.cpp:123 ");
+  check(
+    42,
+    std::string(36, 'x') + "\xe7\x95\x8c",
+    "file.cpp",
+    "[info ][" + std::string(36, 'x') + "\xe7");
+}
 
 TEST_CASE("Custom logging macros")
 {

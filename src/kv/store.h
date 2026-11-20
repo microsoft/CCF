@@ -16,10 +16,9 @@
 #include "kv_serialiser.h"
 #include "kv_types.h"
 
-#define FMT_HEADER_ONLY
 #include <algorithm>
 #include <atomic>
-#include <fmt/format.h>
+#include <format>
 #include <memory>
 
 namespace ccf::kv
@@ -308,7 +307,7 @@ namespace ccf::kv
         std::min(max_serialised_entry_size, max_allocatable);
       if (max_transaction_size_ > effective_max)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Configured maximum transaction size {} exceeds the largest "
           "serialisable ledger entry size {}",
           max_transaction_size_,
@@ -390,7 +389,7 @@ namespace ccf::kv
       auto map = std::dynamic_pointer_cast<ccf::kv::untyped::Map>(map_);
       if (map == nullptr)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Can't add dynamic map - {} is not of expected type",
           map_->get_name()));
       }
@@ -398,7 +397,7 @@ namespace ccf::kv
       const auto map_name = map->get_name();
       if (get_map_unsafe(v, map_name) != nullptr)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Can't add dynamic map - already have a map named {}", map_name));
       }
 
@@ -426,7 +425,7 @@ namespace ccf::kv
       auto cv = compacted_version();
       if (v < cv)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot snapshot at version {} which is earlier than last "
           "compacted version {} ",
           v,
@@ -435,7 +434,7 @@ namespace ccf::kv
 
       if (v > current_version())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot snapshot at version {} which is later than current "
           "version {} ",
           v,
@@ -917,10 +916,10 @@ namespace ccf::kv
         if (tx_id.seqno < compacted)
         {
           KV_TRACE(trace_rollback.rejected(tx_id.seqno, term_of_next_version_));
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Attempting rollback to {}, earlier than commit version {}",
             tx_id.seqno,
-            compacted));
+            compacted.load()));
         }
 
         // The term should always be updated on rollback() when passed
@@ -1205,7 +1204,7 @@ namespace ccf::kv
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}",
             txid.view,
-            term_of_next_version);
+            term_of_next_version.load());
 
           return CommitResult::FAIL_NO_REPLICATE;
         }
@@ -1434,7 +1433,7 @@ namespace ccf::kv
           "Refusing to assign a version to a transaction from term {} because "
           "the current term is {}",
           expected_commit_term,
-          term_of_next_version);
+          term_of_next_version.load());
         return std::nullopt;
       }
 
@@ -1486,7 +1485,7 @@ namespace ccf::kv
         const auto target_version = current_version();
         if (source_version > target_version)
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "Invalid call to swap_private_maps. Source is at version {} while "
             "target is at {}",
             source_version,

@@ -9,11 +9,10 @@
 #include "tasks/thread_manager.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <doctest/doctest.h>
-#define FMT_HEADER_ONLY
 #include <deque>
-#include <fmt/chrono.h>
-#include <fmt/format.h>
+#include <doctest/doctest.h>
+#include <format>
+#include <iostream>
 #include <latch>
 #include <optional>
 #include <queue>
@@ -31,7 +30,7 @@ void thread_print(const std::string& s)
 #if false
   static ccf::ds::Mutex logging_mutex;
   ccf::ds::MutexGuard guard(logging_mutex);
-  fmt::print("[{:0x}] {}\n", thread_name(), s);
+  std::cout << std::format("[{:0x}] {}\n", thread_name(), s);
 #endif
 }
 
@@ -194,7 +193,7 @@ TEST_CASE("OrderedTasks" * doctest::test_suite("ordered_tasks"))
       if (now > end_time)
       {
         throw std::runtime_error(
-          fmt::format("Test did not complete after {}", max_run_time));
+          std::format("Test did not complete after {}s", max_run_time.count()));
       }
 
       std::this_thread::yield();

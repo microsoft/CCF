@@ -13,6 +13,7 @@
 #include "service/tables/shares.h"
 
 #include <algorithm>
+#include <format>
 #include <map>
 #include <optional>
 
@@ -224,7 +225,7 @@ namespace ccf
       if (search == ledger_secrets.end())
       {
         throw std::logic_error(
-          fmt::format("No ledger secrets at {}", up_to.has_value()));
+          std::format("No ledger secrets at {}", up_to.has_value()));
       }
 
       return {ledger_secrets.begin(), ++search};
@@ -239,7 +240,7 @@ namespace ccf
         restored_ledger_secrets.rbegin()->first >=
           ledger_secrets.begin()->first)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Last restored version {} is greater than first existing version "
           "{}",
           restored_ledger_secrets.rbegin()->first,

@@ -10,14 +10,16 @@
 #include "ccf/pal/snp_ioctl.h"
 #include "ds/files.h"
 
+#include <format>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <utility>
 
 namespace ccf::pal
 {
   static std::string virtual_attestation_path(const std::string& suffix)
   {
-    return fmt::format("ccf_virtual_attestation.{}.{}", ::getpid(), suffix);
+    return std::format("ccf_virtual_attestation.{}.{}", ::getpid(), suffix);
   };
 
   static void emit_virtual_measurement()
@@ -27,8 +29,9 @@ namespace ccf::pal
     std::ifstream f(package_path, std::ios::binary | std::ios::ate);
     if (!f)
     {
-      throw std::runtime_error(fmt::format(
-        "Cannot emit virtual measurement: Cannot open file {}", package_path));
+      throw std::runtime_error(std::format(
+        "Cannot emit virtual measurement: Cannot open file {}",
+        package_path.string()));
     }
 
     const size_t size = f.tellg();
@@ -97,7 +100,7 @@ namespace ccf::pal
       tav_snp_attestation_report_version(report.get()) <
       pal::snp::minimum_attestation_version)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "SEV-SNP: attestation version {} is less than the minimum supported "
         "version {}",
         tav_snp_attestation_report_version(report.get()),
@@ -136,8 +139,9 @@ namespace ccf::pal
       case (ccf::pal::Platform::Unknown):
       default:
       {
-        throw std::logic_error(fmt::format(
-          "Unsupported platform for quote generation: {}", ccf::pal::platform));
+        throw std::logic_error(std::format(
+          "Unsupported platform for quote generation: {}",
+          std::to_underlying(ccf::pal::platform)));
       }
     }
   }

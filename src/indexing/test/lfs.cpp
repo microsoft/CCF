@@ -802,7 +802,7 @@ TEST_CASE("Sparse bucket stores and fetches" * doctest::test_suite("lfs"))
   REQUIRE(lfs->stores.size() == 1);
   for (size_t i = 0; i < 100; ++i)
   {
-    index.write(5'000'000 + i, fmt::format("key{}", i));
+    index.write(5'000'000 + i, std::format("key{}", i));
   }
   CHECK(lfs->stores.size() == 1);
   flush_lfs(board);

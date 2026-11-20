@@ -8,6 +8,7 @@
 #include "tasks/ordered_tasks.h"
 #include "tasks/task_system.h"
 
+#include <format>
 #include <future>
 
 struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
@@ -22,7 +23,7 @@ struct Action_ProcessClientAction : public ccf::tasks::ITaskAction
     input_action(action),
     client_session(cs),
     responses_sent(rs),
-    name(fmt::format(
+    name(std::format(
       "Processing action '{}' from session {}",
       input_action,
       (void*)&client_session))
@@ -81,7 +82,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
     ccf::tasks::JobBoard& jb,
     SessionManager& sm,
     std::atomic<size_t>& response_count) :
-    LoopingThread<DispatcherState>(fmt::format("dsp"), jb, sm, response_count)
+    LoopingThread<DispatcherState>(std::format("dsp"), jb, sm, response_count)
   {}
 
   ~Dispatcher() override
@@ -108,7 +109,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
           it,
           session.get(),
           ccf::tasks::OrderedTasks::create(
-            state.job_board, fmt::format("Tasks for {}", session->name)));
+            state.job_board, std::format("Tasks for {}", session->name)));
       }
 
       auto& tasks = *it->second;

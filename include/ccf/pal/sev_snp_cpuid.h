@@ -3,9 +3,11 @@
 #pragma once
 
 #include "ccf/ds/hex.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/json.h"
 
 #include <cstdint>
+#include <format>
 #include <stdexcept>
 #include <string>
 
@@ -37,8 +39,8 @@ namespace ccf::pal::snp
       auto* buf_ptr = reinterpret_cast<uint8_t*>(&buf);
       const std::span<const uint8_t> tcb_bytes{
         buf_ptr, buf_ptr + sizeof(CPUID)};
-      return fmt::format(
-        "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+      return std::format(
+        "{:02x}", ccf::ds::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
     }
 
     [[nodiscard]] uint8_t get_family_id() const
@@ -150,7 +152,7 @@ namespace ccf::pal::snp
     {
       return ProductName::Turin;
     }
-    throw std::logic_error(fmt::format(
+    throw std::logic_error(std::format(
       "SEV-SNP: Unsupported CPUID family {} model {}", family, model));
   }
 
@@ -183,7 +185,7 @@ namespace ccf::pal::snp
       }
       default:
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "SEV-SNP: Unsupported product for CPUID: {}", to_string(product)));
       }
     }
