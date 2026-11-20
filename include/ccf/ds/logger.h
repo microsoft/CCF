@@ -200,23 +200,24 @@ namespace ccf::logger
     preamble += file_line_data;
 
     auto padded_preamble_size = static_cast<size_t>(preamble_length);
-    const auto printable_ascii = [](unsigned char ch) {
-      return ch >= ' ' && ch <= '~';
-    };
-    const auto first = std::ranges::find_if_not(preamble, printable_ascii);
-    if (first != preamble.end())
+    // The opening bracket and five level characters are always ASCII.
+    // Keep the closing bracket in the measured text.
+    constexpr size_t level_prefix_size = 6;
+    auto measured = std::string_view(preamble).substr(level_prefix_size);
+    const auto ascii_suffix = std::find_if_not(
+      measured.rbegin(), measured.rend(), [](unsigned char ch) {
+        return ch >= ' ' && ch <= '~';
+      });
+    if (ascii_suffix != measured.rend())
     {
-      const auto after_last =
-        std::find_if_not(preamble.rbegin(), preamble.rend(), printable_ascii)
-          .base();
-      // Measure only the span that can have variable display widths. Cut
-      // between printable ASCII characters to preserve grapheme boundaries.
-      const std::string_view span(
-        first == preamble.begin() ? first : first - 1,
-        after_last == preamble.end() ? after_last : after_last + 1);
-      const auto ascii_columns = preamble.size() - span.size();
-      padded_preamble_size = ascii_columns +
-        std::formatted_size("{:<{}}", span, preamble_length - ascii_columns);
+      // Skip the printable ASCII suffix, leaving its first character in
+      // place so the width calculation ends at a grapheme boundary.
+      const auto suffix_size =
+        static_cast<size_t>(ascii_suffix - measured.rbegin());
+      measured.remove_suffix(suffix_size == 0 ? 0 : suffix_size - 1);
+      const auto skipped = preamble.size() - measured.size();
+      padded_preamble_size = skipped +
+        std::formatted_size("{:<{}}", measured, preamble_length - skipped);
     }
 
     const auto thread = std::to_string(ll.thread_id);
