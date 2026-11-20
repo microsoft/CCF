@@ -3,7 +3,7 @@
 
 #include "ccf/crypto/cose_key.h"
 
-#include "ccf/crypto/base64.h"
+#include "ccf/ds/base64.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_public_key.h"
@@ -280,14 +280,17 @@ namespace
   COSEKey::RSAParameters parameters_of(const RSAPublicKey& key)
   {
     const auto jwk = key.public_key_jwk();
-    return {.n = raw_from_b64url(jwk.n), .e = raw_from_b64url(jwk.e)};
+    return {
+      .n = ccf::ds::raw_from_b64url(jwk.n),
+      .e = ccf::ds::raw_from_b64url(jwk.e)};
   }
 
   COSEKey::OKPParameters parameters_of(const EdDSAPublicKey& key)
   {
     const auto jwk = key.public_key_jwk_eddsa();
     return {
-      .crv = cose_okp_crv(key.get_curve_id()), .x = raw_from_b64url(jwk.x)};
+      .crv = cose_okp_crv(key.get_curve_id()),
+      .x = ccf::ds::raw_from_b64url(jwk.x)};
   }
 
   COSEKey::AKPParameters parameters_of(const MLDSAPublicKey& key)
@@ -522,8 +525,8 @@ namespace
     // The JWK form of the key, which CCF imports
     JsonWebKeyRSAPublic jwk;
     jwk.kty = JsonWebKeyType::RSA;
-    jwk.n = b64url_from_raw(parameters.n, false /* with_padding */);
-    jwk.e = b64url_from_raw(parameters.e, false /* with_padding */);
+    jwk.n = ccf::ds::b64url_from_raw(parameters.n, false /* with_padding */);
+    jwk.e = ccf::ds::b64url_from_raw(parameters.e, false /* with_padding */);
     return make_rsa_public_key(jwk);
   }
 
@@ -553,7 +556,7 @@ namespace
     JsonWebKeyEdDSAPublic jwk;
     jwk.kty = JsonWebKeyType::OKP;
     jwk.crv = JsonWebKeyEdDSACurve::ED25519;
-    jwk.x = b64url_from_raw(x, false /* with_padding */);
+    jwk.x = ccf::ds::b64url_from_raw(x, false /* with_padding */);
     return make_eddsa_public_key(jwk);
   }
 

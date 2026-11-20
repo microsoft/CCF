@@ -4,7 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/openapi.h"
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/http_consts.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/map.h"

@@ -5,9 +5,9 @@
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/locking.h"
+#include "ccf/kv/tx.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
-#include "ccf/tx.h"
 #include "ccf/tx_id.h"
 #include "http_client/curl.h"
 #include "node_state.h"

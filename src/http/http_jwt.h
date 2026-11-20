@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/json.h"
 #include "ccf/http_consts.h"
 #include "http_parser.h"
@@ -84,7 +84,7 @@ namespace http
     {
       try
       {
-        auto raw = ccf::crypto::raw_from_b64url(b64url);
+        auto raw = ccf::ds::raw_from_b64url(b64url);
         if (raw.empty())
         {
           error_reason = std::format("JWT part is empty ({})", part);

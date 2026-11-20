@@ -45,7 +45,7 @@ namespace ccf::crypto
         "X25519");
     }
 
-    auto x_raw = raw_from_b64url(jwk.x);
+    auto x_raw = ccf::ds::raw_from_b64url(jwk.x);
     key =
       EVP_PKEY_new_raw_public_key(curve, nullptr, x_raw.data(), x_raw.size());
     if (key == nullptr)
@@ -155,7 +155,7 @@ namespace ccf::crypto
     OpenSSL::CHECK1(
       EVP_PKEY_get_raw_public_key(key, raw_pub.data(), &raw_pub_len));
     raw_pub.resize(raw_pub_len);
-    jwk.x = b64url_from_raw(raw_pub, false);
+    jwk.x = ccf::ds::b64url_from_raw(raw_pub, false);
     jwk.crv = curve_id_to_jwk_eddsa_curve(get_curve_id());
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::OKP;

@@ -25,7 +25,7 @@ namespace ccf
     {
       throw std::logic_error("describe_receipt_v1 requires a raw signature TX");
     }
-    out["signature"] = ccf::crypto::b64_from_raw(receipt.signature.value());
+    out["signature"] = ccf::ds::b64_from_raw(receipt.signature.value());
 
     auto proof = nlohmann::json::array();
     if (receipt.path != nullptr)

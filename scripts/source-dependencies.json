@@ -41,7 +41,7 @@
     "tls": ["crypto", "ds", "tasks", "tcp"],
     "kv": ["ccf-api", "crypto", "ds"],
     "service": ["ccf-api", "crypto", "ds", "kv"],
-    "rust": ["ccf-api", "kv"],
+    "rust": ["ccf-api", "endpoints", "kv"],
     "consensus": [
       "ccf-api",
       "crypto",

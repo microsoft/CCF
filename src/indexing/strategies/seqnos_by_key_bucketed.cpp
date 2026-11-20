@@ -6,6 +6,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
+#include "ccf/node_context.h"
 #include "ds/internal_logger.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"

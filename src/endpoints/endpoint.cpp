@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/endpoint.h"
+#include "ccf/endpoints/endpoint.h"
 
 #include "ds/internal_logger.h"
 

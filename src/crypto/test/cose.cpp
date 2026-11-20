@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose.h"
 
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
@@ -12,6 +11,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/hex.h"
 #include "crypto/cbor_helpers.h"
 #include "crypto/certs.h"
@@ -140,7 +140,7 @@ static ccf::crypto::EdDSAPublicKeyPtr eddsa_public_key_from_x(
   ccf::crypto::JsonWebKeyEdDSAPublic jwk;
   jwk.kty = ccf::crypto::JsonWebKeyType::OKP;
   jwk.crv = ccf::crypto::JsonWebKeyEdDSACurve::ED25519;
-  jwk.x = ccf::crypto::b64url_from_raw(x, false /* with_padding */);
+  jwk.x = ccf::ds::b64url_from_raw(x, false /* with_padding */);
   return ccf::crypto::make_eddsa_public_key(jwk);
 }
 

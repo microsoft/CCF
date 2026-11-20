@@ -12,6 +12,7 @@
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/entity_id.h"
 #include "ccf/js/core/context.h"
+#include "ccf/kv/tx.h"
 #include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -22,7 +23,6 @@
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/tx.h"
 #include "consensus/aft/cft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -1384,7 +1384,7 @@ namespace ccf
 
         auto security_policy_digest =
           quote_info.format == QuoteFormat::amd_sev_snp_v1 ?
-          ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy)) :
+          ccf::crypto::Sha256Hash(ccf::ds::raw_from_b64(security_policy)) :
           ccf::crypto::Sha256Hash(security_policy);
         if (security_policy_digest != quoted_digest.value())
         {
@@ -1412,7 +1412,7 @@ namespace ccf
         {
           try
           {
-            auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(
+            auto uvm_endorsements_raw = ccf::ds::raw_from_b64(
               config.attestation.environment.uvm_endorsements.value());
             // A node at this stage does not have a notion of what UVM
             // descriptor is acceptable. That is decided either by the Joinee,
@@ -1545,7 +1545,7 @@ namespace ccf
         // synchronously with the call to pal::generate_quote
         this->quote_info = qi;
 
-        auto b64encoded_quote = ccf::crypto::b64url_from_raw(quote_info.quote);
+        auto b64encoded_quote = ccf::ds::b64url_from_raw(quote_info.quote);
         nlohmann::json jq;
         to_json(jq, quote_info.format);
         LOG_INFO_FMT(
@@ -1559,7 +1559,7 @@ namespace ccf
             bool loaded_endorsements = false;
             try
             {
-              const auto raw_data = ccf::crypto::raw_from_b64(
+              const auto raw_data = ccf::ds::raw_from_b64(
                 config.attestation.environment.snp_endorsements.value());
 
               const auto j = ccf::parse_json_safe(raw_data);

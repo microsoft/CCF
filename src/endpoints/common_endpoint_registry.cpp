@@ -3,8 +3,8 @@
 
 #include "ccf/common_endpoint_registry.h"
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_query.h"

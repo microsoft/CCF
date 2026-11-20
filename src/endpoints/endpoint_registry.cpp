@@ -3,9 +3,9 @@
 
 #include "ccf/endpoint_registry.h"
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "endpoints/rpc_context_impl.h"

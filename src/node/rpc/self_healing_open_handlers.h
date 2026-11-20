@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/common_auth_policies.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/odata_error.h"

@@ -4,8 +4,8 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/js/modules/module_loader_interface.h"
+#include "ccf/kv/tx.h"
 #include "ccf/service/tables/modules.h"
-#include "ccf/tx.h"
 #include "ds/internal_logger.h"
 
 #include <format>

@@ -4,13 +4,13 @@
 
 // CCF
 #include "ccf/app_interface.h"
-#include "ccf/endpoint.h"
+#include "ccf/endpoints/endpoint.h"
 #include "ccf/js/audit_format.h"
 #include "ccf/js/bundle.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ccf/js/namespace_restrictions.h"
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 #include "ccf/tx_id.h"
 
 #include <charconv>

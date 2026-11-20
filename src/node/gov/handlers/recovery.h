@@ -83,7 +83,7 @@ namespace ccf::gov::endpoints
             }
 
             const api::EncryptedRecoveryShare response_body{
-              member_id, ccf::crypto::b64_from_raw(encrypted_share.value())};
+              member_id, ccf::ds::b64_from_raw(encrypted_share.value())};
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
@@ -165,8 +165,8 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          auto raw_recovery_share = ccf::crypto::raw_from_b64(
-            params["share"].template get<std::string>());
+          auto raw_recovery_share =
+            ccf::ds::raw_from_b64(params["share"].template get<std::string>());
 
           size_t submitted_shares_count = 0;
           bool full_key_submitted = false;

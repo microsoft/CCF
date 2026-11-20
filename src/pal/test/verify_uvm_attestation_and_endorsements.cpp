@@ -26,7 +26,7 @@ void validate_endorsements(
   const ccf::pal::snp::TcbVersionRaw& attested_tcb,
   std::vector<uint8_t>& endorsements_pem)
 {
-  const auto raw_data = ccf::crypto::raw_from_b64(snp_endorsements);
+  const auto raw_data = ccf::ds::raw_from_b64(snp_endorsements);
 
   const auto j = nlohmann::json::parse(raw_data);
   const auto aci_endorsements = j.get<ccf::pal::snp::ACIReportEndorsements>();
@@ -77,7 +77,7 @@ void validate_security_policy(
 
   auto security_policy_digest =
     quote_info.format == ccf::QuoteFormat::amd_sev_snp_v1 ?
-    ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy)) :
+    ccf::crypto::Sha256Hash(ccf::ds::raw_from_b64(security_policy)) :
     ccf::crypto::Sha256Hash(security_policy);
   if (security_policy_digest != quoted_digest.value())
   {
@@ -98,7 +98,7 @@ void validate_uvm_endorsements(
 {
   try
   {
-    auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(uvm_endorsements);
+    auto uvm_endorsements_raw = ccf::ds::raw_from_b64(uvm_endorsements);
     auto snp_uvm_endorsements = ccf::pal::verify_uvm_endorsements_descriptor(
       uvm_endorsements_raw,
       ccf::AttestationProvider::get_measurement(quote_info).value());

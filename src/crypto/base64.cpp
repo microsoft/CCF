@@ -1,13 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "openssl/base64.h"
+#include "ccf/ds/base64.h"
 
 #include "ds/internal_logger.h"
+#include "openssl/base64.h"
 
-namespace ccf::crypto
+namespace ccf::ds
 {
-  using Base64Impl = Base64_openssl;
+  using Base64Impl = ccf::crypto::Base64_openssl;
 
   std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
   {

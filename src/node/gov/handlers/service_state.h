@@ -384,10 +384,9 @@ namespace ccf::gov::endpoints
       case ccf::QuoteFormat::oe_sgx_v1:
       {
         quote_info["format"] = "OE_SGX_v1";
-        quote_info["quote"] =
-          ccf::crypto::b64_from_raw(node_info.quote_info.quote);
+        quote_info["quote"] = ccf::ds::b64_from_raw(node_info.quote_info.quote);
         quote_info["endorsements"] =
-          ccf::crypto::b64_from_raw(node_info.quote_info.endorsements);
+          ccf::ds::b64_from_raw(node_info.quote_info.endorsements);
         break;
       }
       case ccf::QuoteFormat::insecure_virtual:
@@ -411,12 +410,12 @@ namespace ccf::gov::endpoints
         quote_info["format"] = "AMD_SEV_SNP_v1";
         if (node_info.quote_info.uvm_endorsements.has_value())
         {
-          quote_info["uvmEndorsements"] = ccf::crypto::b64_from_raw(
+          quote_info["uvmEndorsements"] = ccf::ds::b64_from_raw(
             node_info.quote_info.uvm_endorsements.value());
         }
         if (node_info.quote_info.endorsed_tcb.has_value())
         {
-          quote_info["endorsedTcb"] = ccf::crypto::b64_from_raw(
+          quote_info["endorsedTcb"] = ccf::ds::b64_from_raw(
             ds::from_hex(node_info.quote_info.endorsed_tcb.value()));
         }
         break;

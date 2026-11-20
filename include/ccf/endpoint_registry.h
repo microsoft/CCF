@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
-#include "ccf/endpoint.h"
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/endpoint.h"
+#include "ccf/endpoints/endpoint_context.h"
+#include "ccf/kv/tx.h"
 #include "ccf/receipt.h"
 #include "ccf/rpc_context.h"
-#include "ccf/tx.h"
 
 #include <atomic>
 #include <charconv>

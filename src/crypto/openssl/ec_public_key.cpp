@@ -80,8 +80,8 @@ namespace ccf::crypto
     }
 
     std::pair<Unique_BIGNUM, Unique_BIGNUM> xy;
-    auto x_raw = raw_from_b64url(jwk.x);
-    auto y_raw = raw_from_b64url(jwk.y);
+    auto x_raw = ccf::ds::raw_from_b64url(jwk.x);
+    auto y_raw = ccf::ds::raw_from_b64url(jwk.y);
     xy.first = bn_from_bytes(x_raw);
     xy.second = bn_from_bytes(y_raw);
 
@@ -359,8 +359,8 @@ namespace ccf::crypto
   {
     JsonWebKeyECPublic jwk;
     auto coords = coordinates();
-    jwk.x = b64url_from_raw(coords.x, false /* with_padding */);
-    jwk.y = b64url_from_raw(coords.y, false /* with_padding */);
+    jwk.x = ccf::ds::b64url_from_raw(coords.x, false /* with_padding */);
+    jwk.y = ccf::ds::b64url_from_raw(coords.y, false /* with_padding */);
     jwk.crv = curve_id_to_jwk_curve(get_curve_id());
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::EC;

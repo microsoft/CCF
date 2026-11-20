@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/ccf_deprecated.h"
-#include "ccf/common_auth_policies.h"
-#include "ccf/endpoint.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
+#include "ccf/endpoints/common_auth_policies.h"
+#include "ccf/endpoints/endpoint.h"
 
 #include <format>
 
