@@ -4,7 +4,7 @@
 
 #include "ccf/claims_digest.h"
 #include "ccf/crypto/sha256_hash.h"
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_header_map.h"

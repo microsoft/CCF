@@ -5,9 +5,9 @@
 #include "ccf/js/registry.h"
 
 #include "ccf/app_interface.h"
-#include "ccf/common_auth_policies.h"
 #include "ccf/ds/hash.h"
 #include "ccf/ds/logger.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/service/tables/modules.h"
@@ -23,8 +23,8 @@
 // Custom Endpoints
 #include "ccf/crypto/sha256.h"
 #include "ccf/ds/hex.h"
-#include "ccf/endpoint.h"
 #include "ccf/endpoints/authentication/js.h"
+#include "ccf/endpoints/endpoint.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/js/bundle.h"
 #include "ccf/js/common_context.h"

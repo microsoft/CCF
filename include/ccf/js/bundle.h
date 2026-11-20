@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "ccf/endpoint.h"
+#include "ccf/endpoints/endpoint.h"
 
 #include <map>
 #include <string>

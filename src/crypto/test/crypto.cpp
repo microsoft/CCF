@@ -3,7 +3,6 @@
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/did_key.h"
 #include "ccf/crypto/ec_key_pair.h"
@@ -17,6 +16,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "crypto/cbor_tags.h"
 #include "crypto/certs.h"
@@ -129,7 +129,7 @@ TEST_CASE("Published did:key NIST public key vectors")
      "ge4mFxi+DKr0DYO2KuJdwNBrhzLRtfMa3WFMZBiPKUPfJj8dYNl/"}};
   for (const auto& [did, spki] : vectors)
   {
-    const auto der = raw_from_b64(spki);
+    const auto der = ccf::ds::raw_from_b64(spki);
     CHECK(did_key_from_public_key_der(der) == did);
     const auto decoded = make_ec_public_key(public_key_der_from_did_key(did));
     const auto expected = make_ec_public_key(der);
@@ -288,12 +288,14 @@ static Pem pem_from_der(
   const std::string& label, const std::vector<uint8_t>& der)
 {
   return Pem(fmt::format(
-    "-----BEGIN {0}-----\n{1}\n-----END {0}-----\n", label, b64_from_raw(der)));
+    "-----BEGIN {0}-----\n{1}\n-----END {0}-----\n",
+    label,
+    ccf::ds::b64_from_raw(der)));
 }
 
 TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
 {
-  auto cert_der = ccf::crypto::raw_from_b64(nested_cert);
+  auto cert_der = ccf::ds::raw_from_b64(nested_cert);
   auto cert_pem = fmt::format(
     "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----", nested_cert);
   auto der_verifier = make_verifier(cert_der);
@@ -332,7 +334,7 @@ TEST_CASE("Verifier rejects unloadable public key")
   CHECK_THROWS_WITH_AS(
     make_verifier(fmt::format(
       "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----",
-      b64_from_raw(cert_der))),
+      ccf::ds::b64_from_raw(cert_der))),
     expected_error,
     std::invalid_argument);
 }
@@ -450,7 +452,8 @@ TEST_CASE("Verifier reports certificate properties")
   CHECK(issuer_verifier->serial_number() != endorsed_verifier->serial_number());
 
   // Fixed certificate, so the exact values are known
-  const auto nested_verifier = make_verifier(raw_from_b64(nested_cert));
+  const auto nested_verifier =
+    make_verifier(ccf::ds::raw_from_b64(nested_cert));
   CHECK(nested_verifier->is_self_signed());
   CHECK(nested_verifier->serial_number() == "01");
   // Forward slashes in attribute values are escaped
@@ -1039,8 +1042,8 @@ TEST_CASE("base64")
     std::vector<uint8_t> raw(length);
     std::generate(raw.begin(), raw.end(), rand);
 
-    const auto encoded = b64_from_raw(raw.data(), raw.size());
-    const auto decoded = raw_from_b64(encoded);
+    const auto encoded = ccf::ds::b64_from_raw(raw.data(), raw.size());
+    const auto decoded = ccf::ds::raw_from_b64(encoded);
     REQUIRE(decoded == raw);
   }
 }
@@ -1052,12 +1055,12 @@ TEST_CASE("base64url")
     std::vector<uint8_t> raw(length);
     std::generate(raw.begin(), raw.end(), rand);
 
-    auto encoded = b64_from_raw(raw.data(), raw.size());
+    auto encoded = ccf::ds::b64_from_raw(raw.data(), raw.size());
     std::replace(encoded.begin(), encoded.end(), '+', '-');
     std::replace(encoded.begin(), encoded.end(), '/', '_');
     encoded.erase(
       std::find(encoded.begin(), encoded.end(), '='), encoded.end());
-    const auto decoded = raw_from_b64url(encoded);
+    const auto decoded = ccf::ds::raw_from_b64url(encoded);
     REQUIRE(decoded == raw);
   }
 }
@@ -2061,7 +2064,7 @@ TEST_CASE("Base64 text larger than INT_MAX")
   LazyMapping mapping(over_int_max, PROT_NONE);
   const auto oversized = mapping.span();
   REQUIRE_THROWS_AS(
-    (void)raw_from_b64(std::string_view(
+    (void)ccf::ds::raw_from_b64(std::string_view(
       reinterpret_cast<const char*>(oversized.data()), oversized.size())),
     std::invalid_argument);
 }
@@ -2074,10 +2077,10 @@ TEST_CASE("Base64 inputs spanning several encoded lines")
     std::vector<uint8_t> raw(length);
     std::generate(raw.begin(), raw.end(), rand);
 
-    const auto encoded = b64_from_raw(raw.data(), raw.size());
+    const auto encoded = ccf::ds::b64_from_raw(raw.data(), raw.size());
     REQUIRE(encoded.find('\n') == std::string::npos);
     REQUIRE(encoded.size() == (length + 2) / 3 * 4);
-    REQUIRE(raw_from_b64(encoded) == raw);
+    REQUIRE(ccf::ds::raw_from_b64(encoded) == raw);
   }
 }
 

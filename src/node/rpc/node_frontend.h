@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/ds/locking.h"
-#include "ccf/endpoint_context.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
+#include "ccf/endpoints/common_auth_policies.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"

@@ -5,9 +5,9 @@
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/kv/tx.h"
 #include "ccf/service/map.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/tx.h"
 #include "crypto/cose.h"
 #include "service/tables/identity_types.h"
 

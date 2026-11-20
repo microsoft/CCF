@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/kv/tx.h"
 #include "ccf/network_identity_interface.h"
 #include "ccf/rpc_context.h"
-#include "ccf/tx.h"
 
 namespace ccf::historical
 {
