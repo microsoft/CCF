@@ -1,49 +1,22 @@
-# OneBranch release pipeline
+# OneBranch release pipelines
+
+Queue these pipelines manually from a `ccf-*` tag after the corresponding GitHub Release is reviewed and published.
+Authorize each pipeline to use the existing Azure DevOps Library variable group `ccf-esrp-pypi` for ESRP settings.
+Confirm that the shared ESRP registration and publisher have access to each package's registry.
+Owners and approvers must be different people.
+Published package versions cannot be overwritten.
 
 ## PyPI
 
-`pypi.official.yml` publishes the `ccf` wheel through OneBranch and ESRP.
-After the corresponding GitHub Release is reviewed and published, the pipeline is manually queued from its `ccf-*` tag.
-It builds the wheel from that tag, validates its metadata, and installs it in a clean environment.
-ESRP and PyPI reject attempts to overwrite an existing package version.
+`pypi.official.yml` builds and publishes the `ccf` wheel through ESRP.
+The version is derived from the tag without a version-bump commit, for example `ccf-8.0.0-dev10` becomes `8.0.0.dev10`.
+The build validates wheel metadata and installation using `https://packagefeedproxy.microsoft.io/pypi/simple/`.
+GitHub Actions does not build, publish, or attest Python wheels.
 
-The Azure DevOps pipeline must reference `/.pipelines/pypi.official.yml` and have access to an Azure DevOps Library variable group named `ccf-esrp-pypi` containing:
+## npm
 
-- `ESRP_SERVICE_CONNECTION`
-- `ESRP_KEY_VAULT_NAME`
-- `ESRP_SIGN_CERT_NAME`
-- `ESRP_AUTH_CERT_NAME`
-- `ESRP_CLIENT_ID`
-- `ESRP_OWNERS`
-- `ESRP_APPROVERS`
-- `ESRP_MAIN_PUBLISHER`
-- `ESRP_DOMAIN_TENANT_ID`
-
-The service connection, Key Vault, certificates, client registration, owners, and approvers must belong to the CCF ESRP PyPI registration.
-Owners and approvers must be different people.
-
-The build step sets `UV_INDEX_URL` to `https://packagefeedproxy.microsoft.io/pypi/simple/`, matching CCF's previous GitHub Actions proxy configuration.
-Both wheel building and clean-install validation use this proxy instead of public PyPI.
-The proxy and its package-download destinations must be reachable under OneBranch network isolation.
-
-This pipeline is the only Python package publisher.
-GitHub Actions no longer builds, attaches, or publishes Python wheels as part of the main CCF release.
-Release-build tests use the latest package already released on PyPI; normal development and CI tests continue to use the local package.
-
-Attestation is disabled for Python packages published to PyPI.
-A GitHub workflow that downloads an already-built wheel cannot establish OneBranch build provenance.
-The GitHub release attestation workflow continues to cover non-Python artifacts only.
-
-After ESRP confirms publication, no additional GitHub workflow is required.
-If publication is incomplete, do not republish the wheel or move or recreate the tag; skip that version and publish a new version.
-
-Before publication, the pipeline verifies that:
-
-- It was queued from a `ccf-*` tag.
-- The tag can be converted to a public Python version, including prereleases such as `ccf-8.0.0-dev10` and `ccf-8.0.0-rc0`.
-- Exactly one `ccf` wheel is built.
-- The wheel name and version match the tag.
-- The wheel installs in a clean environment.
-
-Before building the wheel, `uv version` writes the normalized tag to the static `project.version` field in the pipeline's copy of `python/pyproject.toml`.
-No version-bump commit or matching changelog section is needed.
+`npm.official.yml` builds `@microsoft/ccf-app` with Node.js 24 and `npm pack`, which compiles the TypeScript package.
+The package version matches the tag without the `ccf-` prefix; stable releases use the `latest` dist-tag and prereleases use `dev`.
+Tests run in CI, not in this publishing pipeline.
+The `publish` parameter defaults to `false` (build only); set it to `true` to publish through ESRP.
+The GitHub Actions npm publisher remains unchanged; do not publish the same version through both pipelines.
