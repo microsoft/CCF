@@ -4,7 +4,7 @@
 
 #include "apply_changes.h"
 #include "ccf/ds/hex.h"
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 #include "ds/internal_logger.h"
 #include "kv/tx_pimpl.h"
 #include "kv_serialiser.h"

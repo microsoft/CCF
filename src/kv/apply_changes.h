@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 #include "kv/untyped_change_set.h"
 #include "kv_types.h"
 

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/endpoint.h"
+#include "ccf/endpoints/endpoint.h"
 #include "ccf/js/tx_access.h"
 #include "ccf/node_subsystem_interface.h"
 

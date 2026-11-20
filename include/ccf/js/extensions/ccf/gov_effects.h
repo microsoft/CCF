@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/js/extensions/extension_interface.h"
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 
 namespace ccf::js::extensions
 {

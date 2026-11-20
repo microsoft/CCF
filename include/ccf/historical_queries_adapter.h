@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/historical_queries_interface.h"
 #include "ccf/node_context.h"
 #include "ccf/tx_id.h"
