@@ -9,11 +9,11 @@
 #include "ccf/ds/logger.h"
 #include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/http_query.h"
+#include "ccf/js/checks.h"
 #include "ccf/json_handler.h"
 #include "ccf/service/tables/modules.h"
 #include "ccf/version.h"
 #include "ds/internal_logger.h"
-#include "js/checks.h"
 
 #include <algorithm>
 #include <charconv>

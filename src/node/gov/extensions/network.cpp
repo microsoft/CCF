@@ -3,8 +3,8 @@
 
 #include "node/gov/extensions/network.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 #include "node/network_state.h"
 
 #include <quickjs/quickjs.h>

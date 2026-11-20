@@ -4,10 +4,10 @@
 #include "ccf/js/extensions/console.h"
 
 #include "ccf/ds/logger.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ds/gov_logging.h"
 #include "ds/internal_logger.h"
-#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 

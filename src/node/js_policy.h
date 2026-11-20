@@ -5,9 +5,9 @@
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ccf/service/tables/jsengine.h"
-#include "js/checks.h"
 #include "node/cose_common.h"
 
 #include <fmt/format.h>

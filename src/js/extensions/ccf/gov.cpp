@@ -3,8 +3,8 @@
 
 #include "ccf/js/extensions/ccf/gov.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 
 #include <iostream>
 #include <quickjs/quickjs.h>
