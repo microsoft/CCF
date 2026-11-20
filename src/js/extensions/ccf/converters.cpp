@@ -49,7 +49,7 @@ namespace ccf::js::extensions
 
       auto buf = jsctx.new_array_buffer_copy(
         reinterpret_cast<const uint8_t*>(str->c_str()), str->size());
-      JS_CHECK_EXC(buf);
+      CCF_JS_CHECK_EXC(buf);
 
       return buf.take();
     }
@@ -75,7 +75,7 @@ namespace ccf::js::extensions
       }
 
       auto str = jsctx.new_string_len(reinterpret_cast<char*>(buf), buf_size);
-      JS_CHECK_EXC(str);
+      CCF_JS_CHECK_EXC(str);
 
       return str.take();
     }
@@ -93,7 +93,7 @@ namespace ccf::js::extensions
       }
 
       auto str = jsctx.json_stringify(jsctx.wrap(argv[0]));
-      JS_CHECK_EXC(str);
+      CCF_JS_CHECK_EXC(str);
 
       return js_str_to_buf(ctx, ccf::js::core::constants::Null, 1, &str.val);
     }
@@ -126,7 +126,7 @@ namespace ccf::js::extensions
         reinterpret_cast<char*>(buf_null_terminated.data()),
         buf_size,
         "<json>");
-      JS_CHECK_EXC(obj);
+      CCF_JS_CHECK_EXC(obj);
 
       return obj.take();
     }
@@ -217,7 +217,7 @@ namespace ccf::js::extensions
       {
         const auto der = ccf::crypto::public_key_der_from_did_key(*id);
         auto result = jsctx.new_array_buffer_copy(der.data(), der.size());
-        JS_CHECK_EXC(result);
+        CCF_JS_CHECK_EXC(result);
         return result.take();
       }
       catch (const std::exception& e)
@@ -257,33 +257,36 @@ namespace ccf::js::extensions
       pal::snp::TcbVersionPolicy tcb_policy = tcb.to_policy(product);
 
       auto tcb_policy_obj = jsctx.new_obj();
-      JS_CHECK_EXC(tcb_policy_obj);
+      CCF_JS_CHECK_EXC(tcb_policy_obj);
       if (tcb_policy.hexstring.has_value())
       {
-        JS_CHECK_SET(tcb_policy_obj.set(
+        CCF_JS_CHECK_SET(tcb_policy_obj.set(
           "hexstring", jsctx.new_string(tcb_policy.hexstring.value())));
       }
       if (tcb_policy.microcode.has_value())
       {
-        JS_CHECK_SET(
+        CCF_JS_CHECK_SET(
           tcb_policy_obj.set_uint32("microcode", tcb_policy.microcode.value()));
       }
       if (tcb_policy.snp.has_value())
       {
-        JS_CHECK_SET(tcb_policy_obj.set_uint32("snp", tcb_policy.snp.value()));
+        CCF_JS_CHECK_SET(
+          tcb_policy_obj.set_uint32("snp", tcb_policy.snp.value()));
       }
       if (tcb_policy.tee.has_value())
       {
-        JS_CHECK_SET(tcb_policy_obj.set_uint32("tee", tcb_policy.tee.value()));
+        CCF_JS_CHECK_SET(
+          tcb_policy_obj.set_uint32("tee", tcb_policy.tee.value()));
       }
       if (tcb_policy.boot_loader.has_value())
       {
-        JS_CHECK_SET(tcb_policy_obj.set_uint32(
+        CCF_JS_CHECK_SET(tcb_policy_obj.set_uint32(
           "boot_loader", tcb_policy.boot_loader.value()));
       }
       if (tcb_policy.fmc.has_value())
       {
-        JS_CHECK_SET(tcb_policy_obj.set_uint32("fmc", tcb_policy.fmc.value()));
+        CCF_JS_CHECK_SET(
+          tcb_policy_obj.set_uint32("fmc", tcb_policy.fmc.value()));
       }
 
       return tcb_policy_obj.take();
@@ -294,36 +297,36 @@ namespace ccf::js::extensions
   {
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       ccf.set("strToBuf", ctx.new_c_function(js_str_to_buf, "strToBuf", 1)));
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       ccf.set("bufToStr", ctx.new_c_function(js_buf_to_str, "bufToStr", 1)));
 
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "jsonCompatibleToBuf",
       ctx.new_c_function(js_json_compatible_to_buf, "jsonCompatibleToBuf", 1)));
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "bufToJsonCompatible",
       ctx.new_c_function(js_buf_to_json_compatible, "bufToJsonCompatible", 1)));
 
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "enableUntrustedDateTime",
       ctx.new_c_function(
         js_enable_untrusted_date_time, "enableUntrustedDateTime", 1)));
 
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "enableMetricsLogging",
       ctx.new_c_function(
         js_enable_metrics_logging, "enableMetricsLogging", 1)));
 
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1)));
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "publicKeyFromDidKey",
       ctx.new_c_function(
         js_public_key_from_did_key, "publicKeyFromDidKey", 1)));
 
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "tcbHexToPolicy",
       ctx.new_c_function(js_tcb_hex_to_policy, "tcbHexToPolicy", 2)));
   }

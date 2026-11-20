@@ -7,7 +7,7 @@
 #include <stdexcept>
 
 // These checks are for QuickJS callbacks using namespace ccf::js::core.
-#define JS_CHECK_EXC(val) \
+#define CCF_JS_CHECK_EXC(val) \
   do \
   { \
     if (val.is_exception()) \
@@ -16,7 +16,7 @@
     } \
   } while (0)
 
-#define JS_CHECK_SET(val) \
+#define CCF_JS_CHECK_SET(val) \
   do \
   { \
     if (val != 1) \
@@ -25,7 +25,7 @@
     } \
   } while (0)
 
-#define JS_CHECK_OR_THROW(val) \
+#define CCF_JS_CHECK_OR_THROW(val) \
   do \
   { \
     if (val != 1) \

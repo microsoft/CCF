@@ -56,7 +56,7 @@ namespace ccf::js::extensions
   {
     // Overriding built-in Math.random
     auto math_val = ctx.get_global_property("Math");
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       math_val.set("random", ctx.new_c_function(js_random_impl, "random", 0)));
   }
 }

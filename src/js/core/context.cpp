@@ -265,7 +265,7 @@ namespace ccf::js::core
     if (val.is_undefined())
     {
       val = default_value;
-      JS_CHECK_OR_THROW(g.set(s, std::move(default_value)));
+      CCF_JS_CHECK_OR_THROW(g.set(s, std::move(default_value)));
     }
 
     return val;
