@@ -257,11 +257,16 @@ TEST_CASE("KV trace rollback map acquisition")
   store.initialise_term(1);
   Map a("trace.a");
   Map b("trace.b");
+  Map c("trace.c");
   for (const auto* value : {"old", "new"})
   {
     auto writer = store.create_tx();
     writer.rw(a)->put("key", value);
     writer.rw(b)->put("key", value);
+    if (store.current_version() == 0)
+    {
+      writer.rw(c)->put("key", "unaffected");
+    }
     REQUIRE(writer.commit() == Result::SUCCESS);
   }
   REQUIRE(store.current_version() == 2);
@@ -270,9 +275,19 @@ TEST_CASE("KV trace rollback map acquisition")
   REQUIRE(reader.ro(a)->get("key") == "new");
   store.rollback({1, 1}, 2);
   REQUIRE(store.current_version() == 1);
-  CHECK_THROWS_AS(reader.ro(b), ccf::kv::CompactedVersionConflict);
+  SUBCASE("Unchanged map")
+  {
+    CHECK(reader.ro(c)->get("key") == "unaffected");
+    CHECK_THROWS_AS(reader.ro(b), ccf::kv::CompactedVersionConflict);
+  }
+  SUBCASE("Replacement write to untruncated map")
+  {
+    auto writer = store.create_tx();
+    writer.rw(c)->put("key", "unaffected");
+    REQUIRE(writer.commit() == Result::SUCCESS);
+    CHECK_THROWS_AS(reader.ro(c), ccf::kv::CompactedVersionConflict);
+  }
   CHECK(reader.ro(a)->get("key") == "new");
-  CHECK(reader.commit() == Result::SUCCESS);
 }
 
 TEST_CASE("KV trace compaction rollback")

@@ -28,7 +28,7 @@ namespace ccf::kv
     ccf::View commit_view = ccf::VIEW_UNKNOWN;
     // Reserved transactions are write-only and validate their reservation on
     // commit instead of selecting a read snapshot.
-    std::optional<Version> read_rollback_count = std::nullopt;
+    std::optional<Version> read_validity_epoch = std::nullopt;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
   };

@@ -104,9 +104,9 @@ TEST_CASE("Read-only transaction retries a conflict on its first handle")
     bool compact_on_read = false;
 
     std::tuple<ccf::TxID, ccf::kv::Term, ccf::kv::Version>
-    current_txid_commit_term_and_rollback_count() override
+    current_txid_commit_term_and_validity_epoch() override
     {
-      auto result = Store::current_txid_commit_term_and_rollback_count();
+      auto result = Store::current_txid_commit_term_and_validity_epoch();
       if (compact_on_read)
       {
         compact_on_read = false;

@@ -40,7 +40,9 @@ namespace ccf::kv::untyped
   struct Roll
   {
     std::unique_ptr<LocalCommits> commits;
-    size_t rollback_counter{0};
+    // History replacement and writes in a later store epoch both prevent an
+    // older transaction from acquiring this map on the replacement branch.
+    Version last_observed_validity_epoch{0};
 
     LocalCommits empty_commits;
 
@@ -149,9 +151,8 @@ namespace ccf::kv::untyped
       {
         auto& map_roll = map.get_roll();
 
-        // If the parent map has rolled back since this transaction began, this
-        // transaction must fail.
-        if (change_set.rollback_counter != map_roll.rollback_counter)
+        // A change in the map's validity epoch invalidates this change set.
+        if (change_set.validity_epoch != map_roll.last_observed_validity_epoch)
         {
           return false;
         }
@@ -246,6 +247,8 @@ namespace ccf::kv::untyped
         {
           map.roll.commits->insert_back(map.roll.create_new_local_commit(
             v, std::move(state), change_set.writes));
+          map.roll.last_observed_validity_epoch =
+            map.get_store()->current_validity_epoch();
         }
       }
 
@@ -306,7 +309,8 @@ namespace ccf::kv::untyped
     Map(AbstractStore* store_, const std::string& name_) :
       AbstractMap(name_),
       store(store_),
-      roll{std::make_unique<LocalCommits>(), 0, {}},
+      roll{
+        std::make_unique<LocalCommits>(), store_->current_validity_epoch(), {}},
       security_domain(ccf::kv::get_security_domain(name_))
     {
       roll.reset_commits();
@@ -401,7 +405,7 @@ namespace ccf::kv::untyped
         // snapshot is applied depends on the version of the map at which the
         // snapshot was taken.
         map.roll.reset_commits();
-        map.roll.rollback_counter++;
+        map.roll.last_observed_validity_epoch = change_set.validity_epoch;
 
         auto* r = map.roll.commits->get_head();
 
@@ -444,12 +448,15 @@ namespace ccf::kv::untyped
       return {version, d.deserialise_raw_span()};
     }
 
-    ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
+    ChangeSetPtr deserialise_snapshot_changes(
+      KvStoreDeserialiser& d, Version validity_epoch)
     {
       // Create a new empty change set, deserialising d's contents into it.
       const auto entry = read_snapshot_entry(d);
       return make_snapshot_changes(
-        deserialise_snapshot_state(entry.serialised_state), entry.version);
+        deserialise_snapshot_state(entry.serialised_state),
+        entry.version,
+        validity_epoch);
     }
 
     static State deserialise_snapshot_state(
@@ -460,9 +467,11 @@ namespace ccf::kv::untyped
 
     // Change set replacing a map's state with state, at version, as when the
     // map is deserialised from a snapshot
-    static ChangeSetPtr make_snapshot_changes(State state, Version version)
+    static ChangeSetPtr make_snapshot_changes(
+      State state, Version version, Version validity_epoch)
     {
-      return std::make_unique<SnapshotChangeSet>(std::move(state), version);
+      return std::make_unique<SnapshotChangeSet>(
+        std::move(state), version, validity_epoch);
     }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)
@@ -671,7 +680,7 @@ namespace ccf::kv::untyped
       commit_deltas.clear();
     }
 
-    void rollback(Version v) override
+    void rollback(Version v, Version validity_epoch) override
     {
       KV_TRACE(if (!trace::in_environment()) {
         trace::unsupported(get_store(), "map rollback outside store");
@@ -698,7 +707,7 @@ namespace ccf::kv::untyped
 
       if (advance)
       {
-        roll.rollback_counter++;
+        roll.last_observed_validity_epoch = validity_epoch;
       }
     }
 
@@ -706,10 +715,10 @@ namespace ccf::kv::untyped
     {
       KV_TRACE(
         trace::unsupported(get_store(), "map clear outside transaction"));
-      // This discards all entries in the roll and resets the rollback
-      // counter. The Map expects to be locked before clearing it.
+      // This discards all entries in the roll. The Map expects to be locked
+      // before clearing it.
       roll.reset_commits();
-      roll.rollback_counter = 0;
+      roll.last_observed_validity_epoch = store->current_validity_epoch();
     }
 
     // Clang cannot track capabilities selected and held across map collection
@@ -725,14 +734,20 @@ namespace ccf::kv::untyped
     }
 
     // Exchanges the entire state of this map with that of other. The caller
-    // must hold the locks of both maps.
-    void swap(Map& other) noexcept
+    // must hold the locks of both maps. Epochs belong to each store, so the
+    // imported histories are restamped rather than keeping the swapped epochs.
+    void swap(
+      Map& other, Version validity_epoch, Version other_validity_epoch) noexcept
     {
       std::swap(roll, other.roll);
+      roll.last_observed_validity_epoch = validity_epoch;
+      other.roll.last_observed_validity_epoch = other_validity_epoch;
     }
 
     ChangeSetPtr create_change_set(
-      Version version, bool track_deletes_on_missing_keys)
+      Version version,
+      bool track_deletes_on_missing_keys,
+      std::optional<Version> read_validity_epoch = std::nullopt)
     {
       lock();
 
@@ -742,6 +757,12 @@ namespace ccf::kv::untyped
       for (auto* current = roll.commits->get_tail(); current != nullptr;
            current = current->prev)
       {
+        if (
+          read_validity_epoch.has_value() &&
+          roll.last_observed_validity_epoch > read_validity_epoch.value())
+        {
+          break;
+        }
         if (current->version <= version)
         {
           // Only deletes are copied: MapDiff reconstructs puts from the state
@@ -758,7 +779,7 @@ namespace ccf::kv::untyped
             }
           }
           changes = std::make_unique<untyped::ChangeSet>(
-            roll.rollback_counter,
+            roll.last_observed_validity_epoch,
             current->state,
             roll.commits->get_head()->state,
             std::move(writes),
@@ -775,8 +796,8 @@ namespace ccf::kv::untyped
       }
 
       // Returning nullptr is allowed, and indicates that we have no suitable
-      // version - the version requested is _earlier_ than anything in the
-      // roll
+      // version, either because it predates retained history or because the
+      // map was invalidated after the transaction selected its read version.
 
       KV_TRACE(if (changes == nullptr) {
         trace::operation(trace::context(), "map_unavailable", get_name());

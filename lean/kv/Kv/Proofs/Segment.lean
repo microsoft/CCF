@@ -103,7 +103,7 @@ private theorem execute_head (w next : Model.State) (sid : Nat) (before : Model.
       · cases accepted
       · cases accepted
         exact unchanged w _ sid before live rfl
-  | acquire actual tid map =>
+  | acquire actual tid map refuse =>
       dsimp only [Model.execute] at accepted
       obtain ⟨⟨s, t⟩, _, accepted⟩ := option_bind_ok accepted
       dsimp only at accepted

@@ -61,11 +61,11 @@ namespace ccf::kv
       // rather than earlier, at Tx construction. This is to minimise the
       // window during which concurrent transactions can write to the same map
       // and cause this transaction to conflict on commit.
-      const auto [txid, commit_term, rollback_count] =
-        pimpl->store->current_txid_commit_term_and_rollback_count();
+      const auto [txid, commit_term, validity_epoch] =
+        pimpl->store->current_txid_commit_term_and_validity_epoch();
       read_txid = txid;
       pimpl->commit_view = commit_term;
-      pimpl->read_rollback_count = rollback_count;
+      pimpl->read_validity_epoch = validity_epoch;
     }
 
     auto abstract_map = pimpl->store->get_map(read_txid->seqno, map_name);
@@ -100,19 +100,9 @@ namespace ccf::kv
     return {
       abstract_map,
       untyped_map->create_change_set(
-        read_txid->seqno, track_deletes_on_missing_keys)};
-  }
-
-  void BaseTx::check_read_epoch(const std::string& map_name)
-  {
-    const auto read_rollback_count = pimpl->read_rollback_count;
-    if (
-      read_rollback_count.has_value() &&
-      !pimpl->store->check_rollback_count(read_rollback_count.value()))
-    {
-      throw CompactedVersionConflict(
-        fmt::format("Unable to acquire map {} after store rollback", map_name));
-    }
+        read_txid->seqno,
+        track_deletes_on_missing_keys,
+        pimpl->read_validity_epoch)};
   }
 
   std::list<AbstractHandle*> BaseTx::get_possible_handles(

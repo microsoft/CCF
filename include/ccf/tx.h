@@ -66,7 +66,6 @@ namespace ccf::kv
       const std::string& map_name);
 
     void compacted_version_conflict(const std::string& map_name);
-    void check_read_epoch(const std::string& map_name);
 
     template <class THandle>
     THandle* get_handle_by_name(
@@ -95,10 +94,6 @@ namespace ccf::kv
       }
       auto [abstract_map, change_set] =
         get_map_and_change_set_by_name(map_name, track_deletes_on_missing_keys);
-
-      // Check after capture so a rollback during acquisition cannot expose a
-      // state from a different branch. Already retained change sets are safe.
-      check_read_epoch(map_name);
 
       if (change_set == nullptr)
       {

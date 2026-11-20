@@ -28,7 +28,7 @@ namespace ccf::kv
     const MapCollection& new_maps,
     const std::optional<Version>& new_maps_conflict_version,
     bool track_deletes_on_missing_keys,
-    const std::optional<Version>& expected_rollback_count = std::nullopt)
+    const std::optional<Version>& expected_validity_epoch = std::nullopt)
   {
     // All maps with pending writes are locked, transactions are prepared
     // and possibly committed, and then all maps with pending writes are
@@ -51,9 +51,9 @@ namespace ccf::kv
 
     bool ok = true;
 
-    if (expected_rollback_count.has_value() && !changes.empty())
+    if (expected_validity_epoch.has_value() && !changes.empty())
     {
-      // expected_rollback_count is only set on signature transactions
+      // expected_validity_epoch is only set on signature transactions
       // which always contain some writes, and on which all the maps
       // point to the same store.
       auto* store = changes.begin()->second.map->get_store();
@@ -66,7 +66,7 @@ namespace ccf::kv
         // maps at once to truncate their roll. The net result is that the
         // transaction becomes a noop if a rollback occurred between it being
         // committed, and the side effects being applied.
-        ok = store->check_rollback_count(expected_rollback_count.value());
+        ok = store->check_validity_epoch(expected_validity_epoch.value());
       }
     }
 

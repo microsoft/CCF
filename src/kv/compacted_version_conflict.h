@@ -7,8 +7,8 @@
 
 namespace ccf::kv
 {
-  // Also thrown when acquiring a new map view after a store rollback since
-  // the transaction's read snapshot was selected. Both conditions need a retry.
+  // Also thrown when a map was invalidated after the transaction selected its
+  // read snapshot. Both conditions require retrying the entire transaction.
   class CompactedVersionConflict
   {
   private:

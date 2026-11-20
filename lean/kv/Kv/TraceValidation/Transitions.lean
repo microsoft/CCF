@@ -185,7 +185,8 @@ def guardEvent (w : World) (event : Event) : Except Failure Unit := do
       operationPosition (attemptRecording w tid)
       let snap ← snapOf t
       require ((find t.globalViews m).isNone) "pinned handle reported unavailable"
-      expect (!(available s snap m)) "available snapshot reported unavailable"
+      expect (!available s snap m || t.crossedRollback)
+        "available snapshot reported unavailable without crossing a truncating rollback"
   | .get sid tid m k value global =>
       let t ← txOf w sid tid
       let _ ← handleOf t (attemptRecording w tid) m
