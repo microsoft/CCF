@@ -6,7 +6,6 @@
 static_assert(
   OPENSSL_VERSION_PREREQ(3, 5), "ML-DSA tests require OpenSSL 3.5 or newer");
 
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/ec_key_pair.h"
@@ -15,6 +14,7 @@ static_assert(
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/hex.h"
 #include "crypto/cbor_helpers.h"
 #include "crypto/cbor_tags.h"
@@ -211,7 +211,7 @@ namespace
         base64.push_back(c);
       }
     }
-    return ccf::crypto::raw_from_b64(base64);
+    return ccf::ds::raw_from_b64(base64);
   }
 
   std::vector<uint8_t> asn1_field(

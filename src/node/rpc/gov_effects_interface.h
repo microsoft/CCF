@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
+#include "ccf/kv/tx.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/tx.h"
 
 namespace ccf
 {

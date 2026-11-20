@@ -57,12 +57,12 @@ namespace ccf::crypto
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const JsonWebKeyRSAPrivate& jwk)
   {
-    auto d_raw = raw_from_b64url(jwk.d);
-    auto p_raw = raw_from_b64url(jwk.p);
-    auto q_raw = raw_from_b64url(jwk.q);
-    auto dp_raw = raw_from_b64url(jwk.dp);
-    auto dq_raw = raw_from_b64url(jwk.dq);
-    auto qi_raw = raw_from_b64url(jwk.qi);
+    auto d_raw = ccf::ds::raw_from_b64url(jwk.d);
+    auto p_raw = ccf::ds::raw_from_b64url(jwk.p);
+    auto q_raw = ccf::ds::raw_from_b64url(jwk.q);
+    auto dp_raw = ccf::ds::raw_from_b64url(jwk.dp);
+    auto dq_raw = ccf::ds::raw_from_b64url(jwk.dq);
+    auto qi_raw = ccf::ds::raw_from_b64url(jwk.qi);
 
     Unique_BIGNUM d = bn_from_bytes(d_raw);
     Unique_BIGNUM p = bn_from_bytes(p_raw);
@@ -205,12 +205,12 @@ namespace ccf::crypto
     dq = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT2);
     qi = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_COEFFICIENT1);
 
-    jwk.d = b64url_from_raw(bn_to_bytes(d), false);
-    jwk.p = b64url_from_raw(bn_to_bytes(p), false);
-    jwk.q = b64url_from_raw(bn_to_bytes(q), false);
-    jwk.dp = b64url_from_raw(bn_to_bytes(dp), false);
-    jwk.dq = b64url_from_raw(bn_to_bytes(dq), false);
-    jwk.qi = b64url_from_raw(bn_to_bytes(qi), false);
+    jwk.d = ccf::ds::b64url_from_raw(bn_to_bytes(d), false);
+    jwk.p = ccf::ds::b64url_from_raw(bn_to_bytes(p), false);
+    jwk.q = ccf::ds::b64url_from_raw(bn_to_bytes(q), false);
+    jwk.dp = ccf::ds::b64url_from_raw(bn_to_bytes(dp), false);
+    jwk.dq = ccf::ds::b64url_from_raw(bn_to_bytes(dq), false);
+    jwk.qi = ccf::ds::b64url_from_raw(bn_to_bytes(qi), false);
 
     return jwk;
   }

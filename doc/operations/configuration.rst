@@ -174,11 +174,7 @@ When a node is identified by an IPv6 literal, the matching ``node_certificate.su
 HTTP Interfaces
 ---------------
 
-All RPC interfaces for a given node (see :ref:`operations/configuration:``network.rpc_interfaces```) support HTTP/1.1.
-A specific RPC interface can also support HTTP/2 by setting the ``"app_protocol"`` configuration entry to ``"HTTP2"`` for that interface.
-
-.. warning:: HTTP/2 interfaces do not currently support client request forwarding.
-    Client requests that require forwarding to the primary node will return a `501 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/501>`_ HTTP error.
+All built-in HTTP RPC interfaces for a given node (see :ref:`operations/configuration:``network.rpc_interfaces```) support HTTP/1.1.
 
 Operators can cap the size of client HTTP requests (body and header) for each RPC interface in the :ref:`operations/configuration:``network.rpc_interfaces.[name].http_configuration``` configuration section.
 These configuration entries are optional and have sensible default values.

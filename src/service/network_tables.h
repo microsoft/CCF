@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/endpoint.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/code_id.h"
@@ -111,7 +110,6 @@ namespace ccf
       Tables::MODULES_QUICKJS_VERSION};
     const InterpreterFlush interpreter_flush = {Tables::INTERPRETER_FLUSH};
     const JSEngine js_engine = {Tables::JSENGINE};
-    const endpoints::EndpointsMap js_endpoints = {endpoints::Tables::ENDPOINTS};
 
     //
     // JWT tables

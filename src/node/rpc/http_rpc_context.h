@@ -93,13 +93,12 @@ namespace http
   public:
     HttpRpcContext(
       std::shared_ptr<ccf::SessionContext> s,
-      ccf::HttpVersion http_version,
       llhttp_method verb_,
       const std::string_view& url_,
       ccf::http::HeaderMap headers_,
       const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {}) :
-      RpcContextImpl(s, http_version),
+      RpcContextImpl(s),
       verb(verb_),
       url(url_),
       request_headers(std::move(headers_)),
@@ -385,13 +384,7 @@ namespace ccf
     const auto& msg = processor.received.front();
 
     return std::make_shared<::http::HttpRpcContext>(
-      s,
-      ccf::HttpVersion::HTTP1,
-      msg.method,
-      msg.url,
-      msg.headers,
-      msg.body,
-      packed);
+      s, msg.method, msg.url, msg.headers, msg.body, packed);
   }
 
   inline std::shared_ptr<::http::HttpRpcContext> make_fwd_rpc_context(

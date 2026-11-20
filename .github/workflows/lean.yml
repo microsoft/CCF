@@ -12,7 +12,7 @@ on:
       - "src/consensus/aft/**"
       - "src/kv/**"
       - "include/ccf/kv/**"
-      - "include/ccf/tx.h"
+      - "include/ccf/kv/tx.h"
       - "tests/kv_trace_validation*.py"
       - "tests/consistency_trace_validation.py"
       - "tests/tvc.py"
