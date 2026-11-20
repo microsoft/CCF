@@ -543,9 +543,6 @@ target_include_directories(
   SYSTEM
   PUBLIC
     $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-    $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
-    #< which are currently under src, and
-    #< should be removed or renamed
     $<INSTALL_INTERFACE:include/>
     $<INSTALL_INTERFACE:include/3rdparty/>
 )
@@ -575,16 +572,6 @@ install(
     ${TAV_INCLUDE_DIR}/tav/snp.h
     ${TAV_INCLUDE_DIR}/tav/utils.h
   DESTINATION include/3rdparty/tav
-)
-
-# Install all private CCF headers, which may still be needed
-install(
-  DIRECTORY src/
-  DESTINATION include/ccf/_private
-  FILES_MATCHING
-  PATTERN "*.h"
-  PATTERN "msgpack/*" EXCLUDE
-  PATTERN "*/test*" EXCLUDE
 )
 
 # Install all public CCF headers

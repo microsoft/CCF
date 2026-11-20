@@ -79,19 +79,13 @@ def resolve_include(path, including_file, root, quoted, generated_headers):
     return None
 
 
-def is_internal_spelling(path, source_components, public_components):
+def is_internal_spelling(path, source_components):
     parts = PurePosixPath(path).parts
     if not parts:
         return False
     if path.startswith(("./", "../")):
         return True
-    if parts[0] in source_components:
-        return True
-    return (
-        len(parts) > 1
-        and parts[0] == "ccf"
-        and (parts[1] in public_components or len(parts) == 2)
-    )
+    return parts[0] == "ccf" or parts[0] in source_components
 
 
 def includes_in(path, root, generated_headers, is_internal, errors):
@@ -211,7 +205,7 @@ def main():
         return 1
 
     def is_internal(include_path):
-        return is_internal_spelling(include_path, source_components, public_components)
+        return is_internal_spelling(include_path, source_components)
 
     edges = {}
     errors = []
