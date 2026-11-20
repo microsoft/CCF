@@ -3,9 +3,9 @@
 
 #include "ccf/js/extensions/ccf/kv.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ccf/kv/tx.h"
-#include "js/checks.h"
 #include "js/extensions/ccf/kv_helpers.h"
 #include "js/global_class_ids.h"
 #include "js/permissions_checks.h"
@@ -160,7 +160,7 @@ namespace ccf::js::extensions
     auto kv = ctx.new_obj_class(kv_class_id);
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("kv", std::move(kv)));
+    CCF_JS_CHECK_OR_THROW(ccf.set("kv", std::move(kv)));
   }
 
   void KvExtension::rethrow_trapped_exceptions() const

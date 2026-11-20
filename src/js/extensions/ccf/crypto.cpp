@@ -14,9 +14,9 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ds/internal_logger.h"
-#include "js/checks.h"
 #include "js/extensions/ccf/scoped_cleanse.h"
 
 #include <climits>
@@ -112,13 +112,13 @@ namespace ccf::js::extensions
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
-        JS_CHECK_EXC(r);
+        CCF_JS_CHECK_EXC(r);
         auto private_key = jsctx.new_string(prv.str());
-        JS_CHECK_EXC(private_key);
-        JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
+        CCF_JS_CHECK_EXC(private_key);
+        CCF_JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
         auto public_key = jsctx.new_string(pub.str());
-        JS_CHECK_EXC(public_key);
-        JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
+        CCF_JS_CHECK_EXC(public_key);
+        CCF_JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
         return r.take();
       }
@@ -175,13 +175,13 @@ namespace ccf::js::extensions
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
-        JS_CHECK_EXC(r);
+        CCF_JS_CHECK_EXC(r);
         auto private_key = jsctx.new_string(prv.str());
-        JS_CHECK_EXC(private_key);
-        JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
+        CCF_JS_CHECK_EXC(private_key);
+        CCF_JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
         auto public_key = jsctx.new_string(pub.str());
-        JS_CHECK_EXC(public_key);
-        JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
+        CCF_JS_CHECK_EXC(public_key);
+        CCF_JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
         return r.take();
       }
@@ -233,13 +233,13 @@ namespace ccf::js::extensions
         ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
-        JS_CHECK_EXC(r);
+        CCF_JS_CHECK_EXC(r);
         auto private_key = jsctx.new_string(prv.str());
-        JS_CHECK_EXC(private_key);
-        JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
+        CCF_JS_CHECK_EXC(private_key);
+        CCF_JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
         auto public_key = jsctx.new_string(pub.str());
-        JS_CHECK_EXC(public_key);
-        JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
+        CCF_JS_CHECK_EXC(public_key);
+        CCF_JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
 
         return r.take();
       }
@@ -714,7 +714,7 @@ namespace ccf::js::extensions
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
-      JS_CHECK_EXC(wrap_algo_name_val);
+      CCF_JS_CHECK_EXC(wrap_algo_name_val);
 
       auto wrap_algo_name_str = jsctx.to_str(wrap_algo_name_val);
       if (!wrap_algo_name_str)
@@ -731,7 +731,7 @@ namespace ccf::js::extensions
           // in rsa_key_pair.h). wrapping_key is a public RSA key.
 
           auto label_val = jsctx.get_property(parameters, "label");
-          JS_CHECK_EXC(label_val);
+          CCF_JS_CHECK_EXC(label_val);
 
           auto label_opt = std::optional<std::vector<uint8_t>>{};
           if (!try_get_optional_label(jsctx, label_val, label_opt))
@@ -761,7 +761,7 @@ namespace ccf::js::extensions
         {
           auto aes_key_size_value =
             jsctx.get_property(parameters, "aesKeySize");
-          JS_CHECK_EXC(aes_key_size_value);
+          CCF_JS_CHECK_EXC(aes_key_size_value);
 
           int32_t aes_key_size = 0;
           if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value.val) < 0)
@@ -770,7 +770,7 @@ namespace ccf::js::extensions
           }
 
           auto label_val = jsctx.get_property(parameters, "label");
-          JS_CHECK_EXC(label_val);
+          CCF_JS_CHECK_EXC(label_val);
 
           auto label_opt = std::optional<std::vector<uint8_t>>{};
           if (!try_get_optional_label(jsctx, label_val, label_opt))
@@ -842,7 +842,7 @@ namespace ccf::js::extensions
 
       auto parameters = argv[2];
       auto wrap_algo_name_val = jsctx.get_property(parameters, "name");
-      JS_CHECK_EXC(wrap_algo_name_val);
+      CCF_JS_CHECK_EXC(wrap_algo_name_val);
 
       auto wrap_algo_name_str = jsctx.to_str(wrap_algo_name_val);
       if (!wrap_algo_name_str)
@@ -859,7 +859,7 @@ namespace ccf::js::extensions
           // in rsa_key_pair.h). unwrapping_key is a private RSA key.
 
           auto label_val = jsctx.get_property(parameters, "label");
-          JS_CHECK_EXC(label_val);
+          CCF_JS_CHECK_EXC(label_val);
 
           auto label_opt = std::optional<std::vector<uint8_t>>{};
           if (!try_get_optional_label(jsctx, label_val, label_opt))
@@ -897,7 +897,7 @@ namespace ccf::js::extensions
         {
           auto aes_key_size_value =
             jsctx.get_property(parameters, "aesKeySize");
-          JS_CHECK_EXC(aes_key_size_value);
+          CCF_JS_CHECK_EXC(aes_key_size_value);
 
           int32_t aes_key_size = 0;
           if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value.val) < 0)
@@ -906,7 +906,7 @@ namespace ccf::js::extensions
           }
 
           auto label_val = jsctx.get_property(parameters, "label");
-          JS_CHECK_EXC(label_val);
+          CCF_JS_CHECK_EXC(label_val);
 
           auto label_opt = std::optional<std::vector<uint8_t>>{};
           if (!try_get_optional_label(jsctx, label_val, label_opt))
@@ -959,10 +959,10 @@ namespace ccf::js::extensions
       auto algorithm = argv[0];
 
       auto algo_name_val = jsctx.get_property(algorithm, "name");
-      JS_CHECK_EXC(algo_name_val);
+      CCF_JS_CHECK_EXC(algo_name_val);
 
       auto algo_hash_val = jsctx.get_property(algorithm, "hash");
-      JS_CHECK_EXC(algo_hash_val);
+      CCF_JS_CHECK_EXC(algo_hash_val);
 
       auto algo_name_str = jsctx.to_str(algo_name_val);
       if (!algo_name_str)
@@ -1057,7 +1057,7 @@ namespace ccf::js::extensions
           auto key_pair = ccf::crypto::make_rsa_key_pair(key_pem);
 
           auto salt_length_val = jsctx.get_property(algorithm, "saltLength");
-          JS_CHECK_EXC(salt_length_val);
+          CCF_JS_CHECK_EXC(salt_length_val);
 
           int64_t salt_length{};
           if (JS_ToInt64(ctx, &salt_length, salt_length_val.val) < 0)
@@ -1137,10 +1137,10 @@ namespace ccf::js::extensions
       auto algorithm = argv[0];
 
       auto algo_name_val = jsctx.get_property(algorithm, "name");
-      JS_CHECK_EXC(algo_name_val);
+      CCF_JS_CHECK_EXC(algo_name_val);
 
       auto algo_hash_val = jsctx.get_property(algorithm, "hash");
-      JS_CHECK_EXC(algo_hash_val);
+      CCF_JS_CHECK_EXC(algo_hash_val);
 
       auto algo_name_str = jsctx.to_str(algo_name_val);
       if (!algo_name_str)
@@ -1232,7 +1232,7 @@ namespace ccf::js::extensions
         else
         {
           auto salt_length_val = jsctx.get_property(algorithm, "saltLength");
-          JS_CHECK_EXC(salt_length_val);
+          CCF_JS_CHECK_EXC(salt_length_val);
 
           int64_t salt_length{};
           if (JS_ToInt64(ctx, &salt_length, salt_length_val.val) < 0)
@@ -1265,101 +1265,101 @@ namespace ccf::js::extensions
   {
     auto crypto = ctx.new_obj();
 
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       crypto.set("sign", ctx.new_c_function(js_sign, "sign", 3)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "verifySignature",
       ctx.new_c_function(js_verify_signature, "verifySignature", 4)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "pubPemToJwk",
       ctx.new_c_function(
         js_pem_to_jwk<ccf::crypto::JsonWebKeyECPublic>, "pubPemToJwk", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "pemToJwk",
       ctx.new_c_function(
         js_pem_to_jwk<ccf::crypto::JsonWebKeyECPrivate>, "pemToJwk", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "pubRsaPemToJwk",
       ctx.new_c_function(
         js_pem_to_jwk<ccf::crypto::JsonWebKeyRSAPublic>, "pubRsaPemToJwk", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "rsaPemToJwk",
       ctx.new_c_function(
         js_pem_to_jwk<ccf::crypto::JsonWebKeyRSAPrivate>, "rsaPemToJwk", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "pubEddsaPemToJwk",
       ctx.new_c_function(
         js_pem_to_jwk<ccf::crypto::JsonWebKeyEdDSAPublic>,
         "pubEddsaPemToJwk",
         1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "eddsaPemToJwk",
       ctx.new_c_function(
         js_pem_to_jwk<ccf::crypto::JsonWebKeyEdDSAPrivate>,
         "eddsaPemToJwk",
         1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "pubJwkToPem",
       ctx.new_c_function(
         js_jwk_to_pem<ccf::crypto::JsonWebKeyECPublic>, "pubJwkToPem", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "jwkToPem",
       ctx.new_c_function(
         js_jwk_to_pem<ccf::crypto::JsonWebKeyECPrivate>, "jwkToPem", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "pubRsaJwkToPem",
       ctx.new_c_function(
         js_jwk_to_pem<ccf::crypto::JsonWebKeyRSAPublic>, "pubRsaJwkToPem", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "rsaJwkToPem",
       ctx.new_c_function(
         js_jwk_to_pem<ccf::crypto::JsonWebKeyRSAPrivate>, "rsaJwkToPem", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "pubEddsaJwkToPem",
       ctx.new_c_function(
         js_jwk_to_pem<ccf::crypto::JsonWebKeyEdDSAPublic>,
         "pubEddsaJwkToPem",
         1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "eddsaJwkToPem",
       ctx.new_c_function(
         js_jwk_to_pem<ccf::crypto::JsonWebKeyEdDSAPrivate>,
         "eddsaJwkToPem",
         1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "generateAesKey",
       ctx.new_c_function(js_generate_aes_key, "generateAesKey", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "generateRsaKeyPair",
       ctx.new_c_function(js_generate_rsa_key_pair, "generateRsaKeyPair", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "generateEcdsaKeyPair",
       ctx.new_c_function(
         js_generate_ecdsa_key_pair, "generateEcdsaKeyPair", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "generateEddsaKeyPair",
       ctx.new_c_function(
         js_generate_eddsa_key_pair, "generateEddsaKeyPair", 1)));
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       crypto.set("wrapKey", ctx.new_c_function(js_wrap_key, "wrapKey", 3)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "unwrapKey", ctx.new_c_function(js_unwrap_key, "unwrapKey", 3)));
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       crypto.set("digest", ctx.new_c_function(js_digest, "digest", 2)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "isValidX509CertBundle",
       ctx.new_c_function(
         js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "isValidX509CertChain",
       ctx.new_c_function(
         js_is_valid_x509_cert_chain, "isValidX509CertChain", 2)));
-    JS_CHECK_OR_THROW(crypto.set(
+    CCF_JS_CHECK_OR_THROW(crypto.set(
       "isValidX509RootCACert",
       ctx.new_c_function(
         js_is_valid_x509_root_ca_cert, "isValidX509RootCACert", 1)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("crypto", std::move(crypto)));
+    CCF_JS_CHECK_OR_THROW(ccf.set("crypto", std::move(crypto)));
   }
 }

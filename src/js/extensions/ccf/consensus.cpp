@@ -4,8 +4,8 @@
 #include "ccf/js/extensions/ccf/consensus.h"
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 
@@ -53,9 +53,9 @@ namespace ccf::js::extensions
       }
 
       auto obj = jsctx.new_obj();
-      JS_CHECK_EXC(obj);
-      JS_CHECK_SET(obj.set_int64("view", view));
-      JS_CHECK_SET(obj.set_int64("seqno", seqno));
+      CCF_JS_CHECK_EXC(obj);
+      CCF_JS_CHECK_SET(obj.set_int64("view", view));
+      CCF_JS_CHECK_SET(obj.set_int64("seqno", seqno));
       return obj.take();
     }
 
@@ -176,20 +176,20 @@ namespace ccf::js::extensions
   {
     auto consensus = ctx.new_obj();
 
-    JS_CHECK_OR_THROW(consensus.set(
+    CCF_JS_CHECK_OR_THROW(consensus.set(
       "getLastCommittedTxId",
       ctx.new_c_function(
         js_consensus_get_last_committed_txid, "getLastCommittedTxId", 0)));
-    JS_CHECK_OR_THROW(consensus.set(
+    CCF_JS_CHECK_OR_THROW(consensus.set(
       "getStatusForTxId",
       ctx.new_c_function(
         js_consensus_get_status_for_txid, "getStatusForTxId", 2)));
-    JS_CHECK_OR_THROW(consensus.set(
+    CCF_JS_CHECK_OR_THROW(consensus.set(
       "getViewForSeqno",
       ctx.new_c_function(
         js_consensus_get_view_for_seqno, "getViewForSeqno", 1)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("consensus", std::move(consensus)));
+    CCF_JS_CHECK_OR_THROW(ccf.set("consensus", std::move(consensus)));
   }
 }

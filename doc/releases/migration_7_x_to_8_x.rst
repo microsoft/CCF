@@ -92,6 +92,14 @@ Applications that use it should include that header directly.
 
 Applications can now include ``ccf/research/create_tx_claims_digest.h`` using only the installed SDK.
 
+CCF's private headers are no longer installed under ``include/ccf/_private``, and the ``ccf`` CMake target no longer adds ``include/ccf`` to the include path.
+Includes such as ``"ccf/_private/kv/kv_types.h"`` and ``"_private/kv/kv_types.h"`` therefore no longer resolve.
+Replace ``ccf/_private/js/checks.h`` (or ``_private/js/checks.h``) with ``ccf/js/checks.h``.
+Rename ``JS_CHECK_EXC``, ``JS_CHECK_SET`` and ``JS_CHECK_OR_THROW`` to ``CCF_JS_CHECK_EXC``, ``CCF_JS_CHECK_SET`` and ``CCF_JS_CHECK_OR_THROW`` respectively.
+
+Public headers do not depend on private headers.
+If your application or its tests still need a declaration that is only available in a private header, migrate to a public API or open an issue to request a supported replacement.
+
 ML-DSA Service Identity
 -----------------------
 

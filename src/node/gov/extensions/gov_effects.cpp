@@ -7,9 +7,9 @@
 #include "ccf/js/extensions/ccf/gov_effects.h"
 
 #include "ccf/ds/json.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ccf/version.h"
-#include "js/checks.h"
 #include "js/modules/kv_module_loader.h"
 #include "node/rpc/jwt_management.h"
 
@@ -232,15 +232,15 @@ namespace ccf::js::extensions
   {
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "refreshAppBytecodeCache",
       ctx.new_c_function(
         js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0)));
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "setJwtPublicSigningKeys",
       ctx.new_c_function(
         js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3)));
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "removeJwtPublicSigningKeys",
       ctx.new_c_function(
         js_gov_remove_jwt_public_signing_keys,

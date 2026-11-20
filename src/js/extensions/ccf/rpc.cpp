@@ -3,9 +3,9 @@
 
 #include "ccf/js/extensions/ccf/rpc.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ccf/rpc_context.h"
-#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 
@@ -106,14 +106,14 @@ namespace ccf::js::extensions
   {
     auto rpc = ctx.new_obj();
 
-    JS_CHECK_OR_THROW(rpc.set(
+    CCF_JS_CHECK_OR_THROW(rpc.set(
       "setApplyWrites",
       ctx.new_c_function(js_rpc_set_apply_writes, "setApplyWrites", 1)));
-    JS_CHECK_OR_THROW(rpc.set(
+    CCF_JS_CHECK_OR_THROW(rpc.set(
       "setClaimsDigest",
       ctx.new_c_function(js_rpc_set_claims_digest, "setClaimsDigest", 1)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("rpc", std::move(rpc)));
+    CCF_JS_CHECK_OR_THROW(ccf.set("rpc", std::move(rpc)));
   }
 }

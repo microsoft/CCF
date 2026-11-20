@@ -9,11 +9,11 @@
 #include "ccf/ds/logger.h"
 #include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/http_query.h"
+#include "ccf/js/checks.h"
 #include "ccf/json_handler.h"
 #include "ccf/service/tables/modules.h"
 #include "ccf/version.h"
 #include "ds/internal_logger.h"
-#include "js/checks.h"
 
 #include <algorithm>
 #include <charconv>
@@ -118,7 +118,7 @@ namespace ccf::js
       const std::string& reason)
     {
       // If a JavaScript exception is still pending (for instance because
-      // JS_CHECK_OR_THROW fired inside an extension's install(), or because
+      // CCF_JS_CHECK_OR_THROW fired inside an extension's install(), or because
       // create_request_obj tripped a limit), drain it so this cached
       // interpreter is not returned to the pool with a stale exception, and
       // fold its details into the reported error under the same gating as
@@ -721,7 +721,7 @@ namespace ccf::js
             if (extension != nullptr)
             {
               auto val = extension->create_historical_state_object(ctx, state);
-              JS_CHECK_OR_THROW(ccf.set("historicalState", std::move(val)));
+              CCF_JS_CHECK_OR_THROW(ccf.set("historicalState", std::move(val)));
             }
             else
             {

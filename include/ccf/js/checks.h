@@ -2,7 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define JS_CHECK_EXC(val) \
+#include "ccf/js/core/constants.h"
+
+#include <stdexcept>
+
+// These checks are for QuickJS callbacks using namespace ccf::js::core.
+#define CCF_JS_CHECK_EXC(val) \
   do \
   { \
     if (val.is_exception()) \
@@ -11,7 +16,7 @@
     } \
   } while (0)
 
-#define JS_CHECK_SET(val) \
+#define CCF_JS_CHECK_SET(val) \
   do \
   { \
     if (val != 1) \
@@ -20,7 +25,7 @@
     } \
   } while (0)
 
-#define JS_CHECK_OR_THROW(val) \
+#define CCF_JS_CHECK_OR_THROW(val) \
   do \
   { \
     if (val != 1) \
