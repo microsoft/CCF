@@ -14,9 +14,9 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ds/internal_logger.h"
-#include "js/checks.h"
 #include "js/extensions/ccf/scoped_cleanse.h"
 
 #include <climits>

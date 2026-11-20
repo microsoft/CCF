@@ -10,11 +10,11 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/version.h"
-#include "js/checks.h"
 
 #include <nlohmann/json.hpp>
 #include <quickjs/quickjs.h>
