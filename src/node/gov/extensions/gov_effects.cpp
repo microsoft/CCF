@@ -231,15 +231,15 @@ namespace ccf::js::extensions
   {
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "refreshAppBytecodeCache",
       ctx.new_c_function(
         js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0)));
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "setJwtPublicSigningKeys",
       ctx.new_c_function(
         js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3)));
-    JS_CHECK_OR_THROW(ccf.set(
+    CCF_JS_CHECK_OR_THROW(ccf.set(
       "removeJwtPublicSigningKeys",
       ctx.new_c_function(
         js_gov_remove_jwt_public_signing_keys,

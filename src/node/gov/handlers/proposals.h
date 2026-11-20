@@ -308,12 +308,12 @@ namespace ccf::gov::endpoints
           {
             auto v = js_context.new_obj();
 
-            JS_CHECK_OR_THROW(v.set(
+            CCF_JS_CHECK_OR_THROW(v.set(
               "member_id",
               js_context.new_string_len(member_id.data(), member_id.size())));
-            JS_CHECK_OR_THROW(v.set_bool("vote", vote_result));
+            CCF_JS_CHECK_OR_THROW(v.set_bool("vote", vote_result));
 
-            JS_CHECK_OR_THROW(vs.set_at_index(index++, std::move(v)));
+            CCF_JS_CHECK_OR_THROW(vs.set_at_index(index++, std::move(v)));
           }
           argv.push_back(vs);
 
