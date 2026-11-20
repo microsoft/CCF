@@ -5,9 +5,9 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
+#include "ccf/kv/tx.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/proposals.h"
-#include "ccf/tx.h"
 #include "http/http_jwt.h"
 
 #include <set>
@@ -84,7 +84,7 @@ namespace ccf::jwt_management_detail
     ccf::Cert der;
     try
     {
-      der = ccf::crypto::raw_from_b64(der_base64);
+      der = ccf::ds::raw_from_b64(der_base64);
     }
     catch (const std::invalid_argument& e)
     {

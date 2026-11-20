@@ -543,17 +543,6 @@ namespace ccf
       const endpoints::EndpointDefinitionPtr& /*endpoint*/,
       ccf::kv::Consensus* current_consensus)
     {
-      // HTTP/2 does not support forwarding
-      if (ctx->get_http_version() == HttpVersion::HTTP2)
-      {
-        ctx->set_error(
-          HTTP_STATUS_NOT_IMPLEMENTED,
-          ccf::errors::NotImplemented,
-          "Request cannot be forwarded to primary on HTTP/2 interface.");
-
-        return;
-      }
-
       if (!cmd_forwarder || current_consensus == nullptr)
       {
         ctx->set_error(
@@ -965,14 +954,14 @@ namespace ccf
 
         ++attempts;
 
-        endpoint = find_endpoint(ctx, *tx_p);
-        if (endpoint == nullptr)
-        {
-          return;
-        }
-
         try
         {
+          endpoint = find_endpoint(ctx, *tx_p);
+          if (endpoint == nullptr)
+          {
+            return;
+          }
+
           if (!check_uri_allowed(ctx, endpoint))
           {
             return;

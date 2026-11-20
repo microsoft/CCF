@@ -228,19 +228,14 @@ namespace ccf::gov::endpoints
     struct User
     {
       ccf::UserId user_id;
-      std::string certificate;
+      std::optional<std::string> certificate = std::nullopt;
       nlohmann::json user_data = nullptr;
     };
 
-    DECLARE_JSON_TYPE(User);
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(User);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
-      User,
-      user_id,
-      "userId",
-      certificate,
-      "certificate",
-      user_data,
-      "userData");
+      User, user_id, "userId", user_data, "userData");
+    DECLARE_JSON_OPTIONAL_FIELDS(User, certificate);
 
     struct Users
     {
@@ -317,7 +312,7 @@ namespace ccf::gov::endpoints
     {
       member.certificate = cert.value().str();
     }
-    else
+    else if (!member_id.value().starts_with("did:key:"))
     {
       GOV_INFO_FMT("Member {} has no certificate", member_id);
     }
@@ -346,13 +341,14 @@ namespace ccf::gov::endpoints
 
   inline api::User produce_user_description(
     const ccf::UserId& user_id,
-    const ccf::crypto::Pem& user_cert,
+    const std::optional<ccf::crypto::Pem>& user_cert,
     ccf::UserInfo::ReadOnlyHandle* user_info_handle)
   {
     const auto user_info = user_info_handle->get(user_id);
     return {
       user_id,
-      user_cert.str(),
+      user_cert.has_value() ? std::make_optional(user_cert->str()) :
+                              std::nullopt,
       user_info.has_value() ? user_info->user_data : nlohmann::json(nullptr)};
   }
 
@@ -386,10 +382,9 @@ namespace ccf::gov::endpoints
       case ccf::QuoteFormat::oe_sgx_v1:
       {
         quote_info["format"] = "OE_SGX_v1";
-        quote_info["quote"] =
-          ccf::crypto::b64_from_raw(node_info.quote_info.quote);
+        quote_info["quote"] = ccf::ds::b64_from_raw(node_info.quote_info.quote);
         quote_info["endorsements"] =
-          ccf::crypto::b64_from_raw(node_info.quote_info.endorsements);
+          ccf::ds::b64_from_raw(node_info.quote_info.endorsements);
         break;
       }
       case ccf::QuoteFormat::insecure_virtual:
@@ -413,12 +408,12 @@ namespace ccf::gov::endpoints
         quote_info["format"] = "AMD_SEV_SNP_v1";
         if (node_info.quote_info.uvm_endorsements.has_value())
         {
-          quote_info["uvmEndorsements"] = ccf::crypto::b64_from_raw(
+          quote_info["uvmEndorsements"] = ccf::ds::b64_from_raw(
             node_info.quote_info.uvm_endorsements.value());
         }
         if (node_info.quote_info.endorsed_tcb.has_value())
         {
-          quote_info["endorsedTcb"] = ccf::crypto::b64_from_raw(
+          quote_info["endorsedTcb"] = ccf::ds::b64_from_raw(
             ds::from_hex(node_info.quote_info.endorsed_tcb.value()));
         }
         break;
@@ -1030,6 +1025,15 @@ namespace ccf::gov::endpoints
                 produce_user_description(user_id, user_cert, user_info_handle));
               return true;
             });
+          ctx.tx
+            .template ro<ccf::UserPublicKeys>(ccf::Tables::USER_PUBLIC_KEYS)
+            ->foreach(
+              [&response_body, user_info_handle](
+                const ccf::UserId& user_id, const std::vector<uint8_t>&) {
+                response_body.value.push_back(produce_user_description(
+                  user_id, std::nullopt, user_info_handle));
+                return true;
+              });
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;
@@ -1056,7 +1060,11 @@ namespace ccf::gov::endpoints
             ctx.tx.template ro<ccf::UserCerts>(ccf::Tables::USER_CERTS);
 
           const auto user_cert = user_certs_handle->get(user_id);
-          if (!user_cert.has_value())
+          if (
+            !user_cert.has_value() &&
+            !ctx.tx
+               .template ro<ccf::UserPublicKeys>(ccf::Tables::USER_PUBLIC_KEYS)
+               ->has(user_id))
           {
             detail::set_gov_error(
               ctx.rpc_ctx,
@@ -1069,8 +1077,8 @@ namespace ccf::gov::endpoints
           auto user_info_handle =
             ctx.tx.template ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
 
-          const auto user = produce_user_description(
-            user_id, user_cert.value(), user_info_handle);
+          const auto user =
+            produce_user_description(user_id, user_cert, user_info_handle);
 
           ctx.rpc_ctx->set_response_json(user, HTTP_STATUS_OK);
           return;

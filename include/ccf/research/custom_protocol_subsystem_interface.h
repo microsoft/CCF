@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/endpoint_context.h"
+#include "ccf/kv/tx.h"
 #include "ccf/node/session.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/tx.h"
 
 #include <functional>
 #include <memory>

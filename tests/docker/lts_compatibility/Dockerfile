@@ -10,7 +10,6 @@ RUN . /etc/os-release && \
           curl \
           libstdc++ \
           libuv \
-          nghttp2 \
           openssl && \
         tdnf clean all \
         ;; \
@@ -19,7 +18,6 @@ RUN . /etc/os-release && \
         dnf -y install \
           ca-certificates \
           libcurl \
-          libnghttp2 \
           libstdc++ \
           libuv \
           openssl && \

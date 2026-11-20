@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/mldsa_key_pair.h"
+#include "ccf/kv/tx.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/tx.h"
 #include "kv/committable_tx.h"
 #include "node/internal_tables_access.h"
 #include "node/ledger_secrets.h"

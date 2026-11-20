@@ -459,7 +459,7 @@ namespace ccf
         LOG_INFO_FMT(
           "Adding trusted seq {} key {}",
           endorsement.endorsement_epoch_begin.seqno,
-          ccf::crypto::b64_from_raw(endorsed_key));
+          ccf::ds::b64_from_raw(endorsed_key));
         trusted_keys.insert(
           {endorsement.endorsement_epoch_begin.seqno,
            ccf::crypto::make_ec_public_key(endorsed_key)});
@@ -504,7 +504,7 @@ namespace ccf
       LOG_INFO_FMT(
         "Adding trusted seq {} key {}",
         current_service_from->seqno,
-        ccf::crypto::b64_from_raw(current_pkey));
+        ccf::ds::b64_from_raw(current_pkey));
       trusted_keys.insert(
         {current_service_from->seqno,
          ccf::crypto::make_ec_public_key(current_pkey)});

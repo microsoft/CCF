@@ -56,7 +56,7 @@ namespace ccf::crypto
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
-    auto d_raw = raw_from_b64url(jwk.d);
+    auto d_raw = ccf::ds::raw_from_b64url(jwk.d);
     Unique_BIGNUM d = bn_from_bytes(d_raw);
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     // Note: d_raw is big endian while OSSL_PARAM_construct_BN expects native
@@ -316,7 +316,7 @@ namespace ccf::crypto
     {
       throw std::runtime_error(fmt::format("BN_bn2binpad failed: {}", rc));
     }
-    jwk.d = b64url_from_raw(bytes, false /* with_padding */);
+    jwk.d = ccf::ds::b64url_from_raw(bytes, false /* with_padding */);
 
     return jwk;
   }

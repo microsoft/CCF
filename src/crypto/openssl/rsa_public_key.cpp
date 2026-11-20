@@ -25,8 +25,8 @@ namespace
     }
 
     std::pair<Unique_BIGNUM, Unique_BIGNUM> ne;
-    auto n_raw = raw_from_b64url(jwk.n);
-    auto e_raw = raw_from_b64url(jwk.e);
+    auto n_raw = ccf::ds::raw_from_b64url(jwk.n);
+    auto e_raw = ccf::ds::raw_from_b64url(jwk.e);
     ne.first = bn_from_bytes(n_raw);
     ne.second = bn_from_bytes(e_raw);
 
@@ -261,8 +261,8 @@ namespace ccf::crypto
     JsonWebKeyRSAPublic jwk;
     auto n = bn_to_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_N));
     auto e = bn_to_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_E));
-    jwk.n = b64url_from_raw(n, false /* with_padding */);
-    jwk.e = b64url_from_raw(e, false /* with_padding */);
+    jwk.n = ccf::ds::b64url_from_raw(n, false /* with_padding */);
+    jwk.e = ccf::ds::b64url_from_raw(e, false /* with_padding */);
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::RSA;
     return jwk;
