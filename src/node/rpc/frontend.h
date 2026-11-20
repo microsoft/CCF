@@ -965,14 +965,14 @@ namespace ccf
 
         ++attempts;
 
-        endpoint = find_endpoint(ctx, *tx_p);
-        if (endpoint == nullptr)
-        {
-          return;
-        }
-
         try
         {
+          endpoint = find_endpoint(ctx, *tx_p);
+          if (endpoint == nullptr)
+          {
+            return;
+          }
+
           if (!check_uri_allowed(ctx, endpoint))
           {
             return;
