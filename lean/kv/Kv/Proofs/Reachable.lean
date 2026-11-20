@@ -14,6 +14,15 @@ open Kv.Model Kv.Properties
 
 variable {M K V : Type}
 
+/-- Mapping association-list values commutes with first-match lookup. -/
+theorem find_map_values [DecidableEq K] (xs : Assoc K V) (key : K) (f : V → V)
+    : find (xs.map fun (k, v) => (k, f v)) key = (find xs key).map f := by
+  induction xs with
+  | nil => rfl
+  | cons entry xs ih =>
+      obtain ⟨k, v⟩ := entry
+      by_cases same : k = key <;> simp [find, same, ih]
+
 /-- The reports agree with the computed local operation. -/
 private def observes {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
     (db : DB M K V) (ws : Writes M K V)
@@ -803,7 +812,7 @@ private theorem execute_invariant (w next : State) (valid : StateInvariant w)
           · simp [captured] at condition
         cases rest
         exact update_tx w valid tid _ (snapshot_invariant s inv.1 s.term t inv.2 fresh)
-  | acquire sid tid m =>
+  | acquire sid tid m refuse =>
       obtain ⟨⟨s, t⟩, found, rest⟩ := option_bind_ok accepted
       try dsimp only at rest
       have inv := lookup_invariant w valid sid tid s t found
@@ -813,7 +822,8 @@ private theorem execute_invariant (w next : State) (valid : StateInvariant w)
       · cases rest
       · have unused : t.normal.log.all (fun op => op.map != m) = true := by
           have condition : (t.phase != .active || (find t.globalViews m).isSome
-              || !t.normal.log.all (fun op => op.map != m)) = false := by
+              || !t.normal.log.all (fun op => op.map != m)
+              || (refuse && available s snap m && !t.crossedRollback)) = false := by
             apply Bool.eq_false_iff.mpr
             assumption
           cases used : t.normal.log.all (fun op => op.map != m) <;>
@@ -879,7 +889,13 @@ private theorem execute_invariant (w next : State) (valid : StateInvariant w)
       · split at rest
         · cases rest
         · cases rest
-          exact update_store w valid sid _ (rollback_invariant s (valid.stores sid s found) requested term)
+          refine ⟨(update_store w valid sid _ (rollback_invariant s
+            (valid.stores sid s found) requested term)).stores, ?_⟩
+          intro tid t live
+          rw [find_map_values] at live
+          obtain ⟨before, source, same⟩ := Option.map_eq_some_iff.mp live
+          subst t
+          exact tx_fields_invariant before _ (valid.txs tid before source) rfl rfl rfl rfl
 
 private theorem reachable_invariant (w : State)
     (reachable : Model.transitionSystem.Reachable w)

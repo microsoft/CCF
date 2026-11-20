@@ -59,7 +59,11 @@ Store and transaction terms drive stale-term rejection.
 Per-map revision and birth stamps carry application identities, so reuse of a rolled-back version cannot restore discarded lineage, including for empty maps.
 
 Maps are acquired lazily, as in C++.
-The first acquisition of a map selects the newest surviving frame at or below the snapshot's read version, or an empty placeholder if the map is absent there, so it may observe a rollback that occurred after the snapshot.
+The first acquisition of a map selects the newest surviving frame at or below the snapshot's read version, or an empty placeholder if the map is absent there.
+Acquisition checks retention and the original snapshot's map birth/revision identities; see `step_map_capture` in [`Properties.lean`](Kv/Properties.lean).
+`Tx.crossedRollback` records a truncating rollback of the attempt's store after snapshot capture.
+After such a rollback, `Action.acquire` permits conservative refusal through `refuse := true`, even when the map's original view survives; see `step_unavailable_requires_rollback` in [`Properties.lean`](Kv/Properties.lean).
+Acquisition failure pins no view and marks the attempt unavailable for successful commit.
 `Tx.globalViews` stores one `GlobalView` per acquired map: the pinned local frame and the globally committed frame.
 Once acquired, neither frame changes for the rest of the attempt, and `Tx.data` combines the pinned local data used by normal observations.
 
@@ -128,6 +132,7 @@ Snapshot preservation requires no creation/end of the selected attempt during it
 
 The model guarantees are proved for actual `Model.execute` transitions and arbitrary reachable model runs, without trace preconditions or a sequential acceptance oracle.
 The trace decoder, event translation, report comparisons, and recording checks are part of the validation trust boundary, rather than a separately proved trace transition system.
+The adapter translates `map_acquire` using the default acquisition action and `map_unavailable` using `refuse := true`; the model checks refusal eligibility and computes the resulting output and state.
 The canonical model theorems cover normal-view serial projection, history safety, frozen read metadata, and per-map local/global provenance and immutability.
 They do not prove that arbitrary C++ executions refine this model or that the instrumentation is complete; iteration protocol and acquisition-availability checks are not claimed as independently verified C++ algorithms.
 

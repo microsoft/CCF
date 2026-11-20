@@ -34,13 +34,15 @@ namespace ccf::kv::untyped
   struct ChangeSet : public AbstractChangeSet
   {
   protected:
-    ChangeSet() = default;
+    explicit ChangeSet(Version validity_epoch_) :
+      validity_epoch(validity_epoch_)
+    {}
 
   public:
 #ifdef CCF_KV_TRACING
     trace::MapMetadata trace_metadata;
 #endif
-    const size_t rollback_counter = {};
+    const Version validity_epoch = {};
     const ccf::kv::untyped::State state;
     const ccf::kv::untyped::State committed;
     const Version start_version = {};
@@ -50,12 +52,12 @@ namespace ccf::kv::untyped
     ccf::kv::untyped::Write writes;
 
     ChangeSet(
-      size_t rollbacks,
+      Version validity_epoch_,
       ccf::kv::untyped::State& current_state,
       ccf::kv::untyped::State& committed_state,
       ccf::kv::untyped::Write changed_writes,
       Version current_version) :
-      rollback_counter(rollbacks),
+      validity_epoch(validity_epoch_),
       state(current_state),
       committed(committed_state),
       start_version(current_version),
@@ -80,7 +82,10 @@ namespace ccf::kv::untyped
     const Version version;
 
     SnapshotChangeSet(
-      ccf::kv::untyped::State&& snapshot_state, Version version_) :
+      ccf::kv::untyped::State&& snapshot_state,
+      Version version_,
+      Version validity_epoch_) :
+      ChangeSet(validity_epoch_),
       state(std::move(snapshot_state)),
       version(version_)
     {}

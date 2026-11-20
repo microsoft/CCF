@@ -789,7 +789,7 @@ namespace ccf::kv
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void post_compact() = 0;
-    virtual void rollback(Version v) = 0;
+    virtual void rollback(Version v, Version validity_epoch) = 0;
     virtual void lock() = 0;
     virtual void unlock() = 0;
     virtual SecurityDomain get_security_domain() = 0;
@@ -836,7 +836,9 @@ namespace ccf::kv
 
     virtual Version current_version() = 0;
     virtual ccf::TxID current_txid() = 0;
-    virtual std::pair<ccf::TxID, Term> current_txid_and_commit_term() = 0;
+    virtual std::tuple<ccf::TxID, Term, Version>
+    current_txid_commit_term_and_validity_epoch() = 0;
+    virtual Version current_validity_epoch() = 0;
 
     virtual Version compacted_version() = 0;
     virtual Term commit_view() = 0;
@@ -864,15 +866,15 @@ namespace ccf::kv
       const ccf::TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
-    virtual bool check_rollback_count(Version count) = 0;
+    virtual bool check_validity_epoch(Version expected_epoch) = 0;
     virtual bool apply_tx_flags(
       Version version,
       Term expected_term,
-      Version expected_rollback_count,
+      Version expected_validity_epoch,
       bool force_ledger_chunk,
       bool snapshot_at_next_signature) = 0;
     virtual std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
-      Version version, Term expected_term, Version expected_rollback_count) = 0;
+      Version version, Term expected_term, Version expected_validity_epoch) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
       Version v) = 0;

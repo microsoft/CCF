@@ -241,7 +241,7 @@ namespace ccf::kv
       bool track_deletes_on_missing_keys = false;
       bool commit_term_changed = false;
       std::optional<Version> c;
-      std::optional<Version> expected_rollback_count;
+      std::optional<Version> expected_validity_epoch;
 #ifdef CCF_KV_TRACING
       trace::Json trace_writes;
       if (trace::enabled())
@@ -275,8 +275,8 @@ namespace ccf::kv
               return std::optional<Version>{};
             }
 
-            const auto [resolved_version, rollback_count] = resolution.value();
-            expected_rollback_count = rollback_count;
+            const auto [resolved_version, validity_epoch] = resolution.value();
+            expected_validity_epoch = validity_epoch;
             return std::optional<Version>(resolved_version);
           },
           hooks,
@@ -331,16 +331,16 @@ namespace ccf::kv
       // applied if a concurrent rollback has already discarded its writes.
       if (force_ledger_chunk || snapshot_at_next_signature)
       {
-        if (!expected_rollback_count.has_value())
+        if (!expected_validity_epoch.has_value())
         {
           throw std::logic_error(
-            "Transaction was allocated a version without a rollback count");
+            "Transaction was allocated a version without a validity epoch");
         }
 
         if (!pimpl->store->apply_tx_flags(
               version,
               pimpl->commit_view,
-              expected_rollback_count.value(),
+              expected_validity_epoch.value(),
               force_ledger_chunk,
               snapshot_at_next_signature))
         {
@@ -474,7 +474,8 @@ namespace ccf::kv
       return TxID(pimpl->commit_view, version);
     }
 
-    void set_read_txid(const TxID& tx_id, Term commit_view_)
+    void set_read_txid(
+      const TxID& tx_id, Term commit_view_, Version read_validity_epoch)
     {
       KV_TRACE(
         trace::unsupported(pimpl->store, "explicit read transaction ID"));
@@ -484,6 +485,7 @@ namespace ccf::kv
       }
       pimpl->read_txid = tx_id;
       pimpl->commit_view = commit_view_;
+      pimpl->read_validity_epoch = read_validity_epoch;
     }
 
     void set_root_at_read_version(const ccf::crypto::Sha256Hash& r)
@@ -518,16 +520,16 @@ namespace ccf::kv
   class ReservedTx : public CommittableTx
   {
   private:
-    Version rollback_count = 0;
+    Version validity_epoch = 0;
 
   public:
     ReservedTx(
       AbstractStore* _store,
       Term read_term,
       const TxID& reserved_tx_id,
-      Version rollback_count_) :
+      Version validity_epoch_) :
       CommittableTx(_store),
-      rollback_count(rollback_count_)
+      validity_epoch(validity_epoch_)
     {
       version = reserved_tx_id.seqno;
       KV_TRACE(trace::unsupported(pimpl->store, "reserved transaction"));
@@ -569,14 +571,14 @@ namespace ccf::kv
           pimpl->created_maps,
           version,
           track_deletes_on_missing_keys,
-          rollback_count);
+          validity_epoch);
       }
 
       success = c.has_value();
 
       if (!success)
       {
-        if (pimpl->store->check_rollback_count(rollback_count))
+        if (pimpl->store->check_validity_epoch(validity_epoch))
         {
           throw std::logic_error("Failed to commit reserved transaction");
         }
@@ -596,7 +598,7 @@ namespace ccf::kv
       // behind.
       const auto should_create_chunk =
         pimpl->store->should_create_ledger_chunk_for_reserved_tx(
-          version, pimpl->commit_view, rollback_count);
+          version, pimpl->commit_view, validity_epoch);
       if (!should_create_chunk.has_value())
       {
         committed = true;
