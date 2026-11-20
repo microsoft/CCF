@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <ctime>
 #include <doctest/doctest.h>
+#include <format>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -116,6 +117,31 @@ TEST_CASE("UTC timestamps retain their precision and calendar range")
     ccf::logger::get_timestamp(far_future, timespec{}) ==
     "2147485547-01-01T00:00:00.000000Z");
   CHECK(ccf::ds::to_x509_time_string(far_future) == "21474855470101000000Z");
+}
+
+TEST_CASE("Logger timestamp preserves padding at year boundaries")
+{
+  std::tm calendar{};
+  calendar.tm_mday = 1;
+  calendar.tm_sec = 60;
+  const timespec time{0, 1999};
+
+  calendar.tm_year = -1901;
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "-001-01-01T00:00:60.000001Z");
+  calendar.tm_year = -1900;
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "0000-01-01T00:00:60.000001Z");
+  calendar.tm_year = 9999 - 1900;
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "9999-01-01T00:00:60.000001Z");
+  calendar.tm_year = 10000 - 1900;
+  CHECK(
+    ccf::logger::get_timestamp(calendar, time) ==
+    "10000-01-01T00:00:60.000001Z");
 }
 
 TEST_CASE("Disabled logging does not evaluate format arguments")
@@ -508,6 +534,47 @@ constexpr auto custom_tag = "my tag";
 constexpr auto custom_long_tag =
   "A very long tag that may need to be truncated";
 #define CUSTOM_LOG_LONG CCF_LOG_FMT(INFO, custom_long_tag)
+
+TEST_CASE("Text logger preserves padding, truncation and message bytes")
+{
+  using namespace std::string_literals;
+
+  const auto check = [](
+                       uint16_t thread,
+                       std::string_view tag,
+                       std::string_view filename,
+                       std::string_view expected_preamble) {
+    ccf::logger::LogLine line(ccf::LoggerLevel::INFO, tag, filename, 123);
+    line.thread_id = thread;
+    line.msg = "before\0after\n"s;
+
+    const auto text = ccf::logger::format_to_text(line);
+    const auto timestamp_end = text.find(' ');
+    REQUIRE(timestamp_end != std::string::npos);
+    CHECK(
+      text.substr(timestamp_end) ==
+      std::format(" {:<3} {:<45}| {}\n", thread, expected_preamble, line.msg));
+  };
+
+  check(7, "", "file.cpp", "[info ] file.cpp:123 ");
+  check(65535, "app", "file.cpp", "[info ][app] file.cpp:123 ");
+  check(
+    123, "", std::string(33, 'x'), "[info ] " + std::string(32, 'x') + ":123 ");
+  check(0, std::string(40, 'x'), "file.cpp", "[info ][" + std::string(37, 'x'));
+  check(42, "\xe7\x95\x8c", "file.cpp", "[info ][\xe7\x95\x8c] file.cpp:123 ");
+  check(42, "\xcc\x81", "file.cpp", "[info ][\xcc\x81] file.cpp:123 ");
+  check(
+    42,
+    "\xe7\x95\x8c",
+    "f\xc3\xa9.cpp",
+    "[info ][\xe7\x95\x8c] f\xc3\xa9.cpp:123 ");
+  check(42, "a\tb", "file.cpp", "[info ][a\tb] file.cpp:123 ");
+  check(
+    42,
+    std::string(36, 'x') + "\xe7\x95\x8c",
+    "file.cpp",
+    "[info ][" + std::string(36, 'x') + "\xe7");
+}
 
 TEST_CASE("Custom logging macros")
 {

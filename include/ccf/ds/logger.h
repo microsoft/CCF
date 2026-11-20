@@ -5,12 +5,14 @@
 #include "ccf/ds/logger_level.h"
 #include "ccf/threading/thread_ids.h"
 
+#include <algorithm>
 #include <ctime>
 #include <format>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -78,17 +80,45 @@ namespace ccf::logger
 
   static std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
   {
-    // Sample: "2019-07-19 18:53:25.690267"
     constexpr size_t nano_per_micro = 1000;
+    const auto year = tm.tm_year + 1900LL;
+    const auto micros = ts.tv_nsec / nano_per_micro;
+
+    // Keep minimum-width formatting for values outside the fast path.
+    if (
+      year >= 0 && year <= 9999 && static_cast<unsigned>(tm.tm_mon) < 12 &&
+      static_cast<unsigned>(tm.tm_mday) <= 31 &&
+      static_cast<unsigned>(tm.tm_hour) < 24 &&
+      static_cast<unsigned>(tm.tm_min) < 60 &&
+      static_cast<unsigned>(tm.tm_sec) <= 60 && micros <= 999999)
+    {
+      char timestamp[] = "0000-00-00T00:00:00.000000Z";
+      const auto write_digits = [](char* out, size_t width, unsigned value) {
+        while (width != 0)
+        {
+          out[--width] = static_cast<char>('0' + value % 10);
+          value /= 10;
+        }
+      };
+      write_digits(timestamp, 4, static_cast<unsigned>(year));
+      write_digits(timestamp + 5, 2, static_cast<unsigned>(tm.tm_mon + 1));
+      write_digits(timestamp + 8, 2, static_cast<unsigned>(tm.tm_mday));
+      write_digits(timestamp + 11, 2, static_cast<unsigned>(tm.tm_hour));
+      write_digits(timestamp + 14, 2, static_cast<unsigned>(tm.tm_min));
+      write_digits(timestamp + 17, 2, static_cast<unsigned>(tm.tm_sec));
+      write_digits(timestamp + 20, 6, static_cast<unsigned>(micros));
+      return {timestamp, sizeof(timestamp) - 1};
+    }
+
     return std::format(
       "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:06}Z",
-      tm.tm_year + 1900LL,
-      tm.tm_mon + 1,
+      year,
+      tm.tm_mon + 1LL,
       tm.tm_mday,
       tm.tm_hour,
       tm.tm_min,
       tm.tm_sec,
-      ts.tv_nsec / nano_per_micro);
+      micros);
   }
 
   class AbstractLogger
@@ -169,12 +199,41 @@ namespace ccf::logger
 
     preamble += file_line_data;
 
-    return std::format(
-      "{} {:<3} {:<45}| {}\n",
-      get_timestamp(host_tm, host_ts),
-      ll.thread_id,
-      preamble,
-      ll.msg);
+    auto padded_preamble_size = static_cast<size_t>(preamble_length);
+    const auto printable_ascii = [](unsigned char ch) {
+      return ch >= ' ' && ch <= '~';
+    };
+    const auto first = std::ranges::find_if_not(preamble, printable_ascii);
+    if (first != preamble.end())
+    {
+      const auto after_last =
+        std::find_if_not(preamble.rbegin(), preamble.rend(), printable_ascii)
+          .base();
+      // Measure only the span that can have variable display widths. Cut
+      // between printable ASCII characters to preserve grapheme boundaries.
+      const std::string_view span(
+        first == preamble.begin() ? first : first - 1,
+        after_last == preamble.end() ? after_last : after_last + 1);
+      const auto ascii_columns = preamble.size() - span.size();
+      padded_preamble_size = ascii_columns +
+        std::formatted_size("{:<{}}", span, preamble_length - ascii_columns);
+    }
+
+    const auto thread = std::to_string(ll.thread_id);
+    const auto thread_width = std::max<size_t>(3, thread.size());
+    auto text = get_timestamp(host_tm, host_ts);
+    text.reserve(
+      text.size() + thread_width + padded_preamble_size + ll.msg.size() + 5);
+    text += ' ';
+    text += thread;
+    text.append(thread_width - thread.size(), ' ');
+    text += ' ';
+    text += preamble;
+    text.append(padded_preamble_size - preamble.size(), ' ');
+    text += "| ";
+    text += ll.msg;
+    text += '\n';
+    return text;
   }
 
   class TextConsoleLogger : public AbstractLogger
