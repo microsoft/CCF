@@ -84,7 +84,13 @@ Some headers no longer provide declarations that they did not use themselves. In
      - ``ccf/pal/uvm_endorsements.h``
      - ``ccf/service/tables/uvm_endorsements.h``
 
-CCF's private headers are no longer installed. They were previously available under ``include/ccf/_private``, which was also on the include path of the ``ccf`` CMake target, so includes such as ``"ccf/_private/kv/kv_types.h"`` or ``"_private/kv/kv_types.h"`` no longer resolve. Public headers do not depend on them. Applications which need a declaration that is only available in a private header should raise an issue to request that it be added to the public API.
+The ``BlitSerialiser<ccf::crypto::Sha256Hash>`` specialisation now lives with its primary template in ``ccf/kv/serialisers/blit_serialiser.h``.
+Applications that use it should include that header directly.
+
+CCF's private headers are no longer installed under ``include/ccf/_private``, and the ``ccf`` CMake target no longer adds ``include/ccf`` to the include path.
+Includes such as ``"ccf/_private/kv/kv_types.h"`` and ``"_private/kv/kv_types.h"`` therefore no longer resolve.
+Public headers do not depend on private headers, and applications can now include ``ccf/research/create_tx_claims_digest.h`` using only the installed SDK.
+Applications which need a declaration that is only available in a private header should raise an issue to request that it be added to the public API.
 
 ML-DSA Service Identity
 -----------------------

@@ -1,2 +1,2 @@
-Public C++ header components no longer form dependency cycles: `ccf/tx.h`, `ccf/endpoint.h`, `ccf/endpoint_context.h`, `ccf/common_auth_policies.h` and `ccf/crypto/base64.h` moved to `ccf/kv/`, `ccf/endpoints/` and `ccf/ds/`, the base64 functions moved from `ccf::crypto` to `ccf::ds`, and several headers no longer provide the typed KV maps transitively.
-See the [migration guide](doc/releases/migration_7_x_to_8_x.rst#public-c-headers) for the full list of replacements.
+CCF removes dependency cycles between public C++ header components and stops installing private headers under `ccf/_private/`.
+The [migration guide](doc/releases/migration_7_x_to_8_x.rst#public-c-headers) lists the new transaction, endpoint and base64 header paths, the move from `ccf::crypto` to `ccf::ds` for base64 functions, and the headers applications must now include directly.
