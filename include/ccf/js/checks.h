@@ -2,6 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/js/core/constants.h"
+
+#include <stdexcept>
+
+// These checks are for QuickJS callbacks using namespace ccf::js::core.
 #define JS_CHECK_EXC(val) \
   do \
   { \

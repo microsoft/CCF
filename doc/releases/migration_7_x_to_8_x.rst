@@ -89,6 +89,7 @@ Applications that use it should include that header directly.
 
 CCF's private headers are no longer installed under ``include/ccf/_private``, and the ``ccf`` CMake target no longer adds ``include/ccf`` to the include path.
 Includes such as ``"ccf/_private/kv/kv_types.h"`` and ``"_private/kv/kv_types.h"`` therefore no longer resolve.
+Replace ``ccf/_private/js/checks.h`` with ``ccf/js/checks.h`` to keep using the same QuickJS check macros.
 Public headers do not depend on private headers, and applications can now include ``ccf/research/create_tx_claims_digest.h`` using only the installed SDK.
 Applications which need a declaration that is only available in a private header should raise an issue to request that it be added to the public API.
 

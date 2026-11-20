@@ -3,9 +3,9 @@
 
 #include "ccf/js/extensions/ccf/rpc.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ccf/rpc_context.h"
-#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 

@@ -7,9 +7,9 @@
 #include "ccf/js/extensions/ccf/gov_effects.h"
 
 #include "ccf/ds/json.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ccf/version.h"
-#include "js/checks.h"
 #include "js/modules/kv_module_loader.h"
 #include "node/rpc/jwt_management.h"
 

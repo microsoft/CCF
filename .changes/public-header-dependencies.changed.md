@@ -1,2 +1,2 @@
-CCF removes dependency cycles between public C++ header components and stops installing private headers under `ccf/_private/`.
+CCF removes dependency cycles between public C++ header components and stops installing private headers under `ccf/_private/`, with the QuickJS check macros now available in `ccf/js/checks.h`.
 The [migration guide](doc/releases/migration_7_x_to_8_x.rst#public-c-headers) lists the new transaction, endpoint and base64 header paths, the move from `ccf::crypto` to `ccf::ds` for base64 functions, and the headers applications must now include directly.
