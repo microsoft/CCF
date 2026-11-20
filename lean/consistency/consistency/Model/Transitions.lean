@@ -113,14 +113,36 @@ def appendOther (state : State) (branch : Nat) : Option State := do
   guard (activeBranch state branch)
   return appendEntry state branch ⟨branch, none⟩
 
-/-- Elect a new leader by copying a committed-prefix-compatible branch prefix.
-This simulates rollback of uncommitted transactions and a view change without
-overwriting the old leader's abstract ledger branch. -/
-def elect (state : State) (branch prefixLength : Nat) : Option State := do
-  let ledger ← at? state.branches branch
-  guard (hasCommittedPrefix state ledger)
-  guard (commitSeqno state.history ≤ prefixLength && prefixLength ≤ ledger.length)
-  return { state with branches := state.branches ++ [ledger.take prefixLength] }
+/-- Open the elected view using a prefix from an earlier view.
+Only advancing the highest view changes the branch used for commitment. A late
+leader must retain commitments known before its view was skipped, not those
+made by newer views since then. -/
+def elect (state : State) (view source prefixLength : Nat) : Option State := do
+  guard (source < view && (source == 1 || activeBranch state source))
+  let ledger ← at? state.branches source
+  guard (prefixLength ≤ ledger.length)
+  let latest := state.branches.length
+  let retained := ledger.take prefixLength
+  if latest < view then
+    guard (hasCommittedPrefix state ledger)
+    let frontier := commitSeqno state.history
+    guard (frontier ≤ prefixLength)
+    let gaps := view - latest - 1
+    return {
+      state with
+        branches := state.branches ++ (List.replicate gaps [] ++ [retained])
+        skipped := state.skipped ++ (List.range' (latest + 1) gaps).map (·, frontier)
+    }
+  else
+    guard (view < latest && at? state.branches view == some [])
+    let (_, frontier) ← state.skipped.find? (·.1 == view)
+    let newest ← state.branches.getLast?
+    guard (frontier ≤ prefixLength && ledger.take frontier == newest.take frontier)
+    return {
+      state with
+        branches := state.branches.set (view - 1) retained
+        skipped := state.skipped.filter (·.1 != view)
+    }
 
 /-- Dispatch an action to its guarded transition; `none` means the action is disabled. -/
 def step (state : State) (action : Action) : Option State :=
@@ -132,6 +154,6 @@ def step (state : State) (action : Action) : Option State :=
   | .commit responseIndex => commit state responseIndex
   | .invalidate responseIndex => invalidate state responseIndex
   | .appendOther branch => appendOther state branch
-  | .elect branch prefixLength => elect state branch prefixLength
+  | .elect view source prefixLength => elect state view source prefixLength
 
 end consistency.Model

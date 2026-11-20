@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 
 import ccf.ledger
 import infra.concurrency
+import infra.consistency_trace
 import infra.e2e_args
 import infra.interfaces
 import infra.logging_app as app
@@ -255,6 +256,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         r = c.get(f"/node/tx?transaction_id={lost_tx_resp.view}.{lost_tx_resp.seqno}")
         status = TxStatus(r.body.json()["status"])
         assert status == TxStatus.Invalid, r
+        infra.consistency_trace.tx_status(r.body.json())
 
 
 @reqs.description("New joiner helps liveness")
@@ -457,6 +459,7 @@ def test_rolled_back_node_certificate(network, args):
             f"{renewal.completed_view}.{renewal.completed_seqno}"
         )
         assert TxStatus(r.body.json()["status"]) == TxStatus.Invalid, r
+        infra.consistency_trace.tx_status(r.body.json())
 
     LOG.info("Confirm the re-elected node can use the rolled-back certificate")
     force_become_primary(network, args, renewed_node)
@@ -1466,7 +1469,7 @@ def partitioned_network(args):
     Every Partitioner owns a private iptables chain whose rules only match its
     own nodes' addresses and ports, so co-existing groups do not interfere.
     """
-    with infra.network.network(
+    with infra.consistency_trace.recording(args), infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
