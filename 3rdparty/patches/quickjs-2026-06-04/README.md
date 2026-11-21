@@ -1,45 +1,18 @@
 # Local QuickJS patches
 
-The release snapshot in `3rdparty/exported/quickjs/` remains byte-for-byte
-identical to upstream. `cmake/quickjs.cmake` uses GNU `patch` to apply the patches
-below, in numbered order, to a generated `quickjs/quickjs.c` in the build
-directory. Only that copy is compiled; the source checkout and vendored dependency
-verification are unchanged.
+The vendored snapshot is upstream commit `e585640ffa2cf88ce7c2d587583c6fe15928ec2f`.
+`cmake/quickjs.cmake` applies the patches in numbered order to a generated copy of `quickjs.c`, leaving the vendored source unchanged.
+Patch application disables fuzz and automatic reversal, and a failure stops the build.
 
-The build regenerates the copy whenever the upstream source or either patch
-changes. Patch application disables fuzz and automatic reversal, and a failure
-stops the build rather than compiling an unpatched source.
+## 0001-free-backtrace-buffer.patch
 
-## 0001-retain-exception-during-backtrace.patch
-
-- Upstream issue: <https://github.com/bellard/quickjs/issues/533>
-- Applies to QuickJS `2026-06-04`, commit
-  `3d5e064e9dd67c70f7962836505a7fa067bf0a4e`.
-- `build_backtrace()` borrows the pending exception. If another allocation fails
-  while constructing the trace, `JS_Throw()` can replace and free that exception
-  before its `stack` property is written. The patch holds a reference for the
-  duration of backtrace construction and releases it, along with the trace
-  buffer, on every exit.
-- Regression coverage: `QuickJS handles OOM while constructing a backtrace` in
-  `src/js/test/js.cpp` and the existing `auth` end-to-end heap-limit tests.
-
-Remove the patch and its CMake application when upgrading to an upstream version
-that fixes the lifetime of the exception in `build_backtrace()`. Keep the
-regression coverage.
+Upstream fixed the exception lifetime issue in `build_backtrace()` in commit `cd97c2b4a85a0cbd3bf3a56681c2d2c92f4bda68`, but its early exits still skip freeing the initialized backtrace buffer.
+This patch frees the buffer on every exit.
+The exception lifetime regression remains covered by `QuickJS handles OOM while constructing a backtrace` in `src/js/test/js.cpp`.
 
 ## 0002-enforce-lowered-heap-limit.patch
 
-- CCF compatibility patch for QuickJS `2026-06-04`.
-- The new arena allocator can satisfy small allocations and in-place
-  reallocations without checking the memory limit. If CCF lowers the limit below
-  the runtime's existing allocations, those operations can still succeed.
-- Reject nonzero allocations and arena reallocations when accounted heap usage
-  already exceeds the limit. Freeing memory, including zero-sized reallocations,
-  remains possible. This is a constant-time check; it does not scan the heap,
-  raise limits, or disable arenas.
-- Regression coverage: `QuickJS rejects arena allocations above a lowered heap
-  limit` in `src/js/test/js.cpp` and the unchanged `auth` end-to-end heap-limit
-  tests in both Debug and Release builds.
-
-Remove this patch and its CMake application when upstream provides equivalent
-lowered-limit enforcement. Keep the regression coverage.
+The arena allocator can satisfy small allocations and in-place reallocations without checking the memory limit.
+When CCF lowers the limit below the runtime's existing allocations, the patch rejects nonzero allocations and arena reallocations while still permitting frees.
+The `QuickJS rejects arena allocations above a lowered heap limit` test and the `auth` end-to-end heap-limit tests cover this behavior.
+Remove this patch when upstream provides equivalent enforcement.

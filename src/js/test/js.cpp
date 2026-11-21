@@ -18,6 +18,7 @@
 #include "js/extensions/ccf/scoped_cleanse.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache.h"
+#include "js/modules/kv_bytecode_module_loader.h"
 #include "js/permissions_checks.h"
 #include "kv/null_encryptor.h"
 #include "kv/store.h"
@@ -1791,17 +1792,71 @@ TEST_CASE("QuickJS rejects arena allocations above a lowered heap limit")
   js_free_rt(rt, allocation);
 }
 
+TEST_CASE("QuickJS bytecode cache distinguishes the previous release")
+{
+  REQUIRE(std::string(ccf::quickjs_version) != "2026-06-04");
+
+  ccf::kv::Store store;
+  auto tx = store.create_tx();
+  auto* versions =
+    tx.rw<ccf::ModulesQuickJsVersion>(ccf::Tables::MODULES_QUICKJS_VERSION);
+  auto* bytecode =
+    tx.rw<ccf::ModulesQuickJsBytecode>(ccf::Tables::MODULES_QUICKJS_BYTECODE);
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+
+  const std::string source = "export const value = 42;";
+  auto module = ctx.eval(
+    source.c_str(),
+    source.size(),
+    "/test.js",
+    JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+  REQUIRE_FALSE(module.is_exception());
+  size_t len = 0;
+  auto* bytes = JS_WriteObject(ctx, &len, module.val, JS_WRITE_OBJ_BYTECODE);
+  REQUIRE(bytes != nullptr);
+  bytecode->put("/test.js", {bytes, bytes + len});
+  js_free(ctx, bytes);
+
+  versions->put("2026-06-04");
+  ccf::js::modules::KvBytecodeModuleLoader old_loader(bytecode, versions);
+  CHECK_FALSE(old_loader.get_module("/test.js", ctx).has_value());
+
+  versions->put(ccf::quickjs_version);
+  ccf::js::modules::KvBytecodeModuleLoader current_loader(bytecode, versions);
+  REQUIRE(current_loader.get_module("/test.js", ctx).has_value());
+}
+
 TEST_CASE("QuickJS handles OOM while constructing a backtrace")
 {
   ccf::js::core::Context ctx(TxAccess::APP_RW);
+  const auto throw_bare_error =
+    [](JSContext* js_ctx, JSValueConst, int, JSValueConst*) -> JSValue {
+    JSValue error = JS_NewError(js_ctx);
+    if (JS_IsException(error))
+    {
+      return error;
+    }
+    JSValue message = JS_NewString(js_ctx, "test");
+    if (JS_IsException(message))
+    {
+      JS_FreeValue(js_ctx, error);
+      return message;
+    }
+    if (JS_SetPropertyStr(js_ctx, error, "message", message) < 0)
+    {
+      JS_FreeValue(js_ctx, error);
+      return JS_EXCEPTION;
+    }
+    return JS_Throw(js_ctx, error);
+  };
+  auto global = ctx.get_global_obj();
+  JSValue thrower = JS_NewCFunction(ctx, throw_bare_error, "throwBareError", 0);
+  REQUIRE_FALSE(JS_IsException(thrower));
+  REQUIRE(JS_SetPropertyStr(ctx, global.val, "throwBareError", thrower) == 1);
   const auto func = ctx.get_exported_function(
     R"(
 export function run() {
-  throw (() => {
-    const error = new Error("test");
-    delete error.stack;
-    return error;
-  })();
+  throwBareError();
 }
 Object.defineProperty(run, "name", {value: "\u1234".repeat(128 * 1024)});
 )",
