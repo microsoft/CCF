@@ -1588,6 +1588,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/cft_trace_e2e.py
     BUCKET bucket_c
     BUILD_DEPENDS logging
+    # Tests exact sink configurations, including none
+    NO_CFT_TRACE
     ADDITIONAL_ARGS --package samples/apps/logging/logging ${FLUENTD_TEST_ARGS}
   )
 
@@ -1730,6 +1732,8 @@ if(BUILD_TESTS)
       LABEL e2e
       BUCKET bucket_a
       BUILD_DEPENDS js_generic
+      # Released nodes do not support the trace capture sink
+      NO_CFT_TRACE
       ADDITIONAL_ARGS
         ${LTS_TEST_ARGS}
         --constitution

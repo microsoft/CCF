@@ -213,6 +213,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.ndjson
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -302,6 +303,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.ndjson
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()

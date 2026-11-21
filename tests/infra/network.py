@@ -1,14 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
+import copy
 import functools
 import hashlib
 import http
+import itertools
 import json
 import os
 import pprint
 import random
 import re
+import shutil
+import tempfile
 import time
 from collections import deque
 from contextlib import contextmanager
@@ -26,6 +30,7 @@ from loguru import logger as LOG
 import infra.consortium
 import infra.crypto
 import infra.e2e_args
+import infra.fluentd
 import infra.member
 import infra.node
 import infra.openapi
@@ -44,6 +49,8 @@ JOIN_TIMEOUT = 40
 DEFAULT_TIMEOUT_MULTIPLIER = 15
 
 COMMON_FOLDER = "common"
+
+_cleared_cft_trace_folders = set()
 
 
 class NodeRole(Enum):
@@ -296,6 +303,9 @@ class Network:
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
         self.nodes = []
+        # With --capture-cft-trace, records the consensus trace of every node
+        # configured until stop_all_nodes.
+        self.cft_recorder = None
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
@@ -364,6 +374,104 @@ class Network:
         node.openapi_validator = self.openapi_validator
         self.nodes.append(node)
         return node
+
+    def _add_cft_trace_sink(self, node, args, node_args):
+        """With --capture-cft-trace, add a sink for this network's consensus
+        trace recorder to the node's observability configuration."""
+        if not args.capture_cft_trace:
+            return
+        if node.version is not None:
+            raise ValueError(
+                f"--capture-cft-trace does not support node {node.local_node_id} "
+                f"with explicit version {node.version}"
+            )
+        if self.cft_recorder is None:
+            self.cft_recorder = infra.fluentd.Recorder(ipv6=self.ipv6)
+            # Unlike self.nodes, this keeps retired nodes.
+            self.cft_trace_nodes = []
+            self.cft_trace_folder = os.path.join(args.workspace, f"{args.label}_trace")
+            # Remove an earlier run's captures, once per test process.
+            if self.cft_trace_folder not in _cleared_cft_trace_folders:
+                _cleared_cft_trace_folders.add(self.cft_trace_folder)
+                shutil.rmtree(self.cft_trace_folder, ignore_errors=True)
+        self.cft_trace_nodes.append(node)
+        # Copied, as args are shared between nodes and networks.
+        observability = copy.deepcopy(node_args.get("observability")) or {}
+        observability.setdefault("fluentd", []).append(
+            {**self.cft_recorder.endpoint, "tag-prefix-allow-list": ["ccf.cft"]}
+        )
+        node_args["observability"] = observability
+
+    def _finish_cft_trace(self):
+        """Close the consensus trace recorder, if any, and write its capture
+        if it is complete.
+
+        The capture is complete only if every node recorded events, stopped
+        cleanly without dropping trace events, none recovered a service, and
+        every connection reached EOF. Otherwise it is inconclusive: it is
+        discarded, which never fails the test."""
+        recorder, self.cft_recorder = self.cft_recorder, None
+        if recorder is None:
+            return
+        pending = None
+        try:
+            recorder.close()
+            os.makedirs(self.cft_trace_folder, exist_ok=True)
+            # Only a complete capture is named <n>.ndjson.
+            fd, pending = tempfile.mkstemp(dir=self.cft_trace_folder, suffix=".tmp")
+            os.close(fd)
+            counts, reasons = infra.fluentd.write_cft_trace(
+                recorder.connections, pending
+            )
+            if recorder.error is not None:
+                reasons.append(f"Recorder failed: {recorder.error}")
+            node_ids = [node.local_node_id for node in self.cft_trace_nodes]
+            if len(set(node_ids)) < len(node_ids):
+                reasons.append(f"A node was configured more than once: {node_ids}")
+            # Each node process has its own ID, so this also catches a node
+            # whose configuration did not end up with the capture sink.
+            if len(counts) != len(node_ids):
+                reasons.append(
+                    f"Records from {len(counts)} processes for {len(node_ids)} nodes"
+                )
+            for node in self.cft_trace_nodes:
+                proc = node.remote.remote.proc if node.remote else None
+                if proc is None or proc.poll() != 0:
+                    reasons.append(f"Node {node.local_node_id} did not stop cleanly")
+                    continue
+                if node.remote.start_type == infra.remote.StartType.recover:
+                    reasons.append(
+                        f"Node {node.local_node_id} recovered a service, "
+                        "which trace replay does not model"
+                    )
+                out_path, _ = node.get_logs()
+                with open(out_path, encoding="utf-8", errors="replace") as out:
+                    drops = re.findall(
+                        r"Fluentd exporter shutdown: (\d+) dropped events", out.read()
+                    )
+                # Worker::shutdown in src/tracing/fluentd_sink.h logs one line
+                # per sink in configuration order, and the capture sink is last.
+                if drops[-1:] != ["0"]:
+                    reasons.append(
+                        f"Node {node.local_node_id} did not report shutdown "
+                        f"without dropped trace events: {drops}"
+                    )
+            if reasons:
+                LOG.info(f"Inconclusive CCF consensus protocol trace: {reasons}")
+                return
+            for index in itertools.count():
+                path = os.path.join(self.cft_trace_folder, f"{index}.ndjson")
+                try:
+                    os.link(pending, path)
+                    break
+                except FileExistsError:
+                    pass
+            LOG.info(f"CCF consensus protocol trace in {path}: {dict(counts)}")
+        except Exception:
+            LOG.exception("Could not write CCF consensus protocol trace capture")
+        finally:
+            if pending is not None:
+                os.remove(pending)
 
     def _setup_node(
         self,
@@ -508,6 +616,7 @@ class Network:
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
+            self._add_cft_trace_sink(node, args, forwarded_args_with_overrides)
             try:
                 if i == 0:
                     if not recovery:
@@ -926,6 +1035,7 @@ class Network:
 
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
+            self._add_cft_trace_sink(node, args, forwarded_args_with_overrides)
             try:
                 node_kwargs = {
                     "lib_name": args.package,
@@ -1350,71 +1460,76 @@ class Network:
         skip_verify_chunking=None,
         **kwargs,
     ):
-        skip_verify_chunking = skip_verify_chunking or self.skip_verify_chunking
-        if not skip_verification and self.txs is not None:
-            LOG.info("Verifying that all committed txs can be read before shutdown")
-            log_capture = []
-            try:
-                self.txs.verify(network=self, log_capture=log_capture)
-                # verify_range walks the historical query subsystem across
-                # the full ledger, which is prohibitively slow under
-                # _GLIBCXX_DEBUG (debug-mode containers). Skip it in that
-                # case; the same coverage is exercised by Release CI.
-                if not os.getenv("CCF_GLIBCXX_DEBUG"):
-                    self.txs.verify_range(log_capture=log_capture)
-            except:
-                flush_info(log_capture, None)
-                raise
-            else:
-                if verbose_verification:
+        try:
+            skip_verify_chunking = skip_verify_chunking or self.skip_verify_chunking
+            if not skip_verification and self.txs is not None:
+                LOG.info("Verifying that all committed txs can be read before shutdown")
+                log_capture = []
+                try:
+                    self.txs.verify(network=self, log_capture=log_capture)
+                    # verify_range walks the historical query subsystem across
+                    # the full ledger, which is prohibitively slow under
+                    # _GLIBCXX_DEBUG (debug-mode containers). Skip it in that
+                    # case; the same coverage is exercised by Release CI.
+                    if not os.getenv("CCF_GLIBCXX_DEBUG"):
+                        self.txs.verify_range(log_capture=log_capture)
+                except:
                     flush_info(log_capture, None)
+                    raise
+                else:
+                    if verbose_verification:
+                        flush_info(log_capture, None)
 
-        if self.common_dir is not None:
-            self.openapi_validator.report(
-                os.path.join(self.common_dir, "openapi_coverage.json"),
-                os.path.join(self.args.workspace, "openapi_coverage.json"),
-            )
-
-        fatal_error_found = False
-
-        if len(self.ignore_error_patterns) > 0:
-            LOG.warning("Ignoring error patterns on shutdown:")
-            for pattern in self.ignore_error_patterns:
-                LOG.warning(f"  {pattern}")
-
-        node_errors = {}
-        for node in self.nodes:
-            node.stop()
-            out_path, err_path = node.get_logs()
-            if out_path is not None and err_path is not None:
-                _, fatal_errors = log_errors(
-                    out_path, err_path, ignore_error_patterns=self.ignore_error_patterns
-                )
-            else:
-                fatal_errors = []
-            node_errors[node.local_node_id] = fatal_errors
-            if fatal_errors:
-                fatal_error_found = True
-
-        LOG.info("All nodes stopped")
-        if check_file_invariants:
-            self.ledger_files_invariant(**kwargs)
-            self.snapshot_files_invariants(**kwargs)
-
-        if not skip_verify_chunking:
-            LOG.info("Verifying ledger chunk flags before shutdown")
-            self.check_ledger_files_chunk_flags()
-
-        if fatal_error_found:
-            if self.ignoring_shutdown_errors:
-                LOG.warning("Ignoring shutdown errors")
-            else:
-                raise NetworkShutdownError(
-                    "Fatal error found during node shutdown", node_errors
+            if self.common_dir is not None:
+                self.openapi_validator.report(
+                    os.path.join(self.common_dir, "openapi_coverage.json"),
+                    os.path.join(self.args.workspace, "openapi_coverage.json"),
                 )
 
-        if self.partitioner is not None:
-            self.partitioner.cleanup()
+            fatal_error_found = False
+
+            if len(self.ignore_error_patterns) > 0:
+                LOG.warning("Ignoring error patterns on shutdown:")
+                for pattern in self.ignore_error_patterns:
+                    LOG.warning(f"  {pattern}")
+
+            node_errors = {}
+            for node in self.nodes:
+                node.stop()
+                out_path, err_path = node.get_logs()
+                if out_path is not None and err_path is not None:
+                    _, fatal_errors = log_errors(
+                        out_path,
+                        err_path,
+                        ignore_error_patterns=self.ignore_error_patterns,
+                    )
+                else:
+                    fatal_errors = []
+                node_errors[node.local_node_id] = fatal_errors
+                if fatal_errors:
+                    fatal_error_found = True
+
+            LOG.info("All nodes stopped")
+            if check_file_invariants:
+                self.ledger_files_invariant(**kwargs)
+                self.snapshot_files_invariants(**kwargs)
+
+            if not skip_verify_chunking:
+                LOG.info("Verifying ledger chunk flags before shutdown")
+                self.check_ledger_files_chunk_flags()
+
+            if fatal_error_found:
+                if self.ignoring_shutdown_errors:
+                    LOG.warning("Ignoring shutdown errors")
+                else:
+                    raise NetworkShutdownError(
+                        "Fatal error found during node shutdown", node_errors
+                    )
+
+            if self.partitioner is not None:
+                self.partitioner.cleanup()
+        finally:
+            self._finish_cft_trace()
 
     def setup_join_node(
         self,
@@ -1429,6 +1544,7 @@ class Network:
             for arg in infra.network.Network.node_args_to_forward
         }
         forwarded_args.update(kwargs)
+        self._add_cft_trace_sink(node, args, forwarded_args)
         self._setup_node(node, lib_name, args, target_node, **forwarded_args)
 
     def run_join_node(
