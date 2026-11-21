@@ -11,7 +11,7 @@ set(
 )
 set(
   QUICKJS_BACKTRACE_PATCH
-  ${QUICKJS_PATCH_DIR}/0001-retain-exception-during-backtrace.patch
+  ${QUICKJS_PATCH_DIR}/0001-free-backtrace-buffer.patch
 )
 set(
   QUICKJS_HEAP_LIMIT_PATCH
