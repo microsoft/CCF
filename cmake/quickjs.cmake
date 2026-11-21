@@ -63,9 +63,64 @@ execute_process(
   OUTPUT_VARIABLE QUICKJS_VERSION
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-# Upstream has not changed VERSION since the previous release, but its bytecode
-# format has changed. Distinguish this snapshot to avoid loading stale bytecode.
-string(APPEND QUICKJS_VERSION "-e585640ffa2c")
+# Upstream only changes VERSION on release, but the bytecode format can change
+# between releases. When the manifest pins an untagged snapshot, append its
+# commit so that bytecode cached by another snapshot is not loaded.
+set(QUICKJS_MANIFEST ${CMAKE_CURRENT_SOURCE_DIR}/cgmanifest.json)
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS ${QUICKJS_MANIFEST}
+)
+file(READ ${QUICKJS_MANIFEST} QUICKJS_MANIFEST_JSON)
+string(
+  JSON QUICKJS_REGISTRATION_COUNT
+  LENGTH "${QUICKJS_MANIFEST_JSON}"
+  Registrations
+)
+math(EXPR QUICKJS_LAST_REGISTRATION "${QUICKJS_REGISTRATION_COUNT} - 1")
+set(QUICKJS_COMMIT "")
+foreach(QUICKJS_INDEX RANGE ${QUICKJS_LAST_REGISTRATION})
+  string(
+    JSON QUICKJS_REGISTRATION_URL
+    ERROR_VARIABLE QUICKJS_JSON_ERROR
+    GET "${QUICKJS_MANIFEST_JSON}"
+    Registrations
+    ${QUICKJS_INDEX}
+    component
+    git
+    repositoryUrl
+  )
+  if(QUICKJS_REGISTRATION_URL STREQUAL "https://github.com/bellard/quickjs")
+    string(
+      JSON QUICKJS_COMMIT
+      GET "${QUICKJS_MANIFEST_JSON}"
+      Registrations
+      ${QUICKJS_INDEX}
+      component
+      git
+      commitHash
+    )
+    string(
+      JSON QUICKJS_TAG
+      ERROR_VARIABLE QUICKJS_TAG_ERROR
+      GET "${QUICKJS_MANIFEST_JSON}"
+      Registrations
+      ${QUICKJS_INDEX}
+      component
+      git
+      tag
+    )
+    break()
+  endif()
+endforeach()
+if(NOT QUICKJS_COMMIT MATCHES "^[0-9a-f]+$")
+  message(FATAL_ERROR "No QuickJS commit found in ${QUICKJS_MANIFEST}")
+endif()
+if(QUICKJS_TAG_ERROR)
+  string(SUBSTRING "${QUICKJS_COMMIT}" 0 12 QUICKJS_SHORT_COMMIT)
+  string(APPEND QUICKJS_VERSION "-${QUICKJS_SHORT_COMMIT}")
+endif()
 message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 add_library(quickjs STATIC ${QUICKJS_SRC})
