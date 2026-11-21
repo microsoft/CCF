@@ -63,6 +63,9 @@ execute_process(
   OUTPUT_VARIABLE QUICKJS_VERSION
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+# Upstream has not changed VERSION since the previous release, but its bytecode
+# format has changed. Distinguish this snapshot to avoid loading stale bytecode.
+string(APPEND QUICKJS_VERSION "-e585640ffa2c")
 message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 add_library(quickjs STATIC ${QUICKJS_SRC})
