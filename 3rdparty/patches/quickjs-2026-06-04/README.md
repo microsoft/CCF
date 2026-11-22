@@ -24,3 +24,16 @@ That is only true when the embedder installs shared buffer allocation functions,
 This patch allocates the maximum length on construction, where it also counts against the heap limit.
 The `QuickJS commits the maximum length of growable SharedArrayBuffers` test in `src/js/test/js.cpp` covers this behavior.
 Remove this patch when upstream allocates the maximum length or reallocates on growth.
+
+## 0004-defer-memory-limit-during-compilation.patch
+
+The parser and bytecode compiler do not handle failed allocations safely: after a failure they can index buffers which were not grown, corrupting memory.
+A script compiled while the heap is near its limit, including through `eval`, `new Function` and module loading, could therefore crash or corrupt the node.
+This patch lifts the heap limit while a script is parsed and compiled, and instead tests it where the compiler can stop with an out of memory error: before each token, before each function's source text is copied, and before each function is emitted.
+Once a test has failed, every later one fails too, because the parser ignores some errors while looking ahead and must not resume if a garbage collection then frees memory.
+The limit is restored before any compiled code runs.
+Memory use can exceed the limit by the allocations made between two tests, the largest being the code generation for a single function, so a script can compile successfully although its peak use was above the limit.
+Allocation failures reported by the system allocator itself are not covered, and neither is loading cached bytecode, which does not use the compiler.
+This patch relies on `0002-enforce-lowered-heap-limit.patch` to reject further allocations once compilation has left the heap above its limit.
+The `QuickJS reports out of memory when compiling above the heap limit`, `QuickJS bounds heap use when compiling nested arrow functions` and `QuickJS does not resume compiling after exceeding the heap limit` tests in `src/js/test/js.cpp` cover this behavior.
+Remove this patch when the upstream compiler handles allocation failure.

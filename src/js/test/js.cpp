@@ -28,9 +28,11 @@
 #include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <algorithm>
 #include <condition_variable>
 #include <doctest/doctest.h>
 #include <future>
+#include <malloc.h>
 #include <mutex>
 #include <random>
 
@@ -1837,6 +1839,311 @@ view[{0} - 1] + view[{0} >> 1];
   JS_FreeValue(ctx, result);
   JS_SetMemoryLimit(rt, size_t(-1));
   JS_FreeValue(ctx, JS_GetException(ctx));
+}
+
+TEST_CASE("QuickJS reports out of memory when compiling above the heap limit")
+{
+  // The compiler does not survive failed allocations, so it must reach the
+  // heap limit only at points where it can stop. Compile under every limit
+  // from too small to sufficient: each attempt must either succeed or fail
+  // with an out of memory error, and must leave the limit in place.
+  const std::string script = R"(
+function sum(values) {
+  let total = 0;
+  for (const value of values) {
+    total += value;
+  }
+  return total;
+}
+class Counter {
+  #count = 0;
+  static label = `counter ${1 + 1}`;
+  get count() { return this.#count; }
+  increment(by = 1) { this.#count += by; return this; }
+}
+const double = (x) => x * 2;
+async function* generate(limit) {
+  for (let i = 0; i < limit; ++i) {
+    try {
+      yield await double(i);
+    } catch (e) {
+      throw new Error(`failed at ${i}`, { cause: e });
+    } finally {
+      sum([i, i]);
+    }
+  }
+}
+const { a, b: [c, ...d], ...e } = { a: 1, b: [2, 3, 4], f: /x+(y|z)*/giu };
+label: for (var i in e) { switch (i) { case "f": break label; default: continue; } }
+)";
+
+  for (const auto eval_type : {JS_EVAL_TYPE_GLOBAL, JS_EVAL_TYPE_MODULE})
+  {
+    INFO("Eval type: ", eval_type);
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    auto* rt = static_cast<JSRuntime*>(ctx.runtime());
+
+    size_t failures = 0;
+    bool compiled = false;
+    for (size_t extra = 0; !compiled; extra += 48)
+    {
+      INFO("Extra heap: ", extra);
+      REQUIRE(extra < 16 * 1024 * 1024);
+
+      JSMemoryUsage usage;
+      JS_ComputeMemoryUsage(rt, &usage);
+      const auto limit = usage.malloc_size + static_cast<int64_t>(extra);
+      JS_SetMemoryLimit(rt, limit);
+      JSValue result = JS_Eval(
+        ctx,
+        script.c_str(),
+        script.size(),
+        "limit.js",
+        eval_type | JS_EVAL_FLAG_COMPILE_ONLY);
+      JS_ComputeMemoryUsage(rt, &usage);
+      CHECK(usage.malloc_limit == limit);
+      JS_SetMemoryLimit(rt, size_t(-1));
+
+      if (JS_IsException(result))
+      {
+        ++failures;
+        JSValue exception = JS_GetException(ctx);
+        // If even the error cannot be allocated, QuickJS throws null
+        if (!JS_IsNull(exception))
+        {
+          const char* message = JS_ToCString(ctx, exception);
+          REQUIRE(message != nullptr);
+          CHECK(std::string(message).contains("out of memory"));
+          JS_FreeCString(ctx, message);
+        }
+        JS_FreeValue(ctx, exception);
+      }
+      else
+      {
+        compiled = true;
+      }
+      JS_FreeValue(ctx, result);
+    }
+    CHECK(failures > 100);
+  }
+}
+
+namespace
+{
+  // Enforces the heap limit as the default QuickJS allocator does, and
+  // records the largest heap size reached in the runtime's opaque size_t.
+  void record_peak(JSMallocState* state)
+  {
+    auto* peak = static_cast<size_t*>(state->opaque);
+    *peak = std::max(*peak, state->malloc_size);
+  }
+
+  void* peak_tracking_malloc(JSMallocState* state, size_t size)
+  {
+    if (state->malloc_size + size > state->malloc_limit)
+    {
+      return nullptr;
+    }
+    void* ptr = malloc(size);
+    if (ptr != nullptr)
+    {
+      state->malloc_count++;
+      state->malloc_size += malloc_usable_size(ptr);
+      record_peak(state);
+    }
+    return ptr;
+  }
+
+  void peak_tracking_free(JSMallocState* state, void* ptr)
+  {
+    if (ptr != nullptr)
+    {
+      state->malloc_count--;
+      state->malloc_size -= malloc_usable_size(ptr);
+      free(ptr);
+    }
+  }
+
+  void* peak_tracking_realloc(JSMallocState* state, void* ptr, size_t size)
+  {
+    if (ptr == nullptr)
+    {
+      return size == 0 ? nullptr : peak_tracking_malloc(state, size);
+    }
+    if (size == 0)
+    {
+      peak_tracking_free(state, ptr);
+      return nullptr;
+    }
+    const auto old_size = malloc_usable_size(ptr);
+    if (state->malloc_size + size - old_size > state->malloc_limit)
+    {
+      return nullptr;
+    }
+    void* new_ptr = realloc(ptr, size);
+    if (new_ptr != nullptr)
+    {
+      state->malloc_size += malloc_usable_size(new_ptr) - old_size;
+      record_peak(state);
+    }
+    return new_ptr;
+  }
+
+  const JSMallocFunctions peak_tracking_malloc_functions = {
+    peak_tracking_malloc, peak_tracking_free, peak_tracking_realloc, nullptr};
+}
+
+TEST_CASE("QuickJS bounds heap use when compiling nested arrow functions")
+{
+  // Nested arrow functions with expression bodies all end on the same token,
+  // and each then keeps a copy of its source text. The heap limit is lifted
+  // while compiling, so it must be tested between those copies: otherwise
+  // this script would allocate one copy of its long tail per function.
+  constexpr size_t depth = 200;
+  constexpr size_t tail_size = 256 * 1024;
+  std::string script;
+  for (size_t i = 0; i < depth; ++i)
+  {
+    script += "x=>";
+  }
+  script += "0";
+  for (size_t i = 0; i < tail_size / 2; ++i)
+  {
+    script += "+0";
+  }
+
+  size_t peak = 0;
+  JSRuntime* rt = JS_NewRuntime2(&peak_tracking_malloc_functions, &peak);
+  REQUIRE(rt != nullptr);
+  JSContext* ctx = JS_NewContext(rt);
+  REQUIRE(ctx != nullptr);
+
+  // With no limit, compilation succeeds and needs a copy per function
+  JSValue result = JS_Eval(
+    ctx,
+    script.c_str(),
+    script.size(),
+    "arrows.js",
+    JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+  REQUIRE_FALSE(JS_IsException(result));
+  JS_FreeValue(ctx, result);
+  JS_RunGC(rt);
+
+  JSMemoryUsage usage;
+  JS_ComputeMemoryUsage(rt, &usage);
+  const auto base = static_cast<size_t>(usage.malloc_size);
+  REQUIRE(peak > base + (depth / 2) * tail_size);
+
+  // Enough to parse the script, but only room for a few of the copies
+  const size_t limit = base + 16 * tail_size;
+  JS_SetMemoryLimit(rt, limit);
+  peak = base;
+  result = JS_Eval(
+    ctx,
+    script.c_str(),
+    script.size(),
+    "arrows.js",
+    JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+  JS_SetMemoryLimit(rt, size_t(-1));
+
+  REQUIRE(JS_IsException(result));
+  JSValue exception = JS_GetException(ctx);
+  const char* message = JS_ToCString(ctx, exception);
+  REQUIRE(message != nullptr);
+  CHECK(std::string(message).contains("out of memory"));
+  JS_FreeCString(ctx, message);
+  JS_FreeValue(ctx, exception);
+
+  // At most one further copy is made once the limit is exceeded
+  CHECK(peak > limit);
+  CHECK(peak < limit + 2 * tail_size);
+
+  JS_FreeContext(ctx);
+  JS_FreeRuntime(rt);
+}
+
+TEST_CASE("QuickJS does not resume compiling after exceeding the heap limit")
+{
+  // The parser ignores errors raised while it looks ahead, for instance to
+  // find whether a parameter list contains default values. If the heap limit
+  // is exceeded during such a lookahead, and reporting that error triggers a
+  // garbage collection which frees enough memory, compilation must still
+  // fail rather than continue with an incomplete lookahead. Here it would
+  // miss the default value of 'b', compile 'f' without a separate parameter
+  // scope, and so make f() return "inner".
+  constexpr size_t key_size = 64 * 1024;
+  const std::string script = fmt::format(
+    "var x = 'outer';"
+    "function f({{\"{}\": a}}, b = () => x) {{ var x = 'inner'; return b(); }}"
+    "f({{}});",
+    std::string(key_size, 'k'));
+  const std::string garbage =
+    "(function() { const cycle = {}; cycle.self = cycle;"
+    " cycle.data = new Uint8Array(4 << 20); })();";
+
+  // Raise the limit until the script compiles. Without the fix, it first
+  // "compiles" at a limit where the lookahead failed.
+  bool compiled = false;
+  size_t failed = 0;
+  for (size_t extra = 0; !compiled; extra += 2048)
+  {
+    INFO("Extra heap: ", extra);
+    REQUIRE(extra < 16 * 1024 * 1024);
+    JSRuntime* rt = JS_NewRuntime();
+    REQUIRE(rt != nullptr);
+    JSContext* ctx = JS_NewContext(rt);
+    REQUIRE(ctx != nullptr);
+
+    // Leave unreachable memory behind, to be collected when the next object
+    // is created: the out of memory error itself
+    JS_SetGCThreshold(rt, size_t(-1));
+    JS_FreeValue(
+      ctx,
+      JS_Eval(
+        ctx,
+        garbage.c_str(),
+        garbage.size(),
+        "garbage.js",
+        JS_EVAL_TYPE_GLOBAL));
+    JSMemoryUsage usage;
+    JS_ComputeMemoryUsage(rt, &usage);
+    JS_SetGCThreshold(rt, 0);
+
+    JS_SetMemoryLimit(rt, usage.malloc_size + extra);
+    JSValue function = JS_Eval(
+      ctx,
+      script.c_str(),
+      script.size(),
+      "lookahead.js",
+      JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+    JS_SetMemoryLimit(rt, size_t(-1));
+
+    if (JS_IsException(function))
+    {
+      ++failed;
+      JSValue exception = JS_GetException(ctx);
+      const char* message = JS_ToCString(ctx, exception);
+      REQUIRE(message != nullptr);
+      CHECK(std::string(message).contains("out of memory"));
+      JS_FreeCString(ctx, message);
+      JS_FreeValue(ctx, exception);
+    }
+    else
+    {
+      compiled = true;
+      CHECK_FALSE(JS_HasException(ctx));
+      JSValue result = JS_EvalFunction(ctx, function);
+      const char* value = JS_ToCString(ctx, result);
+      REQUIRE(value != nullptr);
+      CHECK(std::string(value) == "outer");
+      JS_FreeCString(ctx, value);
+      JS_FreeValue(ctx, result);
+    }
+
+    JS_FreeContext(ctx);
+    JS_FreeRuntime(rt);
+  }
+  CHECK(failed > 0);
 }
 
 TEST_CASE("QuickJS bytecode cache distinguishes the previous release")
