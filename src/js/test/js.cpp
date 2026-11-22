@@ -1792,6 +1792,53 @@ TEST_CASE("QuickJS rejects arena allocations above a lowered heap limit")
   js_free_rt(rt, allocation);
 }
 
+TEST_CASE("QuickJS commits the maximum length of growable SharedArrayBuffers")
+{
+  // Growing a SharedArrayBuffer only raises its length, so its maximum length
+  // must be allocated, and counted against the heap limit, on construction.
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  auto* rt = static_cast<JSRuntime*>(ctx.runtime());
+  constexpr size_t max_length = 1 << 20;
+
+  JSMemoryUsage before;
+  JS_ComputeMemoryUsage(rt, &before);
+
+  const auto script = fmt::format(
+    R"(
+globalThis.shared = new SharedArrayBuffer(8, {{maxByteLength: {0}}});
+shared.grow({0});
+const view = new Uint8Array(shared);
+view[{0} - 1] = 0x41;
+view[{0} - 1] + view[{0} >> 1];
+)",
+    max_length);
+  JSValue result =
+    JS_Eval(ctx, script.c_str(), script.size(), "grow.js", JS_EVAL_TYPE_GLOBAL);
+  REQUIRE_FALSE(JS_IsException(result));
+  int32_t value = 0;
+  REQUIRE(JS_ToInt32(ctx, &value, result) == 0);
+  CHECK(value == 0x41);
+  JS_FreeValue(ctx, result);
+
+  JSMemoryUsage after;
+  JS_ComputeMemoryUsage(rt, &after);
+  CHECK(after.malloc_size - before.malloc_size >= max_length);
+
+  JS_SetMemoryLimit(rt, after.malloc_size + max_length / 2);
+  const auto over_limit =
+    fmt::format("new SharedArrayBuffer(8, {{maxByteLength: {}}});", max_length);
+  result = JS_Eval(
+    ctx,
+    over_limit.c_str(),
+    over_limit.size(),
+    "limit.js",
+    JS_EVAL_TYPE_GLOBAL);
+  CHECK(JS_IsException(result));
+  JS_FreeValue(ctx, result);
+  JS_SetMemoryLimit(rt, size_t(-1));
+  JS_FreeValue(ctx, JS_GetException(ctx));
+}
+
 TEST_CASE("QuickJS bytecode cache distinguishes the previous release")
 {
   REQUIRE(std::string(ccf::quickjs_version) != "2026-06-04");

@@ -16,3 +16,11 @@ The arena allocator can satisfy small allocations and in-place reallocations wit
 When CCF lowers the limit below the runtime's existing allocations, the patch rejects nonzero allocations and arena reallocations while still permitting frees.
 The `QuickJS rejects arena allocations above a lowered heap limit` test and the `auth` end-to-end heap-limit tests cover this behavior.
 Remove this patch when upstream provides equivalent enforcement.
+
+## 0003-commit-growable-shared-array-buffer.patch
+
+`SharedArrayBuffer.prototype.grow()` only raises the buffer's length, on the assumption that its maximum length was allocated on construction.
+That is only true when the embedder installs shared buffer allocation functions, which CCF does not, so growing a buffer exposed adjacent heap memory to out-of-bounds reads and writes from JavaScript.
+This patch allocates the maximum length on construction, where it also counts against the heap limit.
+The `QuickJS commits the maximum length of growable SharedArrayBuffers` test in `src/js/test/js.cpp` covers this behavior.
+Remove this patch when upstream allocates the maximum length or reallocates on growth.
