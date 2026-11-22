@@ -15,6 +15,7 @@ set(
   ${QUICKJS_PATCH_DIR}/0002-enforce-lowered-heap-limit.patch
   ${QUICKJS_PATCH_DIR}/0003-commit-growable-shared-array-buffer.patch
   ${QUICKJS_PATCH_DIR}/0004-defer-memory-limit-during-compilation.patch
+  ${QUICKJS_PATCH_DIR}/0005-release-module-on-failed-read.patch
 )
 # Mirror the source prefix (3rdparty/exported/quickjs) under the build
 # directory so that the generated, patched quickjs.c still matches the

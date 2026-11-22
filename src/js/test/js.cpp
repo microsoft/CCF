@@ -2146,6 +2146,189 @@ TEST_CASE("QuickJS does not resume compiling after exceeding the heap limit")
   CHECK(failed > 0);
 }
 
+namespace
+{
+  JSModuleDef* stub_module_loader(
+    JSContext* ctx, const char* module_name, void* /*opaque*/)
+  {
+    const std::string stub = "export const a = 1;";
+    JSValue module = JS_Eval(
+      ctx,
+      stub.c_str(),
+      stub.size(),
+      module_name,
+      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    if (JS_IsException(module))
+    {
+      return nullptr;
+    }
+    auto* def = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(module));
+    JS_FreeValue(ctx, module);
+    return def;
+  }
+
+  // Compiles a module in a runtime of its own, resolving any import to a stub
+  // module which exports 'a', and returns its bytecode.
+  std::vector<uint8_t> compile_module_to_bytecode(
+    const std::string& source, const char* module_name)
+  {
+    JSRuntime* rt = JS_NewRuntime();
+    REQUIRE(rt != nullptr);
+    JSContext* ctx = JS_NewContext(rt);
+    REQUIRE(ctx != nullptr);
+    JS_SetModuleLoaderFunc(rt, nullptr, stub_module_loader, nullptr);
+
+    JSValue module = JS_Eval(
+      ctx,
+      source.c_str(),
+      source.size(),
+      module_name,
+      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    REQUIRE_FALSE(JS_IsException(module));
+    size_t size = 0;
+    uint8_t* buffer = JS_WriteObject(ctx, &size, module, JS_WRITE_OBJ_BYTECODE);
+    REQUIRE(buffer != nullptr);
+    std::vector<uint8_t> bytecode(buffer, buffer + size);
+
+    js_free(ctx, buffer);
+    JS_FreeValue(ctx, module);
+    JS_FreeContext(ctx);
+    JS_FreeRuntime(rt);
+    return bytecode;
+  }
+
+  // Loads any module from the bytecode passed as opaque
+  JSModuleDef* bytecode_module_loader(
+    JSContext* ctx, const char* /*module_name*/, void* opaque)
+  {
+    const auto* bytecode = static_cast<const std::vector<uint8_t>*>(opaque);
+    JSValue module = JS_ReadObject(
+      ctx, bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
+    if (JS_IsException(module))
+    {
+      return nullptr;
+    }
+    auto* def = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(module));
+    JS_FreeValue(ctx, module);
+    return def;
+  }
+}
+
+TEST_CASE("QuickJS frees a module which could not be read from bytecode")
+{
+  // A module records the size of each of its import and export tables before
+  // allocating it. If reading stops at that allocation, the module must still
+  // be safe to free and to garbage collect. Read under every heap limit from
+  // too small to sufficient, so that each of those allocations fails in turn.
+  constexpr size_t entries = 48;
+  std::string source;
+  for (size_t i = 0; i < entries; ++i)
+  {
+    source += fmt::format(
+      "import {{a as a{0}}} from 'dep{0}.js'; export const b{0} = a{0};\n", i);
+  }
+  const auto bytecode = compile_module_to_bytecode(source, "tables.js");
+
+  size_t failures = 0;
+  bool loaded = false;
+  for (size_t extra = 0; !loaded; extra += 48)
+  {
+    INFO("Extra heap: ", extra);
+    REQUIRE(extra < 16 * 1024 * 1024);
+    JSRuntime* rt = JS_NewRuntime();
+    REQUIRE(rt != nullptr);
+    JSContext* ctx = JS_NewContext(rt);
+    REQUIRE(ctx != nullptr);
+
+    JSMemoryUsage usage;
+    JS_ComputeMemoryUsage(rt, &usage);
+    JS_SetMemoryLimit(rt, usage.malloc_size + extra);
+    JSValue module = JS_ReadObject(
+      ctx, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
+    JS_SetMemoryLimit(rt, size_t(-1));
+
+    if (JS_IsException(module))
+    {
+      ++failures;
+      JS_FreeValue(ctx, JS_GetException(ctx));
+    }
+    else
+    {
+      loaded = true;
+    }
+    JS_FreeValue(ctx, module);
+
+    // As in an interpreter which is reused after the failure
+    JS_RunGC(rt);
+    JS_FreeContext(ctx);
+    JS_FreeRuntime(rt);
+  }
+  CHECK(failures > 100);
+}
+
+TEST_CASE("QuickJS reloads a module after failing to read it from bytecode")
+{
+  // A module which could not be read must not stay loaded in its context. A
+  // later import of the same name would otherwise use it, incomplete, rather
+  // than ask the loader for it again.
+  auto bytecode = compile_module_to_bytecode(
+    "export const a = 40; export function f() { return 2; }", "dep.js");
+  const std::string importer =
+    "import {a, f} from 'dep.js'; globalThis.result = a + f();";
+
+  size_t failures = 0;
+  bool loaded = false;
+  for (size_t extra = 0; !loaded; extra += 48)
+  {
+    INFO("Extra heap: ", extra);
+    REQUIRE(extra < 16 * 1024 * 1024);
+    JSRuntime* rt = JS_NewRuntime();
+    REQUIRE(rt != nullptr);
+    JSContext* ctx = JS_NewContext(rt);
+    REQUIRE(ctx != nullptr);
+    JS_SetModuleLoaderFunc(rt, nullptr, bytecode_module_loader, &bytecode);
+
+    JSMemoryUsage usage;
+    JS_ComputeMemoryUsage(rt, &usage);
+    JS_SetMemoryLimit(rt, usage.malloc_size + extra);
+    JSValue module = JS_ReadObject(
+      ctx, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
+    JS_SetMemoryLimit(rt, size_t(-1));
+
+    if (JS_IsException(module))
+    {
+      ++failures;
+      JS_FreeValue(ctx, JS_GetException(ctx));
+
+      JSValue promise = JS_Eval(
+        ctx,
+        importer.c_str(),
+        importer.size(),
+        "importer.js",
+        JS_EVAL_TYPE_MODULE);
+      CHECK_FALSE(JS_IsException(promise));
+      JS_FreeValue(ctx, promise);
+
+      JSValue global = JS_GetGlobalObject(ctx);
+      JSValue result = JS_GetPropertyStr(ctx, global, "result");
+      int32_t value = 0;
+      CHECK(JS_ToInt32(ctx, &value, result) == 0);
+      CHECK(value == 42);
+      JS_FreeValue(ctx, result);
+      JS_FreeValue(ctx, global);
+    }
+    else
+    {
+      loaded = true;
+    }
+    JS_FreeValue(ctx, module);
+
+    JS_FreeContext(ctx);
+    JS_FreeRuntime(rt);
+  }
+  CHECK(failures > 100);
+}
+
 TEST_CASE("QuickJS bytecode cache distinguishes the previous release")
 {
   REQUIRE(std::string(ccf::quickjs_version) != "2026-06-04");

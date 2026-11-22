@@ -37,3 +37,13 @@ Allocation failures reported by the system allocator itself are not covered, and
 This patch relies on `0002-enforce-lowered-heap-limit.patch` to reject further allocations once compilation has left the heap above its limit.
 The `QuickJS reports out of memory when compiling above the heap limit`, `QuickJS bounds heap use when compiling nested arrow functions` and `QuickJS does not resume compiling after exceeding the heap limit` tests in `src/js/test/js.cpp` cover this behavior.
 Remove this patch when the upstream compiler handles allocation failure.
+
+## 0005-release-module-on-failed-read.patch
+
+`JS_ReadModule()`, which loads a module from cached bytecode, leaves an incomplete module behind when it fails, for instance because the heap limit is reached.
+The module records the size of each of its entry tables before allocating it, so if that allocation fails, freeing or garbage collecting the module dereferences a null table.
+The module also stays loaded in its context, so a later import of the same name uses it instead of loading it again, and dereferences its missing function.
+Either crashes the node.
+This patch clears the size of any table which was not allocated, and releases the context's reference so that the module is freed and can be loaded again.
+The `QuickJS frees a module which could not be read from bytecode` and `QuickJS reloads a module after failing to read it from bytecode` tests in `src/js/test/js.cpp` cover this behavior.
+Remove this patch when upstream releases the module on failure.
