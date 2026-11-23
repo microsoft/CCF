@@ -452,6 +452,29 @@ namespace ccf
           format_epoch(classical.endorsement_epoch_end)));
       }
 
+      std::optional<std::vector<uint8_t>> previous_root;
+      std::optional<std::vector<uint8_t>> classical_previous_root;
+      try
+      {
+        previous_root = ccf::crypto::extract_cose_endorsement_previous_root(
+          endorsement.endorsement);
+        classical_previous_root =
+          ccf::crypto::extract_cose_endorsement_previous_root(
+            classical.endorsement);
+      }
+      catch (const std::exception& e)
+      {
+        fail_pq_fetching(e.what());
+      }
+      if (previous_root != classical_previous_root)
+      {
+        fail_pq_fetching(fmt::format(
+          "endorsement for {} - {} is signed over another previous ledger "
+          "root than the classical endorsement written with it",
+          endorsement.endorsement_epoch_begin.to_str(),
+          format_epoch(endorsement.endorsement_epoch_end)));
+      }
+
       // The classical endorsement over the same epoch is skipped if ill-formed
       // and rejected if already fetched
       if (!has_ill_formed_epoch_range(endorsement))

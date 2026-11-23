@@ -1690,6 +1690,20 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
     endorsement.previous_version = endorsement.previous_version.value() + 1;
     expected_error = "does not match the classical endorsement";
   }
+  SUBCASE("PQ endorsement over another previous root than the classical")
+  {
+    auto& endorsement = f.historical->pq_entries.at(middle_version);
+    endorsement.endorsement = ccf::cose::sign_endorsement(
+      *pq.keys.at(1),
+      1700000000,
+      endorsement.endorsement_epoch_begin.to_str(),
+      endorsement.endorsement_epoch_end->to_str(),
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xde},
+      pq.key_der(0));
+    expected_error =
+      "PQ endorsements chain: endorsement for 2.1 - 4.200 is signed over "
+      "another previous ledger root";
+  }
   SUBCASE("No PQ endorsement where the newer PQ endorsement points")
   {
     f.historical->pq_entries.erase(middle_version);
@@ -1730,7 +1744,7 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
       1700000000,
       endorsement.endorsement_epoch_begin.to_str(),
       endorsement.endorsement_epoch_end->to_str(),
-      {},
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
       cb.current_key_pair()->public_key_der());
     expected_error = "PQ endorsements chain: Expected an ML-DSA key";
   }
@@ -1744,7 +1758,7 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
       1700000000,
       endorsement.endorsement_epoch_begin.to_str(),
       endorsement.endorsement_epoch_end->to_str(),
-      {},
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
       ccf::crypto::make_mldsa_key_pair(
         ccf::crypto::MLDSAParameterSet::ML_DSA_44)
         ->public_key_der());

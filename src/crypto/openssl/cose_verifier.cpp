@@ -575,6 +575,21 @@ namespace ccf::crypto
         },
         "Retrieve epoch range begin");
     }
+
+    std::optional<tav::cbor::Value> find_claim(
+      const tav::cbor::Value& ccf_claims, std::string_view name)
+    {
+      const auto size = ccf_claims.size();
+      for (size_t i = 0; i < size; ++i)
+      {
+        const auto key = ccf_claims.map_key_at(i);
+        if (key.kind() == tav::cbor::Kind::STRING && key.as_string() == name)
+        {
+          return ccf_claims.map_value_at(i);
+        }
+      }
+      return std::nullopt;
+    }
   }
 
   COSEEndorsementValidity extract_cose_endorsement_validity(
@@ -608,21 +623,35 @@ namespace ccf::crypto
 
     rethrow_with_msg(
       [&]() {
-        const auto size = ccf_claims.size();
-        for (size_t i = 0; i < size; ++i)
+        const auto end =
+          find_claim(ccf_claims, ccf::cose::header::custom::TX_RANGE_END);
+        if (end.has_value())
         {
-          const auto key = ccf_claims.map_key_at(i);
-          if (
-            key.kind() == Kind::STRING &&
-            key.as_string() == ccf::cose::header::custom::TX_RANGE_END)
-          {
-            epochs.end = std::string(ccf_claims.map_value_at(i).as_string());
-            return;
-          }
+          epochs.end = std::string(end->as_string());
         }
       },
       "Retrieve epoch range end");
 
     return epochs;
+  }
+
+  std::optional<std::vector<uint8_t>> extract_cose_endorsement_previous_root(
+    std::span<const uint8_t> cose_msg)
+  {
+    using namespace tav::cbor;
+
+    const auto ccf_claims = extract_cose_endorsement_ccf_claims(cose_msg);
+    return rethrow_with_msg(
+      [&]() -> std::optional<std::vector<uint8_t>> {
+        const auto root = find_claim(
+          ccf_claims, ccf::cose::header::custom::EPOCH_LAST_MERKLE_ROOT);
+        if (!root.has_value())
+        {
+          return std::nullopt;
+        }
+        const auto bytes = root->as_bytes();
+        return std::vector<uint8_t>(bytes.begin(), bytes.end());
+      },
+      "Retrieve epoch last merkle root");
   }
 }
