@@ -18,6 +18,5 @@ public import DisasterRecovery.Tests.ConsensusFreshness
 public import DisasterRecovery.Tests.Trace
 public import DisasterRecovery.Tests.Witnesses
 public import DisasterRecovery.TraceValidation
-public import DisasterRecovery.TraceValidation.Dump
 public import DisasterRecovery.TraceValidation.Records
 public import DisasterRecovery.TraceValidation.Reduction
