@@ -2,13 +2,7 @@ name: Cross-platform LTS
 
 on:
   pull_request:
-    paths:
-      - .github/workflows/cross-platform-lts.yml
-      - tests/docker/lts_compatibility/Dockerfile
-      - tests/docker/run_lts_compatibility.sh
-      - tests/infra/github.py
-      - tests/infra/remote.py
-      - tests/lts_compatibility.py
+  merge_group:
   schedule:
     - cron: "0 3 * * 0"
   workflow_dispatch:
@@ -18,7 +12,7 @@ on:
         required: false
         type: string
       to_version:
-        description: CCF version to build on Azure Linux 4 (defaults to latest 8.0.0 prerelease)
+        description: CCF version to build on Azure Linux 4 (defaults to the checked-out commit)
         required: false
         type: string
 
@@ -45,6 +39,7 @@ jobs:
     outputs:
       from_version: ${{ steps.versions.outputs.from_version }}
       to_version: ${{ steps.versions.outputs.to_version }}
+      to_ref: ${{ steps.versions.outputs.to_ref }}
     steps:
       - name: "Resolve CCF versions"
         id: versions
@@ -58,17 +53,15 @@ jobs:
           from_version=$FROM_VERSION
           to_version=$TO_VERSION
 
-          if [[ -z "$from_version" || -z "$to_version" ]]; then
+          if [[ -z "$from_version" ]]; then
             release_data=$(gh release list \
               --repo "$GITHUB_REPOSITORY" \
               --exclude-drafts \
+              --exclude-pre-releases \
               --limit 1000 \
-              --json tagName,isPrerelease)
-          fi
-
-          if [[ -z "$from_version" ]]; then
+              --json tagName)
             tag=$(jq -r \
-              '[.[] | select(.isPrerelease == false and (.tagName | test("^ccf-7\\.[0-9]+\\.[0-9]+$"))) | .tagName] | .[]' \
+              '.[] | select(.tagName | test("^ccf-7\\.[0-9]+\\.[0-9]+$")) | .tagName' \
               <<< "$release_data" | sort -V | tail -n 1)
             if [[ -z "$tag" ]]; then
               echo "No published stable CCF 7.x release found" >&2
@@ -77,18 +70,16 @@ jobs:
             from_version=${tag#ccf-}
           fi
           if [[ -z "$to_version" ]]; then
-            tag=$(jq -r \
-              '[.[] | select(.isPrerelease and (.tagName | test("^ccf-8\\.0\\.0-(dev|rc)[0-9]+$"))) | .tagName] | .[]' \
-              <<< "$release_data" | sort -V | tail -n 1)
-            if [[ -z "$tag" ]]; then
-              echo "No published CCF 8.0.0 dev or rc prerelease found" >&2
-              exit 1
-            fi
-            to_version=${tag#ccf-}
+            # An empty ref builds the commit this workflow was triggered for.
+            to_version=${GITHUB_SHA::10}
+            to_ref=
+          else
+            to_ref=ccf-$to_version
           fi
 
           echo "from_version=$from_version" >> "$GITHUB_OUTPUT"
           echo "to_version=$to_version" >> "$GITHUB_OUTPUT"
+          echo "to_ref=$to_ref" >> "$GITHUB_OUTPUT"
 
   build-install:
     name: "Build CCF ${{ matrix.ccf_version }} on ${{ matrix.name }}"
@@ -101,11 +92,13 @@ jobs:
           - name: Azure Linux 3
             artifact: al3
             ccf_version: ${{ needs.configure.outputs.from_version }}
+            ref: ccf-${{ needs.configure.outputs.from_version }}
             pool: *azl3_pool
             image: *azl3_image
           - name: Azure Linux 4
             artifact: al4
             ccf_version: ${{ needs.configure.outputs.to_version }}
+            ref: ${{ needs.configure.outputs.to_ref }}
             pool: *azl4_pool
             image: *azl4_image
     runs-on: ["${{ matrix.pool }}"]
@@ -144,7 +137,7 @@ jobs:
         with:
           fetch-depth: 0
           path: version-source
-          ref: ccf-${{ matrix.ccf_version }}
+          ref: ${{ matrix.ref }}
 
       - name: "Install build dependencies"
         uses: ./.github/actions/install-ci-dependencies

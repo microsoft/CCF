@@ -1657,11 +1657,14 @@ if(BUILD_TESTS)
     CONFIGURATIONS partitions
   )
 
-  set_property(
-    TEST partitions
-    APPEND
-    PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
-  )
+  # Azure Linux 3 installs iptables extensions outside the default search path.
+  if(EXISTS "/usr/lib/iptables")
+    set_property(
+      TEST partitions
+      APPEND
+      PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
+    )
+  endif()
 
   add_e2e_test(
     NAME tls_stress_test

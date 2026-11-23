@@ -3,7 +3,7 @@
 
 import unittest
 
-from lts_compatibility import validate_compatibility_report
+from lts_compatibility import release_runs_on_host, validate_compatibility_report
 
 
 class CompatibilityReportTest(unittest.TestCase):
@@ -44,6 +44,27 @@ class CompatibilityReportTest(unittest.TestCase):
                 AssertionError, "Expected previous LTS from major 6"
             ):
                 validate_compatibility_report(self.report, branch)
+
+    def test_release_context_accepts_skipped_previous_lts(self):
+        self.report["live compatibility"]["with previous LTS"] = None
+        validate_compatibility_report(
+            self.report, "release/7.x", previous_lts_skipped=True
+        )
+        with self.assertRaisesRegex(
+            AssertionError, "Expected previous LTS from major 6"
+        ):
+            validate_compatibility_report(self.report, "release/7.x")
+
+    def test_release_runs_on_host(self):
+        for tag in ("ccf-6.0.14", "ccf-7.0.20", "ccf-8.0.0-dev0", "ccf-8.0.1"):
+            with self.subTest(tag=tag):
+                self.assertTrue(release_runs_on_host(tag, azure_linux_4_host=False))
+        for tag in ("ccf-6.0.14", "ccf-7.0.20"):
+            with self.subTest(tag=tag):
+                self.assertFalse(release_runs_on_host(tag, azure_linux_4_host=True))
+        for tag in ("ccf-8.0.0-dev0", "ccf-8.0.0-rc1", "ccf-8.0.1"):
+            with self.subTest(tag=tag):
+                self.assertTrue(release_runs_on_host(tag, azure_linux_4_host=True))
 
     def test_release_context_requires_previous_patch(self):
         for same_lts in (None, "ccf-7.0.20"):
