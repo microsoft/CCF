@@ -1531,7 +1531,7 @@ TEST_CASE("No PQ chain for a service without a PQ identity")
   REQUIRE(sub->get_cose_endorsements_chain(100)->size() == 2);
 }
 
-TEST_CASE("PQ chain restarts after a service without a PQ identity")
+TEST_CASE("Classical chain continues past the start of the PQ chain")
 {
   if (!ccf::crypto::mldsa_supported())
   {
@@ -1545,15 +1545,12 @@ TEST_CASE("PQ chain restarts after a service without a PQ identity")
     .add_next({2, 1}, {4, 200})
     .add_next({6, 201}, {8, 400})
     .add_next({10, 401}, {12, 600});
-  // The first service had a PQ identity and the second had none, so the third
-  // self-endorsed its PQ identity
-  const PQChain first_pq(cb, 0);
+  // The third service is the first with a PQ identity, so the classical
+  // chain has two more endorsements to fetch once the PQ one stops
   const PQChain pq(cb, 2);
   f.use_identity_key(cb.current_key_pair());
   wire_chain(f, cb);
   wire_pq_chain(f, cb, pq);
-  f.historical->pq_entries.emplace(
-    cb.write_versions.at(0), first_pq.entries.at(0));
 
   auto sub = f.make_subsystem();
   f.scheduler->run_to_completion();
