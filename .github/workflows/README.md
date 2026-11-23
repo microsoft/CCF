@@ -210,6 +210,13 @@ Verifies that files under `3rdparty/` match the Git commits or release artifacts
 File: `vendor-verification.yml`
 3rd party dependencies: None
 
+# Backport checks
+
+Checks that every `git cherry-pick -x` commit in a PR targeting `release/**` is an unchanged clean replay of a commit merged to `main`, by running `scripts/backport.py` and its tests. Triggered on pull requests and merge groups targeting `release/**`. Uses only git, not the GitHub API. See the [backporting skill](../skills/backporting/SKILL.md).
+
+File: `backport-checks.yml`
+3rd party dependencies: None
+
 # Release
 
 Produces CCF reference release artifacts, excluding the Python package. Triggered on tags matching `ccf-[567].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
