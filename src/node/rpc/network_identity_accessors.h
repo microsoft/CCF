@@ -25,7 +25,7 @@ namespace ccf
   };
 
   // The previous service identity endorsements written by one transaction
-  struct WrittenEndorsements
+  struct IdentityEndorsements
   {
     CoseEndorsement classical;
 
@@ -53,7 +53,7 @@ namespace ccf
     // Endorsements written at the given historical kv version, or nullopt
     // if the historical state is not yet loaded. Implementations may
     // throw on hard errors, including a missing CLASSICAL endorsement.
-    virtual std::optional<WrittenEndorsements> get_endorsements_at(SeqNo) = 0;
+    virtual std::optional<IdentityEndorsements> get_endorsements_at(SeqNo) = 0;
   };
 
   struct TaskScheduler

@@ -61,17 +61,28 @@ namespace ccf
     auto* endorsements = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
       ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
     result.endorsement = endorsements->get(ccf::IdentityType::CLASSICAL);
-    // A PQ endorsement belongs to the current service only if the transaction
-    // which opened it wrote the PQ endorsement with the CLASSICAL one
+    // The transaction which opens a service with a PQ identity writes the PQ
+    // endorsement with the CLASSICAL one, and a service which has a PQ
+    // identity never loses it
     const auto classical_version =
       endorsements->get_version_of_previous_write(ccf::IdentityType::CLASSICAL);
-    if (
-      classical_version.has_value() &&
-      classical_version ==
-        endorsements->get_version_of_previous_write(ccf::IdentityType::PQ))
+    const auto pq_version =
+      endorsements->get_version_of_previous_write(ccf::IdentityType::PQ);
+    if (pq_version.has_value() && pq_version != classical_version)
     {
-      result.pq_endorsement = endorsements->get(ccf::IdentityType::PQ);
+      const auto err = fmt::format(
+        "The PQ previous service identity endorsement was written at {}, and "
+        "the CLASSICAL one at {}",
+        pq_version.value(),
+        classical_version.has_value() ?
+          std::to_string(classical_version.value()) :
+          "no version");
+      // Logged here in case the call site does not handle the exception
+      // properly: this is a broken invariant and must not be recovered from.
+      LOG_FATAL_FMT("{}", err);
+      throw std::logic_error(err);
     }
+    result.pq_endorsement = endorsements->get(ccf::IdentityType::PQ);
     return result;
   }
 
@@ -119,7 +130,7 @@ namespace ccf
       historical_cache(std::move(historical_cache_))
     {}
 
-    std::optional<WrittenEndorsements> get_endorsements_at(SeqNo seq) override
+    std::optional<IdentityEndorsements> get_endorsements_at(SeqNo seq) override
     {
       auto state = historical_cache->get_state_at(
         ccf::historical::CompoundHandle{
@@ -149,7 +160,7 @@ namespace ccf
           "historical state",
           seq));
       }
-      return WrittenEndorsements{
+      return IdentityEndorsements{
         .classical = std::move(endorsement.value()),
         .pq = endorsements->get(ccf::IdentityType::PQ)};
     }

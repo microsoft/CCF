@@ -150,7 +150,7 @@ namespace
     std::map<ccf::SeqNo, ccf::CoseEndorsement> pq_entries;
     std::set<ccf::SeqNo> unavailable;
 
-    std::optional<ccf::WrittenEndorsements> get_endorsements_at(
+    std::optional<ccf::IdentityEndorsements> get_endorsements_at(
       ccf::SeqNo seq) override
     {
       if (unavailable.contains(seq))
@@ -174,7 +174,7 @@ namespace
       {
         pq = pq_it->second;
       }
-      return ccf::WrittenEndorsements{.classical = it->second, .pq = pq};
+      return ccf::IdentityEndorsements{.classical = it->second, .pq = pq};
     }
   };
 
@@ -1864,14 +1864,29 @@ TEST_CASE(
   REQUIRE(current.pq_endorsement.has_value());
   REQUIRE(current.pq_endorsement->endorsement == pq.endorsement);
 
-  INFO("A later service without a PQ identity writes CLASSICAL only");
+  INFO("A later opening which writes CLASSICAL only is rejected");
   classical.endorsement_epoch_begin = second_create_txid;
   classical.endorsement = {3};
   node_state.commit_service(
     ccf::ServiceStatus::OPEN, second_create_txid, classical);
-  current = node_state.get_current_service_identity();
+  REQUIRE_THROWS_WITH_AS(
+    node_state.get_current_service_identity(),
+    doctest::Contains(
+      "The PQ previous service identity endorsement was written at"),
+    std::logic_error);
+}
+
+TEST_CASE("A service without a PQ identity has no current PQ endorsement")
+{
+  StoreNodeStateAccessor node_state;
+  const ccf::TxID create_txid{2, 1};
+  ccf::CoseEndorsement classical;
+  classical.endorsement_epoch_begin = create_txid;
+  classical.endorsement = {1};
+
+  node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid, classical);
+  const auto current = node_state.get_current_service_identity();
   REQUIRE(current.endorsement.has_value());
-  REQUIRE(current.endorsement->endorsement == classical.endorsement);
   REQUIRE_FALSE(current.pq_endorsement.has_value());
 }
 

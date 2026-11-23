@@ -753,7 +753,7 @@ namespace ccf
 
     void fetch_next_at(ccf::SeqNo seq)
     {
-      std::optional<WrittenEndorsements> written;
+      std::optional<IdentityEndorsements> written;
       try
       {
         written = historical_state_accessor->get_endorsements_at(seq);

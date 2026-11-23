@@ -110,10 +110,7 @@ namespace ccf
 
     /// Returns the COSE endorsements chain of the PQ network identities for
     /// the given sequence number, newest endorsement first, or std::nullopt
-    /// if there is none. The PQ chain is fetched and validated with the
-    /// classical one, and fetching fails if either is inconsistent. It starts
-    /// at the latest service which introduced a PQ identity, so there is none
-    /// for earlier sequence numbers, nor for a service without a PQ identity.
+    /// if there is none.
     ///
     /// @throws IdentityHistoryNotFetched if identity history fetching has not
     /// completed.
