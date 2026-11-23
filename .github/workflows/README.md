@@ -67,6 +67,7 @@ Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
 Each Azure Linux 4 job sets `PATH` on its container, because the image does not declare one and the runner would otherwise replace `PATH` with only the directories added through `GITHUB_PATH`, such as the one added by the Lean action.
 
 The `lts_compatibility` test only upgrades from releases built for the distribution it runs on, so on Azure Linux 4 it starts from the latest 8.x release.
+On development branches, where no final release of the version under development exists yet, that is its latest published pre-release.
 Upgrades from 7.x, which is only built for Azure Linux 3, are covered by [Cross-platform LTS](#cross-platform-lts).
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
