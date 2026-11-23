@@ -387,13 +387,34 @@ namespace ccf
     }
 
     // Adds the PQ endorsement written with the given classical one, which is
-    // about to be processed, until the PQ chain stops at its self-endorsement
+    // about to be processed, until the PQ chain stops at its self-endorsement.
+    // The self-endorsement is the oldest PQ endorsement, so every older
+    // classical endorsement must have been written with no PQ one.
     void process_pq_endorsement(
       const std::optional<CoseEndorsement>& pq_endorsement,
       const CoseEndorsement& classical)
     {
+      // A build without ML-DSA reads no PQ endorsement
+      if (!ccf::crypto::mldsa_supported())
+      {
+        return;
+      }
+
       if (!pq_fetching)
       {
+        if (pq_endorsement.has_value())
+        {
+          fail_pq_fetching(fmt::format(
+            "a PQ endorsement was written with the classical endorsement for "
+            "{} - {}, {}",
+            classical.endorsement_epoch_begin.to_str(),
+            format_epoch(classical.endorsement_epoch_end),
+            pq_self_endorsement.has_value() ?
+              fmt::format(
+                "which is older than the PQ self-endorsement at {}",
+                pq_self_endorsement->endorsement_epoch_begin.to_str()) :
+              "but the current service has no PQ identity"));
+        }
         return;
       }
 

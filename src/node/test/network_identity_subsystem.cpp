@@ -1546,14 +1546,8 @@ TEST_CASE("No PQ chain for a service without a PQ identity")
   SubsystemFixture f;
   ChainBuilder cb;
   cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {8, 400});
-  const PQChain pq(cb, 0);
   f.use_identity_key(cb.current_key_pair());
   wire_chain(f, cb);
-  wire_pq_chain(f, cb, pq);
-  // The current service wrote no PQ endorsement when it opened, so the PQ
-  // endorsements of the services before it are not read
-  f.node_state->pq_topmost = std::nullopt;
-  f.use_pq_identity_key(nullptr);
 
   auto sub = f.make_subsystem();
   f.scheduler->run_to_completion();
@@ -1567,6 +1561,64 @@ TEST_CASE("No PQ chain for a service without a PQ identity")
   }
   REQUIRE(sub->get_trusted_keys_pq().empty());
   REQUIRE(sub->get_cose_endorsements_chain(100)->size() == 2);
+}
+
+TEST_CASE("A PQ endorsement outside the PQ chain fails fetching")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  // Services created at 2.1, 6.201, 10.401 and, current, 14.601
+  cb.add_self({2, 1})
+    .add_next({2, 1}, {4, 200})
+    .add_next({6, 201}, {8, 400})
+    .add_next({10, 401}, {12, 600});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  // PQ endorsements of the first two services
+  const PQChain older_pq(cb, 0);
+  std::string expected_error;
+
+  SUBCASE("Written by the service before the PQ self-endorsement")
+  {
+    const PQChain pq(cb, 2);
+    wire_pq_chain(f, cb, pq);
+    f.historical->pq_entries.emplace(
+      cb.write_versions.at(1), older_pq.entries.at(1));
+    expected_error =
+      "PQ endorsements chain: a PQ endorsement was written with the classical "
+      "endorsement for 2.1 - 4.200, which is older than the PQ "
+      "self-endorsement at 10.401";
+  }
+  SUBCASE("Written by an older service than the PQ self-endorsement")
+  {
+    const PQChain pq(cb, 2);
+    wire_pq_chain(f, cb, pq);
+    f.historical->pq_entries.emplace(
+      cb.write_versions.at(0), older_pq.entries.at(0));
+    expected_error =
+      "PQ endorsements chain: a PQ endorsement was written with the classical "
+      "endorsement for 2.1 - null, which is older than the PQ "
+      "self-endorsement at 10.401";
+  }
+  SUBCASE("Written before a current service without a PQ identity")
+  {
+    f.historical->pq_entries.emplace(
+      cb.write_versions.at(2), older_pq.entries.at(2));
+    expected_error =
+      "PQ endorsements chain: a PQ endorsement was written with the classical "
+      "endorsement for 6.201 - 8.400, but the current service has no PQ "
+      "identity";
+  }
+
+  REQUIRE_THROWS_WITH_AS(
+    { auto sub = f.make_subsystem(); },
+    doctest::Contains(expected_error),
+    std::runtime_error);
 }
 
 TEST_CASE("Classical chain continues past the start of the PQ chain")
@@ -1764,6 +1816,7 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
     endorsement.previous_version = std::nullopt;
     endorsement.endorsement_epoch_begin = ccf::TxID{6, 201};
     endorsement.endorsement_epoch_end = std::nullopt;
+    f.historical->pq_entries.erase(cb.write_versions.at(0));
     expected_error =
       "PQ endorsements chain: Self-endorsement at 6.201 endorses public key";
   }
