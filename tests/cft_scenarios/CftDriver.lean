@@ -216,7 +216,10 @@ opaque assertAbsentConfig (node : @& NodeId) (idx : UInt64) : IO Unit
 @[extern "cft_assert_last_txid"]
 opaque assertLastTxid (node : @& NodeId) (txid : @& String) : IO Unit
 
-/-- Sign on the latest primary, reconnect the active nodes and run until they are in sync. -/
+/--
+Sign on the latest primary, reconnect the active nodes which it knows, and run until they
+are in sync.
+-/
 @[extern "cft_loop_until_sync"]
 opaque loopUntilSync : IO Unit
 
