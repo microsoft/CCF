@@ -4,8 +4,7 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import Consensus.Replay.Input
-
-import CCF.Parsec
+public import CCF.Parsec
 
 public section
 
@@ -24,12 +23,14 @@ open Lean Model.Node
 open CCF (Finset)
 open CCF.Parsec (failure validated attempt many_ optional_)
 
-private structure ReductionState where
+structure ReductionState where
   header : Header
   nextRequestId : ReqID := 1
   instructions : Array Instruction := #[]
+  /-- The node, if its events start by bootstrapping the network. -/
+  bootstrap : Option String := none
 
-private abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
+abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
 private def liftExcept {α : Type} (event : Event) (result : Except String α)
     : Reduction α :=
@@ -102,20 +103,23 @@ private def emitObserveSends (event : Event) (sends : List NativeSend) : Reducti
 
 /--
 Genesis runs asynchronously after the first node becomes leader, so bare ticks may precede
-it; the model starts after genesis, so they are not observed.
+it, as may nominations; the model starts after genesis, so they are not observed.
 `replicate` flushes a genesis entry over the append entries size limit. The node has no peers
 yet, so the flush sends nothing.
+Only a node's first events bootstrap the network.
 -/
-private def ruleBootstrap : Reduction String := do
+private def ruleBootstrap : Reduction Unit := do
   let head ← peek
+  unless (← position) == 0 do
+    failure s!"{head.record.location}: expected the node's first event"
   -- consume
   event head "become_leader"
-  many_ (event head "tick")
+  many_ (event head "tick" <|> event head "nomination")
   event head "replicate"
   event head "replicate_entry"
   event head "add_configuration"
   optional_ (event head "batch_flush")
-  return head.node
+  modify fun s => { s with bootstrap := some head.node }
 
 private def readAppendContent (head : Event) (config : Option Event)
     (retirements : List Event)
@@ -369,6 +373,8 @@ private def ruleDrop : Reduction Unit := do
 /--
 Snapshot installation runs ledger hooks outside the consensus lock, so bare ticks
 may interleave with their events.
+A tick is a lock hold of its own, as is `init_as_backup`, so the hooks emit nothing; the
+node must still initialize later.
 -/
 private def ruleInitAsBackup : Reduction Unit := do
   let head ← peek
@@ -376,11 +382,17 @@ private def ruleInitAsBackup : Reduction Unit := do
   unless hooks.contains head.function || head.function == "init_as_backup" do
     failure s!"{head.record.location}: expected init_as_backup, got {head.function}"
   -- consume
-  many_ (hooks.foldr (fun name rest => event head name <|> rest) (event head "tick"))
-  unless (← CCF.Parsec.peek).any (·.function == "init_as_backup") do
+  many_ (event head "add_configuration" <|> event head "retired_committed_tx")
+  let rest ←
+    liftM (m := CCF.Parsec.Parser Event)
+      ((fun input => .success input (input.events.extract input.position))
+        : CCF.Parsec.Parser Event (Array Event))
+  unless rest.any (·.function == "init_as_backup") do
     liftExcept head
       (throw
         "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
+  if hooks.contains head.function then
+    return
   let init ← peek
   event head "init_as_backup"
   event head "become_follower"
@@ -390,7 +402,7 @@ private def ruleInitAsBackup : Reduction Unit := do
   emitObserve init "init-as-backup"
   emitAction init "init-as-backup" (.initAsBackup head.node index view)
 
-private def ruleStep : Reduction Unit := do
+def ruleStep : Reduction Unit := do
   -- Recv rules
   attempt ruleRecvAppendEntries
   <|> attempt ruleRecvAppendEntriesResponse
@@ -398,39 +410,11 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleRecvProposeRequestVote
   <|> attempt ruleRecvRequestVoteResponse
   -- Async rules
+  <|> attempt ruleBootstrap
   <|> attempt ruleInitAsBackup
   <|> attempt ruleAppend
   <|> attempt ruleTick
   <|> attempt ruleNomination
   <|> attempt ruleDrop
 
-private def ruleTrace : Reduction String := do
-  let leader ← ruleBootstrap
-  many_ ruleStep
-  if let some event ← CCF.Parsec.peek then
-    failure s!"{event.record.location}: ungrouped event {event.function}"
-  return leader
-
-/-- Consume every event exactly once; an ungrouped event is never a stutter. -/
-def reduce (events : Array Event) (header : Header)
-    : Except String (String × Array Instruction) := do
-  let (leader, state) ← CCF.Parsec.run events (ruleTrace.run { header })
-  return (leader, state.instructions)
-
 end Consensus.Replay.Reducer
-
-namespace Consensus.Replay
-
-/-- Prepared initialization and instructions for direct model replay. -/
-structure Reduced where
-  header : Header
-  instructions : Array Instruction
-
-/-- Prepare replay identities and reduce the associated event stream. -/
-def reduce (events : Array Event) (declared : List String) : Except String Reduced := do
-  let header : Header := { bootstrap := ∅, declared }
-  let (leader, instructions) ← Reducer.reduce events header
-  let header := { header with bootstrap := {← header.nodeId leader} }
-  return { header, instructions }
-
-end Consensus.Replay

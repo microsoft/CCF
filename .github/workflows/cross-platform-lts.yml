@@ -14,11 +14,11 @@ on:
   workflow_dispatch:
     inputs:
       from_version:
-        description: CCF version to build on Azure Linux 3 (defaults to previous release)
+        description: CCF version to build on Azure Linux 3 (defaults to latest stable 7.x)
         required: false
         type: string
       to_version:
-        description: CCF version to build on Azure Linux 4 (defaults to latest release)
+        description: CCF version to build on Azure Linux 4 (defaults to latest 8.0.0 prerelease)
         required: false
         type: string
 
@@ -55,23 +55,38 @@ jobs:
           TO_VERSION: ${{ inputs.to_version }}
         run: |
           set -euo pipefail
-          release_tags=$(gh release list \
-            --repo "$GITHUB_REPOSITORY" \
-            --exclude-drafts \
-            --exclude-pre-releases \
-            --limit 2 \
-            --json tagName \
-            --jq '.[].tagName')
-          mapfile -t release_tags <<< "$release_tags"
-          if [[ ${#release_tags[@]} -ne 2 ]] ||
-            [[ "${release_tags[0]}" != ccf-* ]] ||
-            [[ "${release_tags[1]}" != ccf-* ]]; then
-            echo "Expected two stable CCF releases, found: ${release_tags[*]}" >&2
-            exit 1
+          from_version=$FROM_VERSION
+          to_version=$TO_VERSION
+
+          if [[ -z "$from_version" || -z "$to_version" ]]; then
+            release_data=$(gh release list \
+              --repo "$GITHUB_REPOSITORY" \
+              --exclude-drafts \
+              --limit 1000 \
+              --json tagName,isPrerelease)
           fi
 
-          from_version=${FROM_VERSION:-${release_tags[1]#ccf-}}
-          to_version=${TO_VERSION:-${release_tags[0]#ccf-}}
+          if [[ -z "$from_version" ]]; then
+            tag=$(jq -r \
+              '[.[] | select(.isPrerelease == false and (.tagName | test("^ccf-7\\.[0-9]+\\.[0-9]+$"))) | .tagName] | .[]' \
+              <<< "$release_data" | sort -V | tail -n 1)
+            if [[ -z "$tag" ]]; then
+              echo "No published stable CCF 7.x release found" >&2
+              exit 1
+            fi
+            from_version=${tag#ccf-}
+          fi
+          if [[ -z "$to_version" ]]; then
+            tag=$(jq -r \
+              '[.[] | select(.isPrerelease and (.tagName | test("^ccf-8\\.0\\.0-(dev|rc)[0-9]+$"))) | .tagName] | .[]' \
+              <<< "$release_data" | sort -V | tail -n 1)
+            if [[ -z "$tag" ]]; then
+              echo "No published CCF 8.0.0 dev or rc prerelease found" >&2
+              exit 1
+            fi
+            to_version=${tag#ccf-}
+          fi
+
           echo "from_version=$from_version" >> "$GITHUB_OUTPUT"
           echo "to_version=$to_version" >> "$GITHUB_OUTPUT"
 

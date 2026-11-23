@@ -15,6 +15,7 @@ namespace ccf::js::extensions
    * - ccf.bufToJsonCompatible
    *
    * - ccf.pemToId
+   * - ccf.publicKeyFromDidKey
    * - ccf.tcbHexToPolicy
    *
    * - ccf.enableUntrustedDateTime

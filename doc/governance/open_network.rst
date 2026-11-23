@@ -98,6 +98,9 @@ The user is successfully added once the proposal has received enough votes under
 
 The user can then make user RPCs.
 
+To enroll a certificate-free user, pass ``did_key`` instead of ``cert`` to ``set_user``, and use that ``did:key`` as the user ID in later proposals.
+See :ref:`architecture/cryptography:Identity IDs` and :doc:`migrating_identity_ids`.
+
 User Data
 ---------
 

@@ -15,6 +15,7 @@
 #include "node/history.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 
+#include <istream>
 #include <nlohmann/json.hpp>
 
 namespace ccf
@@ -36,42 +37,87 @@ namespace ccf
     std::span<const uint8_t> receipt;
   };
 
+  static size_t snapshot_receipt_offset(
+    const ccf::kv::SerialisedEntryHeader& header, size_t snapshot_size)
+  {
+    if (header.size == 0)
+    {
+      throw std::logic_error("Snapshot transaction size should not be zero");
+    }
+
+    if (
+      snapshot_size < sizeof(header) ||
+      header.size > snapshot_size - sizeof(header))
+    {
+      throw std::invalid_argument(fmt::format(
+        "Snapshot transaction header claims body size {} which exceeds "
+        "available "
+        "buffer size {}",
+        static_cast<size_t>(header.size),
+        snapshot_size));
+    }
+
+    const auto receipt_offset = sizeof(header) + header.size;
+    if (receipt_offset == snapshot_size)
+    {
+      throw std::logic_error("No receipt included in snapshot");
+    }
+
+    return receipt_offset;
+  }
+
   static SnapshotSegments separate_segments(
     const std::vector<uint8_t>& snapshot)
   {
     const auto* data = snapshot.data();
     auto size = snapshot.size();
+    const auto header =
+      serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
+    const auto receipt_offset = snapshot_receipt_offset(header, size);
+    return {
+      std::span(snapshot).first(receipt_offset),
+      std::span(snapshot).subspan(receipt_offset)};
+  }
 
-    auto tx_hdr = serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
-    auto store_snapshot_size =
-      sizeof(ccf::kv::SerialisedEntryHeader) + tx_hdr.size;
-
-    if (tx_hdr.size == 0)
+  static void verify_snapshot_digest(
+    std::span<const uint8_t> header_and_body,
+    const ccf::crypto::Sha256Hash& claims_digest)
+  {
+    const auto digest =
+      ccf::crypto::Sha256Hash(header_and_body.data(), header_and_body.size());
+    if (digest != claims_digest)
     {
-      throw std::logic_error("Snapshot transaction size should not be zero");
+      throw std::logic_error(fmt::format(
+        "Snapshot digest ({}) does not match receipt claim ({})",
+        digest,
+        claims_digest));
     }
+  }
 
-    if (store_snapshot_size > size)
+  static std::vector<uint8_t> read_snapshot_receipt(std::istream& input)
+  {
+    input.seekg(0, std::ios::end);
+    const auto end = input.tellg();
+    if (end < 0)
     {
-      throw std::invalid_argument(fmt::format(
-        "Snapshot transaction header claims size {} which exceeds available "
-        "buffer size {}",
-        store_snapshot_size,
-        size));
+      throw std::logic_error("Could not determine recovery snapshot size");
     }
-
-    const auto* receipt_data = data + store_snapshot_size;
-    auto receipt_size = size - store_snapshot_size;
-
-    if (receipt_size == 0)
+    const auto file_size = static_cast<size_t>(end);
+    input.seekg(0);
+    ccf::kv::SerialisedEntryHeader header;
+    if (!input.read(reinterpret_cast<char*>(&header), sizeof(header)))
     {
-      throw std::logic_error("No receipt included in snapshot");
+      throw std::logic_error("Could not read recovery snapshot header");
     }
-
-    std::span<const uint8_t> header_and_body{data, store_snapshot_size};
-    std::span<const uint8_t> receipt{receipt_data, receipt_size};
-
-    return SnapshotSegments{header_and_body, receipt};
+    const auto receipt_offset = snapshot_receipt_offset(header, file_size);
+    input.seekg(receipt_offset);
+    std::vector<uint8_t> receipt_bytes(file_size - receipt_offset);
+    if (!input.read(
+          reinterpret_cast<char*>(receipt_bytes.data()), receipt_bytes.size()))
+    {
+      throw std::logic_error("Could not read recovery snapshot receipt");
+    }
+    return receipt_bytes;
   }
 
   static void verify_snapshot_seqno(

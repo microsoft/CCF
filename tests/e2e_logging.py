@@ -199,14 +199,7 @@ def test_illegal(network, args):
 
     def send_bad_raw_content(content):
         nonlocal additional_parsing_errors
-        try:
-            response = send_raw_content(content)
-        except http.client.RemoteDisconnected:
-            assert args.http2, "HTTP/2 interface should close session without error"
-            additional_parsing_errors += 1
-            return
-        else:
-            assert not args.http2, "HTTP/1.1 interface should return valid error"
+        response = send_raw_content(content)
 
         response_body = response.read()
         LOG.warning(response_body)
@@ -229,16 +222,15 @@ def test_illegal(network, args):
     send_bad_raw_content(b"POST / HTTP/42.42")
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
     # Tests non-UTF8 encoding in OData
-    send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n")
+    send_bad_raw_content(b"POST /node/\xff HTTP/1.1\r\n\r\n")
 
-    if not args.http2:
-        for whitespace in (b"", b" ", b"\t", b" \t"):
-            response_body = send_bad_raw_content(
-                b"GET /node/state HTTP/1.1\r\nTransfer-Encoding:"
-                + whitespace
-                + b"\r\nContent-Length: 0\r\n\r\n"
-            )
-            assert b"HPE_INVALID_TRANSFER_ENCODING" in response_body, response_body
+    for whitespace in (b"", b" ", b"\t", b" \t"):
+        response_body = send_bad_raw_content(
+            b"GET /node/state HTTP/1.1\r\nTransfer-Encoding:"
+            + whitespace
+            + b"\r\nContent-Length: 0\r\n\r\n"
+        )
+        assert b"HPE_INVALID_TRANSFER_ENCODING" in response_body, response_body
 
     for _ in range(40):
         content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 2)))
@@ -264,11 +256,10 @@ def test_illegal(network, args):
         == initial_parsing_errors + additional_parsing_errors
     )
 
-    if not args.http2:
-        good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
-        response = send_raw_content(good_content)
-        assert response.status == http.HTTPStatus.OK, (response.status, response.read())
-        send_corrupt_variations(good_content)
+    good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
+    response = send_raw_content(good_content)
+    assert response.status == http.HTTPStatus.OK, (response.status, response.read())
+    send_corrupt_variations(good_content)
 
     # Valid transactions are still accepted
     network.txs.issue(
@@ -348,7 +339,7 @@ def test_protocols(network, args):
     )
     expected_response_body, status_code, http_version = parse_result_out(res)
     assert status_code == "200", status_code
-    assert http_version == "2" if args.http2 else "1.1", http_version
+    assert http_version == "1.1", http_version
 
     protocols = {
         # WebSockets upgrade request is ignored
@@ -369,29 +360,14 @@ def test_protocols(network, args):
             ]
         },
     }
-    if args.http2:
-        protocols.update(
-            {
-                # HTTP/1.x requests fail with closed connection, as HTTP/2
-                "--http1.0": {"errors": ["Empty reply from server"]},
-                "--http1.1": {"errors": ["Empty reply from server"]},
-                # TLS handshake negotiates HTTP/2
-                "--http2": {},
-                "--http2-prior-knowledge": {},
-            }
-        )
-    else:  # HTTP/1.1
-        protocols.update(
-            {
-                # HTTP/1.x requests succeed, as HTTP/1.1
-                "--http1.0": {},
-                "--http1.1": {},
-                # TLS handshake negotiates HTTP/1.1
-                "--http2": {},
-                # This is disabled because the behaviour of curl differs from version 8.10, so we do not get consistent results across platforms
-                # "--http2-prior-knowledge": {},
-            }
-        )
+    protocols.update(
+        {
+            "--http1.0": {},
+            "--http1.1": {},
+            # Curl offers HTTP/2, then negotiates HTTP/1.1 with CCF.
+            "--http2": {},
+        }
+    )
 
     # Test additional protocols with curl
     for protocol, expected_result in protocols.items():
@@ -408,7 +384,7 @@ def test_protocols(network, args):
                 response_body == expected_response_body
             ), f"{response_body}\n !=\n{expected_response_body}"
             assert status_code == "200", status_code
-            assert http_version == "2" if args.http2 else "1.1", http_version
+            assert http_version == "1.1", http_version
         else:
             assert res.returncode != 0, res.returncode
             err = res.stderr.decode()
@@ -2345,7 +2321,7 @@ def run(args):
         for interface_name, host in additional_interfaces(local_node_id).items():
             node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
                 host=host,
-                app_protocol="HTTP2" if args.http2 else "HTTP1",
+                app_protocol="HTTP1",
             )
 
     txs = app.LoggingTxs("user0")
@@ -2587,9 +2563,7 @@ def do_main_tests(network, args):
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
 
-    # HTTP/2 does not support chunked transfer encoding.
-    if not args.http2:
-        test_chunked_requests(network, args)
+    test_chunked_requests(network, args)
     if args.package.startswith("samples/apps/logging/logging"):
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
@@ -2623,13 +2597,12 @@ def do_main_tests(network, args):
     if args.package.startswith("samples/apps/logging/logging"):
         test_etags(network, args)
         test_cose_config(network, args)
-        if not args.http2:
-            test_blocking_calls(network, args)
+        test_blocking_calls(network, args)
 
     # These tests require a service which has only ever emitted COSE signatures,
     # unlike a service upgraded from Dual mode with legacy signatures in its ledger.
     is_cose_only_from_genesis = args.package.endswith("_cose_only")
-    if is_cose_only_from_genesis and not args.http2:
+    if is_cose_only_from_genesis:
         test_cose_set_member(network, args)
 
     # Last, as it retires the primary

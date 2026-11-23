@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ccf/crypto/base64.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/json_schema.h"
 
 #define FMT_HEADER_ONLY
@@ -120,7 +120,7 @@ namespace std
   {
     if constexpr (std::is_same_v<T, uint8_t>)
     {
-      j = ccf::crypto::b64_from_raw(t);
+      j = ccf::ds::b64_from_raw(t);
     }
     else
     {
@@ -141,7 +141,7 @@ namespace std
       {
         try
         {
-          t = ccf::crypto::raw_from_b64(j.get<std::string>());
+          t = ccf::ds::raw_from_b64(j.get<std::string>());
           return;
         }
         catch (const std::exception& e)

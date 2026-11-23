@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
+#include "ccf/ds/base64.h"
 #include "ccf/endpoints/authentication/jwt_auth.h"
 #include "kv/null_encryptor.h"
 #include "kv/store.h"
@@ -40,7 +40,7 @@ namespace
     const auto payload =
       nlohmann::json{{"iss", "https://issuer.example"}, {"exp", expiry}}.dump();
     const auto encode = [](const std::string& s) {
-      return crypto::b64url_from_raw(
+      return ccf::ds::b64url_from_raw(
         reinterpret_cast<const uint8_t*>(s.data()), s.size(), false);
     };
     const auto content = encode(header) + "." + encode(payload);
@@ -55,13 +55,12 @@ namespace
     }
     return std::make_shared<::http::HttpRpcContext>(
       std::make_shared<SessionContext>(0, std::vector<uint8_t>{}),
-      HttpVersion::HTTP1,
       HTTP_GET,
       "/",
       ccf::http::HeaderMap{
         {ccf::http::headers::AUTHORIZATION,
          "Bearer " + content + "." +
-           crypto::b64url_from_raw(signature, false)}},
+           ccf::ds::b64url_from_raw(signature, false)}},
       std::vector<uint8_t>{});
   }
 

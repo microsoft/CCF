@@ -5,9 +5,10 @@
 #include <cstdint>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
-namespace ccf::crypto
+namespace ccf::ds
 {
   std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string);
 

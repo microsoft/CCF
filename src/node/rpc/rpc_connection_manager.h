@@ -24,7 +24,6 @@
 #include "http/error_reporter.h"
 #include "node/rpc/abstract_rpc_sessions.h"
 #include "node/rpc/custom_protocol_subsystem.h"
-#include "node/rpc/http2_session.h"
 #include "node/rpc/http_session.h"
 #include "node/rpc/no_more_sessions.h"
 #include "node/rpc/openssl_session_manager.h"
@@ -430,17 +429,6 @@ namespace ccf
       ccf::SessionWriter& writer,
       std::vector<uint8_t> peer_cert)
     {
-      if (li->app_protocol == "HTTP2")
-      {
-        return std::make_shared<::http::HTTP2ServerSession>(
-          rpc_map,
-          conn_id,
-          li->name,
-          writer,
-          std::move(peer_cert),
-          li->http_configuration,
-          error_reporter());
-      }
       if (li->app_protocol == "HTTP1")
       {
         return std::make_shared<::http::HTTPServerSession>(
@@ -470,17 +458,6 @@ namespace ccf
       ccf::SessionWriter& writer,
       std::vector<uint8_t> peer_cert)
     {
-      if (li->app_protocol == "HTTP2")
-      {
-        return std::make_shared<NoMoreSessionsImpl<::http::HTTP2ServerSession>>(
-          rpc_map,
-          conn_id,
-          li->name,
-          writer,
-          std::move(peer_cert),
-          li->http_configuration,
-          error_reporter());
-      }
       return std::make_shared<NoMoreSessionsImpl<::http::HTTPServerSession>>(
         rpc_map,
         conn_id,
@@ -746,8 +723,7 @@ namespace ccf
 
       const bool plaintext =
         li->endorsement.authority == ccf::Authority::UNSECURED;
-      const std::string alpn =
-        plaintext ? "" : (li->app_protocol == "HTTP2" ? "h2" : "http/1.1");
+      const std::string alpn = plaintext ? "" : "http/1.1";
 
       std::string cert_pem;
       std::string key_pem;

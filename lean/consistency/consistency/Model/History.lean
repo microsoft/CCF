@@ -44,8 +44,8 @@ def responded (history : List Event) (requestIndex : Nat) (kind : TxType) (tx : 
       | .response value request _ _ => value = kind && request = tx
       | _ => false
 
-/-- The branch exists and is eligible for processing requests; view 1 is reserved. -/
+/-- Only elected views can process requests; view 1 is reserved. -/
 def activeBranch (state : State) (branch : Nat) : Bool :=
-  2 ≤ branch && branch ≤ state.branches.length
+  2 ≤ branch && branch ≤ state.branches.length && !(state.skipped.any (·.1 == branch))
 
 end consistency.Model

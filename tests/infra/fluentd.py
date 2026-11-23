@@ -77,7 +77,7 @@ class Collector:
                                 raise RuntimeError("Expected Fluentd EventTime")
                             self.records += 1
                             self.tags.add(tag)
-                            self.processes.add(record["process_id"])
+                            self.processes.add(record["pid"])
                             if self.record_callback is not None:
                                 self.record_callback(tag, timestamp, record)
                             if len(self.processes) > self.node_count:

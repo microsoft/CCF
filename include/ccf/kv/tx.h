@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/sha256_hash.h"
+#include "ccf/kv/abstract_handle.h"
 #include "ccf/tx_id.h"
 
 #include <list>

@@ -4,12 +4,12 @@
 #include "ccf/js/core/context.h"
 
 #include "ccf/ds/hex.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/runtime.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/tx_access.h"
 #include "ds/internal_logger.h"
-#include "js/checks.h"
 #include "js/global_class_ids.h"
 
 #include <algorithm>
@@ -265,7 +265,7 @@ namespace ccf::js::core
     if (val.is_undefined())
     {
       val = default_value;
-      JS_CHECK_OR_THROW(g.set(s, std::move(default_value)));
+      CCF_JS_CHECK_OR_THROW(g.set(s, std::move(default_value)));
     }
 
     return val;
