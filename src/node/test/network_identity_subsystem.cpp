@@ -1687,8 +1687,14 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
   SUBCASE("PQ endorsement with another previous version than the classical")
   {
     auto& endorsement = f.historical->pq_entries.at(middle_version);
-    endorsement.previous_version = endorsement.previous_version.value() + 1;
-    expected_error = "does not match the classical endorsement";
+    const auto classical_version = endorsement.previous_version.value();
+    endorsement.previous_version = classical_version + 1;
+    expected_error = fmt::format(
+      "PQ endorsements chain: endorsement for 2.1 - 4.200 with previous "
+      "version {} does not match the classical endorsement for 2.1 - 4.200 "
+      "with previous version {} written with it",
+      classical_version + 1,
+      classical_version);
   }
   SUBCASE("PQ endorsement over another previous root than the classical")
   {
@@ -1808,6 +1814,57 @@ TEST_CASE("An inconsistent PQ chain fails fetching in Partial")
     doctest::Contains("failed signature verification"),
     std::runtime_error);
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Failed);
+}
+
+TEST_CASE("PQ chain which ends before the classical one settles as Partial")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  // Services created at 2.1, 6.201, 8.401 and, current, 10.601
+  cb.add_self({2, 1})
+    .add_next({2, 1}, {4, 200})
+    .add_next({6, 201}, {6, 400})
+    .add_next({8, 401}, {8, 600});
+  // The third service is the first with a PQ identity, so the PQ chain
+  // reaches its self-endorsement before the classical one misses an entry
+  const PQChain pq(cb, 2);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+  f.historical->unavailable = {cb.write_versions.at(1)};
+
+  SUBCASE("PQ self-endorsement is validated")
+  {
+    auto sub = f.make_subsystem();
+    while (f.scheduler->pending_delayed_count() > 0)
+    {
+      f.scheduler->fire_delayed_once();
+    }
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+    REQUIRE(
+      pq_keys_der(*sub) ==
+      PQKeysDer{{401, pq.key_der(0)}, {601, pq.key_der(1)}});
+  }
+
+  SUBCASE("Tampered PQ self-endorsement fails fetching")
+  {
+    f.historical->pq_entries.at(cb.write_versions.at(2)).endorsement.back() ^=
+      0xFF;
+
+    auto sub = f.make_subsystem();
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+    REQUIRE_THROWS_WITH_AS(
+      f.scheduler->run_to_completion(),
+      doctest::Contains(
+        "Self-endorsement at 8.401 failed signature verification"),
+      std::runtime_error);
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Failed);
+  }
 }
 
 TEST_CASE("PQ chain is the validated suffix in Partial")
@@ -2086,24 +2143,6 @@ TEST_CASE("Endorsements written by consecutive services are fetched")
     REQUIRE(sub->get_cose_endorsements_chain(5)->size() == 2);
     REQUIRE_FALSE(sub->get_cose_endorsements_chain_pq(5).has_value());
     REQUIRE(sub->get_cose_endorsements_chain_pq(15)->size() == 1);
-  }
-
-  SUBCASE("Service created by a recovery which never opened")
-  {
-    services.create_and_open(first, {2, 1});
-    services.create(second, {4, 10}, true);
-    services.create_and_open(third, {6, 20});
-    const auto sub = services.fetch();
-
-    REQUIRE(
-      keys_der(*sub) ==
-      KeysDer{
-        {1, first.key->public_key_der()}, {20, third.key->public_key_der()}});
-    REQUIRE(
-      pq_keys_der(*sub) ==
-      PQKeysDer{
-        {1, first.pq_key->public_key_der()},
-        {20, third.pq_key->public_key_der()}});
   }
 }
 

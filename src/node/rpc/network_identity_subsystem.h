@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/network_identity_interface.h"
 #include "ccf/node/configuration.h"
 #include "crypto/cose.h"
@@ -10,6 +11,7 @@
 #include "node/identity.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_chain_helpers.h"
+#include "service/tables/identity_types.h"
 
 #include <atomic>
 #include <chrono>
@@ -293,6 +295,7 @@ namespace ccf
       try
       {
         trusted_keys = build_trusted_key_chain<ccf::crypto::ECPublicKeyPtr>(
+          IdentityType::CLASSICAL,
           endorsements,
           self_endorsement,
           network_identity->get_key_pair()->public_key_der(),
@@ -317,6 +320,7 @@ namespace ccf
           }
           pq_trusted_keys =
             build_trusted_key_chain<ccf::crypto::MLDSAPublicKeyPtr>(
+              IdentityType::PQ,
               pq_endorsements,
               pq_self_endorsement,
               current_pq_key_der.value(),
@@ -374,8 +378,9 @@ namespace ccf
           "the PQ endorsement written when the current service opened is "
           "signed by public key {}, which is not the current PQ service "
           "public key {}",
-          ccf::ds::to_hex(current.pq_endorsement->endorsing_key),
-          ccf::ds::to_hex(current_pq_key)));
+          key_for_error(
+            IdentityType::PQ, current.pq_endorsement->endorsing_key),
+          key_for_error(IdentityType::PQ, current_pq_key)));
       }
 
       pq_fetching = true;
@@ -444,12 +449,15 @@ namespace ccf
         endorsement.previous_version != classical.previous_version)
       {
         fail_pq_fetching(fmt::format(
-          "endorsement for {} - {} does not match the classical endorsement "
-          "for {} - {} written with it",
+          "endorsement for {} - {} with previous version {} does not match "
+          "the classical endorsement for {} - {} with previous version {} "
+          "written with it",
           endorsement.endorsement_epoch_begin.to_str(),
           format_epoch(endorsement.endorsement_epoch_end),
+          format_previous_version(endorsement.previous_version),
           classical.endorsement_epoch_begin.to_str(),
-          format_epoch(classical.endorsement_epoch_end)));
+          format_epoch(classical.endorsement_epoch_end),
+          format_previous_version(classical.previous_version)));
       }
 
       std::optional<std::vector<uint8_t>> previous_root;
@@ -664,12 +672,44 @@ namespace ccf
       complete_fetching(FetchStatus::Done);
     }
 
+    static std::string format_previous_version(
+      const std::optional<ccf::kv::Version>& previous_version)
+    {
+      return previous_version.has_value() ?
+        std::to_string(previous_version.value()) :
+        "null";
+    }
+
+    // ML-DSA public keys are several kilobytes, so they are identified by
+    // their SHA-256
+    static std::string key_digest(std::span<const uint8_t> key_der)
+    {
+      return fmt::format(
+        "sha256:{}",
+        ccf::crypto::Sha256Hash(key_der.data(), key_der.size()).hex_str());
+    }
+
+    static std::string key_for_log(
+      IdentityType identity_type, const std::vector<uint8_t>& key_der)
+    {
+      return identity_type == IdentityType::PQ ? key_digest(key_der) :
+                                                 ccf::ds::b64_from_raw(key_der);
+    }
+
+    static std::string key_for_error(
+      IdentityType identity_type, std::span<const uint8_t> key_der)
+    {
+      return identity_type == IdentityType::PQ ? key_digest(key_der) :
+                                                 ccf::ds::to_hex(key_der);
+    }
+
     // Checks that the endorsements of a chain are connected up to the current
     // service, with valid signatures and linked keys, and returns the key
     // trusted from the start of each epoch. If fetching stopped at a
     // self-endorsement, checks that the oldest trusted key signed it.
     template <typename KeyPtr, typename MakeKey>
     static std::map<SeqNo, KeyPtr> build_trusted_key_chain(
+      IdentityType identity_type,
       const std::map<SeqNo, CoseEndorsement>& chain,
       const std::optional<CoseEndorsement>& chain_self_endorsement,
       const std::vector<uint8_t>& current_pkey,
@@ -719,9 +759,10 @@ namespace ccf
         }
 
         LOG_INFO_FMT(
-          "Adding trusted seq {} key {}",
+          "Adding trusted {} seq {} key {}",
+          identity_type,
           endorsement.endorsement_epoch_begin.seqno,
-          ccf::ds::b64_from_raw(endorsed_key));
+          key_for_log(identity_type, endorsed_key));
         keys.insert(
           {endorsement.endorsement_epoch_begin.seqno, make_key(endorsed_key)});
 
@@ -738,8 +779,8 @@ namespace ccf
             "the previous endorsement with key {}",
             endorsement.endorsement_epoch_begin.to_str(),
             format_epoch(endorsement.endorsement_epoch_end),
-            ccf::ds::to_hex(endorsed_key),
-            ccf::ds::to_hex(previous_key_der)));
+            key_for_error(identity_type, endorsed_key),
+            key_for_error(identity_type, previous_key_der)));
         }
 
         previous_key_der = endorsement.endorsing_key;
@@ -756,8 +797,8 @@ namespace ccf
         throw std::logic_error(fmt::format(
           "Current service identity public key {} does not match the last "
           "endorsing key {}",
-          ccf::ds::to_hex(current_pkey),
-          ccf::ds::to_hex(previous_key_der)));
+          key_for_error(identity_type, current_pkey),
+          key_for_error(identity_type, previous_key_der)));
       }
 
       if (chain_self_endorsement.has_value())
@@ -767,9 +808,10 @@ namespace ccf
       }
 
       LOG_INFO_FMT(
-        "Adding trusted seq {} key {}",
+        "Adding trusted {} seq {} key {}",
+        identity_type,
         current_from.seqno,
-        ccf::ds::b64_from_raw(current_pkey));
+        key_for_log(identity_type, current_pkey));
       keys.insert({current_from.seqno, make_key(current_pkey)});
       return keys;
     }
