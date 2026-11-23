@@ -62,6 +62,7 @@ import Scenarios.suffix_collision_1
 import Scenarios.suffix_collision_2
 import Scenarios.suffix_collision_3
 import Scenarios.swap_single_node
+import Scenarios.unsigned_entry_replaces_stale_suffix
 
 /-!
 Every scenario. Importing this module registers them, for `Main` and for other programs

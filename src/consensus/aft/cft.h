@@ -1467,14 +1467,21 @@ namespace aft
       else
       {
         // The end of this append entries (r.idx) was not a signature, but may
-        // be in a new term. If it's a new term, this term started immediately
-        // after the previous signature we saw (lci, last committable index).
-        // If we already know the term of r.idx, there is nothing to record.
-        // We may then still hold entries of a later term after r.idx, which
-        // the sender has yet to replace, and that term starts after lci + 1.
+        // be in a new term. If we already know the term of r.idx, there is
+        // nothing to record. We may then still hold entries of a later term
+        // after r.idx, which the sender has yet to replace.
+        // Otherwise the new term starts at the first entry of this append
+        // entries, which holds entries of a single term, after an entry which
+        // we hold in an earlier term. That is immediately after the previous
+        // signature we saw (lci, last committable index), unless a primary
+        // kept transactions after its last signature when it was elected,
+        // which it only does if it has committed nothing.
+        static_assert(
+          max_terms_per_append_entries == 1,
+          "AppendEntries processing for term updates assumes single term");
         if (r.idx > lci && get_term_internal(r.idx) != r.term_of_idx)
         {
-          state->view_history.update(lci + 1, r.term_of_idx);
+          state->view_history.update(r.prev_idx + 1, r.term_of_idx);
         }
       }
 
