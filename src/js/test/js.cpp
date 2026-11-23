@@ -3174,7 +3174,7 @@ TEST_CASE("ccf.crypto.unwrapKey rejects tampered ciphertext")
 {
   // An unwrap that fails its integrity check must throw a catchable error and
   // leave the context usable. crypto_test checks the size of the buffer that
-  // OpenSSL writes to.
+  // the unwrap passes to OpenSSL.
   run_crypto_handler(std::string(validation_prelude) + R"JS(
       const key = new Uint8Array(32).fill(0x42).buffer;
       const aesKey = ccf.crypto.generateAesKey(256);
