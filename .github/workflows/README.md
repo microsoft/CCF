@@ -176,7 +176,6 @@ Additional bundled checkers are not enabled.
 The disaster recovery job also checks the records of the recovery trace fixtures in `lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with `check-schema.py`.
 It runs `replayer/check-fixtures.sh` using the package's built `disaster-recovery-replay` executable.
 That replays the fixtures' quorum, failover and multiple-timeout traces, which must pass, and invalid and valid traces stored as diffs against them, which must fail and pass.
-It then runs the trace viewer's `viewer/build.py`, which fails if a dump the viewer shows is missing or disagrees with the replayer.
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
@@ -245,4 +244,4 @@ Pushes to `main` and manual runs on `main` publish to GitHub Pages at `/main/`, 
 The `github-pages` deployment environment should allow deployments only from `main`.
 
 File: `documentation.yml`
-3rd party dependencies: elan
+3rd party dependencies: None

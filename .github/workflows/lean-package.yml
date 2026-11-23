@@ -192,9 +192,3 @@ jobs:
             fi
             echo "::endgroup::"
           done
-
-      - name: Dump replays for the trace viewer
-        if: inputs.package == 'disaster-recovery'
-        run: |
-          set -euo pipefail
-          python3 lean/disaster-recovery/replayer/viewer/build.py
