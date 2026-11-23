@@ -184,6 +184,46 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
   CHECK(empty->empty());
 }
 
+TEST_CASE("SPSC queue bounds queued bytes with one record of overshoot")
+{
+  using Queue = ccf::tracing::SPSCQueue;
+  CHECK_THROWS_AS(Queue(8, 0), std::invalid_argument);
+  Queue queue(8, 100);
+  std::vector<uint8_t> payload(60);
+  for (size_t round = 0; round < 16; ++round)
+  {
+    // Any free byte admits a record, whatever its size.
+    REQUIRE(queue.push(payload));
+    REQUIRE(queue.push(payload));
+    const auto before = allocations;
+    const auto full = queue.push({});
+    const auto after = allocations;
+    CHECK_FALSE(full);
+    CHECK(after == before);
+    CHECK(queue.size() == 2);
+    // 60 bytes remain queued, so the next record is admitted again.
+    REQUIRE(queue.pop() != nullptr);
+    REQUIRE(queue.push(payload));
+    CHECK_FALSE(queue.push(payload));
+    for (size_t i = 0; i < 2; ++i)
+      REQUIRE(queue.pop() != nullptr);
+    CHECK(queue.pop() == nullptr);
+  }
+  // Rejected and failed pushes are not charged.
+  allocation_failure = allocations + 1;
+  const auto pushed = queue.push(payload);
+  allocation_failure = 0;
+  CHECK_FALSE(pushed);
+  std::vector<uint8_t> large(Queue::MAX_RECORD_SIZE);
+  REQUIRE(queue.push(large));
+  CHECK_FALSE(queue.push({}));
+  REQUIRE(queue.pop() != nullptr);
+  // The record count still bounds records too small to reach the byte limit.
+  for (size_t i = 0; i < 8; ++i)
+    REQUIRE(queue.push({}));
+  CHECK_FALSE(queue.push({}));
+}
+
 TEST_CASE("Nested object encoding does not allocate into a reserved buffer")
 {
   std::vector<uint8_t> bytes;
