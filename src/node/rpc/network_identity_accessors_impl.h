@@ -77,8 +77,6 @@ namespace ccf
         classical_version.has_value() ?
           std::to_string(classical_version.value()) :
           "no version");
-      // Logged here in case the call site does not handle the exception
-      // properly: this is a broken invariant and must not be recovered from.
       LOG_FATAL_FMT("{}", err);
       throw std::logic_error(err);
     }
