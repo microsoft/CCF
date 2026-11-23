@@ -179,7 +179,7 @@ namespace ccf::sealing
       LOG_INFO_FMT("No sealed shares found to unseal recovery share");
       return std::nullopt;
     }
-    auto sealed_share_info = sealed_shares.value();
+    const auto& sealed_share_info = sealed_shares.value();
 
     // Unseal the recovery key pair
     std::vector<uint8_t> derived_key;

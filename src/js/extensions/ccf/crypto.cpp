@@ -724,7 +724,7 @@ namespace ccf::js::extensions
 
       try
       {
-        auto algo_name = *wrap_algo_name_str;
+        const auto& algo_name = *wrap_algo_name_str;
         if (algo_name == "RSA-OAEP")
         {
           // key can in principle be arbitrary data (see note on maximum size
@@ -852,7 +852,7 @@ namespace ccf::js::extensions
 
       try
       {
-        auto algo_name = *wrap_algo_name_str;
+        const auto& algo_name = *wrap_algo_name_str;
         if (algo_name == "RSA-OAEP")
         {
           // key can in principle be arbitrary data (see note on maximum size
@@ -1012,8 +1012,8 @@ namespace ccf::js::extensions
 
       try
       {
-        auto algo_name = *algo_name_str;
-        auto algo_hash = *algo_hash_str;
+        const auto& algo_name = *algo_name_str;
+        const auto& algo_hash = *algo_hash_str;
 
         ccf::crypto::MDType mdtype = ccf::crypto::MDType::NONE;
 
@@ -1183,9 +1183,9 @@ namespace ccf::js::extensions
 
       try
       {
-        auto algo_name = *algo_name_str;
-        auto algo_hash = *algo_hash_str;
-        auto key = *key_str;
+        const auto& algo_name = *algo_name_str;
+        const auto& algo_hash = *algo_hash_str;
+        const auto& key = *key_str;
 
         ccf::crypto::MDType mdtype = {};
         if (algo_hash == "SHA-256")
