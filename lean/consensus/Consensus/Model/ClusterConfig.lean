@@ -83,6 +83,17 @@ def retiredCommittedNodes (log : List Entry) : Finset NodeID :=
   log.foldl
     (fun retired entry => retired ∪ entry.content.metadata.retirementConfirmations) ∅
 
+/--
+Nodes whose retirement the log confirms before that of `node`: in an earlier
+transaction, or in the same transaction with a smaller identifier. CCF confirms the
+retirements which a commit covers in that order.
+-/
+def retirementsConfirmedBefore (log : List Entry) (node : NodeID) : Finset NodeID :=
+  let confirmations := log.map (·.content.metadata.retirementConfirmations)
+  let earlier := confirmations.takeWhile fun nodes => decide (node ∉ nodes)
+  let same := (confirmations.drop earlier.length).headD ∅
+  earlier.foldl (· ∪ ·) ∅ ∪ same.filter (· < node)
+
 def hasConfigurationMajority (support : Finset NodeID) (configuration : Configuration)
     : Prop :=
   (support ∩ configuration.nodes).card * 2 > configuration.nodes.card
