@@ -55,7 +55,8 @@ inductive Event where
 /-! ## Primary state -/
 
 /--
-Approximates `all_other_nodes`; unlike CCF, peers lost on rollback are not retained.
+Approximates `all_other_nodes`; unlike CCF, a node which starts from a snapshot knows the
+nodes which retired before it.
 -/
 def eligiblePeers (state : NodeState) (self : NodeID) : Finset NodeID :=
   (state.activeMembers ∪ state.retirementCompletedNodes).erase self

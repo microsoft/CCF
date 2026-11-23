@@ -54,6 +54,7 @@ import Scenarios.retired_node_delayed_responses
 import Scenarios.retirement_commit_below_signature
 import Scenarios.retirement_nominates_most_replicated
 import Scenarios.retirement_rollback
+import Scenarios.rollback_forgets_added_node
 import Scenarios.rollback_safety
 import Scenarios.soft_rollback
 import Scenarios.startup
