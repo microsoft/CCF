@@ -1,0 +1,4 @@
+{"msg":{"function":"become_leader","state":{"node_id":"n0","current_view":2,"last_idx":0}}}
+{"msg":{"function":"send_request_vote","state":{"node_id":"n2"},"packet":{"term":4,"last_committable_idx":0,"term_of_last_committable_idx":0}}}
+{"msg":{"function":"become_leader","state":{"node_id":"n2","current_view":4,"last_idx":0}}}
+{"msg":{"function":"replicate_entry","state":{"node_id":"n1"},"view":3,"seqno":1}}
