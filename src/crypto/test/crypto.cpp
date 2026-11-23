@@ -2244,13 +2244,17 @@ TEST_CASE("AES key unwrap with padding rejects invalid input")
     std::vector<uint8_t>(get_raw_key().size(), '%'));
 
   // A failed unwrap clears output that OpenSSL has already written, so cover
-  // the single-block case and a range of padded lengths. If the buffer is too
-  // small, this corrupts the heap, which may only crash a later test.
+  // the single-block case and a range of padded lengths. A result keeps the
+  // buffer that the unwrap wrote to, so check that it can hold the whole
+  // input, which OpenSSL releases without openssl/openssl#30663 clear when
+  // the integrity check fails.
   for (size_t size = 1; size <= 72; ++size)
   {
     const auto key_to_wrap = get_entropy()->random(size);
     const auto wrapped = ossl->ckm_aes_key_wrap_pad(key_to_wrap);
-    REQUIRE(ossl->ckm_aes_key_unwrap_pad(wrapped) == key_to_wrap);
+    const auto unwrapped = ossl->ckm_aes_key_unwrap_pad(wrapped);
+    REQUIRE(unwrapped == key_to_wrap);
+    REQUIRE(unwrapped.capacity() >= wrapped.size());
 
     REQUIRE_THROWS_AS(
       (void)other_key->ckm_aes_key_unwrap_pad(wrapped), std::runtime_error);
