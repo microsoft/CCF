@@ -2243,8 +2243,9 @@ TEST_CASE("AES key unwrap with padding rejects invalid input")
   auto other_key = std::make_unique<KeyAesGcm_OpenSSL>(
     std::vector<uint8_t>(get_raw_key().size(), '%'));
 
-  // OpenSSL writes the output before it can tell that an unwrap failed, so
-  // cover the single-block case and a range of padded lengths
+  // A failed unwrap clears output that OpenSSL has already written, so cover
+  // the single-block case and a range of padded lengths. If the buffer is too
+  // small, this corrupts the heap, which may only crash a later test.
   for (size_t size = 1; size <= 72; ++size)
   {
     const auto key_to_wrap = get_entropy()->random(size);
@@ -2260,7 +2261,7 @@ TEST_CASE("AES key unwrap with padding rejects invalid input")
       (void)ossl->ckm_aes_key_unwrap_pad(tampered), std::runtime_error);
   }
 
-  // Unwrapping needs at least two whole 8-byte blocks
+  // Unwrapping needs a whole number of 8-byte blocks, and at least two
   for (const size_t size : {size_t{8}, size_t{15}, size_t{17}})
   {
     const std::vector<uint8_t> malformed(size, 0x42);

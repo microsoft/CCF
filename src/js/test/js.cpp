@@ -1944,8 +1944,7 @@ export function run() {
     // Same > 512-byte allocation trick as the wrapKey test: a 1032-byte
     // wrapped payload routes through the system malloc so ASAN can see
     // the transfer(0) as a real free and catch the C++ read.
-    // Use valid ciphertext to avoid OpenSSL's heap corruption on failed
-    // AES-KWP unwraps (see #8358); this test targets re-entry, not rejection.
+    // Valid ciphertext keeps this test about re-entry rather than rejection.
     ccf::js::core::Context ctx(TxAccess::APP_RW);
     ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
     const auto script = R"(

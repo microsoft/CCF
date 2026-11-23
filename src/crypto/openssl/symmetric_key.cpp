@@ -428,10 +428,13 @@ namespace ccf::crypto
     CHECK1(
       EVP_DecryptInit_ex(ctx, evp_cipher_wrap_pad, nullptr, nullptr, nullptr));
     CHECK1(EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), nullptr));
-    // Wrap modes may write up to the input length rounded up to the block
-    // size, plus one block (see EVP_EncryptInit(3)). The length query reports
-    // less than that, and some OpenSSL releases clear the whole input length
-    // of the output when an unwrap fails.
+    // The length query rejects invalid non-empty input lengths before the
+    // output buffer is allocated, but reports less than wrap modes may write:
+    // up to the input length rounded up to the block size, plus one block
+    // (see EVP_EncryptInit(3)). OpenSSL releases without openssl/openssl#30663
+    // clear the whole input length of the output when the integrity check
+    // fails.
+    CHECK1(EVP_DecryptUpdate(ctx, nullptr, &len, cipher.data(), inl));
     const auto block_size = EVP_CIPHER_CTX_get_block_size(ctx);
     CHECKPOSITIVE(block_size);
     const auto block = static_cast<size_t>(block_size);
