@@ -81,16 +81,18 @@ private def quote (text : String) : String :=
       unit (55296 + (c.toNat - 65536) / 1024) ++ unit (56320 + (c.toNat - 65536) % 1024)
   "\"" ++ String.join (text.toList.map escape) ++ "\""
 
-/-- A value on one line, with the separators of Python. -/
-partial def Value.render : Value → String
+/-- A value on one line, with the separators of Python, or without spaces if `compact`. -/
+partial def Value.render (value : Value) (compact : Bool := false) : String :=
+  let (item, field) := if compact then (",", ":") else (", ", ": ")
+  match value with
   | .number value => toString value
   | .text value => quote value
   | .flag value => if value then "true" else "false"
-  | .list items => "[" ++ ", ".intercalate (items.map render) ++ "]"
+  | .list items => "[" ++ item.intercalate (items.map (render · compact)) ++ "]"
   | .object fields =>
       "{"
-      ++ ", ".intercalate
-          (fields.map fun (key, value) => quote key ++ ": " ++ value.render)
+      ++ item.intercalate
+          (fields.map fun (key, value) => quote key ++ field ++ value.render compact)
       ++ "}"
 
 /-! ## Driver -/
@@ -1150,15 +1152,16 @@ Run a command: record it, as the scenario driver does, and name it if it fails. 
 index of every node must then be safe, which the scenario driver does not check after a
 command which only reads.
 -/
-private def command (name : String) (run : IO Unit) (reads : Bool := false)
-    : IO Unit := do
+private def command {α : Type} (name : String) (run : IO α) (reads : Bool := false)
+    : IO α := do
   driver.modify fun d => { d with commands := d.commands + 1 }
   write (.object [("cmd", .text name)])
   try
-    run
+    let result ← run
     unless reads do
       for node in ← nodeIds do
         checkCommitSafety node
+    return result
   catch error =>
     fail s!"Step {(← driver.get).commands} ({name}) failed: {error}"
 
@@ -1322,6 +1325,18 @@ def dispatchSingle (source target : Text) : IO Unit :=
     discard <| get source
     if let some envelope := (← queue source).find? (·.target == target) then
       discard <| dispatch envelope
+
+/-- Each message as the scenario driver writes it: the packet of the trace, without spaces. -/
+@[export model_cft_pending_messages]
+def pendingMessages (source target : Text) : IO (Array String) :=
+  command (text "pending_messages" [source.text, target.text]) (reads := true) do
+    let source ← nodeId source
+    let target ← nodeId target
+    discard <| get source
+    let pending := (← queue source).filter (·.target == target)
+    return pending.toArray.map
+      fun envelope =>
+        (packet envelope.payload).render (compact := true)
 
 @[export model_cft_dispatch_all_once]
 def dispatchAllOnceCommand : IO Unit :=
