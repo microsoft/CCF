@@ -6,6 +6,7 @@
 #include "ccf/threading/thread_ids.h"
 
 #include <algorithm>
+#include <array>
 #include <ctime>
 #include <format>
 #include <iostream>
@@ -168,42 +169,36 @@ namespace ccf::logger
     }
   };
 
-  static std::string format_to_text(const LogLine& ll)
+  static std::pair<std::string, size_t> format_text_preamble(const LogLine& ll)
   {
-    // Fetch time
-    ::timespec host_ts{};
-    if (::timespec_get(&host_ts, TIME_UTC) == 0)
+    constexpr size_t level_width = 5;
+    const std::string_view level = to_string(ll.log_level);
+    std::string preamble = "[";
+    preamble += level;
+    preamble.append(level_width - level.size(), ' ');
+    preamble += ']';
+    if (!ll.tag.empty())
     {
-      throw std::runtime_error("timespec_get failed");
+      preamble += '[';
+      preamble += ll.tag;
+      preamble += ']';
     }
-    std::tm host_tm{};
-    ::gmtime_r(&host_ts.tv_sec, &host_tm);
+    preamble += ' ';
+    preamble.resize(std::min<size_t>(preamble.size(), preamble_length));
 
-    auto file_line = std::format("{}:{} ", ll.file_name, ll.line_number);
-    auto* file_line_data = file_line.data();
-
-    // The preamble is the level, then tag, then file line. If the file line is
-    // too long, the final characters are retained.
-    auto preamble = std::format(
-                      "[{:<5}]{} ",
-                      to_string(ll.log_level),
-                      (ll.tag.empty() ? "" : std::format("[{}]", ll.tag)))
-                      .substr(0, preamble_length);
-    const auto max_file_line_len = preamble_length - preamble.size();
-
-    const auto len = file_line.size();
-    if (len > max_file_line_len)
-    {
-      file_line_data += len - max_file_line_len;
-    }
-
-    preamble += file_line_data;
+    auto file_line = ll.file_name;
+    file_line += ':';
+    file_line += std::to_string(ll.line_number);
+    file_line += ' ';
+    // Keep the end of the source location when space is limited.
+    const auto file_line_size =
+      std::min<size_t>(file_line.size(), preamble_length - preamble.size());
+    preamble += file_line.c_str() + (file_line.size() - file_line_size);
 
     auto padded_preamble_size = static_cast<size_t>(preamble_length);
-    // The opening bracket and five level characters are always ASCII.
-    // Keep the closing bracket in the measured text.
-    constexpr size_t level_prefix_size = 6;
-    auto measured = std::string_view(preamble).substr(level_prefix_size);
+    // Skip the ASCII level prefix, keeping its closing bracket in the
+    // measured text so we cut between two printable ASCII characters.
+    auto measured = std::string_view(preamble).substr(1 + level_width);
     const auto ascii_suffix = std::find_if_not(
       measured.rbegin(), measured.rend(), [](unsigned char ch) {
         return ch >= ' ' && ch <= '~';
@@ -220,21 +215,33 @@ namespace ccf::logger
         std::formatted_size("{:<{}}", measured, preamble_length - skipped);
     }
 
-    const auto thread = std::to_string(ll.thread_id);
-    const auto thread_width = std::max<size_t>(3, thread.size());
-    auto text = get_timestamp(host_tm, host_ts);
-    text.reserve(
-      text.size() + thread_width + padded_preamble_size + ll.msg.size() + 5);
-    text += ' ';
-    text += thread;
-    text.append(thread_width - thread.size(), ' ');
-    text += ' ';
-    text += preamble;
-    text.append(padded_preamble_size - preamble.size(), ' ');
-    text += "| ";
-    text += ll.msg;
-    text += '\n';
-    return text;
+    const auto padding = padded_preamble_size - preamble.size();
+    return {std::move(preamble), padding};
+  }
+
+  static std::string format_to_text(const LogLine& ll)
+  {
+    ::timespec host_ts{};
+    if (::timespec_get(&host_ts, TIME_UTC) == 0)
+    {
+      throw std::runtime_error("timespec_get failed");
+    }
+    std::tm host_tm{};
+    ::gmtime_r(&host_ts.tv_sec, &host_tm);
+
+    const auto [preamble, padding] = format_text_preamble(ll);
+    static constexpr auto spaces = [] {
+      std::array<char, preamble_length> chars{};
+      chars.fill(' ');
+      return chars;
+    }();
+    return std::format(
+      "{} {:<3} {}{}| {}\n",
+      get_timestamp(host_tm, host_ts),
+      ll.thread_id,
+      preamble,
+      std::string_view(spaces.data(), padding),
+      ll.msg);
   }
 
   class TextConsoleLogger : public AbstractLogger
