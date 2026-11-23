@@ -3170,6 +3170,53 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
 }
 
+DOCTEST_TEST_CASE(
+  "A primary refuses a configuration with no nodes" *
+  doctest::test_suite("single"))
+{
+  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
+  TestNode node(node_id);
+  auto& r0 = node.cft;
+
+  aft::Configuration::Nodes config;
+  config[node_id] = {};
+  r0.add_configuration(0, config);
+
+  r0.start_ticking();
+  r0.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(r0.is_primary());
+
+  auto entry =
+    std::make_shared<std::vector<uint8_t>>(std::vector<uint8_t>{1, 2, 3});
+  DOCTEST_REQUIRE(
+    r0.replicate(ccf::kv::BatchVector{{1, entry, true, hooks}}, 1));
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
+
+  DOCTEST_INFO("The transaction which removes the only node is refused");
+  auto removal_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  removal_hooks->push_back(std::make_unique<aft::ConfigurationChangeHook>(
+    aft::Configuration::Nodes{}, 2));
+  DOCTEST_REQUIRE_THROWS_WITH_AS(
+    r0.replicate(ccf::kv::BatchVector{{2, entry, false, removal_hooks}}, 1),
+    "Configuration at 2 has no nodes",
+    std::logic_error);
+
+  DOCTEST_INFO("Nothing is appended, and the configuration is as it was");
+  DOCTEST_REQUIRE(r0.get_last_idx() == 1);
+  DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
+  const auto details = r0.get_details();
+  DOCTEST_REQUIRE(details.configs.size() == 1);
+  DOCTEST_REQUIRE(details.configs.back().nodes == config);
+  DOCTEST_REQUIRE(details.membership_state == ccf::kv::MembershipState::Active);
+  DOCTEST_REQUIRE(r0.is_primary());
+
+  DOCTEST_INFO("A backup follows the log of its primary, as before");
+  TestNode backup(ccf::kv::test::FirstBackupNodeId);
+  backup.cft.add_configuration(0, config);
+  backup.cft.add_configuration(2, {});
+  DOCTEST_REQUIRE(backup.cft.get_details().configs.size() == 2);
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;

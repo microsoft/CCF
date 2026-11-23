@@ -557,6 +557,21 @@ namespace aft
       CFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
+      // A configuration with no nodes has no quorum, so nothing could be
+      // committed once it is active. A primary refuses the transaction which
+      // asks for one, before it appends the entry or sends it to another
+      // node. Other nodes must follow the log which their primary sends.
+      if (
+        conf.empty() &&
+        state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
+      {
+        CFT_FAIL_FMT(
+          "Refusing to replicate the configuration at {}: it has no nodes",
+          idx);
+        throw std::logic_error(
+          fmt::format("Configuration at {} has no nodes", idx));
+      }
+
       trace::add_configuration(*state, configurations, idx, conf, idx);
 
       // Detect when we are retired by observing a configuration
