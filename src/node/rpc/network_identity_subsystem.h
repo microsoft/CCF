@@ -44,22 +44,22 @@ namespace ccf
     std::atomic<FetchStatus> fetch_status{FetchStatus::Retry};
     bool has_predecessors{false};
     size_t fetch_attempts{0};
-    // Self-endorsement at which fetching stopped. It is not part of the
-    // chain, and is validated against it when fetching completes.
+    // The CLASSICAL endorsement chain terminates here. It is not part of the
+    // chain, but is checked for validity.
     std::optional<CoseEndorsement> self_endorsement;
 
-    // PQ chain. A service with a PQ identity writes its PQ endorsement in the
-    // transaction which writes the classical one, so both chains are fetched
-    // from the same transactions. The PQ chain may stop earlier, at the
-    // self-endorsement of the service which introduced the PQ identity.
-    // Set when the current service has a PQ identity
+    // PQ counterparts of some of the members above, with PQ-only additions.
     std::optional<std::vector<uint8_t>> current_pq_key_der;
-    // Whether the oldest PQ endorsement fetched so far has a predecessor
-    bool pq_fetching{false};
     std::map<SeqNo, CoseEndorsement> pq_endorsements;
-    // As self_endorsement, for the PQ chain
-    std::optional<CoseEndorsement> pq_self_endorsement;
     TrustedKeysPQ pq_trusted_keys;
+
+    // The PQ chain can stop earlier than the CLASSICAL one, so it needs its
+    // own indication.
+    bool pq_fetching{false};
+
+    // The PQ endorsement chain terminates here. It is not part of the chain,
+    // but is checked for validity.
+    std::optional<CoseEndorsement> pq_self_endorsement;
 
   public:
     NetworkIdentitySubsystem(
