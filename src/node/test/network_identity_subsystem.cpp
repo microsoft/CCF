@@ -9,6 +9,7 @@
 #include "crypto/openssl/mldsa_support.h"
 #include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/internal_tables_access.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_chain_helpers.h"
@@ -1170,6 +1171,19 @@ TEST_CASE("Failed: invalid self-endorsement at which fetching stops")
       *key, 1700000000, "2.2", {}, {}, key->public_key_der());
     expected_error = "is signed for another epoch begin 2.2";
   }
+  SUBCASE("Signed with an epoch end")
+  {
+    // A back-endorsement which endorses the key which signed it
+    const auto& key = cb.service_keys.at(0);
+    self.endorsement = ccf::cose::sign_endorsement(
+      *key,
+      1700000000,
+      "2.1",
+      "2.100",
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
+      key->public_key_der());
+    expected_error = "is signed with an epoch end 2.100";
+  }
   SUBCASE("Back-endorsement passed off as a self-endorsement")
   {
     // Would stop fetching before the oldest endorsements are reached
@@ -1885,6 +1899,198 @@ TEST_CASE("A service without a PQ identity has no current PQ endorsement")
   const auto current = node_state.get_current_service_identity();
   REQUIRE(current.endorsement.has_value());
   REQUIRE_FALSE(current.pq_endorsement.has_value());
+}
+
+namespace
+{
+  // Consecutive services written by InternalTablesAccess, as a node creates
+  // and opens them, with the fetcher reading what each opening wrote
+  struct WrittenServices
+  {
+    struct Keys
+    {
+      std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> key =
+        std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(
+          ccf::crypto::CurveID::SECP384R1);
+      ccf::crypto::MLDSAKeyPairPtr pq_key = ccf::crypto::make_mldsa_key_pair(
+        ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+    };
+
+    SubsystemFixture f;
+    std::shared_ptr<StoreNodeStateAccessor> node_state =
+      std::make_shared<StoreNodeStateAccessor>();
+    ccf::MerkleTreeHistory tree;
+    size_t count = 0;
+
+    // A service with_pq = false has no PQ identity, as one created by a
+    // release without ML-DSA
+    void create(const Keys& keys, const ccf::TxID& create_txid, bool with_pq)
+    {
+      const std::string valid_from = "20240101000000Z";
+      const std::string valid_to = "20250101000000Z";
+      const auto cert = keys.key->self_sign("CN=test", valid_from, valid_to);
+      const auto pq_cert =
+        keys.pq_key->self_sign("CN=test", valid_from, valid_to);
+
+      auto tx = node_state->store->create_tx();
+      if (count != 0)
+      {
+        tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+          ->put(tree.serialise());
+      }
+      ccf::InternalTablesAccess::create_service(
+        tx, cert, pq_cert, create_txid, nullptr, count != 0);
+      if (!with_pq)
+      {
+        auto* service = tx.rw<ccf::Service>(ccf::Tables::SERVICE);
+        auto info = service->get().value();
+        info.pq_cert.reset();
+        service->put(info);
+        tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+          ->remove(ccf::IdentityType::PQ);
+      }
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      tree.append(ccf::crypto::Sha256Hash(cert.str()));
+      ++count;
+    }
+
+    // Opens the service created last, and gives its keys to the node
+    void open(const Keys& keys, bool with_pq)
+    {
+      {
+        auto tx = node_state->store->create_tx();
+        REQUIRE(ccf::InternalTablesAccess::endorse_previous_identity(
+          tx, *keys.key, with_pq ? keys.pq_key : nullptr));
+        auto* service = tx.rw<ccf::Service>(ccf::Tables::SERVICE);
+        auto info = service->get().value();
+        info.status = ccf::ServiceStatus::OPEN;
+        service->put(info);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      }
+
+      // The historical state at a version holds what that transaction wrote
+      auto tx = node_state->store->create_read_only_tx();
+      auto* endorsements = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
+        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+      const auto version =
+        endorsements
+          ->get_version_of_previous_write(ccf::IdentityType::CLASSICAL)
+          .value();
+      f.historical->entries.emplace(
+        version, endorsements->get(ccf::IdentityType::CLASSICAL).value());
+      if (
+        endorsements->get_version_of_previous_write(ccf::IdentityType::PQ) ==
+        version)
+      {
+        f.historical->pq_entries.emplace(
+          version, endorsements->get(ccf::IdentityType::PQ).value());
+      }
+
+      f.use_identity_key(keys.key);
+      f.use_pq_identity_key(with_pq ? keys.pq_key : nullptr);
+    }
+
+    void create_and_open(
+      const Keys& keys, const ccf::TxID& create_txid, bool with_pq = true)
+    {
+      create(keys, create_txid, with_pq);
+      open(keys, with_pq);
+    }
+
+    std::unique_ptr<ccf::NetworkIdentitySubsystem> fetch()
+    {
+      auto sub = std::make_unique<ccf::NetworkIdentitySubsystem>(
+        node_state, f.historical, f.identity, f.scheduler);
+      sub->start_with_config(SubsystemFixture::default_config());
+      f.scheduler->run_to_completion();
+      REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+      return sub;
+    }
+  };
+
+  using KeysDer = std::map<ccf::SeqNo, std::vector<uint8_t>>;
+
+  KeysDer keys_der(const ccf::NetworkIdentitySubsystemInterface& sub)
+  {
+    KeysDer keys;
+    for (const auto& [seqno, key] : sub.get_trusted_keys())
+    {
+      keys.emplace(seqno, key->public_key_der());
+    }
+    return keys;
+  }
+}
+
+TEST_CASE("Endorsements written by consecutive services are fetched")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  WrittenServices services;
+  const WrittenServices::Keys first;
+  const WrittenServices::Keys second;
+  const WrittenServices::Keys third;
+
+  SUBCASE("PQ identity from the first service")
+  {
+    services.create_and_open(first, {2, 1});
+    services.create_and_open(second, {4, 10});
+    services.create_and_open(third, {6, 20});
+    const auto sub = services.fetch();
+
+    REQUIRE(
+      keys_der(*sub) ==
+      KeysDer{
+        {1, first.key->public_key_der()},
+        {10, second.key->public_key_der()},
+        {20, third.key->public_key_der()}});
+    REQUIRE(
+      pq_keys_der(*sub) ==
+      PQKeysDer{
+        {1, first.pq_key->public_key_der()},
+        {10, second.pq_key->public_key_der()},
+        {20, third.pq_key->public_key_der()}});
+    REQUIRE(sub->get_cose_endorsements_chain(5)->size() == 2);
+    REQUIRE(sub->get_cose_endorsements_chain_pq(5)->size() == 2);
+  }
+
+  SUBCASE("PQ identity introduced by a recovery")
+  {
+    services.create_and_open(first, {2, 1}, false);
+    services.create_and_open(second, {4, 10});
+    services.create_and_open(third, {6, 20});
+    const auto sub = services.fetch();
+
+    REQUIRE(keys_der(*sub).size() == 3);
+    REQUIRE(
+      pq_keys_der(*sub) ==
+      PQKeysDer{
+        {10, second.pq_key->public_key_der()},
+        {20, third.pq_key->public_key_der()}});
+    REQUIRE(sub->get_cose_endorsements_chain(5)->size() == 2);
+    REQUIRE_FALSE(sub->get_cose_endorsements_chain_pq(5).has_value());
+    REQUIRE(sub->get_cose_endorsements_chain_pq(15)->size() == 1);
+  }
+
+  SUBCASE("Service created by a recovery which never opened")
+  {
+    services.create_and_open(first, {2, 1});
+    services.create(second, {4, 10}, true);
+    services.create_and_open(third, {6, 20});
+    const auto sub = services.fetch();
+
+    REQUIRE(
+      keys_der(*sub) ==
+      KeysDer{
+        {1, first.key->public_key_der()}, {20, third.key->public_key_der()}});
+    REQUIRE(
+      pq_keys_der(*sub) ==
+      PQKeysDer{
+        {1, first.pq_key->public_key_der()},
+        {20, third.pq_key->public_key_der()}});
+  }
 }
 
 TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")

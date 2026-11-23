@@ -6,8 +6,8 @@
 #include "ccf/ds/hex.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/cft_types.h"
-#include "crypto/cbor_tags.h"
 #include "crypto/cose.h"
+#include "crypto/openssl/cose_verifier.h"
 #include "ds/internal_logger.h"
 #include "service/tables/previous_service_identity.h"
 
@@ -16,7 +16,6 @@
 #include <span>
 #include <stdexcept>
 #include <string>
-#include <tav/cbor.hpp>
 #include <vector>
 
 namespace ccf
@@ -113,46 +112,6 @@ namespace ccf
     return {endorsed_key.begin(), endorsed_key.end()};
   }
 
-  // Signed start of the validity range of an endorsement. Unlike
-  // extract_cose_endorsement_validity, this does not require a signed end,
-  // which a self-endorsement does not have.
-  inline std::string extract_cose_endorsement_epoch_begin(
-    std::span<const uint8_t> cose_msg)
-  {
-    using namespace tav::cbor;
-
-    auto cose_cbor = rethrow_with_msg(
-      [&]() { return nondet_parse(cose_msg); }, "Parse COSE CBOR");
-
-    const auto cose_envelope = rethrow_with_msg(
-      [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
-      "Parse COSE tag");
-
-    const auto phdr_raw = rethrow_with_msg(
-      [&]() { return cose_envelope.array_at(0); },
-      "Parse raw protected header");
-
-    auto phdr = rethrow_with_msg(
-      [&]() { return nondet_parse(phdr_raw.as_bytes()); },
-      "Decode protected header");
-
-    const auto ccf_claims = rethrow_with_msg(
-      [&]() {
-        return phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
-      },
-      "Retrieve CCF claims");
-
-    const auto from = rethrow_with_msg(
-      [&]() {
-        return ccf_claims
-          .map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
-          .as_string();
-      },
-      "Retrieve epoch range begin");
-
-    return std::string(from);
-  }
-
   // A chain stops at the self-endorsement of its oldest service, which is not
   // part of the chain. Checks that it starts at expected_from, the oldest
   // epoch which the chain covers, and that expected_key, the key which the
@@ -215,14 +174,23 @@ namespace ccf
     }
 
     // The signature is verified, so the header is safe to trust
-    const auto signed_from =
-      extract_cose_endorsement_epoch_begin(endorsement.endorsement);
-    if (signed_from != from_str)
+    const auto signed_epochs =
+      ccf::crypto::extract_cose_endorsement_epochs(endorsement.endorsement);
+    if (signed_epochs.begin != from_str)
     {
       throw std::logic_error(fmt::format(
         "Self-endorsement at {} is signed for another epoch begin {}",
         from_str,
-        signed_from));
+        signed_epochs.begin));
+    }
+
+    // A back-endorsement is signed with an epoch end
+    if (signed_epochs.end.has_value())
+    {
+      throw std::logic_error(fmt::format(
+        "Self-endorsement at {} is signed with an epoch end {}",
+        from_str,
+        signed_epochs.end.value()));
     }
   }
 

@@ -533,39 +533,57 @@ namespace ccf::crypto
     return std::make_unique<COSEKeyVerifier_OpenSSL>(key);
   }
 
+  namespace
+  {
+    tav::cbor::Value extract_cose_endorsement_ccf_claims(
+      std::span<const uint8_t> cose_msg)
+    {
+      using namespace tav::cbor;
+
+      auto cose_cbor = rethrow_with_msg(
+        [&]() { return nondet_parse(cose_msg); }, "Parse COSE CBOR");
+
+      const auto cose_envelope = rethrow_with_msg(
+        [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+        "Parse COSE tag");
+
+      const auto phdr_raw = rethrow_with_msg(
+        [&]() { return cose_envelope.array_at(0); },
+        "Parse raw protected header");
+
+      auto phdr = rethrow_with_msg(
+        [&]() { return nondet_parse(phdr_raw.as_bytes()); },
+        "Decode protected header");
+
+      return rethrow_with_msg(
+        [&]() {
+          return phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
+        },
+        "Retrieve CCF claims");
+    }
+
+    std::string extract_epoch_begin(const tav::cbor::Value& ccf_claims)
+    {
+      using namespace tav::cbor;
+
+      return rethrow_with_msg(
+        [&]() {
+          return std::string(
+            ccf_claims
+              .map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
+              .as_string());
+        },
+        "Retrieve epoch range begin");
+    }
+  }
+
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg)
   {
     using namespace tav::cbor;
 
-    auto cose_cbor = rethrow_with_msg(
-      [&]() { return nondet_parse(cose_msg); }, "Parse COSE CBOR");
-
-    const auto cose_envelope = rethrow_with_msg(
-      [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
-      "Parse COSE tag");
-
-    const auto phdr_raw = rethrow_with_msg(
-      [&]() { return cose_envelope.array_at(0); },
-      "Parse raw protected header");
-
-    auto phdr = rethrow_with_msg(
-      [&]() { return nondet_parse(phdr_raw.as_bytes()); },
-      "Decode protected header");
-
-    const auto ccf_claims = rethrow_with_msg(
-      [&]() {
-        return phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
-      },
-      "Retrieve CCF claims");
-
-    auto from = rethrow_with_msg(
-      [&]() {
-        return ccf_claims
-          .map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
-          .as_string();
-      },
-      "Retrieve epoch range begin");
+    const auto ccf_claims = extract_cose_endorsement_ccf_claims(cose_msg);
+    auto from = extract_epoch_begin(ccf_claims);
 
     auto to = rethrow_with_msg(
       [&]() {
@@ -576,6 +594,35 @@ namespace ccf::crypto
       "Retrieve epoch range end");
 
     return COSEEndorsementValidity{
-      .from_txid = std::string(from), .to_txid = std::string(to)};
+      .from_txid = std::move(from), .to_txid = std::string(to)};
+  }
+
+  COSEEndorsementEpochs extract_cose_endorsement_epochs(
+    std::span<const uint8_t> cose_msg)
+  {
+    using namespace tav::cbor;
+
+    const auto ccf_claims = extract_cose_endorsement_ccf_claims(cose_msg);
+    COSEEndorsementEpochs epochs{
+      .begin = extract_epoch_begin(ccf_claims), .end = std::nullopt};
+
+    rethrow_with_msg(
+      [&]() {
+        const auto size = ccf_claims.size();
+        for (size_t i = 0; i < size; ++i)
+        {
+          const auto key = ccf_claims.map_key_at(i);
+          if (
+            key.kind() == Kind::STRING &&
+            key.as_string() == ccf::cose::header::custom::TX_RANGE_END)
+          {
+            epochs.end = std::string(ccf_claims.map_value_at(i).as_string());
+            return;
+          }
+        }
+      },
+      "Retrieve epoch range end");
+
+    return epochs;
   }
 }
