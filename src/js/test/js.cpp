@@ -3170,6 +3170,35 @@ TEST_CASE("ccf.crypto bindings validate their arguments")
   }
 }
 
+TEST_CASE("ccf.crypto.unwrapKey rejects tampered ciphertext")
+{
+  // An unwrap that fails its integrity check must throw a catchable error and
+  // leave the context usable. crypto_test checks the size of the buffer that
+  // OpenSSL writes to.
+  run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const key = new Uint8Array(32).fill(0x42).buffer;
+      const aesKey = ccf.crypto.generateAesKey(256);
+      const rsaKp = ccf.crypto.generateRsaKeyPair(2048);
+      const algorithms = [
+        [{name: "AES-KWP"}, aesKey, aesKey],
+        [{name: "RSA-OAEP-AES-KWP", aesKeySize: 256},
+          ccf.strToBuf(rsaKp.publicKey), ccf.strToBuf(rsaKp.privateKey)],
+      ];
+      for (const [params, wrappingKey, unwrappingKey] of algorithms) {
+        const wrapped = ccf.crypto.wrapKey(key, wrappingKey, params);
+        const tampered = new Uint8Array(wrapped.slice(0));
+        tampered[tampered.length - 1] ^= 1;
+        expectThrows(params.name + " tampered",
+          () => ccf.crypto.unwrapKey(tampered.buffer, unwrappingKey, params),
+          InternalError, "Failed to unwrap key");
+        const unwrapped = new Uint8Array(
+          ccf.crypto.unwrapKey(wrapped, unwrappingKey, params));
+        if (unwrapped.length !== 32 || unwrapped.some((b) => b !== 0x42))
+          throw new Error(params.name + ": unwrap failed after a rejection");
+      }
+    )JS");
+}
+
 TEST_CASE("ccf.crypto key generation with non-default parameters")
 {
   // Success paths of src/js/extensions/ccf/crypto.cpp that no other test
