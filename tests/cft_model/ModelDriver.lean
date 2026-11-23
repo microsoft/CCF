@@ -958,9 +958,26 @@ The bytes which the scenario driver replicates for an entry of `kind` whose data
 private def entryBytes (kind : String) (bytes : Nat) : Nat :=
   21 + kind.utf8ByteSize + 4 * ((bytes + 2) / 3)
 
+/--
+The bytes of `text` in the JSON which the scenario driver replicates, without its quotes:
+a quote, a backslash and a control character are escaped, and the rest is UTF-8.
+-/
+private def escapedBytes (text : String) : Nat :=
+  let bytes (c : Char) : Nat :=
+    if c == '"' || c == '\\' then
+      2
+    else if c == '\n' || c == '\r' || c == '\t' || c.toNat == 8 || c.toNat == 12 then
+      2
+    else if c.toNat < 32 then
+      -- As \u00XX
+      6
+    else
+      c.utf8Size
+  (text.toList.map bytes).sum
+
 /-- The bytes of the JSON in which the scenario driver replicates `nodes`, with their addresses. -/
 private def nodesBytes (nodes : List NodeID) : Nat :=
-  2 + (nodes.length - 1) + (nodes.map fun node => (nodeName node).utf8ByteSize + 18).sum
+  2 + (nodes.length - 1) + (nodes.map fun node => escapedBytes (nodeName node) + 18).sum
 
 /-- A number for a transaction, which no other has. -/
 private def newRequest : IO Nat := do
@@ -989,11 +1006,18 @@ private def retirement (retired : List NodeID) : IO Replicated :=
 /--
 Append `entries` in one batch on the primary in `term`, if there is one. As `cft.h`, the
 primary sends what it has not sent once the entries which it has replicated reach
-`sizeLimit`, and not only at its next tick.
+`sizeLimit`, and not only at its next tick. A batch of no entries is traced, and appends
+nothing.
 -/
 private def append (term : Text) (entries : List Replicated) : IO Unit := do
   let some primary ← findPrimary term | return
   let state ← get primary
+  if entries.isEmpty then
+    -- cft.h traces a call which replicates nothing, where the model appends at least one entry
+    if decide (state.isRetiredCommitted primary) then
+      fail s!"The model does not let node {nodeName primary} append these entries"
+    stateEvent "replicate" primary state
+    return
   let mut batching := (← driver.get).batching primary
   let mut log := state.log
   let mut sent := state.sentIndex
