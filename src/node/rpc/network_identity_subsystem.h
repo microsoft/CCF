@@ -561,6 +561,15 @@ namespace ccf
         return;
       }
 
+      try
+      {
+        validate_fetched_endorsement(endorsement.value());
+      }
+      catch (const std::exception& e)
+      {
+        fail_fetching(e.what());
+      }
+
       current_service_from = current.create_txid;
       start_pq_chain(current);
       process_pq_endorsement(current.pq_endorsement, endorsement.value());

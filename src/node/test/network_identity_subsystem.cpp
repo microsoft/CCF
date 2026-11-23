@@ -1084,12 +1084,36 @@ TEST_CASE(
 
   // Tamper a HISTORICAL entry's table-side epoch_end so it disagrees
   // with the signed COSE header range. validate_fetched_endorsement
-  // runs only on historically-fetched links (not the topmost) and
   // catches the mismatch.
   auto mid_wv = cb.write_versions.at(1);
   f.historical->entries.at(mid_wv).endorsement_epoch_end = ccf::TxID{99, 99999};
 
   REQUIRE_THROWS_AS({ auto sub = f.make_subsystem(); }, std::exception);
+}
+
+TEST_CASE(
+  "Failed: topmost endorsement COSE header range disagrees with table fields")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {6, 400});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+
+  // Signed by the current key over a shorter range than the table fields,
+  // which still connect to the current service
+  f.node_state->topmost->endorsement = ccf::cose::sign_endorsement(
+    *cb.current_key_pair(),
+    1700000000,
+    "6.201",
+    "6.399",
+    std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
+    cb.service_keys.at(1)->public_key_der());
+
+  REQUIRE_THROWS_WITH_AS(
+    { auto sub = f.make_subsystem(); },
+    doctest::Contains("COSE endorsement fetched but range is invalid"),
+    std::runtime_error);
 }
 
 TEST_CASE("Failed: chain link broken (wrong endorsing_key) during bootstrap")
