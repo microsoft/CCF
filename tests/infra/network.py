@@ -1873,12 +1873,13 @@ class Network:
         end_time = time.time() + timeout
         logs = []
         while time.time() < end_time:
-            # As an operator, query a well-known /app endpoint to find out
-            # if the app has been opened to users
+            # /node/ready/app reports whether this node's application frontend
+            # is open, including for applications that don't install the
+            # built-in /app endpoints
             with node.client() as c:
                 logs = []
-                r = c.get("/app/commit", log_capture=logs)
-                if r.status_code != http.HTTPStatus.NOT_FOUND.value:
+                r = c.get("/node/ready/app", log_capture=logs)
+                if r.status_code == http.HTTPStatus.NO_CONTENT.value:
                     flush_info(logs, None)
                     return
                 time.sleep(0.1)
