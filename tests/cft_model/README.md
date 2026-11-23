@@ -22,7 +22,7 @@ A trace is written up to the command which fails.
 
 A trace has the records of a [trace of the implementation](../../lean/consensus/replay/README.md), as the scenario test writes them to `consensus/raw/<name>.ndjson`: one line of JSON for each, with the same fields in the same order.
 
-- `process_id` identifies the process, by its ID and the time at which it started, and `h_ts` numbers the records of a trace from 0.
+- `pid` identifies the process, by its ID and the time at which it started, and `m_ts` numbers the records of a trace from 0.
 - `msg` is the record: `{"cmd": ...}` for each command of the scenario, followed by the events which it caused.
   An event has the `function` of `cft.h` which traces it, such as `recv_append_entries`, and what that function traces: the `state` of the node, a `packet`, the `configurations` of the node.
 
@@ -31,14 +31,14 @@ A step of the model is one call of `cft.h`, which traces several events as it go
 It fails the command unless the events show each message which the step sent, and end in the state which the model gives the node.
 A step which the model does not allow writes no event, as a call of `cft.h` which returns at once.
 
-The trace of a scenario is then that of the implementation, byte for byte but for `process_id`, unless the two differ in what they do.
+The trace of a scenario is then that of the implementation, byte for byte but for `pid`, unless the two differ in what they do.
 The model driver itself [differs](#driving-the-model) from the scenario driver where an election timeout decides, because the implementation chooses it at random: such a trace of the implementation is not the same from one run to the next either.
 
 To compare the two traces of a scenario, after `cft_scenario_test` and `cft_model_test`:
 
 ```sh
-diff <(sed 's/"process_id": "[^"]*"//' build/consensus/raw/<name>.ndjson) \
-  <(sed 's/"process_id": "[^"]*"//' build/consensus/model/<name>.ndjson)
+diff <(sed 's/"pid": "[^"]*"//' build/consensus/raw/<name>.ndjson) \
+  <(sed 's/"pid": "[^"]*"//' build/consensus/model/<name>.ndjson)
 ```
 
 ## Driving the model

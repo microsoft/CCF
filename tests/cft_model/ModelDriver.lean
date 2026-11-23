@@ -1478,7 +1478,7 @@ def run (steps : IO Unit) (process : String) (file : Option System.FilePath)
   if let some file := file then
     let line (msg : Value) (sequence : Nat) : String :=
       (Value.object
-        [("process_id", .text process), ("h_ts", .number sequence), ("msg", msg)]).render
+        [("pid", .text process), ("m_ts", .number sequence), ("msg", msg)]).render
       ++ "\n"
     IO.FS.writeFile file
       (String.join
