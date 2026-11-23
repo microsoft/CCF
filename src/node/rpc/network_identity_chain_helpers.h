@@ -129,6 +129,14 @@ namespace ccf
         fmt::format("Endorsement at {} is not a self-endorsement", from_str));
     }
 
+    if (endorsement.endorsement_epoch_end.has_value())
+    {
+      throw std::logic_error(fmt::format(
+        "Self-endorsement at {} has an epoch end {}",
+        from_str,
+        endorsement.endorsement_epoch_end->to_str()));
+    }
+
     if (endorsement.endorsement_epoch_begin != expected_from)
     {
       throw std::logic_error(fmt::format(

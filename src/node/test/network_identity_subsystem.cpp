@@ -1739,6 +1739,7 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
     auto& endorsement = f.historical->pq_entries.at(middle_version);
     endorsement.previous_version = std::nullopt;
     endorsement.endorsement_epoch_begin = ccf::TxID{6, 201};
+    endorsement.endorsement_epoch_end = std::nullopt;
     expected_error =
       "PQ endorsements chain: Self-endorsement at 6.201 endorses public key";
   }
