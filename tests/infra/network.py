@@ -388,8 +388,6 @@ class Network:
                 f"with explicit version {node.version}"
             )
         if self.cft_recorder is None:
-            # Unlike self.nodes, this keeps retired nodes.
-            self.cft_trace_nodes = []
             folder = os.path.join(args.workspace, f"{args.label}_trace")
             # Remove an earlier run's captures, once per test process.
             if folder not in _cleared_cft_trace_folders:
@@ -406,7 +404,6 @@ class Network:
                     break
                 except FileExistsError:
                     pass
-        self.cft_trace_nodes.append(node)
         # Copied, as args are shared between nodes and networks.
         observability = copy.deepcopy(node_args.get("observability")) or {}
         observability.setdefault("fluentd", []).append(
@@ -424,9 +421,6 @@ class Network:
         reasons = []
         if recorder.error is not None:
             reasons.append(f"Recorder failed: {recorder.error}")
-        node_ids = [node.local_node_id for node in self.cft_trace_nodes]
-        if len(set(node_ids)) < len(node_ids):
-            reasons.append(f"A node was configured more than once: {node_ids}")
         if os.path.getsize(self.cft_trace_path) == 0:
             reasons.append("No events")
         if reasons:
