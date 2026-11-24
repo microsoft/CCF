@@ -104,10 +104,10 @@ The pinned Linux x86-64 bundle contains matching Aeneas and Charon executables a
 
 ```bash
 mkdir -p build/shamir-tools
-gh release download nightly-2026.10.20-fc321a2 \
+gh release download nightly-2026.11.23-2e3d448 \
   --repo AeneasVerif/aeneas --pattern aeneas-linux-x86_64.tar.gz \
   --dir build/shamir-tools
-echo '4b444e72e1e0bc475e952821bc081eb15665c984fd8032636c0346e766675794  build/shamir-tools/aeneas-linux-x86_64.tar.gz' | sha256sum --check
+echo 'ec76ec16cf2e4d690ff997ca175056b225d671c174b1a6e83329eeb982ae0155  build/shamir-tools/aeneas-linux-x86_64.tar.gz' | sha256sum --check
 tar -xzf build/shamir-tools/aeneas-linux-x86_64.tar.gz -C build/shamir-tools
 rustup toolchain install nightly-2026-09-17 --profile minimal \
   --component rustc-dev,rust-src,llvm-tools
@@ -117,8 +117,9 @@ AENEAS_BIN="$PWD/build/shamir-tools/aeneas" \
 git diff --exit-code -- lean/shamir/Generated/CcfShamir.lean
 ```
 
-The bundle pins Aeneas `fc321a28317f458338ce01fe684927eae0fa8f9e` and Charon `de8736f7c995ac54dc490345cef9ea5143c06c62`.
-The Lake manifest pins Aeneas, CSLib `0b1e3680b43ad9cd482a66f183764f33fc8a4e8f`, Mathlib, and the Lean toolchain shared by all CCF Lean packages.
+The bundle pins Aeneas `2e3d4488280bb8a95411db81019a7854a784861f` and Charon `9e193f0317dacc822cc864c1798b117c70dcf7df`.
+The Lake manifest pins Aeneas, CSLib `22b39634cb3dc80d829683ad1f65c5680b722309` (`v4.36.0`), Mathlib, and the Lean toolchain shared by all CCF Lean packages.
+These pins must support that toolchain, so a change to `lean/lean-toolchain` has to move them, and the bundle above, to matching upstream revisions in the same pull request; the [workflow](../../.github/workflows/lean-shamir.yml) runs on such changes and fails otherwise.
 Aeneas's Lean library depends on Mathlib, so unlike the other CCF Lean packages this one is not Mathlib-free, and it is checked by its own [workflow](../../.github/workflows/lean-shamir.yml) rather than the shared package job.
 The generated LLBC is an ignored intermediate file.
 

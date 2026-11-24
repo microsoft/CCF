@@ -54,10 +54,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/shamir-tools
-          gh release download nightly-2026.10.20-fc321a2 \
+          gh release download nightly-2026.11.23-2e3d448 \
             --repo AeneasVerif/aeneas --pattern aeneas-linux-x86_64.tar.gz \
             --dir build/shamir-tools
-          echo '4b444e72e1e0bc475e952821bc081eb15665c984fd8032636c0346e766675794  build/shamir-tools/aeneas-linux-x86_64.tar.gz' | sha256sum --check
+          echo 'ec76ec16cf2e4d690ff997ca175056b225d671c174b1a6e83329eeb982ae0155  build/shamir-tools/aeneas-linux-x86_64.tar.gz' | sha256sum --check
           tar -xzf build/shamir-tools/aeneas-linux-x86_64.tar.gz -C build/shamir-tools
           rustup toolchain install nightly-2026-09-17 --profile minimal \
             --component rustc-dev,rust-src,llvm-tools,miri

@@ -8,8 +8,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${AENEAS_BIN:?Set AENEAS_BIN to the pinned Aeneas executable}"
 : "${CHARON_BIN:?Set CHARON_BIN to the Charon executable from the same bundle}"
 
-if [ "$("$AENEAS_BIN" -version)" != "aeneas nightly-2026.10.20-fc321a2" ]; then
-  echo "Expected Aeneas nightly-2026.10.20-fc321a2" >&2
+if [ "$("$AENEAS_BIN" -version)" != "aeneas nightly-2026.11.23-2e3d448" ]; then
+  echo "Expected Aeneas nightly-2026.11.23-2e3d448" >&2
   exit 1
 fi
 

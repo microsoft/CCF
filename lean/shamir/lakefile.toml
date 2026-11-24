@@ -18,17 +18,17 @@ copy = false
 name = "aeneas"
 git = "https://github.com/AeneasVerif/aeneas"
 subDir = "backends/lean"
-rev = "fc321a28317f458338ce01fe684927eae0fa8f9e"
+rev = "2e3d4488280bb8a95411db81019a7854a784861f"
 
 [[require]]
 name = "cslib"
 git = "https://github.com/leanprover/cslib"
-rev = "0b1e3680b43ad9cd482a66f183764f33fc8a4e8f"
+rev = "22b39634cb3dc80d829683ad1f65c5680b722309" # v4.36.0
 
 [[require]]
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4.git"
-rev = "v4.35.0"
+rev = "v4.36.0"
 
 [[require]]
 name = "leanfmt"
