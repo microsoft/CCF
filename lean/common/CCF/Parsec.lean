@@ -75,7 +75,8 @@ def peek : ParserT Event State (Option Event) :=
 
 /-- The number of events consumed so far. -/
 def position : ParserT Event State Nat :=
-  liftM (m := Parser Event) ((fun input => .success input input.position) : Parser Event Nat)
+  liftM (m := Parser Event)
+    ((fun input => .success input input.position) : Parser Event Nat)
 
 /-- Consume one event, or fail with the supplied diagnostic at end of input. -/
 def take (message : String := "unexpected end of input") : ParserT Event State Event := do
