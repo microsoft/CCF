@@ -40,6 +40,12 @@ There are no fixed bounds on map/key/transaction counts.
 `Unique` (in `Properties/Programs.lean`), `publish_unique` and `publish_lookup` describe the finite-map representation.
 Empty bytes and absence are distinct: `""` denotes a present zero-byte value, `null` denotes absence, and a missing required `value` field is an invalid trace.
 
+Association-list order is an internal representation choice, not a write-set or ordinary scan ordering contract.
+Staged writes contain at most one final entry per address, with the last put or removal winning; publication echoes must be permutations of those complete address/value entries and may not repeat an address.
+Normal scans and whole-map dependencies compare permutations of complete entries, including cell versions for dependencies.
+Explicit ranges remain in ascending byte-key order with half-open bounds, and callback visitation order remains unconstrained.
+The executable model and its serial proofs use one deterministic list representative; equality of those internal representatives does not impose an observable iteration or write order on implementations.
+
 `Kv/Model/Transitions.lean` implements model operations and environment inputs, without a trace envelope.
 `Kv/Model.lean` assembles it as `Model.transitionSystem`.
 The [observation contract](../../doc/build_apps/kv/semantics.rst#observation-contract), [snapshot and global-view semantics](../../doc/build_apps/kv/semantics.rst#current-and-globally-committed-views), and [application, compaction and rollback rules](../../doc/build_apps/kv/semantics.rst#local-application-commitment-and-rollback) are documented in the KV guide.
