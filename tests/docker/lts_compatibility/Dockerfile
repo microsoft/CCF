@@ -17,7 +17,7 @@ RUN . /etc/os-release && \
         dnf -y update && \
         dnf -y install \
           ca-certificates \
-          libcurl \
+          libcurl-minimal \
           libstdc++ \
           libuv \
           openssl && \
