@@ -363,6 +363,17 @@ namespace ccf
         "Creating node with start_type {}", start_type_to_str(start_type));
       const auto create_info = node->create(start_type, ccf_config_);
 
+      // The node configuration is now set. Build the RPC interfaces'
+      // accepted_endpoints regexes before any request is processed, so that an
+      // invalid pattern stops the node from starting.
+      auto node_configuration_subsystem =
+        context->get_subsystem<ccf::NodeConfigurationSubsystem>();
+      if (node_configuration_subsystem == nullptr)
+      {
+        throw std::logic_error("NodeConfigurationSubsystem is not installed");
+      }
+      node_configuration_subsystem->get();
+
       // Copy node and service certs out
       result.node_cert = create_info.self_signed_node_cert.raw();
 

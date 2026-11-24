@@ -50,8 +50,25 @@ namespace ccf
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
     std::atomic<ccf::kv::TxHistory*> history{nullptr};
 
-    std::shared_ptr<NodeConfigurationInterface> node_configuration_subsystem =
-      nullptr;
+    // Looked up on first use. Requests are processed on several worker
+    // threads, so the pointer is cached in an atomic. The node context owns
+    // the subsystem for the lifetime of the node.
+    std::atomic<NodeConfigurationInterface*> node_configuration_subsystem{
+      nullptr};
+
+    NodeConfigurationInterface* get_node_configuration_subsystem()
+    {
+      auto* subsystem =
+        node_configuration_subsystem.load(std::memory_order_acquire);
+      if (subsystem == nullptr)
+      {
+        subsystem =
+          node_context.get_subsystem<NodeConfigurationInterface>().get();
+        node_configuration_subsystem.store(
+          subsystem, std::memory_order_release);
+      }
+      return subsystem;
+    }
 
     endpoints::EndpointDefinitionPtr find_endpoint(
       std::shared_ptr<ccf::RpcContextImpl> ctx, ccf::kv::CommittableTx& tx)
@@ -110,18 +127,14 @@ namespace ccf
       auto interface_id = ctx->get_session_context()->interface_id;
       if (interface_id)
       {
-        if (!node_configuration_subsystem)
+        auto* node_configuration = get_node_configuration_subsystem();
+        if (node_configuration == nullptr)
         {
-          node_configuration_subsystem =
-            node_context.get_subsystem<NodeConfigurationInterface>();
-          if (!node_configuration_subsystem)
-          {
-            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            return false;
-          }
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          return false;
         }
 
-        const auto& ncs = node_configuration_subsystem->get();
+        const auto& ncs = node_configuration->get();
 
         const auto& required_features = endpoint->required_operator_features;
         if (!required_features.empty())
@@ -401,18 +414,14 @@ namespace ccf
     std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>
     get_redirections_config(const ccf::ListenInterfaceID& incoming_interface)
     {
-      if (!node_configuration_subsystem)
+      auto* node_configuration = get_node_configuration_subsystem();
+      if (node_configuration == nullptr)
       {
-        node_configuration_subsystem =
-          node_context.get_subsystem<NodeConfigurationInterface>();
-        if (!node_configuration_subsystem)
-        {
-          LOG_FAIL_FMT("Unable to access NodeConfigurationSubsystem");
-          return std::nullopt;
-        }
+        LOG_FAIL_FMT("Unable to access NodeConfigurationSubsystem");
+        return std::nullopt;
       }
 
-      const auto& node_config_state = node_configuration_subsystem->get();
+      const auto& node_config_state = node_configuration->get();
       const auto& interfaces =
         node_config_state.node_config.network.rpc_interfaces;
       const auto interface_it = interfaces.find(incoming_interface);
@@ -520,9 +529,11 @@ namespace ccf
       auto r = std::chrono::milliseconds(3'000);
 
       auto interface_id = ctx->get_session_context()->interface_id;
-      if (interface_id.has_value())
+      auto* node_configuration =
+        node_configuration_subsystem.load(std::memory_order_acquire);
+      if (interface_id.has_value() && node_configuration != nullptr)
       {
-        const auto& ncs = node_configuration_subsystem->get();
+        const auto& ncs = node_configuration->get();
         auto rit = ncs.node_config.network.rpc_interfaces.find(*interface_id);
         if (rit != ncs.node_config.network.rpc_interfaces.end())
         {
