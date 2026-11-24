@@ -61,6 +61,14 @@ def run(args):
             ([{"host": "127.0.0.1", "port": "24224", "queue_capacity": 0}], False),
             ([{"host": "127.0.0.1", "port": "24224", "queue_capacity": -1}], False),
             (
+                [{"host": "127.0.0.1", "port": "24224", "queue_capacity_bytes": 0}],
+                False,
+            ),
+            (
+                [{"host": "127.0.0.1", "port": "24224", "queue_capacity_bytes": 1}],
+                True,
+            ),
+            (
                 [{"host": "127.0.0.1", "port": "24224", "queue_capacity": 1048577}],
                 True,
             ),

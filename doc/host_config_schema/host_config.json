@@ -31,7 +31,13 @@
                 "type": "integer",
                 "minimum": 1,
                 "default": 4096,
-                "description": "Maximum queued records per node thread for this sink, not bytes. Memory use grows with queue capacity, thread count and sink count. Both policies drop new records when full, when a record exceeds 1 MiB, or when record allocation fails"
+                "description": "Maximum queued records per node thread for this sink. Both policies drop new records when the queue is full or when record allocation fails. See also ``queue_capacity_bytes``"
+              },
+              "queue_capacity_bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 4194304,
+                "description": "Soft limit on queued record bytes per node thread for this sink. A record of any size is accepted while fewer bytes than this are queued, so a queue can exceed this limit by one record. Memory use grows with this limit, thread count and sink count"
               },
               "delivery": {
                 "type": "string",

@@ -121,9 +121,12 @@ Choose a ``delivery`` policy per collector:
 - ``buffered-best-effort`` (default): retain queued records while the collector is unavailable or cannot accept data.
 - ``unbuffered-non-blocking``: drop queued records when the collector is unavailable or cannot accept data.
 
-Optional ``queue_capacity`` on each array entry defaults to 4096 records per producer thread, shared by that thread's logs and traces.
-Unbound producers share one additional queue of the same capacity.
-Full queues drop new records under either policy; larger queues use more memory.
+Each producer thread has one queue per array entry, shared by that thread's logs and traces.
+Optional ``queue_capacity`` limits the records in each queue and defaults to 4096.
+Optional ``queue_capacity_bytes`` limits the record bytes in each queue and defaults to 4194304 (4 MiB).
+The byte limit is soft: a record of any size is accepted while fewer bytes than the limit are queued, so a queue can exceed it by one record.
+Unbound producers share one additional queue with the same limits.
+A queue that has reached either limit drops new records under either policy, without formatting or encoding them; larger limits use more memory.
 
 Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
 Shutdown attempts to drain all collectors for up to two seconds, then drops remaining records; blocked console output can delay shutdown.

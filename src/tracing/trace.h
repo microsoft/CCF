@@ -42,44 +42,42 @@ namespace ccf::tracing
   }
 
   // Alternating string keys and borrowed values form the envelope's msg map.
+  // The returned record is valid until this thread encodes another.
+  template <typename... Args>
+    requires msgpack::map_arguments<Args...>
+  inline std::span<const uint8_t> encode(
+    std::string_view tag, const Args&... args)
+  {
+    const auto sequence = next_sequence();
+    auto& buffer = event_buffer();
+    buffer.clear();
+    msgpack::write_array_header(buffer, 3);
+    msgpack::write_str(buffer, tag);
+    msgpack::write_fluentd_event_time(
+      buffer,
+      msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
+    msgpack::write_map_header(buffer, 3);
+    msgpack::write_str(buffer, "pid");
+    msgpack::write_str(buffer, process_identity());
+    msgpack::write_str(buffer, "m_ts");
+    msgpack::write_uint(buffer, sequence);
+    msgpack::write_str(buffer, "msg");
+    msgpack::write_map_header(buffer, sizeof...(Args) / 2);
+    using msgpack::write_msgpack;
+    const auto refs = std::tie(args...);
+    [&]<size_t... I>(std::index_sequence<I...>) {
+      ((msgpack::write_str(buffer, std::get<2 * I>(refs)),
+        write_msgpack(buffer, std::get<2 * I + 1>(refs))),
+       ...);
+    }(std::make_index_sequence<sizeof...(Args) / 2>{});
+    return buffer;
+  }
+
   template <typename... Args>
     requires msgpack::map_arguments<Args...>
   inline void emit(std::string_view tag, const Args&... args)
   {
-    if (!FluentdSink::accepts(tag))
-    {
-      return;
-    }
-    const auto sequence = next_sequence();
-    try
-    {
-      auto& buffer = event_buffer();
-      buffer.clear();
-      msgpack::write_array_header(buffer, 3);
-      msgpack::write_str(buffer, tag);
-      msgpack::write_fluentd_event_time(
-        buffer,
-        msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
-      msgpack::write_map_header(buffer, 3);
-      msgpack::write_str(buffer, "pid");
-      msgpack::write_str(buffer, process_identity());
-      msgpack::write_str(buffer, "m_ts");
-      msgpack::write_uint(buffer, sequence);
-      msgpack::write_str(buffer, "msg");
-      msgpack::write_map_header(buffer, sizeof...(Args) / 2);
-      using msgpack::write_msgpack;
-      const auto refs = std::tie(args...);
-      [&]<size_t... I>(std::index_sequence<I...>) {
-        ((msgpack::write_str(buffer, std::get<2 * I>(refs)),
-          write_msgpack(buffer, std::get<2 * I + 1>(refs))),
-         ...);
-      }(std::make_index_sequence<sizeof...(Args) / 2>{});
-      FluentdSink::enqueue(tag, buffer);
-    }
-    catch (const std::bad_alloc&)
-    {
-      FluentdSink::record_drop(tag);
-    }
+    FluentdSink::submit(tag, [&] { return encode(tag, args...); });
   }
 }
 

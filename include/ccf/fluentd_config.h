@@ -20,7 +20,9 @@ namespace ccf
     // Hostname or IP address and decimal TCP port of an in_forward listener.
     std::string host;
     std::string port;
+    // Per producer thread: a hard record limit and a soft byte limit.
     size_t queue_capacity = 4096;
+    size_t queue_capacity_bytes = size_t{4} * 1024 * 1024;
     Delivery delivery = Delivery::BUFFERED_BEST_EFFORT;
     std::vector<std::string> tag_prefix_allow_list = {"ccf.log"};
 

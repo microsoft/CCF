@@ -50,12 +50,12 @@ namespace ccf::tracing
     }
 
   public:
-    static constexpr size_t MAX_RECORD_SIZE = size_t{1024} * 1024;
     static constexpr uint64_t UNLIMITED_BYTES =
       std::numeric_limits<uint64_t>::max();
 
-    // A record is admitted while fewer than max_bytes are queued, so the
-    // queue holds less than max_bytes + MAX_RECORD_SIZE payload bytes.
+    // The record count is a hard limit. The byte limit is soft: a record of
+    // any size is admitted while fewer than max_bytes are queued, and charged
+    // once enqueued, so a producer can test for space before sizing a record.
     explicit SPSCQueue(
       size_t capacity = 4096, uint64_t max_bytes = UNLIMITED_BYTES) :
       max_bytes(max_bytes)
@@ -68,34 +68,33 @@ namespace ccf::tracing
       slots.resize(capacity);
     }
 
-    bool push(std::span<const uint8_t> bytes)
+    // Producer-only. Once true, it stays true until this producer pushes: the
+    // consumer only frees space.
+    [[nodiscard]] bool has_space()
     {
       const auto end = tail.load(std::memory_order_relaxed);
-      if (bytes.size() > MAX_RECORD_SIZE)
-      {
-        return false;
-      }
       if (is_full(end))
       {
         // Acquire: the consumer has emptied every slot before this head.
         cached_head = head.load(std::memory_order_acquire);
         cached_popped_bytes = popped_bytes.load(std::memory_order_relaxed);
-        if (is_full(end))
-        {
-          return false;
-        }
+        return !is_full(end);
       }
-      try
-      {
-        slots[write_index] =
-          std::make_unique<Record>(bytes.begin(), bytes.end());
-      }
-      catch (const std::bad_alloc&)
+      return true;
+    }
+
+    // Throws std::bad_alloc, leaving the queue unchanged, if the record
+    // cannot be allocated.
+    bool push(std::span<const uint8_t> bytes)
+    {
+      if (!has_space())
       {
         return false;
       }
+      slots[write_index] = std::make_unique<Record>(bytes.begin(), bytes.end());
       write_index = (write_index + 1) % slots.size();
-      tail.store(end + 1, std::memory_order_release);
+      tail.store(
+        tail.load(std::memory_order_relaxed) + 1, std::memory_order_release);
       pushed_bytes += bytes.size();
       return true;
     }
