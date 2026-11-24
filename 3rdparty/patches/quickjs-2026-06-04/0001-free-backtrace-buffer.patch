@@ -1,0 +1,18 @@
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -7740,7 +7740,6 @@
+         str = JS_NULL;
+     else
+         str = JS_NewString(ctx, (char *)dbuf.buf);
+-    dbuf_free(&dbuf);
+     if (JS_IsError(ctx, error_obj)) {
+         p = JS_VALUE_GET_OBJ(error_obj);
+         JS_FreeValue(ctx, p->u.object_data);
+@@ -7750,6 +7749,7 @@
+                                JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+     }
+  done:
++    dbuf_free(&dbuf);
+     JS_FreeValue(ctx, error_obj);
+ }
+ 

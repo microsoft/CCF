@@ -335,8 +335,12 @@ namespace ccf::js::extensions
       return ccf::js::core::constants::True;
     }
 
+    // QuickJS requires a mutable argv pointer in its callback signature.
     JSValue js_is_valid_x509_cert_chain(
-      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      JSValueConst,
+      int argc,
+      JSValueConst* argv) // NOLINT(readability-non-const-parameter)
     {
       // first arg: chain (concatenated PEM certs, first cert = target)
       // second arg: trusted (concatenated PEM certs)
