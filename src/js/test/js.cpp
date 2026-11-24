@@ -1829,6 +1829,41 @@ Object.defineProperty(run, "name", {value: "\u1234".repeat(128 * 1024)});
   REQUIRE(trace->contains("/heap-backtrace.js:"));
 }
 
+TEST_CASE("QuickJS frees a string whose UTF-8 conversion runs out of memory")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  auto* rt = static_cast<JSRuntime*>(ctx.runtime());
+
+  // QuickJS stores these characters in 2 bytes each, and their UTF-8 copy
+  // takes 3 bytes each, so a limit just above the string fails the copy.
+  constexpr size_t length = 256 * 1024;
+  std::string utf8;
+  utf8.reserve(length * 3);
+  for (size_t i = 0; i < length; ++i)
+  {
+    utf8 += "\u1234";
+  }
+
+  JSMemoryUsage before;
+  JS_ComputeMemoryUsage(rt, &before);
+  {
+    const auto str = ctx.new_string(utf8);
+    REQUIRE(str.is_str());
+
+    JSMemoryUsage usage;
+    JS_ComputeMemoryUsage(rt, &usage);
+    JS_SetMemoryLimit(rt, usage.malloc_size + 64 * 1024);
+    CHECK_FALSE(ctx.to_str(str).has_value());
+    JS_SetMemoryLimit(rt, size_t(-1));
+    JS_FreeValue(ctx, JS_GetException(ctx));
+  }
+
+  // The string must be freed once its last reference is gone.
+  JSMemoryUsage after;
+  JS_ComputeMemoryUsage(rt, &after);
+  CHECK(after.malloc_size < before.malloc_size + length);
+}
+
 TEST_CASE("Context::to_str preserves embedded NUL bytes")
 {
   ccf::js::core::Context ctx(TxAccess::APP_RW);

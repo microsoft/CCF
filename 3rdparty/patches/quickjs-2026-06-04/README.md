@@ -6,7 +6,7 @@ below, in numbered order, to a generated `quickjs/quickjs.c` in the build
 directory. Only that copy is compiled; the source checkout and vendored dependency
 verification are unchanged.
 
-The build regenerates the copy whenever the upstream source or either patch
+The build regenerates the copy whenever the upstream source or any of the patches
 changes. Patch application disables fuzz and automatic reversal, and a failure
 stops the build rather than compiling an unpatched source.
 
@@ -43,3 +43,18 @@ regression coverage.
 
 Remove this patch and its CMake application when upstream provides equivalent
 lowered-limit enforcement. Keep the regression coverage.
+
+## 0003-release-string-on-utf8-allocation-failure.patch
+
+- Upstream fix: <https://github.com/bellard/quickjs/pull/587>, commit
+  `552d5ebaafdb0218429a4e96f7fad9eea4f9a23d`, not yet in an upstream release.
+- `JS_ToCStringLen2()` holds a reference to the string it converts. When the
+  allocation for its UTF-8 copy fails, for example under the runtime's heap
+  limit, it returns without releasing that reference, so the string is never
+  freed, not even when the runtime is destroyed. The patch releases it on the
+  failure path, as upstream does.
+- Regression coverage: `QuickJS frees a string whose UTF-8 conversion runs out of
+  memory` in `src/js/test/js.cpp`.
+
+Remove this patch and its CMake application when upgrading to an upstream
+release that includes the fix. Keep the regression coverage.
