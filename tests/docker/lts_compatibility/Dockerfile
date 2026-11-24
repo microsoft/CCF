@@ -15,7 +15,7 @@ RUN . /etc/os-release && \
         ;; \
       4.0) \
         dnf -y update && \
-        dnf -y install \
+        dnf -y install --allowerasing \
           ca-certificates \
           libcurl \
           libstdc++ \
