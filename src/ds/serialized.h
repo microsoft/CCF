@@ -114,13 +114,21 @@ namespace serialized
     size -= sizeof(T);
   }
 
+  // gnu::noinline keeps std::format out of the block writer so Clang can
+  // inline fixed-size writes in the snapshot serialization loop.
+  [[noreturn, gnu::noinline, gnu::cold]] inline void
+  throw_insufficient_write_space(size_t size, size_t block_size)
+  {
+    throw InsufficientSpaceException(std::format(
+      "Insufficient space (write block: {} < {})", size, block_size));
+  }
+
   inline void write(
     uint8_t*& data, size_t& size, const uint8_t* block, size_t block_size)
   {
     if (size < block_size)
     {
-      throw InsufficientSpaceException(std::format(
-        "Insufficient space (write block: {} < {})", size, block_size));
+      throw_insufficient_write_space(size, block_size);
     }
 
     if (block_size > 0)
