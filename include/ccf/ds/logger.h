@@ -6,7 +6,6 @@
 #include "ccf/threading/thread_ids.h"
 
 #include <algorithm>
-#include <array>
 #include <ctime>
 #include <format>
 #include <iostream>
@@ -169,56 +168,6 @@ namespace ccf::logger
     }
   };
 
-  static std::pair<std::string, size_t> format_text_preamble(const LogLine& ll)
-  {
-    constexpr size_t level_width = 5;
-    const std::string_view level = to_string(ll.log_level);
-    std::string preamble = "[";
-    preamble += level;
-    preamble.append(level_width - level.size(), ' ');
-    preamble += ']';
-    if (!ll.tag.empty())
-    {
-      preamble += '[';
-      preamble += ll.tag;
-      preamble += ']';
-    }
-    preamble += ' ';
-    preamble.resize(std::min<size_t>(preamble.size(), preamble_length));
-
-    auto file_line = ll.file_name;
-    file_line += ':';
-    file_line += std::to_string(ll.line_number);
-    file_line += ' ';
-    // Keep the end of the source location when space is limited.
-    const auto file_line_size =
-      std::min<size_t>(file_line.size(), preamble_length - preamble.size());
-    preamble += file_line.c_str() + (file_line.size() - file_line_size);
-
-    auto padded_preamble_size = static_cast<size_t>(preamble_length);
-    // Skip the ASCII level prefix, keeping its closing bracket in the
-    // measured text so we cut between two printable ASCII characters.
-    auto measured = std::string_view(preamble).substr(1 + level_width);
-    const auto ascii_suffix = std::find_if_not(
-      measured.rbegin(), measured.rend(), [](unsigned char ch) {
-        return ch >= ' ' && ch <= '~';
-      });
-    if (ascii_suffix != measured.rend())
-    {
-      // Skip the printable ASCII suffix, leaving its first character in
-      // place so the width calculation ends at a grapheme boundary.
-      const auto suffix_size =
-        static_cast<size_t>(ascii_suffix - measured.rbegin());
-      measured.remove_suffix(suffix_size == 0 ? 0 : suffix_size - 1);
-      const auto skipped = preamble.size() - measured.size();
-      padded_preamble_size = skipped +
-        std::formatted_size("{:<{}}", measured, preamble_length - skipped);
-    }
-
-    const auto padding = padded_preamble_size - preamble.size();
-    return {std::move(preamble), padding};
-  }
-
   static std::string format_to_text(const LogLine& ll)
   {
     ::timespec host_ts{};
@@ -229,18 +178,36 @@ namespace ccf::logger
     std::tm host_tm{};
     ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-    const auto [preamble, padding] = format_text_preamble(ll);
-    static constexpr auto spaces = [] {
-      std::array<char, preamble_length> chars{};
-      chars.fill(' ');
-      return chars;
-    }();
+    static constexpr std::string_view PaddedLevelNames[] = {
+      "trace", "debug", "info ", "fail ", "fatal"};
+    static_assert(
+      std::size(PaddedLevelNames) ==
+      std::to_underlying(LoggerLevel::MAX_LOG_LEVEL));
+    const auto level = PaddedLevelNames[std::to_underlying(ll.log_level)];
+
+    // The preamble (level, tag, and file:line) is assumed to be printable
+    // ASCII; if file:line does not fit, its final characters are retained.
+    auto preamble = ll.tag.empty() ? std::format("[{}] ", level) :
+                                     std::format("[{}][{}] ", level, ll.tag);
+    if (preamble.size() >= preamble_length)
+    {
+      preamble.resize(preamble_length);
+    }
+    else
+    {
+      const auto file_line =
+        std::format("{}:{} ", ll.file_name, ll.line_number);
+      const auto keep =
+        std::min(file_line.size(), preamble_length - preamble.size());
+      preamble.append(file_line, file_line.size() - keep, keep);
+      preamble.resize(preamble_length, ' ');
+    }
+
     return std::format(
-      "{} {:<3} {}{}| {}\n",
+      "{} {:<3} {}| {}\n",
       get_timestamp(host_tm, host_ts),
       ll.thread_id,
       preamble,
-      std::string_view(spaces.data(), padding),
       ll.msg);
   }
 
