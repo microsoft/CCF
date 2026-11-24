@@ -2590,6 +2590,46 @@ def run_pid_file_check(args):
         network.ignoring_shutdown_errors = True
 
 
+def run_invalid_accepted_endpoints_check(const_args):
+    """
+    Verify that a node fails to start when one of its RPC interfaces has an
+    accepted_endpoints pattern that is not a valid regular expression.
+    """
+    args = copy.deepcopy(const_args)
+    args.label += "_invalid_accepted_endpoints"
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.nodes[0].get_primary_interface().accepted_endpoints = ["/node/.*", "("]
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        try:
+            network.start(args)
+        except Exception as start_error:
+            LOG.debug(f"Ignoring expected network start failure: {start_error}")
+        else:
+            raise AssertionError(
+                "Node started with an invalid accepted_endpoints pattern"
+            )
+
+        network.skip_verify_chunking = True
+        network.ignore_errors_on_shutdown()
+
+        out_path, _ = network.nodes[0].get_logs()
+        with open(out_path, encoding="utf-8") as f:
+            output = f.read()
+        assert (
+            "Error starting node: Invalid accepted_endpoints pattern '('" in output
+        ), output
+
+        LOG.success(
+            "Node correctly refused to start with an invalid accepted_endpoints pattern"
+        )
+
+
 def run_max_uncommitted_tx_count(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.nodes(args, 2)
@@ -5722,6 +5762,7 @@ def run_node_config_checks(args):
     run_configuration_file_checks(args)
     run_limit_config_checks(args)
     run_pid_file_check(args)
+    run_invalid_accepted_endpoints_check(args)
     run_preopen_readiness_check(args)
     run_sighup_check(args)
     run_service_subject_name_check(args)
