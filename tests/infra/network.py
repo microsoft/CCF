@@ -12,9 +12,10 @@ import pprint
 import random
 import re
 import shutil
+import struct
 import time
 from collections import deque
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, IntEnum, auto
@@ -50,6 +51,8 @@ DEFAULT_TIMEOUT_MULTIPLIER = 15
 COMMON_FOLDER = "common"
 
 _cleared_cft_trace_folders = set()
+# More than any test network configures.
+CFT_TRACE_MAX_NODES = 256
 
 
 class NodeRole(Enum):
@@ -304,7 +307,7 @@ class Network:
         self.nodes = []
         # With --capture-cft-trace, records the consensus trace of every node
         # configured until stop_all_nodes.
-        self.cft_recorder = None
+        self.cft_trace = None
         self.cft_trace_recovery = False
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
@@ -387,45 +390,55 @@ class Network:
                 f"--capture-cft-trace does not support node {node.local_node_id} "
                 f"with explicit version {node.version}"
             )
-        if self.cft_recorder is None:
+        if self.cft_trace is None:
             folder = os.path.join(args.workspace, f"{args.label}_trace")
             # Remove an earlier run's captures, once per test process.
             if folder not in _cleared_cft_trace_folders:
                 _cleared_cft_trace_folders.add(folder)
                 shutil.rmtree(folder, ignore_errors=True)
             os.makedirs(folder, exist_ok=True)
+            self.cft_trace = ExitStack()
             # Networks that share a label each get a capture.
             for index in itertools.count():
                 self.cft_trace_path = os.path.join(folder, f"{index}.ndjson")
                 try:
-                    self.cft_recorder = infra.fluentd.Recorder(
-                        self.cft_trace_path, ipv6=self.ipv6
+                    output = self.cft_trace.enter_context(
+                        open(self.cft_trace_path, "x", encoding="utf-8")  # noqa: SIM115
                     )
                     break
                 except FileExistsError:
                     pass
+
+            def write(_tag, timestamp, record):
+                seconds, nanos = struct.unpack(">II", timestamp.data)
+                record["ts"] = seconds * 10**9 + nanos
+                output.write(json.dumps(record) + "\n")
+
+            # IPv6-only networks must not have IPv4 addresses in node configs.
+            collector = infra.fluentd.Collector(
+                CFT_TRACE_MAX_NODES, write, "::1" if self.ipv6 else "127.0.0.1"
+            )
+            self.cft_trace_endpoint = self.cft_trace.enter_context(collector).endpoint
         # Copied, as args are shared between nodes and networks.
         observability = copy.deepcopy(node_args.get("observability")) or {}
         observability.setdefault("fluentd", []).append(
-            {**self.cft_recorder.endpoint, "tag-prefix-allow-list": ["ccf.cft"]}
+            {**self.cft_trace_endpoint, "tag-prefix-allow-list": ["ccf.cft"]}
         )
         node_args["observability"] = observability
 
     def _finish_cft_trace(self):
-        """Close the consensus trace recorder, if any, and keep its capture
-        unless trace replay could not model it."""
-        recorder, self.cft_recorder = self.cft_recorder, None
-        if recorder is None:
+        """Stop recording the consensus trace, if started, and keep its
+        capture unless it is empty or the collector failed."""
+        trace, self.cft_trace = self.cft_trace, None
+        if trace is None:
             return
-        recorder.close()
-        reasons = []
-        if recorder.error is not None:
-            reasons.append(f"Recorder failed: {recorder.error}")
-        if os.path.getsize(self.cft_trace_path) == 0:
-            reasons.append("No events")
-        if reasons:
+        try:
+            trace.close()
+            if os.path.getsize(self.cft_trace_path) == 0:
+                raise RuntimeError("No events")
+        except Exception as error:
             os.remove(self.cft_trace_path)
-            LOG.info(f"Discarded CCF consensus protocol trace: {reasons}")
+            LOG.info(f"Discarded CCF consensus protocol trace: {error}")
         else:
             LOG.info(f"CCF consensus protocol trace in {self.cft_trace_path}")
 
