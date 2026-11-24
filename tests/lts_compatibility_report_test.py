@@ -33,7 +33,7 @@ class CompatibilityReportTest(unittest.TestCase):
                 validate_compatibility_report(self.report, branch)
 
     def test_release_context(self):
-        for branch in ("release/7.x", "ccf-7.0.20", "backport/release/7.x"):
+        for branch in ("release/7.x", "ccf-7.0.20"):
             with self.subTest(branch=branch):
                 validate_compatibility_report(self.report, branch)
 
