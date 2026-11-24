@@ -102,6 +102,15 @@ To keep track of which changes should be merged to LTS branches and then confirm
 #. A PR targeting ``main`` which contains changes that should also reach the N.x LTS should be labelled in GitHub with ``N.x-todo``
 #. Where possible ``N.x-todo`` PRs should contain the minimal set of changes with no dependencies on earlier PRs, so they can be more easily cherry-picked
 #. A PR targeting an LTS branch (``release/N.x``) should be labelled in GitHub with ``N.x-backport``, so it can be easily found with a filter
-#. A PR targeting an LTS branch which is constructed primarily of a cherry-pick from ``main`` should be named consistently as ``Cherry-pick #<PR_ID> to N.x LTS``, so it can be easily correlated with the corresponding ``N.x-todo`` PR. If an LTS PR contains commits from multiple PRs to ``main``, each should be mentioned in the PR title, eg ``Port <foo> to N.x LTS (#PR1_ID, #PR2_ID, ...)```
+#. A PR targeting an LTS branch which is constructed primarily of a cherry-pick from ``main`` should be named consistently as ``[release/N.x] Cherry pick: <original title> (#<PR_ID>)``, so it can be easily correlated with the corresponding ``N.x-todo`` PR.
+   If an LTS PR contains commits from multiple PRs to ``main``, each should be mentioned in the PR title, eg ``[release/N.x] Cherry pick: <foo> (#PR1_ID, #PR2_ID, ...)``
+#. Structure a backport PR so reviewers do not have to re-review changes already reviewed on ``main``: prefer putting unchanged ``git cherry-pick -x`` commits of the squash-merged commits on ``main`` (since the LTS branch was created) first in merge order, followed by any fixup commits needed for the LTS branch.
+   Fixup commits may come earlier when needed so a later commit cherry-picks cleanly
+#. Prefer rebasing a backport PR onto the LTS branch locally so the commit list stays easy to review
+
+The "Backport checks" workflow runs ``scripts/backport.py`` on every PR targeting an LTS branch, using only git.
+It checks that every cherry-pick commit is an unchanged, clean ``git cherry-pick`` of a commit merged to ``main`` since the LTS branch was created, so reviewers can skip the cherry-picks and focus on the fixup commits.
+If a commit does not cherry-pick cleanly, port it in a fixup commit instead, which reviewers must check in full.
+Reviewers should also inspect any change under ``scripts/``, ``.github/workflows/``, or to ``.gitattributes``, since the PR's own run of the check uses them.
 
 Before creating an LTS release, the releaser should do a scan of PRs and ensure that there are none with ``N.x-todo`` label. If any exist, they should be merged to the LTS branch before releasing, and those candidate labels removed.

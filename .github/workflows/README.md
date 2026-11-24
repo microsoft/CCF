@@ -155,6 +155,7 @@ Each matrix job caches its third-party dependency checkouts and build outputs, l
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run.
 CCF consensus, KV, and consistency trace captures run in parallel with package checks.
+The CCF consensus capture job also builds the [consensus model driver](../../tests/cft_model/README.md) with `-DCFT_MODEL_DRIVER=ON`, and runs `cft_model_test`, which runs each scenario on the Lean model without the implementation.
 Two independent trace-validation jobs, for consensus and KV, each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
 Consistency capture reuses the existing `consistency_trace_validation` e2e test, which replays its own trace in the capture job.
 A final summary job requires every package and trace job to succeed.
@@ -185,7 +186,7 @@ The dedicated replay job builds `kv-replay` separately to validate the captured 
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
-It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
+It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests and model driver, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
@@ -207,6 +208,13 @@ File: `lean-mathlib-equivalence.yml`
 Verifies that files under `3rdparty/` match the Git commits or release artifacts recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main` that change vendored sources, the manifest, the verifier, or this workflow. It can also be run manually.
 
 File: `vendor-verification.yml`
+3rd party dependencies: None
+
+# Backport checks
+
+Checks that every `git cherry-pick -x` commit in a PR targeting `release/**` is an unchanged clean replay of a commit merged to `main`, by running `scripts/backport.py` and its tests. Triggered on pull requests and merge groups targeting `release/**`. Uses only git, not the GitHub API. See the [backporting skill](../skills/backporting/SKILL.md).
+
+File: `backport-checks.yml`
 3rd party dependencies: None
 
 # Release
