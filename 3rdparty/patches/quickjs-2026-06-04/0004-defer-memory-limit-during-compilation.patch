@@ -1,0 +1,131 @@
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -359,6 +359,13 @@
+     BOOL current_exception_is_uncatchable : 8;
+     /* true if inside an out of memory error, to avoid recursing */
+     BOOL in_out_of_memory : 8;
++    /* The compiler does not handle allocation failures safely. While
++       compile_depth > 0, the memory limit is lifted and saved here; the
++       compiler tests it at safe points instead. Once a test has failed,
++       compile_out_of_memory makes every later one fail too. */
++    BOOL compile_out_of_memory : 8;
++    int compile_depth;
++    size_t compile_malloc_limit;
+ 
+     struct JSStackFrame *current_stack_frame;
+ 
+@@ -2262,6 +2269,22 @@
+     rt->malloc_ctx.malloc_state.malloc_limit = limit;
+ }
+ 
++static void js_compile_enter(JSRuntime *rt)
++{
++    JSMallocState *ms = &rt->malloc_ctx.malloc_state;
++    if (rt->compile_depth++ == 0) {
++        rt->compile_out_of_memory = FALSE;
++        rt->compile_malloc_limit = ms->malloc_limit;
++        ms->malloc_limit = (size_t)-1;
++    }
++}
++
++static void js_compile_leave(JSRuntime *rt)
++{
++    if (--rt->compile_depth == 0)
++        rt->malloc_ctx.malloc_state.malloc_limit = rt->compile_malloc_limit;
++}
++
+ /* use -1 to disable automatic GC */
+ void JS_SetGCThreshold(JSRuntime *rt, size_t gc_threshold)
+ {
+@@ -22812,6 +22835,23 @@
+ 
+ static __exception int next_token(JSParseState *s);
+ 
++/* Return -1 with an out of memory exception if the memory limit lifted by
++   js_compile_enter() has been exceeded. The failure is sticky: the parser
++   ignores some errors while looking ahead, and must not resume if a garbage
++   collection then frees memory. */
++static __exception int js_compile_check_memory(JSContext *ctx)
++{
++    JSRuntime *rt = ctx->rt;
++    if (rt->compile_depth > 0 &&
++        (rt->compile_out_of_memory ||
++         rt->malloc_ctx.malloc_state.malloc_size > rt->compile_malloc_limit)) {
++        rt->compile_out_of_memory = TRUE;
++        JS_ThrowOutOfMemory(ctx);
++        return -1;
++    }
++    return 0;
++}
++
+ static void free_token(JSParseState *s, JSToken *token)
+ {
+     switch(token->val) {
+@@ -23473,6 +23513,8 @@
+     if (js_check_stack_overflow(s->ctx->rt, 0)) {
+         return js_parse_error(s, "stack overflow");
+     }
++    if (js_compile_check_memory(s->ctx))
++        return -1;
+ 
+     free_token(s, &s->token);
+ 
+@@ -37221,6 +37263,9 @@
+     int closure_var_offset, vardefs_offset;
+     BOOL strip_var_debug;
+     
++    if (js_compile_check_memory(ctx))
++        goto fail;
++
+     /* recompute scope linkage */
+     for (scope = 0; scope < fd->scope_count; scope++) {
+         fd->scopes[scope].first = -1;
+@@ -38091,6 +38136,9 @@
+                 /* save the function source code */
+                 /* the end of the function source code is after the last
+                    token of the function source stored into s->last_ptr */
++                /* nested arrow functions can all end on the same token */
++                if (js_compile_check_memory(ctx))
++                    goto fail;
+                 fd->source_len = s->last_ptr - ptr;
+                 fd->source = js_strndup(ctx, (const char *)ptr, fd->source_len);
+                 if (!fd->source)
+@@ -38399,6 +38447,7 @@
+     JSFunctionBytecode *b;
+     JSFunctionDef *fd;
+     JSModuleDef *m;
++    BOOL compiling = FALSE;
+ 
+     js_parse_init(ctx, s, input, input_len, filename);
+     skip_shebang(&s->buf_ptr, s->buf_end);
+@@ -38432,6 +38481,8 @@
+             js_mode |= JS_MODE_STRICT;
+         }
+     }
++    js_compile_enter(ctx->rt);
++    compiling = TRUE;
+     fd = js_new_function_def(ctx, NULL, TRUE, FALSE, filename,
+                              s->buf_start, &s->get_line_col_cache);
+     if (!fd)
+@@ -38480,6 +38531,8 @@
+ 
+     /* create the function object and all the enclosed functions */
+     fun_obj = js_create_function(ctx, fd);
++    js_compile_leave(ctx->rt);
++    compiling = FALSE;
+     if (JS_IsException(fun_obj))
+         goto fail1;
+     /* Could add a flag to avoid resolution if necessary */
+@@ -38496,6 +38549,12 @@
+     }
+     return ret_val;
+  fail1:
++    if (compiling) {
++        /* the parser may have replaced the out of memory error */
++        if (ctx->rt->compile_out_of_memory)
++            JS_ThrowOutOfMemory(ctx);
++        js_compile_leave(ctx->rt);
++    }
+     /* XXX: should free all the unresolved dependencies */
+     if (m)
+         JS_FreeValue(ctx, JS_MKPTR(JS_TAG_MODULE, m));
