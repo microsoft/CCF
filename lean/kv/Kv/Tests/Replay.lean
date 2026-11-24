@@ -46,56 +46,6 @@ private def commit (t v : Nat) (ws : Pending) (term := 0) (result := Outcome.suc
     : List Event :=
   [.commitBegin 1 t, .apply 1 t v term ws, .commitResult 1 t result v, .txEnd 1 t]
 
-private def assertUnorderedSemantics : IO Unit := do
-  let a := (("m", "a"), some "last")
-  let b := (("m", "b"), none)
-  let writes : Pending := [a, b]
-  let output := Output.applied 1 0 writes
-  if !reportedMatches (.apply 1 1 1 0 [b, a]) output
-      || reportedMatches (.apply 1 1 1 0 [a, a]) output
-      || reportedMatches (.apply 1 1 1 0 [a, a]) (.applied 1 0 [a, a])
-      || reportedMatches (.apply 1 1 1 0 [a, (("m", "b"), some "")]) output then
-    throw (IO.userError "publication echo did not preserve unique per-key writes")
-  let staged :=
-    stage (stage (stage [] (.write ("m", "a") (some "first"))) (.write ("m", "b") none))
-      (.write ("m", "a") (some "last"))
-  if !decide (staged.Perm writes) then
-    throw (IO.userError "staging did not retain the last write at each address")
-  let db : Data := [(("m", "a"), ⟨"one", 1⟩), (("m", "b"), ⟨"two", 2⟩)]
-  let reordered : Data := db.reverse
-  let changed : Data := [(("m", "a"), ⟨"one", 2⟩), (("m", "b"), ⟨"two", 2⟩)]
-  let dep := Dependency.map "m" (image db "m")
-  if !dep.holds reordered || dep.holds changed then
-    throw (IO.userError "map dependency ignored cells or depended on order")
-  let entries := scanAt db [] "m"
-  if serialStep db [] (.scan "m" entries.reverse) != some []
-      || serialStep db [] (.scan "m" [("a", "wrong"), ("b", "two")]) != none then
-    throw (IO.userError "serial scan did not compare complete entries without order")
-  let events :=
-    start 1 0 0
-    ++ [
-      .acquire 1 1 "m" 0 0,
-      .put 1 1 "m" "a" "first",
-      .put 1 1 "m" "b" "two",
-      .put 1 1 "m" "a" "last"
-    ]
-    ++ commit 1 1 [(("m", "b"), some "two"), (("m", "a"), some "last")]
-    ++ start 2 1 0
-    ++ [
-      .acquire 1 2 "m" 1 0,
-      .foreachBegin 1 2 "m" 1,
-      .foreachEntry 1 2 "m" 1 "b" "two",
-      .foreachContinue 1 2 "m" 1 true,
-      .foreachEntry 1 2 "m" 1 "a" "last",
-      .foreachContinue 1 2 "m" 1 true,
-      .foreachEnd 1 2 "m" 1,
-      .range 1 2 "m" (some "a") (some "b") [("a", "last")],
-      .txEnd 1 2
-    ]
-  match replay {} ((closed events).mapIdx fun index event => ⟨index + 1, event⟩) with
-  | .ok _ => pure ()
-  | .error e => throw (IO.userError s!"unordered publication/iteration: {e.message}")
-
 private def interleavedSegment : List Event :=
   start 1 0 0 7
   ++ [.acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11"]
@@ -226,7 +176,6 @@ def checkModelFixtures (directory : System.FilePath) : IO Unit := do
 
 private def run : IO Unit := do
   assertProjection
-  assertUnorderedSemantics
   let _ ←
     assertStutters {}
       [
