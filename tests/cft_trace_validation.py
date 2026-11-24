@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-"""Replay the --capture-cft-trace captures under the given directories against
+"""Replay the --capture-trace captures under the given directories against
 the Lean model of the CCF consensus protocol.
 
 usage: cft_trace_validation.py CONSENSUS_REPLAY DIRECTORY...
@@ -8,7 +8,8 @@ usage: cft_trace_validation.py CONSENSUS_REPLAY DIRECTORY...
 A capture may be incomplete, for example if a node was killed, so replay need
 not consume every event. Fails if the model disagrees with a capture, if replay
 consumes less than WATERMARK of the events of one of its nodes, or if there is
-no capture to replay.
+no capture to replay. Captures without ccf.cft events, as of a network whose
+first node did not start, are not replayed.
 """
 
 import concurrent.futures
@@ -36,11 +37,17 @@ def replay(replayer, path):
     return accepted, (result.stdout + result.stderr).strip()
 
 
+def has_cft_events(path):
+    with open(path, encoding="utf-8") as capture:
+        return any(line.startswith('{"tag": "ccf.cft"') for line in capture)
+
+
 def main(replayer, *directories):
     paths = sorted(
         path
         for directory in directories
         for path in pathlib.Path(directory).rglob("*_trace/*.ndjson")
+        if has_cft_events(path)
     )
     with concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as pool:
         results = list(pool.map(functools.partial(replay, replayer), paths))

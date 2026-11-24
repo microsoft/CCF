@@ -99,11 +99,15 @@ def Event.origin (event : Event) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
 /--
-Order each process's records by `m_ts`, skip driver command records, split events into
-per-node streams sorted by node, and collect node identities.
+Order each process's records by `m_ts`, skip driver command records and records with a
+`tag` other than `ccf.cft`, split events into per-node streams sorted by node, and collect
+node identities.
 -/
 def prepareEvents (records : Array Record)
     : Except String (Array (Array Event) × List String) := do
+  let records :=
+    records.filter
+      fun record => (optional record.value "tag").all (· == Json.str "ccf.cft")
   let keyed ←
     records.mapM
       fun record =>

@@ -35,7 +35,7 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "consensus_update_timeout_ms": "consensus.message_timeout",
     "worker_threads": "worker_threads",
     "observability": "observability",
-    "capture_cft_trace": None,
+    "capture_trace": None,
     "pdb": None,
     "workspace": None,
     "label": None,
@@ -451,8 +451,8 @@ def cli_args(
         type=json.loads,
     )
     parser.add_argument(
-        "--capture-cft-trace",
-        help="Record each network's ccf.cft trace events in "
+        "--capture-trace",
+        help="Record each network's trace events, of every tag, in "
         "<workspace>/<label>_trace/<n>.ndjson",
         action="store_true",
     )

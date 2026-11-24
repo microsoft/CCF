@@ -1589,7 +1589,7 @@ if(BUILD_TESTS)
     BUCKET bucket_c
     BUILD_DEPENDS logging
     # Tests exact sink configurations, including none
-    NO_CFT_TRACE
+    NO_TRACE_CAPTURE
     ADDITIONAL_ARGS --package samples/apps/logging/logging ${FLUENTD_TEST_ARGS}
   )
 
@@ -1733,7 +1733,7 @@ if(BUILD_TESTS)
       BUCKET bucket_a
       BUILD_DEPENDS js_generic
       # Released nodes do not support the trace capture sink
-      NO_CFT_TRACE
+      NO_TRACE_CAPTURE
       ADDITIONAL_ARGS
         ${LTS_TEST_ARGS}
         --constitution

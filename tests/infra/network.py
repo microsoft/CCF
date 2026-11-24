@@ -50,9 +50,9 @@ DEFAULT_TIMEOUT_MULTIPLIER = 15
 
 COMMON_FOLDER = "common"
 
-_cleared_cft_trace_folders = set()
+_cleared_trace_folders = set()
 # More than any test network configures.
-CFT_TRACE_MAX_NODES = 256
+TRACE_MAX_NODES = 256
 
 
 class NodeRole(Enum):
@@ -305,10 +305,10 @@ class Network:
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
         self.nodes = []
-        # With --capture-cft-trace, records the consensus trace of every node
+        # With --capture-trace, records the trace events of every node
         # configured until stop_all_nodes.
-        self.cft_trace = None
-        self.cft_trace_recovery = False
+        self.trace = None
+        self.trace_recovery = False
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
@@ -378,69 +378,68 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_cft_trace_sink(self, node, args, node_args, recovery=False):
-        """With --capture-cft-trace, add a sink for this network's consensus
-        trace recorder to the node's observability configuration, unless the
-        network recovers a service, which trace replay does not model."""
-        self.cft_trace_recovery |= recovery
-        if not args.capture_cft_trace or self.cft_trace_recovery:
+    def _add_trace_sink(self, node, args, node_args, recovery=False):
+        """With --capture-trace, add a sink for this network's trace
+        collector, which records events of every tag, to the node's
+        observability configuration, unless the network recovers a service,
+        which consensus trace replay does not model."""
+        self.trace_recovery |= recovery
+        if not args.capture_trace or self.trace_recovery:
             return
         if node.version is not None:
             raise ValueError(
-                f"--capture-cft-trace does not support node {node.local_node_id} "
+                f"--capture-trace does not support node {node.local_node_id} "
                 f"with explicit version {node.version}"
             )
-        if self.cft_trace is None:
+        if self.trace is None:
             folder = os.path.join(args.workspace, f"{args.label}_trace")
             # Remove an earlier run's captures, once per test process.
-            if folder not in _cleared_cft_trace_folders:
-                _cleared_cft_trace_folders.add(folder)
+            if folder not in _cleared_trace_folders:
+                _cleared_trace_folders.add(folder)
                 shutil.rmtree(folder, ignore_errors=True)
             os.makedirs(folder, exist_ok=True)
-            self.cft_trace = ExitStack()
+            self.trace = ExitStack()
             # Networks that share a label each get a capture.
             for index in itertools.count():
-                self.cft_trace_path = os.path.join(folder, f"{index}.ndjson")
+                self.trace_path = os.path.join(folder, f"{index}.ndjson")
                 try:
-                    output = self.cft_trace.enter_context(
-                        open(self.cft_trace_path, "x", encoding="utf-8")  # noqa: SIM115
+                    output = self.trace.enter_context(
+                        open(self.trace_path, "x", encoding="utf-8")  # noqa: SIM115
                     )
                     break
                 except FileExistsError:
                     pass
 
-            def write(_tag, timestamp, record):
+            def write(tag, timestamp, record):
                 seconds, nanos = struct.unpack(">II", timestamp.data)
-                record["ts"] = seconds * 10**9 + nanos
-                output.write(json.dumps(record) + "\n")
+                event = {"tag": tag, "ts": seconds * 10**9 + nanos, **record}
+                output.write(json.dumps(event) + "\n")
 
             # IPv6-only networks must not have IPv4 addresses in node configs.
             collector = infra.fluentd.Collector(
-                CFT_TRACE_MAX_NODES, write, "::1" if self.ipv6 else "127.0.0.1"
+                TRACE_MAX_NODES, write, "::1" if self.ipv6 else "127.0.0.1"
             )
-            self.cft_trace_endpoint = self.cft_trace.enter_context(collector).endpoint
+            self.trace_endpoint = self.trace.enter_context(collector).endpoint
         # Copied, as args are shared between nodes and networks.
         observability = copy.deepcopy(node_args.get("observability")) or {}
         observability.setdefault("fluentd", []).append(
-            {**self.cft_trace_endpoint, "tag-prefix-allow-list": ["ccf.cft"]}
+            {**self.trace_endpoint, "tag-prefix-allow-list": [""]}
         )
         node_args["observability"] = observability
 
-    def _finish_cft_trace(self):
-        """Stop recording the consensus trace, if started, and keep its
-        capture unless it is empty or the collector failed."""
-        trace, self.cft_trace = self.cft_trace, None
+    def _finish_trace(self):
+        """Stop recording trace events, if started, and keep the capture
+        unless the collector failed."""
+        trace, self.trace = self.trace, None
         if trace is None:
             return
         try:
             trace.close()
-            if os.path.getsize(self.cft_trace_path) == 0:
-                raise RuntimeError("No events")
         except Exception as error:
-            os.remove(self.cft_trace_path)
-            LOG.info(f"Discarded CCF consensus protocol trace: {error}")
+            os.remove(self.trace_path)
+            LOG.info(f"Discarded trace capture: {error}")
         else:
-            LOG.info(f"CCF consensus protocol trace in {self.cft_trace_path}")
+            LOG.info(f"Trace capture in {self.trace_path}")
 
     def _setup_node(
         self,
@@ -585,9 +584,7 @@ class Network:
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
-            self._add_cft_trace_sink(
-                node, args, forwarded_args_with_overrides, recovery
-            )
+            self._add_trace_sink(node, args, forwarded_args_with_overrides, recovery)
             try:
                 if i == 0:
                     if not recovery:
@@ -1006,7 +1003,7 @@ class Network:
 
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
-            self._add_cft_trace_sink(
+            self._add_trace_sink(
                 node, args, forwarded_args_with_overrides, recovery=True
             )
             try:
@@ -1502,7 +1499,7 @@ class Network:
             if self.partitioner is not None:
                 self.partitioner.cleanup()
         finally:
-            self._finish_cft_trace()
+            self._finish_trace()
 
     def setup_join_node(
         self,
@@ -1517,7 +1514,7 @@ class Network:
             for arg in infra.network.Network.node_args_to_forward
         }
         forwarded_args.update(kwargs)
-        self._add_cft_trace_sink(node, args, forwarded_args)
+        self._add_trace_sink(node, args, forwarded_args)
         self._setup_node(node, lib_name, args, target_node, **forwarded_args)
 
     def run_join_node(

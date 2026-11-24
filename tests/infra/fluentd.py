@@ -63,7 +63,12 @@ class Collector:
                         self.selector.register(
                             connection,
                             selectors.EVENT_READ,
-                            msgpack.Unpacker(raw=False, max_buffer_size=1024 * 1024),
+                            # Log messages need not be valid UTF-8.
+                            msgpack.Unpacker(
+                                raw=False,
+                                max_buffer_size=1024 * 1024,
+                                unicode_errors="replace",
+                            ),
                         )
                     else:
                         data = key.fileobj.recv(65536)

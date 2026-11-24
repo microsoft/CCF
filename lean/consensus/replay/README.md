@@ -35,6 +35,7 @@ The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `
 ## Replay contract
 
 A trace is one NDJSON file of `{pid, m_ts, msg}` records from all nodes, in any line order, where `pid` identifies the process that emitted the record.
+A record may carry its Fluentd `tag`; replay ignores records whose `tag` is not `ccf.cft`, so a capture may hold events of other tags.
 Replay orders each process's records by `m_ts`, a counter that must not repeat within the process and may have gaps because other tags share it.
 It then splits events into one stream per node; a process may trace several nodes, as `cft_driver` does, but each node's records must come from one process.
 Native code emits consensus events while holding the node's consensus lock, so a node's `m_ts` order is the order of its lock holds, whichever threads took them.
