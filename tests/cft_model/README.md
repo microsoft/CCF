@@ -50,7 +50,7 @@ The model does not say when a timer fires, when a primary sends, or which messag
   A primary sends to each peer when its clock reaches the request timeout of 10 ms, and steps down unless a majority of each configuration has acknowledged it within the election timeout of 100 ms.
   Another node starts an election when its clock reaches the election timeout.
   The clock restarts where `cft.h` restarts it: when the node changes role or term, accepts an AppendEntries, or grants a vote.
-- A node has a queue of the messages which it has sent, which the `dispatch` commands deliver oldest first, and the `drop` commands lose.
+- A node has a queue of the messages which it has sent, which the `dispatch` commands deliver oldest first, the `drop` commands lose, and `pendingMessages` lists.
   A message is lost if its sender and target are not connected when it is delivered.
 - A primary sends a peer the entries which it lacks in messages of one term each, and of as many entries as `cft.h` would send.
   That number follows the size of the entries which the node has replicated, so the model driver gives each entry the size which the scenario driver replicates for it.
