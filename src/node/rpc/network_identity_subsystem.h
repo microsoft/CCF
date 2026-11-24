@@ -381,7 +381,7 @@ namespace ccf
       const auto from_str = endorsement.endorsement_epoch_begin.to_str();
       if (is_self_endorsement(endorsement))
       {
-        if (endorsements.find(from) == endorsements.end())
+        if (!endorsements.contains(from))
         {
           fail_fetching(fmt::format(
             "Fetched self-endorsement at {} which has not been seen",
@@ -408,7 +408,7 @@ namespace ccf
       }
 
       earliest_endorsed_seq = from;
-      if (endorsements.find(from) != endorsements.end())
+      if (endorsements.contains(from))
       {
         fail_fetching(fmt::format(
           "Fetched service endorsement at {} which already exists", from_str));

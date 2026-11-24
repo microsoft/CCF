@@ -574,7 +574,7 @@ namespace ccf
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting OpenID metadata at {}", metadata_url);
 
-      auto ca_bundle_pem = ca_cert_bundle_pem.value();
+      const auto& ca_bundle_pem = ca_cert_bundle_pem.value();
 
       const auto self = weak_from_this();
       auto response_callback =

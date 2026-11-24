@@ -165,6 +165,8 @@ namespace champ
       {
         for (const auto& entry : bin)
         {
+          // Invoking a forwarded callable does not move from it
+          // NOLINTNEXTLINE(bugprone-use-after-move)
           if (!std::forward<F>(f)(entry->key, entry->value))
           {
             return false;
@@ -370,6 +372,9 @@ namespace champ
     template <class F>
     bool foreach(SmallIndex depth, F&& f) const
     {
+      // Invoking a forwarded callable, directly or through a nested foreach,
+      // does not move from it
+      // NOLINTBEGIN(bugprone-use-after-move)
       const auto entries = data_map.pop();
       for (SmallIndex i = 0; i < entries; ++i)
       {
@@ -397,6 +402,7 @@ namespace champ
           }
         }
       }
+      // NOLINTEND(bugprone-use-after-move)
       return true;
     }
 

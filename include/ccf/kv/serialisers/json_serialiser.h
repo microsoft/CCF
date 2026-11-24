@@ -23,7 +23,7 @@ namespace ccf::kv::serialisers
         "Cannot convert this type to JSON - either define to_json or use "
         "DECLARE_JSON... macros");
 
-      const nlohmann::json j = t;
+      const nlohmann::json& j = t;
       const auto dumped = j.dump();
       return {dumped.begin(), dumped.end()};
     }
