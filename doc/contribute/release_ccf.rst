@@ -41,12 +41,10 @@ The archive can still be validated or extracted with the script's existing chang
 
 Historical changelog validation does not require its first version to match the current SDK version.
 
-Before tagging any release, manually update ``project.version`` in ``python/pyproject.toml`` to match the intended release version and commit the bump.
-This is the only release-version field in source that requires a manual bump; native and npm package versions are derived from the release tag.
-Use Python version spelling for prereleases, for example ``8.0.0.dev10`` for ``ccf-8.0.0-dev10`` and ``8.0.0rc0`` for ``ccf-8.0.0-rc0``.
-Tag the reviewed commit containing the version bump using the existing release process.
-The OneBranch PyPI publisher checks the tag against SDK metadata before building the wheel, including prerelease normalization.
-GitHub release-note generation does not perform this check, so a forgotten bump can fail the later PyPI build after the GitHub release has already been published.
+Tag the reviewed release commit directly; no Python SDK version bump is needed.
+The OneBranch PyPI build derives the SDK version from the selected tag, for example ``8.0.0.dev10`` for ``ccf-8.0.0-dev10`` and ``8.0.0rc0`` for ``ccf-8.0.0-rc0``, and verifies the version in the built wheel.
+The PyPI job stamps ``python/pyproject.toml`` in its checkout without committing the edit.
+Local and ordinary CI installs of the SDK use the checked-in ``0.0.0.dev0`` version.
 
 The workflow generates a release-notes artifact, including on dry runs for a tagged commit, and uses it when creating the draft GitHub release.
 The collector does not assign versions, commit, tag, or publish.
@@ -104,6 +102,15 @@ To keep track of which changes should be merged to LTS branches and then confirm
 #. A PR targeting ``main`` which contains changes that should also reach the N.x LTS should be labelled in GitHub with ``N.x-todo``
 #. Where possible ``N.x-todo`` PRs should contain the minimal set of changes with no dependencies on earlier PRs, so they can be more easily cherry-picked
 #. A PR targeting an LTS branch (``release/N.x``) should be labelled in GitHub with ``N.x-backport``, so it can be easily found with a filter
-#. A PR targeting an LTS branch which is constructed primarily of a cherry-pick from ``main`` should be named consistently as ``Cherry-pick #<PR_ID> to N.x LTS``, so it can be easily correlated with the corresponding ``N.x-todo`` PR. If an LTS PR contains commits from multiple PRs to ``main``, each should be mentioned in the PR title, eg ``Port <foo> to N.x LTS (#PR1_ID, #PR2_ID, ...)```
+#. A PR targeting an LTS branch which is constructed primarily of a cherry-pick from ``main`` should be named consistently as ``[release/N.x] Cherry pick: <original title> (#<PR_ID>)``, so it can be easily correlated with the corresponding ``N.x-todo`` PR.
+   If an LTS PR contains commits from multiple PRs to ``main``, each should be mentioned in the PR title, eg ``[release/N.x] Cherry pick: <foo> (#PR1_ID, #PR2_ID, ...)``
+#. Structure a backport PR so reviewers do not have to re-review changes already reviewed on ``main``: prefer putting unchanged ``git cherry-pick -x`` commits of the squash-merged commits on ``main`` (since the LTS branch was created) first in merge order, followed by any fixup commits needed for the LTS branch.
+   Fixup commits may come earlier when needed so a later commit cherry-picks cleanly
+#. Prefer rebasing a backport PR onto the LTS branch locally so the commit list stays easy to review
+
+The "Backport checks" workflow runs ``scripts/backport.py`` on every PR targeting an LTS branch, using only git.
+It checks that every cherry-pick commit is an unchanged, clean ``git cherry-pick`` of a commit merged to ``main`` since the LTS branch was created, so reviewers can skip the cherry-picks and focus on the fixup commits.
+If a commit does not cherry-pick cleanly, port it in a fixup commit instead, which reviewers must check in full.
+Reviewers should also inspect any change under ``scripts/``, ``.github/workflows/``, or to ``.gitattributes``, since the PR's own run of the check uses them.
 
 Before creating an LTS release, the releaser should do a scan of PRs and ensure that there are none with ``N.x-todo`` label. If any exist, they should be merged to the LTS branch before releasing, and those candidate labels removed.

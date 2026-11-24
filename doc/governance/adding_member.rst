@@ -29,7 +29,7 @@ Members that are registered in CCF `with` a public encryption key are recovery m
 
 The member’s identity and encryption private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device (e.g. HSM) while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
-The CCF unique member identity is the hex-encoded string of the SHA-256 hash of the DER-encoded certificate, and can be computed from the certificate alone, without interacting with CCF:
+By default, the CCF unique member identity is the hex-encoded string of the SHA-256 hash of the DER-encoded certificate, and can be computed from the certificate alone, without interacting with CCF:
 
 .. code-block:: bash
 
@@ -45,6 +45,23 @@ Registering a New Member
 Once the new member's keys and certificate have been generated, the existing consortium should register the new member public information in CCF, following the usual propose and vote procedure.
 
 The :ref:`governance/proposals:Submitting a New Proposal` section describes the steps that members should follow to register a new member.
+
+To enroll a certificate-free member, pass ``did_key`` instead of ``cert`` to ``set_member``.
+For initial consortium members, set ``did_key`` instead of ``certificate_file`` in ``command.start.members``.
+See :ref:`architecture/cryptography:Identity IDs` and :doc:`migrating_identity_ids`.
+
+The Python SDK can derive the DID locally:
+
+.. code-block:: bash
+
+    $ keygenerator.sh --name new_member --public-key-only --gen-enc-key
+    $ python3 -m ccf.identity --public-key new_member_pubk.pem
+
+``--public-key-only`` generates an identity key pair without creating a certificate.
+Omit ``--gen-enc-key`` for non-recovery members.
+
+Pass ``--signing-did-key <did:key>`` instead of ``--signing-cert`` to every ``ccf_cose_sign1`` operation, including activation and recovery.
+Pass ``--member-did-key <did:key>`` instead of ``--member-id-cert`` to ``submit_recovery_share.sh`` before its curl options.
 
 Activating a New Member
 -----------------------

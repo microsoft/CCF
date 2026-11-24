@@ -1,13 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/crypto/ecdsa.h"
 #include "ccf/ds/locking.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -715,46 +717,40 @@ TEST_CASE("Explicit redirections use default resolvers and overrides")
   auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   network.tables->set_consensus(consensus);
   publish_frontend_state(frontend, network);
-  for (const auto version : {HttpVersion::HTTP1, HttpVersion::HTTP2})
-  {
-    INFO((version == HttpVersion::HTTP1 ? "HTTP1" : "HTTP2"));
-    auto session = std::make_shared<SessionContext>(
-      InvalidSessionId, anonymous_caller_der, "test_interface");
-    const auto call = [&](const std::string& path, llhttp_method verb) {
-      auto ctx = std::make_shared<::http::HttpRpcContext>(
-        session,
-        version,
-        verb,
-        "/app" + path,
-        ccf::http::HeaderMap{},
-        std::vector<uint8_t>{});
-      ::http::extract_actor(*ctx);
-      frontend.process(ctx);
-      return parse_response(ctx->serialise_response());
-    };
+  auto session = std::make_shared<SessionContext>(
+    InvalidSessionId, anonymous_caller_der, "test_interface");
+  const auto call = [&](const std::string& path, llhttp_method verb) {
+    auto ctx = std::make_shared<::http::HttpRpcContext>(
+      session,
+      verb,
+      "/app" + path,
+      ccf::http::HeaderMap{},
+      std::vector<uint8_t>{});
+    ::http::extract_actor(*ctx);
+    frontend.process(ctx);
+    return parse_response(ctx->serialise_response());
+  };
 
-    consensus->state = ccf::kv::test::StubConsensus::Backup;
-    auto response = call("/write?key=a%26b", HTTP_POST);
-    INFO(std::string(response.body.begin(), response.body.end()));
-    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
-    CHECK(
-      response.headers.at(ccf::http::headers::LOCATION) ==
-      "https://" + primary_address + "/app/write?key=a%26b");
-    CHECK(executions == 0);
-    CHECK(call("/read", HTTP_GET).status == HTTP_STATUS_OK);
-    CHECK(call("/backup", HTTP_GET).status == HTTP_STATUS_OK);
-    CHECK(executions == 2);
+  consensus->state = ccf::kv::test::StubConsensus::Backup;
+  auto response = call("/write?key=a%26b", HTTP_POST);
+  INFO(std::string(response.body.begin(), response.body.end()));
+  REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+  CHECK(
+    response.headers.at(ccf::http::headers::LOCATION) ==
+    "https://" + primary_address + "/app/write?key=a%26b");
+  CHECK(executions == 0);
+  CHECK(call("/read", HTTP_GET).status == HTTP_STATUS_OK);
+  CHECK(call("/backup", HTTP_GET).status == HTTP_STATUS_OK);
+  CHECK(executions == 2);
 
-    consensus->state = ccf::kv::test::StubConsensus::Primary;
-    CHECK(call("/write", HTTP_POST).status == HTTP_STATUS_OK);
-    response = call("/backup", HTTP_GET);
-    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
-    CHECK(
-      response.headers.at(ccf::http::headers::LOCATION) ==
-      "https://" + backup_address + "/app/backup");
-    CHECK(executions == 3);
-    executions = 0;
-  }
+  consensus->state = ccf::kv::test::StubConsensus::Primary;
+  CHECK(call("/write", HTTP_POST).status == HTTP_STATUS_OK);
+  response = call("/backup", HTTP_GET);
+  REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+  CHECK(
+    response.headers.at(ccf::http::headers::LOCATION) ==
+    "https://" + backup_address + "/app/backup");
+  CHECK(executions == 3);
 }
 
 TEST_CASE("Endpoints with disabled operator features look like unknown paths")
@@ -978,6 +974,120 @@ TEST_CASE("process with caller")
   }
 }
 
+TEST_CASE("DID COSE authentication needs no certificate")
+{
+  using namespace tav::cbor;
+  using tav::cbor::make_signed;
+  for (const auto member : {false, true})
+  {
+    CAPTURE(member);
+    ccf::kv::Store store;
+    auto tx = store.create_tx();
+    const auto key =
+      ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+    const auto did =
+      ccf::crypto::did_key_from_public_key_der(key->public_key_der());
+    if (member)
+    {
+      NewMember enrollment;
+      enrollment.did_key = did;
+      REQUIRE(InternalTablesAccess::add_member(tx, enrollment) == did);
+      REQUIRE_FALSE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(did));
+    }
+    else
+    {
+      tx.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)
+        ->put(did, key->public_key_der());
+    }
+
+    const std::vector<uint8_t> payload = {'t', 'e', 's', 't'};
+    const std::vector<uint8_t> kid(did.begin(), did.end());
+    std::vector<std::pair<Value, Value>> headers;
+    headers.emplace_back(
+      make_signed(ccf::cose::header::iana::ALG), make_signed(-35));
+    headers.emplace_back(
+      make_signed(ccf::cose::header::iana::KID), make_bytes(kid));
+    headers.emplace_back(make_string("ccf.gov.msg.created_at"), make_signed(1));
+    const auto phdr = make_map(std::move(headers)).det_serialize();
+    const auto tbs = ccf::cose::make_cose_sign1_tbs(phdr, payload);
+    const auto signature =
+      ccf::crypto::ecdsa_sig_der_to_p1363(key->sign(tbs), key->get_curve_id());
+    const auto envelope =
+      ccf::cose::make_cose_sign1_envelope(phdr, payload, signature, false);
+    auto request = create_simple_request();
+    request.set_header(
+      ccf::http::headers::CONTENT_TYPE,
+      ccf::http::headervalues::contenttype::COSE);
+    request.set_body(&envelope);
+    auto ctx =
+      ccf::make_rpc_context(anonymous_session, request.build_request());
+    std::unique_ptr<AuthnPolicy> policy;
+    if (member)
+    {
+      policy = std::make_unique<MemberCOSESign1AuthnPolicy>();
+    }
+    else
+    {
+      policy = std::make_unique<UserCOSESign1AuthnPolicy>();
+    }
+    std::string error;
+    auto caller = policy->authenticate(tx, ctx, error);
+    REQUIRE(caller != nullptr);
+    if (member)
+    {
+      const auto* identity =
+        dynamic_cast<MemberCOSESign1AuthnIdentity*>(caller.get());
+      REQUIRE(identity != nullptr);
+      CHECK(identity->member_id == did);
+      CHECK(identity->member_cert.empty());
+      ActiveMemberCOSESign1AuthnPolicy active_policy;
+      CHECK(active_policy.authenticate(tx, ctx, error) == nullptr);
+      CHECK(error == "Signer is not an ACTIVE member");
+    }
+    else
+    {
+      const auto* identity =
+        dynamic_cast<UserCOSESign1AuthnIdentity*>(caller.get());
+      REQUIRE(identity != nullptr);
+      CHECK(identity->user_id == did);
+      CHECK(identity->user_cert.empty());
+    }
+
+    auto corrupted = envelope;
+    corrupted.back() ^= 1;
+    request.set_body(&corrupted);
+    auto corrupt_ctx =
+      ccf::make_rpc_context(anonymous_session, request.build_request());
+    CHECK(policy->authenticate(tx, corrupt_ctx, error) == nullptr);
+    CHECK(error == "Failed to validate COSE Sign1");
+
+    const auto wrong_key = ccf::crypto::make_ec_key_pair()->public_key_der();
+    if (member)
+    {
+      tx.rw<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->put(did, wrong_key);
+    }
+    else
+    {
+      tx.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->put(did, wrong_key);
+    }
+    CHECK(policy->authenticate(tx, ctx, error) == nullptr);
+    CHECK(error == "Enrolled did:key does not match its public key");
+
+    if (member)
+    {
+      tx.rw<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->remove(did);
+    }
+    else
+    {
+      tx.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->remove(did);
+    }
+    CHECK(policy->authenticate(tx, ctx, error) == nullptr);
+    CHECK(
+      error ==
+      (member ? "Signer is not a known member" : "Signer is not a known user"));
+  }
+}
+
 TEST_CASE("No certs table")
 {
   NetworkState network;
@@ -1033,6 +1143,72 @@ TEST_CASE("Member caller")
     const auto serialized_response = rpc_ctx->serialise_response();
     auto response = parse_response(serialized_response);
     CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
+  }
+}
+
+TEST_CASE(
+  "DID certificate authentication binds authorization to an enrolled key")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestJsonWrappedEndpointFunction frontend(*network.tables);
+  const auto key = ccf::crypto::make_ec_key_pair();
+  const auto cert = key->self_sign("CN=original", valid_from, valid_to);
+  const auto replacement =
+    key->self_sign("CN=replacement", valid_from, valid_to);
+  const auto did =
+    ccf::crypto::did_key_from_public_key_der(key->public_key_der());
+  auto tx = network.tables->create_tx();
+  tx.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)
+    ->put(did, key->public_key_der());
+  NewMember member;
+  member.did_key = did;
+  InternalTablesAccess::add_member(tx, member);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+  const auto session = make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, ccf::crypto::make_verifier(replacement)->cert_der());
+  const auto request = create_simple_request("/get_caller").build_request();
+  const auto call = [&]() {
+    auto ctx = ccf::make_rpc_context(session, request);
+    frontend.process(ctx);
+    return parse_response(ctx->serialise_response());
+  };
+
+  auto response = call();
+  REQUIRE(response.status == HTTP_STATUS_OK);
+  CHECK(parse_response_body(response.body).get<std::string>() == did);
+
+  SUBCASE("Removal revokes an existing TLS session")
+  {
+    auto removal = network.tables->create_tx();
+    removal.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->remove(did);
+    REQUIRE(removal.commit() == ccf::kv::CommitResult::SUCCESS);
+    CHECK(call().status == HTTP_STATUS_UNAUTHORIZED);
+  }
+  SUBCASE("DID authorization is independent of transport certificate validity")
+  {
+    const auto expired =
+      key->self_sign("CN=expired", "20200101000000Z", "20201231235959Z");
+    auto ctx = ccf::make_rpc_context(
+      make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, ccf::crypto::make_verifier(expired)->cert_der()),
+      request);
+    frontend.process(ctx);
+    CHECK(parse_response(ctx->serialise_response()).status == HTTP_STATUS_OK);
+  }
+  SUBCASE("Member authentication accepts a replacement certificate")
+  {
+    MemberCertAuthnPolicy policy;
+    std::string error_reason;
+    auto read = network.tables->create_read_only_tx();
+    auto ctx = ccf::make_rpc_context(session, request);
+    auto identity = policy.authenticate(read, ctx, error_reason);
+    const auto* authenticated =
+      dynamic_cast<MemberCertAuthnIdentity*>(identity.get());
+    REQUIRE(authenticated != nullptr);
+    CHECK(authenticated->member_id.value() == did);
+    CHECK(error_reason.empty());
   }
 }
 
@@ -1619,6 +1795,111 @@ TEST_CASE("Retry on conflict")
     CHECK(
       response.headers.find("test-has-conflicted") == response.headers.end());
     CHECK(frontend.execution_count == ccf_max_attempts);
+  }
+}
+
+class CompactingEndpointRegistry : public UserEndpointRegistry
+{
+  using Values = ccf::kv::Map<size_t, size_t>;
+  ccf::kv::Store& tables;
+  const Values snapshot{"public:lookup_snapshot"};
+  const Values metadata{"public:lookup_metadata"};
+  size_t conflicts;
+
+public:
+  size_t lookup_count = 0;
+  size_t execution_count = 0;
+
+  CompactingEndpointRegistry(
+    ccf::AbstractNodeContext& context,
+    ccf::kv::Store& tables_,
+    size_t conflicts_) :
+    UserEndpointRegistry(context),
+    tables(tables_),
+    conflicts(conflicts_)
+  {
+    auto tx = tables.create_tx();
+    tx.rw(snapshot)->put(0, 0);
+    tx.rw(metadata)->put(0, 0);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    make_endpoint(
+      "/lookup",
+      HTTP_POST,
+      [this](auto& ctx) {
+        ++execution_count;
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_body(
+          std::to_string(ctx.tx.ro(metadata)->get(0).value()));
+      },
+      no_auth_required)
+      .install();
+  }
+
+  ccf::endpoints::EndpointDefinitionPtr find_endpoint(
+    ccf::kv::Tx& tx, ccf::RpcContext& ctx) override
+  {
+    ++lookup_count;
+    // Pin the request's snapshot before compaction races metadata acquisition.
+    tx.ro(snapshot)->get(0);
+    if (lookup_count <= conflicts)
+    {
+      auto update = tables.create_tx();
+      update.rw(metadata)->put(0, lookup_count);
+      REQUIRE(update.commit() == ccf::kv::CommitResult::SUCCESS);
+      tables.compact(tables.current_version());
+      ctx.set_response_header("test-lookup-conflicted", "true");
+    }
+
+    // Acquiring this handle throws a real CompactedVersionConflict if the
+    // request's snapshot has just been compacted away.
+    tx.ro(metadata)->get(0);
+    return UserEndpointRegistry::find_endpoint(tx, ctx);
+  }
+};
+
+TEST_CASE("Retry endpoint lookup on compaction conflict")
+{
+  constexpr size_t max_attempts = 30;
+  size_t conflicts = 1;
+  SUBCASE("Lookup succeeds on a fresh transaction") {}
+  SUBCASE("Lookup succeeds on the final attempt")
+  {
+    conflicts = max_attempts - 1;
+  }
+  SUBCASE("Lookup exhausts the retry limit")
+  {
+    conflicts = max_attempts;
+  }
+
+  NetworkState network;
+  prepare_callers(network);
+  ccf::StubNodeContext context;
+  CompactingEndpointRegistry registry(context, *network.tables, conflicts);
+  RpcFrontend frontend(*network.tables, registry, context);
+  frontend.open();
+
+  auto rpc_ctx = ccf::make_rpc_context(
+    anonymous_session, create_simple_request("/lookup").build_request());
+  frontend.process(rpc_ctx);
+  CHECK_FALSE(rpc_ctx->response_is_pending);
+  const auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK_FALSE(response.headers.contains("test-lookup-conflicted"));
+  if (conflicts < max_attempts)
+  {
+    CHECK(response.status == HTTP_STATUS_OK);
+    CHECK(parse_response_body(response) == std::to_string(conflicts));
+    CHECK(registry.lookup_count == conflicts + 1);
+    CHECK(registry.execution_count == 1);
+  }
+  else
+  {
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+    CHECK(
+      parse_response_body<nlohmann::json>(response)["error"]["code"] ==
+      ccf::errors::TransactionCommitAttemptsExceedLimit);
+    CHECK(registry.lookup_count == max_attempts);
+    CHECK(registry.execution_count == 0);
   }
 }
 

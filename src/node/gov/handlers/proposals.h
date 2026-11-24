@@ -5,10 +5,10 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/crypto/cose.h"
 #include "ccf/ds/json.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
-#include "js/checks.h"
 #include "node/gov/api_version.h"
 #include "node/gov/extensions/network.h"
 #include "node/gov/extensions/node.h"
@@ -308,12 +308,12 @@ namespace ccf::gov::endpoints
           {
             auto v = js_context.new_obj();
 
-            JS_CHECK_OR_THROW(v.set(
+            CCF_JS_CHECK_OR_THROW(v.set(
               "member_id",
               js_context.new_string_len(member_id.data(), member_id.size())));
-            JS_CHECK_OR_THROW(v.set_bool("vote", vote_result));
+            CCF_JS_CHECK_OR_THROW(v.set_bool("vote", vote_result));
 
-            JS_CHECK_OR_THROW(vs.set_at_index(index++, std::move(v)));
+            CCF_JS_CHECK_OR_THROW(vs.set_at_index(index++, std::move(v)));
           }
           argv.push_back(vs);
 

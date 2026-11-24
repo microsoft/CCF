@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose.h"
 
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
@@ -12,6 +11,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/hex.h"
 #include "crypto/cbor_helpers.h"
 #include "crypto/certs.h"
@@ -140,7 +140,7 @@ static ccf::crypto::EdDSAPublicKeyPtr eddsa_public_key_from_x(
   ccf::crypto::JsonWebKeyEdDSAPublic jwk;
   jwk.kty = ccf::crypto::JsonWebKeyType::OKP;
   jwk.crv = ccf::crypto::JsonWebKeyEdDSACurve::ED25519;
-  jwk.x = ccf::crypto::b64url_from_raw(x, false /* with_padding */);
+  jwk.x = ccf::ds::b64url_from_raw(x, false /* with_padding */);
   return ccf::crypto::make_eddsa_public_key(jwk);
 }
 
@@ -297,10 +297,10 @@ TEST_CASE("COSE signing propagates CBOR encoding failures")
   CHECK_THROWS_AS(
     ccf::cose::sign_ledger(
       *key, "kid", 1700000000, invalid_utf8, "sub", "2.1", {}),
-    tav::cbor::EncodeError);
+    tav::Exception);
   CHECK_THROWS_AS(
     ccf::cose::sign_endorsement(*key, 1700000000, invalid_utf8, {}, {}, {}),
-    tav::cbor::EncodeError);
+    tav::Exception);
 }
 
 TEST_CASE("COSE ECDSA round trips and algorithm binding")
@@ -742,7 +742,7 @@ TEST_CASE("Unprotected header edits preserve submitted encodings")
     CHECK_THROWS_AS(
       ccf::cose::edit::set_unprotected_header(
         ccf::ds::from_hex(malformed_hex), ccf::cose::edit::desc::Empty{}),
-      DecodeError);
+      tav::Exception);
   }
 
   const auto empty_fields = ccf::ds::from_hex("d28440a04040");
@@ -814,15 +814,14 @@ TEST_CASE("Detach payload")
   // Malformed inputs are rejected rather than rewritten
   {
     const std::vector<uint8_t> garbage = {0xDE, 0xAD, 0xBE, 0xEF};
-    REQUIRE_THROWS_AS(
-      ccf::cose::edit::detach_payload(garbage), tav::cbor::DecodeError);
+    REQUIRE_THROWS_AS(ccf::cose::edit::detach_payload(garbage), tav::Exception);
 
     // Untagged COSE_Sign1 structure
     const auto untagged = nondet_parse(envelope_flat)
                             .tag_at(ccf::cbor::tag::COSE_SIGN_1)
                             .nondet_serialize();
     REQUIRE_THROWS_AS(
-      ccf::cose::edit::detach_payload(untagged), tav::cbor::DecodeError);
+      ccf::cose::edit::detach_payload(untagged), tav::Exception);
 
     // Payload which is neither a byte string nor nil
     const auto structure =
@@ -832,7 +831,7 @@ TEST_CASE("Detach payload")
       ccf::cbor::with_element(structure, 2, make_signed(42)));
     REQUIRE_THROWS_AS(
       ccf::cose::edit::detach_payload(with_int_payload.nondet_serialize()),
-      tav::cbor::DecodeError);
+      tav::Exception);
 
     // Missing signature
     std::vector<Value> truncated;
@@ -843,7 +842,7 @@ TEST_CASE("Detach payload")
       ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(truncated)));
     REQUIRE_THROWS_AS(
       ccf::cose::edit::detach_payload(without_signature.nondet_serialize()),
-      tav::cbor::DecodeError);
+      tav::Exception);
 
     // Extra element beyond the four of COSE_Sign1 must not be silently
     // dropped, even though the first four elements are well-formed
@@ -857,7 +856,7 @@ TEST_CASE("Detach payload")
       make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(extended)));
     REQUIRE_THROWS_AS(
       ccf::cose::edit::detach_payload(with_extra_element.nondet_serialize()),
-      tav::cbor::DecodeError);
+      tav::Exception);
   }
 }
 

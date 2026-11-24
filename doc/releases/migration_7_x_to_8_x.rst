@@ -56,6 +56,65 @@ Removal of the entire ``memory`` section is planned for 8.0. Migrate to the new 
 This increases the effective read budget by 2048 bytes compared with previous releases at the same configured size.
 ``ledger.max_transaction_size`` must not exceed this budget. The independent node-to-node limit includes message headers but excludes the 4-byte length prefix.
 
+Public C++ Headers
+------------------
+
+Public header components (top-level directories and standalone headers under ``include/ccf/``) no longer depend on each other cyclically.
+Several headers and functions moved to the component that owns them, without forwarding headers or aliases, so C++ applications must update their includes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - 7.x
+     - 8.x
+   * - ``ccf/tx.h``
+     - ``ccf/kv/tx.h``
+   * - ``ccf/endpoint.h``
+     - ``ccf/endpoints/endpoint.h``
+   * - ``ccf/endpoint_context.h``
+     - ``ccf/endpoints/endpoint_context.h``
+   * - ``ccf/common_auth_policies.h``
+     - ``ccf/endpoints/common_auth_policies.h``
+   * - ``ccf/crypto/base64.h``
+     - ``ccf/ds/base64.h``
+   * - ``ccf::crypto::b64_from_raw``, ``ccf::crypto::b64url_from_raw``, ``ccf::crypto::raw_from_b64`` and ``ccf::crypto::raw_from_b64url``
+     - The same functions in ``ccf::ds``
+
+Class and function names are otherwise unchanged.
+``ccf/app_interface.h`` still provides the endpoint registry, authentication policies and transaction types.
+
+Some headers no longer provide declarations that they did not use themselves.
+Include the header that declares them instead:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Declarations
+     - No longer provided by
+     - Include
+   * - ``ccf::kv::Map``, ``ccf::kv::Set``, ``ccf::kv::Value`` and their ``ccf::Service*`` aliases
+     - ``ccf/kv/tx.h`` and ``ccf/crypto/sha256_hash.h``, and headers which obtained them from these, such as ``ccf/claims_digest.h``
+     - ``ccf/service/map.h`` or the matching ``ccf/kv/`` header
+   * - ``ccf::AbstractNodeContext``
+     - ``ccf/indexing/strategies/seqnos_by_key_bucketed.h``
+     - ``ccf/node_context.h``
+   * - ``ccf::DID``, ``ccf::Feed`` and the UVM endorsements tables
+     - ``ccf/pal/uvm_endorsements.h``
+     - ``ccf/service/tables/uvm_endorsements.h``
+
+The ``BlitSerialiser<ccf::crypto::Sha256Hash>`` specialisation now lives with its primary template in ``ccf/kv/serialisers/blit_serialiser.h``.
+Applications that use it should include that header directly.
+
+Applications can now include ``ccf/research/create_tx_claims_digest.h`` using only the installed SDK.
+
+CCF's private headers are no longer installed under ``include/ccf/_private``, and the ``ccf`` CMake target no longer adds ``include/ccf`` to the include path.
+Includes such as ``"ccf/_private/kv/kv_types.h"`` and ``"_private/kv/kv_types.h"`` therefore no longer resolve.
+Replace ``ccf/_private/js/checks.h`` (or ``_private/js/checks.h``) with ``ccf/js/checks.h``.
+Rename ``JS_CHECK_EXC``, ``JS_CHECK_SET`` and ``JS_CHECK_OR_THROW`` to ``CCF_JS_CHECK_EXC``, ``CCF_JS_CHECK_SET`` and ``CCF_JS_CHECK_OR_THROW`` respectively.
+
+Public headers do not depend on private headers.
+If your application or its tests still need a declaration that is only available in a private header, migrate to a public API or open an issue to request a supported replacement.
+
 ML-DSA Service Identity
 -----------------------
 
@@ -73,3 +132,5 @@ Nodes that join a service never create one.
 - The ML-DSA service certificate is renewed by the ``set_pq_service_certificate_validity`` proposal of the 8.x default constitution (see :ref:`governance/common_member_operations:Renewing ML-DSA Service Certificate`).
   A recovery keeps the constitution stored in the ledger, so under a 7.x or custom constitution the ML-DSA certificate expires after ``initial_service_certificate_validity_days``.
   After the recovery that introduces the identity and before the first renewal, install the 8.x default constitution with ``set_constitution``, or port its ``set_pq_service_certificate_validity`` action into the custom constitution.
+- When a service with an ML-DSA identity opens, it endorses the ML-DSA identity of the previous service with its own, as it does for the classical identity (see :ref:`audit/builtin_maps:``previous_service_identity_endorsement```).
+  A service whose previous service had no ML-DSA identity, such as the one that introduces it, endorses its own ML-DSA identity, which starts the chain.

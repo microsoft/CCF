@@ -56,8 +56,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/bellard/quickjs",
-          "commitHash": "3d5e064e9dd67c70f7962836505a7fa067bf0a4e",
-          "tag": "2026-06-04"
+          "commitHash": "e585640ffa2cf88ce7c2d587583c6fe15928ec2f"
         }
       }
     },
@@ -116,8 +115,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/TEE-Attestation-Verification",
-          "commitHash": "2bf79838084806523a8a1fbea88b05877e80e239",
-          "tag": "tav-1.0.8"
+          "commitHash": "d1d01dfbb69b1ac6322fa6a99f54d964c9712010",
+          "tag": "tav-2.0.0"
         }
       }
     }

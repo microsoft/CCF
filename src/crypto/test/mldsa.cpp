@@ -6,7 +6,6 @@
 static_assert(
   OPENSSL_VERSION_PREREQ(3, 5), "ML-DSA tests require OpenSSL 3.5 or newer");
 
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/ec_key_pair.h"
@@ -15,6 +14,7 @@ static_assert(
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/hex.h"
 #include "crypto/cbor_helpers.h"
 #include "crypto/cbor_tags.h"
@@ -211,7 +211,7 @@ namespace
         base64.push_back(c);
       }
     }
-    return ccf::crypto::raw_from_b64(base64);
+    return ccf::ds::raw_from_b64(base64);
   }
 
   std::vector<uint8_t> asn1_field(
@@ -1077,6 +1077,88 @@ TEST_CASE("ML-DSA COSE_Sign1 ledger signatures")
                     COSEKey(make_mldsa_public_key(
                       make_mldsa_key_pair(info.id)->public_key_der())))
                     ->verify_detached(envelope, root));
+    }
+  }
+}
+
+TEST_CASE("ML-DSA COSE_Sign1 endorsements")
+{
+  using namespace tav::cbor;
+  using ccf::cose::header::iana::ALG;
+  const std::vector<uint8_t> root(32, 0xab);
+  const auto ec_key = make_ec_key_pair(CurveID::SECP384R1);
+  const auto protected_header = [](const std::vector<uint8_t>& envelope) {
+    const auto phdr = nondet_parse(envelope)
+                        .tag_at(ccf::cbor::tag::COSE_SIGN_1)
+                        .array_at(0)
+                        .as_bytes();
+    return std::vector<uint8_t>(phdr.begin(), phdr.end());
+  };
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key = make_mldsa_key_pair(info.id);
+      const auto endorsed = make_mldsa_key_pair(info.id)->public_key_der();
+      const auto cert =
+        key->self_sign("CN=CCF Service", "20260101000000Z", "20270101000000Z");
+
+      const auto check = [&](
+                           std::string_view epoch_end,
+                           std::span<const uint8_t> previous_root) {
+        const auto envelope = ccf::cose::sign_endorsement(
+          *key, 1700000000, "2.1", epoch_end, previous_root, endorsed);
+        const auto ec_envelope = ccf::cose::sign_endorsement(
+          *ec_key, 1700000000, "2.1", epoch_end, previous_root, endorsed);
+
+        // Only the algorithm differs from the classical protected header
+        const auto phdr_bytes = protected_header(envelope);
+        const auto ec_phdr_bytes = protected_header(ec_envelope);
+        CHECK(std::ranges::equal(
+          ccf::cbor::with_entry(
+            nondet_parse(ec_phdr_bytes), ALG, make_signed(info.cose_alg))
+            .det_serialize(),
+          phdr_bytes));
+
+        const auto fields =
+          nondet_parse(envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+        REQUIRE(fields.size() == 4);
+        CHECK(fields.array_at(1).size() == 0);
+        CHECK(std::ranges::equal(fields.array_at(2).as_bytes(), endorsed));
+        CHECK(fields.array_at(3).as_bytes().size() == info.signature_size);
+
+        // The endorsing key as stored with endorsements (SPKI), as published
+        // (AKP COSE_Key), and as a certificate
+        const COSEKey cose_key(make_mldsa_public_key(key->public_key_der()));
+        for (const auto& verifier :
+             {make_cose_verifier_from_key(key->public_key_der()),
+              make_cose_verifier_from_key(
+                COSEKey::from_cbor(cose_key.to_cbor(info.cose_alg))),
+              make_cose_verifier_from_pem_cert(cert)})
+        {
+          std::span<uint8_t> authenticated;
+          REQUIRE(verifier->verify(envelope, authenticated));
+          CHECK(std::ranges::equal(authenticated, endorsed));
+          CHECK_FALSE(verifier->verify(ec_envelope, authenticated));
+        }
+        std::span<uint8_t> authenticated;
+        CHECK_FALSE(make_cose_verifier_from_key(ec_key->public_key_der())
+                      ->verify(envelope, authenticated));
+        CHECK_FALSE(make_cose_verifier_from_key(
+                      make_mldsa_key_pair(info.id)->public_key_der())
+                      ->verify(envelope, authenticated));
+        return envelope;
+      };
+
+      INFO("Back-endorsement");
+      const auto back_endorsement = check("3.4", root);
+      const auto validity = extract_cose_endorsement_validity(back_endorsement);
+      CHECK(validity.from_txid == "2.1");
+      CHECK(validity.to_txid == "3.4");
+
+      INFO("Self-endorsement, with no epoch end or previous root");
+      check({}, {});
     }
   }
 }

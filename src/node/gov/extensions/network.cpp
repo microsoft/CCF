@@ -3,8 +3,8 @@
 
 #include "node/gov/extensions/network.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 #include "node/network_state.h"
 
 #include <quickjs/quickjs.h>
@@ -217,23 +217,23 @@ namespace ccf::js::extensions
   {
     auto network = ctx.new_obj();
 
-    JS_CHECK_OR_THROW(network.set(
+    CCF_JS_CHECK_OR_THROW(network.set(
       "getLatestLedgerSecretSeqno",
       ctx.new_c_function(
         js_network_latest_ledger_secret_seqno,
         "getLatestLedgerSecretSeqno",
         0)));
-    JS_CHECK_OR_THROW(network.set(
+    CCF_JS_CHECK_OR_THROW(network.set(
       "generateEndorsedCertificate",
       ctx.new_c_function(
         js_network_generate_endorsed_certificate,
         "generateEndorsedCertificate",
         0)));
-    JS_CHECK_OR_THROW(network.set(
+    CCF_JS_CHECK_OR_THROW(network.set(
       "generateNetworkCertificate",
       ctx.new_c_function(
         js_network_generate_certificate, "generateNetworkCertificate", 0)));
-    JS_CHECK_OR_THROW(network.set(
+    CCF_JS_CHECK_OR_THROW(network.set(
       "generatePQNetworkCertificate",
       ctx.new_c_function(
         js_network_generate_pq_certificate,
@@ -241,6 +241,6 @@ namespace ccf::js::extensions
         0)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("network", std::move(network)));
+    CCF_JS_CHECK_OR_THROW(ccf.set("network", std::move(network)));
   }
 }

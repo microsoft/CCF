@@ -7,7 +7,7 @@
 # diffs must be accepted. An invalid diff's name starts with its expected
 # status: rejected., invalid-trace. or unsupported. Every replay must be
 # deterministic, every failure must carry a diagnostic, and every rejection must
-# identify the failing record.
+# identify the failing record. Rejected traces also run without diagnostic guards.
 
 set -euo pipefail
 shopt -s nullglob
@@ -16,6 +16,7 @@ REPLAY_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPLAYER=${1:-$REPLAY_DIR/../.lake/build/bin/kv-replay}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
+mkdir "$WORK/model-rejections"
 
 runs=0
 failures=0
@@ -53,7 +54,22 @@ for fixture in "$REPLAY_DIR"/fixtures/*/; do
       echo "${case#"$REPLAY_DIR"/}: $problem"
       failures=$((failures + 1))
     fi
+    if [[ $expected == rejected ]]; then
+      cp "$trace" "$WORK/model-rejections/$(basename "$fixture").$(basename "$case" .diff).ndjson"
+    fi
   done
 done
 echo "$((runs - failures))/$runs traces replayed as expected"
 [[ $runs -gt 0 && $failures -eq 0 ]]
+
+(
+  cd "$REPLAY_DIR/.."
+  CCF_KV_MODEL_FIXTURES="$WORK/model-rejections" lake env lean --stdin <<'EOF'
+import Kv.Tests.Replay
+
+#eval show IO Unit from do
+  let some directory <- IO.getEnv "CCF_KV_MODEL_FIXTURES"
+    | throw (IO.userError "missing model fixture directory")
+  Kv.Tests.Replay.checkModelFixtures directory
+EOF
+)

@@ -145,10 +145,10 @@ def run(args):
             for node in nodes:
                 with node.client() as c:
                     if args.verbose:
-                        r = c.get("/app/commit")
+                        r = c.get("/node/ready/app")
                     else:
-                        r = c.get("/app/commit", log_capture=[])
-                    assert r.status_code == http.HTTPStatus.OK, r.status_code
+                        r = c.get("/node/ready/app", log_capture=[])
+                    assert r.status_code == http.HTTPStatus.NO_CONTENT, r.status_code
 
             def pad_node_id(nid):
                 return (f"{{:{max_len}d}}").format(nid)

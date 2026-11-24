@@ -6,10 +6,6 @@ include(${CCF_DIR}/cmake/cpack_versions_pin.cmake)
 set(CCF_RPM_DEPENDENCIES "openssl >= ${OPENSSL_MINIMAL_VERSION}")
 set(
   CCF_RPM_DEPENDENCIES
-  "${CCF_RPM_DEPENDENCIES}, nghttp2 >= ${NGHTTP2_MINIMAL_VERSION}"
-)
-set(
-  CCF_RPM_DEPENDENCIES
   "${CCF_RPM_DEPENDENCIES}, libuv >= ${LIBUV_MINIMAL_VERSION}"
 )
 set(

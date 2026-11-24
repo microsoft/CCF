@@ -4,6 +4,7 @@
 import argparse
 import json
 import random
+import time
 
 import httpx
 
@@ -17,29 +18,16 @@ import httpx
 
 ~/CCF/tests$ python3 tvc.py -t https://127.0.0.1:8000 -t https://127.0.0.1:8001 --ca ../build/workspace/sandbox_common/service_cert.pem
 
-3. Trace is printed to stdout
+3. The final status given for each write is printed to stdout, with the time
+   at which it was received in nanoseconds since the epoch
 
-{"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 0}
-{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 0, "tx_id": [2, 197]}
-{"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 197], "status": "CommittedStatus"}
-{"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 1}
-{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 1, "tx_id": [2, 199]}
-{"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 199], "status": "CommittedStatus"}
-{"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 2}
-{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 2, "tx_id": [2, 201]}
+{"ts": 1794479526853600922, "status": "Committed", "transaction_id": "2.197"}
+{"ts": 1794479527362117405, "status": "Committed", "transaction_id": "2.199"}
+{"ts": 1794479531920466310, "status": "Invalid", "transaction_id": "2.201"}
 """
 
 KEY = "0"
 VALUE = "value"
-
-
-def log(**kwargs):
-    print(json.dumps(kwargs))
-
-
-def tx_id(string):
-    view, seqno = string.split(".")
-    return int(view), int(seqno)
 
 
 def retry(call, urls, **kwargs):
@@ -68,43 +56,16 @@ def run(targets, cacert):
         txtype = random.choice(["Ro", "Rw"]) if tx else "Rw"
         if txtype == "Ro":
             response = retry(session.get, key_urls)
-            log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
             assert response.text == VALUE
-            txid = response.headers["x-ms-ccf-transaction-id"]
-            log(
-                action="RoTxResponseAction",
-                type="RoTxResponse",
-                tx=tx,
-                tx_id=tx_id(txid),
-            )
         elif txtype == "Rw":
             response = retry(session.put, key_urls, data=VALUE)
-            log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
             txid = response.headers["x-ms-ccf-transaction-id"]
-            log(
-                action="RwTxExecuteAction",
-                type="RwTxExecute",
-                tx_id=tx_id(txid),
-                tx=tx,
-            )
-            log(
-                action="RwTxResponseAction",
-                type="RwTxResponse",
-                tx=tx,
-                tx_id=tx_id(txid),
-            )
             done = False
             while not done:
                 tx_urls = [f"{target}/tx?transaction_id={txid}" for target in targets]
                 response = retry(session.get, tx_urls)
-                status = response.json()["status"]
-                if status in ("Committed", "Invalid"):
-                    log(
-                        action=f"Status{status}ResponseAction",
-                        type="TxStatusReceived",
-                        tx_id=tx_id(txid),
-                        status=f"{status}Status",
-                    )
+                if response.json()["status"] in ("Committed", "Invalid"):
+                    print(json.dumps({"ts": time.time_ns(), **response.json()}))
                     done = True
         else:
             raise ValueError(f"Unknown Tx type: {txtype}")

@@ -33,6 +33,7 @@ namespace ccf
     startup_seqno);
   DECLARE_JSON_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::In,
+    id_format,
     certificate_signing_request,
     node_data,
     sealing_recovery_data,

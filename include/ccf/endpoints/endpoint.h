@@ -1,0 +1,588 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#pragma once
+
+#include "ccf/ds/json.h"
+#include "ccf/ds/openapi.h"
+#include "ccf/endpoints/endpoint_context.h"
+#include "ccf/http_consts.h"
+#include "ccf/rest_verb.h"
+#include "ccf/service/map.h"
+#include "ccf/service/operator_feature.h"
+
+#include <string>
+#include <tuple>
+#include <utility>
+
+namespace ccf::endpoints
+{
+  using URI = std::string;
+
+  struct EndpointKey
+  {
+    /// URI path to endpoint
+    URI uri_path;
+    /// HTTP Verb
+    RESTVerb verb = HTTP_POST;
+
+    [[nodiscard]] std::string to_str() const
+    {
+      return fmt::format("{} {}", verb.c_str(), uri_path);
+    }
+  };
+}
+
+namespace ccf::kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<ccf::endpoints::EndpointKey>
+  {
+    static SerialisedEntry to_serialised(
+      const ccf::endpoints::EndpointKey& endpoint_key)
+    {
+      auto str =
+        fmt::format("{} {}", endpoint_key.verb.c_str(), endpoint_key.uri_path);
+      return {str.begin(), str.end()};
+    }
+
+    static ccf::endpoints::EndpointKey from_serialised(
+      const SerialisedEntry& data)
+    {
+      std::string str{data.begin(), data.end()};
+      auto i = str.find(' ');
+      if (i == std::string::npos)
+      {
+        throw std::logic_error("invalid encoding of endpoint key");
+      }
+      auto verb = str.substr(0, i);
+      auto uri_path = str.substr(i + 1);
+      return {uri_path, verb};
+    }
+  };
+}
+
+namespace ccf::endpoints
+{
+  DECLARE_JSON_TYPE(EndpointKey);
+  DECLARE_JSON_REQUIRED_FIELDS(EndpointKey, uri_path, verb);
+
+  enum class ForwardingRequired : uint8_t
+  {
+    /** ForwardingRequired::Sometimes is the default value, and should be used
+     * for most read-only operations. If this request is made to a backup node,
+     * it may be forwarded to the primary node for execution to maintain session
+     * consistency. Specifically, if this request is sent as part of a session
+     * which was already forwarded, then it will also be forwarded.
+     */
+    Sometimes,
+
+    /** ForwardingRequired::Always should be used for operations which may
+     * produce writes. If this request is made to a backup node, it will be
+     * forwarded to the primary node for execution.
+     */
+    Always,
+
+    /** ForwardingRequired::Never should be used for operations which want to
+     * read node-local state rather than the latest replicated state, such as
+     * historical queries or local consensus information. This call will never
+     * be forwarded, and is always executed on the receiving node, potentiall
+     * breaking session consistency. If this attempts to write on a backup, this
+     * will fail.
+     */
+    Never
+  };
+
+  enum class RedirectionStrategy : uint8_t
+  {
+    /** This operation does not need to be redirected, and can be executed on
+       the receiving node. Most read-only operations can be executed on any
+       node, so should be marked as None.  */
+    None,
+
+    /** This operation must be executed on a primary. If the current node is not
+       a primary, it should attempt to redirect to the primary, or else return
+       an error. Any write operations must be executed on a primary, so should
+       be marked as ToPrimary. */
+    ToPrimary,
+
+    /** This operation should be executed on a backup. If the current node is
+       not a backup, it should attempt to redirect to a backup, or else return
+       an error. Only read operations can be marked as ToBackup. */
+    ToBackup,
+  };
+
+  enum class Mode : uint8_t
+  {
+    ReadWrite,
+    ReadOnly,
+    Historical
+  };
+
+  enum class EndpointExecutionMode : uint8_t
+  {
+    KV,
+    Command
+  };
+
+  enum QueryParamPresence : uint8_t
+  {
+    RequiredParameter,
+    OptionalParameter,
+  };
+
+  DECLARE_JSON_ENUM(
+    ForwardingRequired,
+    {{ForwardingRequired::Sometimes, "sometimes"},
+     {ForwardingRequired::Always, "always"},
+     {ForwardingRequired::Never, "never"}});
+
+  DECLARE_JSON_ENUM(
+    RedirectionStrategy,
+    {{RedirectionStrategy::None, "none"},
+     {RedirectionStrategy::ToPrimary, "to_primary"},
+     {RedirectionStrategy::ToBackup, "to_backup"}});
+
+  DECLARE_JSON_ENUM(
+    Mode,
+    {{Mode::ReadWrite, "readwrite"},
+     {Mode::ReadOnly, "readonly"},
+     {Mode::Historical, "historical"}});
+
+  struct InterpreterReusePolicy
+  {
+    enum class Kind : uint8_t
+    {
+      KeyBased
+    } kind = Kind::KeyBased;
+
+    std::string key;
+
+    bool operator==(const InterpreterReusePolicy&) const = default;
+  };
+
+  void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp);
+  void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp);
+  std::string schema_name(
+    [[maybe_unused]] const InterpreterReusePolicy* policy);
+  void fill_json_schema(
+    nlohmann::json& schema,
+    [[maybe_unused]] const InterpreterReusePolicy* policy);
+
+  constexpr ForwardingRequired forwarding_required_for(
+    RedirectionStrategy redirection_strategy)
+  {
+    return redirection_strategy == RedirectionStrategy::ToPrimary ?
+      ForwardingRequired::Always :
+      ForwardingRequired::Never;
+  }
+
+  struct EndpointProperties
+  {
+    /// Endpoint mode
+    Mode mode = Mode::ReadWrite;
+    /// Endpoint forwarding policy
+    ForwardingRequired forwarding_required = ForwardingRequired::Always;
+    /// Endpoint redirection policy
+    RedirectionStrategy redirection_strategy = RedirectionStrategy::ToPrimary;
+    /// Authentication policies
+    std::vector<nlohmann::json> authn_policies;
+    /// OpenAPI schema for endpoint
+    nlohmann::json openapi = nlohmann::json::object();
+    //// Whether to include endpoint schema in frontend schema
+    bool openapi_hidden = false;
+    /// JavaScript module
+    std::string js_module;
+    /// JavaScript function name
+    std::string js_function;
+    /// Determines how JS interpreters may be reused between multiple calls,
+    /// sharing global state in potentially unsafe ways. The default empty value
+    /// means no reuse is permitted.
+    std::optional<InterpreterReusePolicy> interpreter_reuse = std::nullopt;
+  };
+
+  // Keep forwarding explicit in stored records and governance responses, while
+  // allowing application bundles to specify only their redirection policy.
+  DECLARE_JSON_TYPE_IMPL(
+    EndpointProperties, , to_json_optional_fields(j, t);
+    j["forwarding_required"] = t.forwarding_required,
+    ,
+    from_json_optional_fields(j, t);
+    if (!j.contains("forwarding_required")) {
+      t.forwarding_required = forwarding_required_for(t.redirection_strategy);
+    },
+    ,
+    fill_json_schema_optional_fields(j, t),
+    ,
+    add_schema_components_optional_fields(doc, j, t));
+  DECLARE_JSON_REQUIRED_FIELDS(EndpointProperties, authn_policies);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    EndpointProperties,
+    forwarding_required,
+    openapi,
+    openapi_hidden,
+    mode,
+    js_module,
+    js_function,
+    interpreter_reuse,
+    redirection_strategy);
+
+  struct EndpointDefinition
+  {
+    virtual ~EndpointDefinition() = default;
+
+    EndpointKey dispatch;
+
+    /// Full URI path to endpoint, including method prefix
+    URI full_uri_path;
+
+    EndpointProperties properties;
+
+    EndpointExecutionMode execution_mode = EndpointExecutionMode::KV;
+
+    /** List of authentication policies which will be checked before executing
+     * this endpoint.
+     *
+     * When multiple policies are specified, any single successful check is
+     * sufficient to grant access, even if others fail. If all policies fail,
+     * the last will set an error status on the response, and the endpoint
+     * will not be invoked. If no policies are specified then the default
+     * behaviour is that the endpoint accepts all requests, without any
+     * authentication checks.
+     *
+     * If an auth policy passes, it may construct an object describing the
+     * Identity of the caller to be used by the endpoint. This can be
+     * retrieved inside the endpoint with ctx.get_caller<IdentType>(),
+     * @see ccf::UserCertAuthnIdentity
+     * @see ccf::MemberCertAuthnIdentity
+     * @see ccf::UserCOSESign1tAuthnIdentity
+     * @see ccf::MemberCOSESign1AuthnIdentity
+     * @see ccf::JwtAuthnIdentity
+     *
+     * @see ccf::empty_auth_policy
+     * @see ccf::user_cert_auth_policy
+     * @see ccf::any_cert_auth_policy
+     */
+    AuthnPolicies authn_policies;
+
+    std::set<OperatorFeature> required_operator_features;
+  };
+
+  using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
+
+  using EndpointsMap = ccf::ServiceMap<EndpointKey, EndpointProperties>;
+
+  namespace Tables
+  {
+    static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
+  }
+
+  /** An Endpoint represents a user-defined resource that can be invoked by
+   * authorised users via HTTP requests, over TLS. An Endpoint is accessible
+   * at a specific verb and URI, e.g. POST /app/accounts or GET /app/records.
+   *
+   * Endpoints can read from and mutate the state of the replicated key-value
+   * store.
+   *
+   * A CCF application is a collection of Endpoints recorded in the
+   * application's EndpointRegistry.
+   */
+  struct Endpoint : public EndpointDefinition
+  {
+  private:
+    bool forwarding_policy_explicit = false;
+
+  public:
+    // Functor which is invoked to process requests for this Endpoint
+    EndpointFunction func;
+
+    // Functor which is invoked without constructing a KV transaction
+    CommandEndpointFunction command_func;
+
+    // Functor which is invoked to modify the response after it is locally
+    // committed (ie - assigned a transaction ID)
+    LocallyCommittedEndpointFunction locally_committed_func;
+
+    struct Installer
+    {
+      virtual void install(Endpoint&) = 0;
+      virtual ~Installer() = default;
+    };
+
+    Installer* installer = nullptr;
+
+    using SchemaBuilderFn =
+      std::function<void(nlohmann::json&, const Endpoint&)>;
+    std::vector<SchemaBuilderFn> schema_builders;
+
+    bool openapi_hidden = false;
+
+    std::optional<std::string> openapi_summary = std::nullopt;
+    std::optional<std::string> openapi_description = std::nullopt;
+    std::optional<bool> openapi_deprecated = std::nullopt;
+
+    /** Set the OpenAPI description for the endpoint.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_description(const std::string& description);
+
+    /** Set the OpenAPI summary for the endpoint.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_summary(const std::string& summary);
+
+    /** Set the endpoint as deprecated.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_deprecated(bool is_deprecated);
+
+    /** Set the endpoint as deprecated and overwrites the description to include
+     * deprecation version and point to a replacement endpoint.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_deprecated_replaced(
+      const std::string& deprecation_version, const std::string& replacement);
+
+    /** Whether the endpoint should be omitted from the OpenAPI document.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_hidden(bool hidden);
+
+    /** Add an opt-in feature which this endpoint uses. The endpoint will only
+     * be available on interfaces which have opted in to enabling all required
+     * features.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& require_operator_feature(OperatorFeature feature);
+
+    /** Sets the JSON schema that the request parameters must comply with.
+     *
+     * @param j Request parameters JSON schema
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_params_schema(const nlohmann::json& j);
+
+    /** Sets the JSON schema that the request response must comply with.
+     *
+     * @param j Request response JSON schema
+     * @param status Request response status code
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_result_schema(
+      const nlohmann::json& j,
+      std::optional<http_status> status = std::nullopt);
+
+    /** Adds an OpenAPI response for a status code without changing the
+     * endpoint's primary success status.
+     *
+     * @tparam Out Response body JSON-serialisable data structure, or void for
+     * a response without a body
+     * @param status Response status code
+     * @param description Description of this response
+     * @return This Endpoint for further modification
+     */
+    template <typename Out = void>
+    Endpoint& add_openapi_response(
+      http_status status,
+      const std::string& description = "Default response description")
+    {
+      schema_builders.push_back(
+        [status,
+         description](nlohmann::json& document, const Endpoint& endpoint) {
+          const auto http_verb = endpoint.dispatch.verb.get_http_method();
+          if (!http_verb.has_value())
+          {
+            return;
+          }
+
+          auto& path_operation = ds::openapi::path_operation(
+            ds::openapi::path(document, endpoint.full_uri_path),
+            http_verb.value());
+          if constexpr (!std::is_same_v<Out, void>)
+          {
+            ds::openapi::add_response_schema<Out>(
+              document, endpoint.full_uri_path, http_verb.value(), status);
+          }
+          std::ignore =
+            ds::openapi::response(path_operation, status, description);
+        });
+
+      return *this;
+    }
+
+    /** Sets the schema that the request and response bodies should comply
+     * with. These are used to populate the generated OpenAPI document, but do
+     * not introduce any constraints on the actual types that are parsed or
+     * produced by the handling functor.
+     *
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *  See ``DECLARE_JSON_`` serialisation macros for serialising
+     *  user-defined data structures.
+     * \endverbatim
+     *
+     * @tparam In Request body JSON-serialisable data structure
+     * @tparam Out Response body JSON-serialisable data structure
+     * @param status Response status code
+     * @return This Endpoint for further modification
+     */
+    // NOLINTNEXTLINE(misc-confusable-identifiers)
+    template <typename In, typename Out>
+    Endpoint& set_auto_schema(std::optional<http_status> status = std::nullopt)
+    {
+      if constexpr (!std::is_same_v<In, void>)
+      {
+        schema_builders.push_back(
+          [](nlohmann::json& document, const Endpoint& endpoint) {
+            const auto http_verb = endpoint.dispatch.verb.get_http_method();
+            if (!http_verb.has_value())
+            {
+              // Non-HTTP endpoints are not documented
+              return;
+            }
+
+            ds::openapi::add_request_body_schema<In>(
+              document, endpoint.full_uri_path, http_verb.value());
+          });
+      }
+
+      constexpr http_status fallback_status =
+        std::is_same_v<Out, void> ? HTTP_STATUS_NO_CONTENT : HTTP_STATUS_OK;
+      const http_status response_status = status.value_or(fallback_status);
+
+      return add_openapi_response<Out>(response_status);
+    }
+
+    /** Sets schemas for request and response bodies using typedefs within T.
+     * @see set_auto_schema
+     *
+     * \verbatim embed:rst:leading-asterisk
+     * .. note::
+     *   ``T`` data structure should contain two nested ``In`` and ``Out``
+     *   structures for request parameters and response format, respectively.
+     * \endverbatim
+     *
+     * @tparam T Type containing ``In`` and ``Out`` typedefs with JSON-schema
+     * description specialisations
+     * @param status Request response status code
+     * @return This Endpoint for further modification
+     */
+    template <typename T>
+    Endpoint& set_auto_schema(std::optional<http_status> status = std::nullopt)
+    {
+      return set_auto_schema<typename T::In, typename T::Out>(status);
+    }
+
+    /** Add OpenAPI documentation for a query parameter which can be passed to
+     * this endpoint.
+     *
+     * @tparam T Type with appropriate ``ds::json`` specialisations to
+     * generate a JSON schema description
+     * @param param_name Name to be used for the query parameter to this
+     * Endpoint
+     * @param presence Enum value indicating whether this parameter is
+     * required or optional
+     * @return This Endpoint for further modification
+     */
+    template <typename T>
+    Endpoint& add_query_parameter(
+      const std::string& param_name,
+      QueryParamPresence presence = QueryParamPresence::RequiredParameter)
+    {
+      schema_builders.push_back(
+        [param_name,
+         presence](nlohmann::json& document, const Endpoint& endpoint) {
+          const auto http_verb = endpoint.dispatch.verb.get_http_method();
+          if (!http_verb.has_value())
+          {
+            // Non-HTTP endpoints are not documented
+            return;
+          }
+
+          const auto schema_name = ds::json::schema_name<T>();
+          const auto query_schema = ds::json::build_schema<T>();
+
+          auto parameter = nlohmann::json::object();
+          parameter["name"] = param_name;
+          parameter["in"] = "query";
+          parameter["required"] =
+            presence == QueryParamPresence::RequiredParameter;
+          parameter["schema"] = ds::openapi::add_schema_to_components(
+            document, schema_name, query_schema);
+          ds::openapi::add_request_parameter_schema(
+            document, endpoint.full_uri_path, http_verb.value(), parameter);
+        });
+
+      return *this;
+    }
+
+    /** Overrides whether a Endpoint is always forwarded, or whether it is
+     * safe to sometimes execute on followers.
+     *
+     * @deprecated Use set_redirection_strategy instead. Request forwarding
+     * will be removed in CCF 8.0. For CCF 7.x interfaces using legacy
+     * forwarding, preserve the policy in properties.forwarding_required.
+     *
+     * @param fr Enum value with desired status
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_forwarding_required(ForwardingRequired fr);
+
+    /** Sets redirection and its corresponding legacy forwarding policy, unless
+     * forwarding was explicitly configured through set_forwarding_required().
+     */
+    Endpoint& set_redirection_strategy(RedirectionStrategy rs);
+
+    Endpoint& set_locally_committed_function(
+      const LocallyCommittedEndpointFunction& lcf);
+
+    void install();
+  };
+
+  using EndpointPtr = std::shared_ptr<const Endpoint>;
+}
+
+FMT_BEGIN_NAMESPACE
+
+template <>
+struct formatter<ccf::endpoints::ForwardingRequired>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(
+    const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
+  {
+    switch (v)
+    {
+      case ccf::endpoints::ForwardingRequired::Sometimes:
+      {
+        return format_to(ctx.out(), "sometimes");
+      }
+      case ccf::endpoints::ForwardingRequired::Always:
+      {
+        return format_to(ctx.out(), "always");
+      }
+      case ccf::endpoints::ForwardingRequired::Never:
+      {
+        return format_to(ctx.out(), "never");
+      }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unhandled value for ForwardingRequired: {}", std::to_underlying(v)));
+      }
+    }
+  }
+};
+
+FMT_END_NAMESPACE

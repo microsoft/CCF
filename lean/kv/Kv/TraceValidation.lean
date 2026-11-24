@@ -8,7 +8,7 @@ public import Kv.TraceValidation.Records
 public section
 
 /-!
-Streams schema 1 NDJSON traces through `Model.step`, one record per line, and reports the
+Streams schema 1 NDJSON traces through `TraceValidation.step`, one record per line, and reports the
 first failure or acceptance.
 -/
 
@@ -47,9 +47,9 @@ def failureReport (w : World) (j : Json) (failure : Failure) : Report :=
   let id (n : Option Nat) := (n.map toString).getD "<none>"
   {
     status := statusName failure.kind
-    events := w.count
+    events := w.recording.count
     message :=
-      s!"event {w.count + 1} type={kind} case={w.currentCase.getD "<none>"} store={id sid} tx={id tid}: {failure.message}"
+      s!"event {w.recording.count + 1} type={kind} case={w.recording.currentCase.getD "<none>"} store={id sid} tx={id tid}: {failure.message}"
     seq? := seq,
     store? := sid,
     tx? := tid
@@ -71,13 +71,13 @@ def checkLine (w : World) (line : String) : Except Report World := do
 
 /-- Reports acceptance, or a truncated stream if `trace_end` is missing. -/
 def finishReport (w : World) : Report :=
-  if !w.ended then
+  if !w.recording.ended then
     failureReport w .null ⟨.invalidTrace, "truncated stream: missing trace_end"⟩
   else
     {
       status := "accepted",
-      events := w.count,
-      message := s!"accepted {w.count} events in {w.cases} cases"
+      events := w.recording.count,
+      message := s!"accepted {w.recording.count} events in {w.recording.cases} cases"
     }
 
 /-- Checks every line read from `handle`, stopping at the first failure. -/

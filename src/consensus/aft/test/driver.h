@@ -113,6 +113,11 @@ private:
 
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
+  // The role and term of each node, as last printed
+  std::map<
+    ccf::NodeId,
+    std::pair<std::optional<ccf::kv::LeadershipState>, aft::Term>>
+    _roles;
 
   void _replicate(
     const std::string& term_s,
@@ -138,7 +143,7 @@ private:
       ccf::kv::BatchVector{make_entry(
         node_id,
         cft->get_last_idx() + 1,
-        term_s,
+        term,
         std::move(data),
         committable,
         configuration,
@@ -146,10 +151,34 @@ private:
       term);
   }
 
+  // Nodes removed from, then nodes added to, a configuration, such as
+  // (-n[0],+n[1])
+  static std::string configuration_delta(
+    const ccf::kv::Configuration::Nodes& from,
+    const ccf::kv::Configuration::Nodes& to)
+  {
+    std::vector<std::string> changes;
+    for (const auto& [id, info] : from)
+    {
+      if (!to.contains(id))
+      {
+        changes.push_back(fmt::format("-{}", id));
+      }
+    }
+    for (const auto& [id, info] : to)
+    {
+      if (!from.contains(id))
+      {
+        changes.push_back(fmt::format("+{}", id));
+      }
+    }
+    return fmt::format("({})", fmt::join(changes, ","));
+  }
+
   ccf::kv::BatchVector::value_type make_entry(
     const ccf::NodeId& node_id,
     aft::Index idx,
-    const std::string& term_s,
+    aft::Term term,
     std::vector<uint8_t> data,
     bool committable = false,
     const std::optional<ccf::kv::Configuration::Nodes>& configuration =
@@ -157,14 +186,23 @@ private:
     const std::optional<ccf::kv::Configuration::Nodes>& retired_committed =
       std::nullopt)
   {
+    std::string kind = committable ? "signature" : "raw";
+    if (configuration.has_value())
+    {
+      kind = fmt::format(
+        "reconfiguration {}",
+        configuration_delta(
+          _nodes.at(node_id).cft->get_latest_configuration(),
+          configuration.value()));
+    }
     CFT_DRIVER_PRINT(
       "{}->>{}: replicate {}.{} = {} [{}]",
       node_id,
       node_id,
-      term_s,
+      term,
       idx,
       stringify(data),
-      configuration.has_value() ? "reconfiguration" : "raw");
+      kind);
 
     aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
     auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
@@ -277,6 +315,7 @@ public:
     add_node(start_node_id, false);
     configuration.try_emplace(start_node_id);
     _nodes.at(start_node_id).cft->force_become_primary();
+    print_role_change(start_node_id);
     _replicate("2", {}, false, configuration);
     CFT_DRIVER_PRINT(
       "Note over {}: Node {} created",
@@ -526,26 +565,12 @@ public:
     log(node_id, tgt_node_id, s, dropped);
   }
 
-  void log_msg_details(
-    ccf::NodeId node_id,
-    ccf::NodeId tgt_node_id,
-    const std::vector<uint8_t>& contents,
-    bool dropped = false)
+  // Calls f with the packet at the start of a queued message
+  template <typename F>
+  void visit_packet(const std::vector<uint8_t>& contents, F&& f)
   {
     const uint8_t* data = contents.data();
     size_t size = contents.size();
-
-    const auto log_packet = [&](const auto& packet) {
-      log_msg_details(node_id, tgt_node_id, packet, dropped);
-      if (dropped)
-      {
-        aft::trace::drop_pending_to(
-          _nodes.at(node_id).cft->get_state_for_trace(),
-          node_id.value(),
-          tgt_node_id.value(),
-          packet);
-      }
-    };
 
     const auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
     switch (msg_type)
@@ -553,37 +578,37 @@ public:
       case (aft::CftMsgType::request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        log_packet(rv);
+        f(rv);
         break;
       }
       case (aft::CftMsgType::request_pre_vote):
       {
         auto rpv = *(aft::RequestPreVote*)data;
-        log_packet(rpv);
+        f(rpv);
         break;
       }
       case (aft::CftMsgType::request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
-        log_packet(rvr);
+        f(rvr);
         break;
       }
       case (aft::CftMsgType::request_pre_vote_response):
       {
         auto rvr = *(aft::RequestPreVoteResponse*)data;
-        log_packet(rvr);
+        f(rvr);
         break;
       }
       case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        log_packet(ae);
+        f(ae);
         break;
       }
       case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        log_packet(aer);
+        f(aer);
         break;
       }
       case (aft::CftMsgType::append_entries_signed_response):
@@ -594,7 +619,7 @@ public:
       case (aft::CftMsgType::propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
-        log_packet(prv);
+        f(prv);
         break;
       }
       default:
@@ -603,6 +628,36 @@ public:
           fmt::format("Unhandled CftMsgType: {}", msg_type));
       }
     }
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    const std::vector<uint8_t>& contents,
+    bool dropped = false)
+  {
+    visit_packet(contents, [&](const auto& packet) {
+      log_msg_details(node_id, tgt_node_id, packet, dropped);
+      if (dropped)
+      {
+        aft::trace::drop_pending_to(
+          _nodes.at(node_id).cft->get_state_for_trace(),
+          node_id.value(),
+          tgt_node_id.value(),
+          packet);
+      }
+    });
+  }
+
+  // The packet of a queued message as JSON, with the fields which a trace
+  // records for it, in that order
+  std::string packet_json(const std::vector<uint8_t>& contents)
+  {
+    std::vector<uint8_t> encoded;
+    visit_packet(contents, [&encoded](const auto& packet) {
+      write_msgpack(encoded, packet);
+    });
+    return nlohmann::ordered_json::from_msgpack(encoded).dump();
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
@@ -618,6 +673,7 @@ public:
     s << "periodic for " << std::to_string(ms_.count()) << " ms";
     log(node_id, node_id, s.str());
     _nodes.at(node_id).cft->periodic(ms_);
+    print_role_change(node_id);
   }
 
   void periodic_all(ms ms_)
@@ -647,7 +703,9 @@ public:
   void summarise_log(ccf::NodeId node_id)
   {
     CFT_DRIVER_PRINT(
-      "{}: {}", node_id, get_ledger_summary(*_nodes.at(node_id).cft));
+      "Note right of {}: {}",
+      node_id,
+      get_ledger_summary(*_nodes.at(node_id).cft));
   }
 
   void summarise_logs_all()
@@ -755,6 +813,32 @@ public:
       cft->get_committed_seqno());
   }
 
+  // Prints the role and term of a node when either has changed since they were
+  // last printed, or when they have not been printed yet
+  void print_role_change(ccf::NodeId node_id)
+  {
+    auto cft = _nodes.at(node_id).cft;
+    const std::pair role{cft->get_details().leadership_state, cft->get_view()};
+    auto [it, inserted] = _roles.try_emplace(node_id, role);
+    if (inserted || it->second != role)
+    {
+      it->second = role;
+      CFT_DRIVER_PRINT(
+        "Note over {}: becomes {} in term {}",
+        node_id,
+        role.first.has_value() ? fmt::format("{}", *role.first) : "None",
+        role.second);
+    }
+  }
+
+  void print_role_changes()
+  {
+    for (const auto& node : _nodes)
+    {
+      print_role_change(node.first);
+    }
+  }
+
   void state_all()
   {
     for (auto& node : _nodes)
@@ -830,6 +914,7 @@ public:
       {
         log_msg_details(src, dst, contents);
         _nodes.at(dst).cft->recv_message(src, contents, body);
+        print_role_change(dst);
         return true;
       }
     }
@@ -926,6 +1011,22 @@ public:
     }
   }
 
+  // The undelivered messages sent by src to dst, oldest first, each as
+  // packet_json
+  std::vector<std::string> pending_messages(ccf::NodeId src, ccf::NodeId dst)
+  {
+    std::vector<std::string> packets;
+    for (const auto& [target, contents] :
+         channel_stub_proxy(*_nodes.at(src).cft)->messages)
+    {
+      if (target == dst)
+      {
+        packets.push_back(packet_json(contents));
+      }
+    }
+    return packets;
+  }
+
   std::vector<std::pair<aft::Term, ccf::NodeId>> find_primaries()
   {
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
@@ -998,7 +1099,7 @@ public:
       batch.push_back(make_entry(
         node_id,
         cft->get_last_idx() + 1 + batch.size(),
-        term_s,
+        term,
         {data_s.begin(), data_s.end()},
         signature));
     }

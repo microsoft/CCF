@@ -36,7 +36,7 @@ namespace ccf::cose::utils
         chain.emplace_back(bytes.begin(), bytes.end());
       }
     }
-    catch (const tav::cbor::DecodeError&)
+    catch (const tav::Exception&)
     {
       auto bytes = tav::cbor::rethrow_with_msg(
         [&]() { return x5chain_value.as_bytes(); }, "x5chain");
@@ -86,7 +86,7 @@ namespace ccf::cose
       {
         claims.iat = iat.as_signed();
       }
-      catch (const DecodeError&)
+      catch (const tav::Exception&)
       {
         // CWT NumericDate values MUST omit CBOR tags:
         // https://www.rfc-editor.org/rfc/rfc8392.html#section-5
@@ -95,7 +95,7 @@ namespace ccf::cose
         claims.iat = iat.tag_at(ccf::cbor::tag::EPOCH_DATE_TIME).as_signed();
       }
     }
-    catch (const DecodeError& err)
+    catch (const tav::Exception& err)
     {
       std::ignore = err; // optional field
     }
@@ -121,9 +121,9 @@ namespace ccf::cose
       claims.svn = cwt_claims.map_at(make_string(ccf::cwt::header::custom::SVN))
                      .as_signed();
     }
-    catch (const DecodeError& err)
+    catch (const tav::Exception& err)
     {
-      if (err.error_code() != Error::KEY_NOT_FOUND)
+      if (err.code() != tav::ErrorCode::CBOR_KEY_NOT_FOUND)
       {
         throw;
       }

@@ -47,6 +47,7 @@ namespace ccf
     nlohmann::json member_data;
 
     std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
+    std::optional<std::string> did_key = std::nullopt;
 
     NewMember() = default;
 
@@ -64,14 +65,15 @@ namespace ccf
     bool operator==(const NewMember& rhs) const
     {
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
-        member_data == rhs.member_data && recovery_role == rhs.recovery_role;
+        member_data == rhs.member_data && recovery_role == rhs.recovery_role &&
+        did_key == rhs.did_key;
     }
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember);
-  DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert);
+  DECLARE_JSON_REQUIRED_FIELDS(NewMember);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NewMember, encryption_pub_key, member_data, recovery_role);
+    NewMember, cert, encryption_pub_key, member_data, recovery_role, did_key);
 
   struct MemberDetails
   {
@@ -98,6 +100,8 @@ namespace ccf
   using MemberInfo = ServiceMap<MemberId, MemberDetails>;
 
   using MemberCerts = ccf::kv::RawCopySerialisedMap<MemberId, ccf::crypto::Pem>;
+  using MemberPublicKeys =
+    ccf::kv::RawCopySerialisedMap<MemberId, std::vector<uint8_t>>;
   using MemberPublicEncryptionKeys =
     ccf::kv::RawCopySerialisedMap<MemberId, ccf::crypto::Pem>;
 
@@ -105,6 +109,8 @@ namespace ccf
   {
     static constexpr auto MEMBER_INFO = "public:ccf.gov.members.info";
     static constexpr auto MEMBER_CERTS = "public:ccf.gov.members.certs";
+    static constexpr auto MEMBER_PUBLIC_KEYS =
+      "public:ccf.gov.members.public_keys";
     static constexpr auto MEMBER_ENCRYPTION_PUBLIC_KEYS =
       "public:ccf.gov.members.encryption_public_keys";
   }

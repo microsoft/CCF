@@ -12,6 +12,7 @@
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/entity_id.h"
 #include "ccf/js/core/context.h"
+#include "ccf/kv/tx.h"
 #include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -22,7 +23,6 @@
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/tx.h"
 #include "consensus/aft/cft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -613,8 +613,8 @@ namespace ccf
 #endif
     }
 
-    void verify_recovery_snapshot_candidate_unsafe(
-      const SnapshotSegments& segments, ccf::kv::Version snapshot_seqno)
+    ccf::crypto::Sha256Hash verify_recovery_snapshot_receipt_unsafe(
+      std::span<const uint8_t> receipt_bytes, ccf::kv::Version snapshot_seqno)
     {
       if (!startup_inputs.previous_service_identity.has_value())
       {
@@ -623,23 +623,40 @@ namespace ccf
 
       const ccf::crypto::Pem target_identity(
         *startup_inputs.previous_service_identity);
-      verify_snapshot_seqno(
-        segments, network.tables->get_encryptor(), snapshot_seqno);
+      if (receipt_bytes.empty())
+      {
+        throw std::logic_error("Empty snapshot receipt");
+      }
 
-      const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
+      constexpr uint8_t ENCODED_COSE_SIGN1_TAG = 0xD2;
+      if (receipt_bytes[0] != ENCODED_COSE_SIGN1_TAG)
+      {
+        throw std::logic_error("Snapshot receipt is not a COSE_Sign1 receipt");
+      }
+
+      const auto receipt = ccf::cose::decode_ccf_receipt(
+        {receipt_bytes.begin(), receipt_bytes.end()},
+        /* recompute_root */ true);
+      if (receipt.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE)
+      {
+        throw std::logic_error("Invalid snapshot receipt claims digest size");
+      }
+      const auto claims_digest = ccf::crypto::Sha256Hash::from_span(
+        std::span(receipt.claims_digest)
+          .first<ccf::crypto::Sha256Hash::SIZE>());
 
       std::string direct_verification_error;
       try
       {
         const auto verifier =
           ccf::crypto::make_cose_verifier_from_pem_cert(target_identity);
-        if (verifier->verify_detached(segments.receipt, receipt.merkle_root))
+        if (verifier->verify_detached(receipt_bytes, receipt.merkle_root))
         {
           LOG_INFO_FMT(
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
             snapshot_seqno);
-          return;
+          return claims_digest;
         }
         direct_verification_error =
           "Previous service identity does not match the service identity that "
@@ -666,7 +683,7 @@ namespace ccf
           scan.endorsements, target_key, snapshot_seqno);
       const auto verifier =
         ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
-      if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
+      if (!verifier->verify_detached(receipt_bytes, receipt.merkle_root))
       {
         throw std::logic_error(
           "Snapshot receipt signature verification failed under the "
@@ -675,6 +692,7 @@ namespace ccf
       LOG_INFO_FMT(
         "Validated {} recovery snapshot endorsement(s) in memory",
         scan.endorsements.size());
+      return claims_digest;
     }
 
     void find_local_startup_snapshot()
@@ -696,19 +714,31 @@ namespace ccf
         snapshots::find_committed_snapshots_in_directories(directories);
       for (const auto& [snapshot_seqno, snapshot_path] : committed_snapshots)
       {
-        auto snapshot_data = files::slurp(snapshot_path);
-
-        LOG_INFO_FMT(
-          "Found latest local snapshot file: {} (size: {})",
-          snapshot_path,
-          snapshot_data.size());
-
         if (start_type == StartType::Recover)
         {
           try
           {
+            std::ifstream input(snapshot_path, std::ios::binary);
+            const auto receipt_bytes = read_snapshot_receipt(input);
+            const auto claims_digest = verify_recovery_snapshot_receipt_unsafe(
+              receipt_bytes, snapshot_seqno);
+            auto snapshot_data = files::slurp(snapshot_path, true);
             const auto segments = separate_segments(snapshot_data);
-            verify_recovery_snapshot_candidate_unsafe(segments, snapshot_seqno);
+            if (!std::ranges::equal(segments.receipt, receipt_bytes))
+            {
+              throw std::logic_error(
+                "Snapshot receipt changed during validation");
+            }
+            verify_snapshot_digest(segments.header_and_body, claims_digest);
+            verify_snapshot_seqno(
+              segments, network.tables->get_encryptor(), snapshot_seqno);
+            startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+              snapshot_seqno, std::move(snapshot_data));
+            LOG_INFO_FMT(
+              "Selected recovery snapshot {} at seqno {}",
+              snapshot_path,
+              snapshot_seqno);
+            return;
           }
           catch (const std::exception& e)
           {
@@ -719,11 +749,13 @@ namespace ccf
               e.what());
             continue;
           }
-
-          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
-            snapshot_seqno, std::move(snapshot_data));
-          return;
         }
+
+        auto snapshot_data = files::slurp(snapshot_path);
+        LOG_INFO_FMT(
+          "Found latest local snapshot file: {} (size: {})",
+          snapshot_path,
+          snapshot_data.size());
 
         try
         {
@@ -1213,11 +1245,12 @@ namespace ccf
       std::shared_ptr<AbstractRPCSessions> rpcsessions,
       ccf::crypto::CurveID curve_id_,
       ccf::AbstractRuntimeControl& runtime_control_,
-      std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem_) :
+      std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem_,
+      IdentityIdFormat id_format = IdentityIdFormat::SHA256) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id_)),
-      self(compute_node_id_from_kp(node_sign_kp)),
+      self(compute_node_id_from_kp(node_sign_kp, id_format)),
       node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
       runtime_control(runtime_control_),
       node_transport(std::move(node_transport_)),
@@ -1357,7 +1390,7 @@ namespace ccf
 
         auto security_policy_digest =
           quote_info.format == QuoteFormat::amd_sev_snp_v1 ?
-          ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy)) :
+          ccf::crypto::Sha256Hash(ccf::ds::raw_from_b64(security_policy)) :
           ccf::crypto::Sha256Hash(security_policy);
         if (security_policy_digest != quoted_digest.value())
         {
@@ -1385,7 +1418,7 @@ namespace ccf
         {
           try
           {
-            auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(
+            auto uvm_endorsements_raw = ccf::ds::raw_from_b64(
               config.attestation.environment.uvm_endorsements.value());
             // A node at this stage does not have a notion of what UVM
             // descriptor is acceptable. That is decided either by the Joinee,
@@ -1517,7 +1550,7 @@ namespace ccf
         // synchronously with the call to pal::generate_quote
         this->quote_info = qi;
 
-        auto b64encoded_quote = ccf::crypto::b64url_from_raw(quote_info.quote);
+        auto b64encoded_quote = ccf::ds::b64url_from_raw(quote_info.quote);
         nlohmann::json jq;
         to_json(jq, quote_info.format);
         LOG_INFO_FMT(
@@ -1531,7 +1564,7 @@ namespace ccf
             bool loaded_endorsements = false;
             try
             {
-              const auto raw_data = ccf::crypto::raw_from_b64(
+              const auto raw_data = ccf::ds::raw_from_b64(
                 config.attestation.environment.snp_endorsements.value());
 
               const auto j = ccf::parse_json_safe(raw_data);
@@ -1838,6 +1871,7 @@ namespace ccf
 
       // Assemble the join request body.
       JoinNetworkNodeToNode::In join_params;
+      join_params.id_format = config.node_certificate.id_format;
       join_params.node_info_network = config.network;
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
@@ -2023,6 +2057,16 @@ namespace ccf
                   "Join network response body: {}",
                   std::string(data.begin(), data.end()));
 
+                return;
+              }
+
+              if (
+                config.node_certificate.id_format == IdentityIdFormat::DIDKey &&
+                (!resp.node_id.has_value() || *resp.node_id != self))
+              {
+                LOG_FAIL_FMT(
+                  "Join target did not acknowledge this node's did:key ID");
+                network.tables->set_readiness(ccf::kv::StoreReadiness::Failed);
                 return;
               }
 
@@ -2607,7 +2651,10 @@ namespace ccf
         }
 
         open_recovered_service(
-          tx, share_manager, *network.identity->get_key_pair());
+          tx,
+          share_manager,
+          *network.identity->get_key_pair(),
+          network.identity->get_pq_key_pair());
         const auto result = tx.commit();
         if (result != ccf::kv::CommitResult::SUCCESS)
         {
@@ -2910,7 +2957,10 @@ namespace ccf
           // Failure to open or endorse has already been logged, and is not
           // treated as fatal to the governance action which requested it.
           std::ignore = ccf::open_service(
-            tx, share_manager, *network.identity->get_key_pair());
+            tx,
+            share_manager,
+            *network.identity->get_key_pair(),
+            network.identity->get_pq_key_pair());
         }
         catch (const std::logic_error& e)
         {

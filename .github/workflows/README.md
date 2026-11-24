@@ -97,6 +97,8 @@ Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readine
 
 Its Virtual A, B, and C jobs use the same pool distribution as the main continuous integration workflow.
 
+Each job sets `PATH` on its container, because the Azure Linux 4 image does not declare one and the runner would otherwise replace `PATH` with only the directories added through `GITHUB_PATH`, such as the one added by the Lean action.
+
 File: `ci-al4.yml`
 3rd party dependencies: elan
 
@@ -153,8 +155,9 @@ Each matrix job caches its third-party dependency checkouts and build outputs, l
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run.
 CCF consensus, KV, and consistency trace captures run in parallel with package checks.
-Three independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
-Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
+The CCF consensus capture job also builds the [consensus model driver](../../tests/cft_model/README.md) with `-DCFT_MODEL_DRIVER=ON`, and runs `cft_model_test`, which runs each scenario on the Lean model without the implementation.
+Two independent trace-validation jobs, for consensus and KV, each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
+Consistency capture reuses the existing `consistency_trace_validation` e2e test, which replays its own trace in the capture job.
 A final summary job requires every package and trace job to succeed.
 
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
@@ -174,7 +177,6 @@ Additional bundled checkers are not enabled.
 The disaster recovery job also checks the records of the recovery trace fixtures in `lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with `check-schema.py`.
 It runs `replayer/check-fixtures.sh` using the package's built `disaster-recovery-replay` executable.
 That replays the fixtures' quorum, failover and multiple-timeout traces, which must pass, and invalid and valid traces stored as diffs against them, which must fail and pass.
-It then runs the trace viewer's `viewer/build.py`, which fails if a dump the viewer shows is missing or disagrees with the replayer.
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
@@ -184,7 +186,7 @@ The dedicated replay job builds `kv-replay` separately to validate the captured 
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
-It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
+It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests and model driver, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
@@ -208,9 +210,19 @@ Verifies that files under `3rdparty/` match the Git commits or release artifacts
 File: `vendor-verification.yml`
 3rd party dependencies: None
 
+# Backport checks
+
+Checks that every `git cherry-pick -x` commit in a PR targeting `release/**` is an unchanged clean replay of a commit merged to `main`, by running `scripts/backport.py` and its tests. Triggered on pull requests and merge groups targeting `release/**`. Uses only git, not the GitHub API. See the [backporting skill](../skills/backporting/SKILL.md).
+
+File: `backport-checks.yml`
+3rd party dependencies: None
+
 # Release
 
-Produces CCF reference release artifacts, excluding the Python package. Triggered on tags matching `ccf-[567].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts, excluding the Python package.
+Triggered on tags matching `ccf-[78].*`, and manually with an optional dry run.
+The output of a non-dry-run job is a draft release, which needs to be published manually.
+Publishing triggers the downstream jobs listed below.
 
 Python packages are built and published separately by the [OneBranch pipeline](../../.pipelines/README.md), without attestations.
 
@@ -240,4 +252,4 @@ Pushes to `main` and manual runs on `main` publish to GitHub Pages at `/main/`, 
 The `github-pages` deployment environment should allow deployments only from `main`.
 
 File: `documentation.yml`
-3rd party dependencies: elan
+3rd party dependencies: None
