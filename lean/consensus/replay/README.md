@@ -51,6 +51,8 @@ A group whose first action is a receive waits until a matching packet is queued,
 Clocks of different hosts therefore only choose among enabled groups, and cannot fail a trace.
 If groups remain but none may run, replay fails, listing first the groups that can never run, such as a receive whose packet is never sent.
 `--schedule` prints the groups in the order they ran, ending with any that failed.
+`--strict=off` accepts a trace that is incomplete, for example because a node was killed before it sent its last events: a node's groups end before its first event that no rule consumes, and replay ends once no group may run.
+The reported `watermark` is then the least fraction of a node's events that replay consumed; a group that the model disagrees with still fails the trace.
 After bootstrap, each group emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
 
 A receive delivers any queued model envelope from its sender whose rendered packet has exactly the native packet's fields, with equal values.

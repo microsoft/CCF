@@ -14,34 +14,45 @@ def main (args : List String) : IO UInt32 := do
     let (flags, paths) := args.partition (·.startsWith "--")
     match flags.eraseDups, paths with
     | flags, [path] =>
-        unless flags.all (· == "--schedule") do
+        unless flags.all (["--schedule", "--strict=off"].contains ·) do
           IO.eprintln s!"unknown option {flags}"
           return 2
+        let strict := !flags.contains "--strict=off"
         let records ← readLog path
         let reduced := do
           let (streams, declared) ← prepareEvents (← records)
-          reduce streams declared
+          reduce streams declared strict
         let (result, ran) :=
           match reduced with
           | .error error => (Except.error error, #[])
-          | .ok reduced => (schedule reduced.header reduced.queues).run.run #[]
-        unless flags.isEmpty do
+          | .ok reduced =>
+              let (result, ran) :=
+                (schedule reduced.header reduced.queues strict).run.run #[]
+              (
+                result.map
+                  fun (result : Result) => (reduced.watermark result.ran, result),
+                ran
+              )
+        if flags.contains "--schedule" then
           for group in ran do
             IO.eprintln s!"{group.ts.getD group.m_ts} node '{group.node}' {group.label}"
         match result with
         | .error error => IO.eprintln s!"{path}: {error}"; return 1
-        | .ok result =>
+        | .ok (watermark, result) =>
             let result :=
               Json.mkObj
                 [
                   ("status", toJson "ok"),
-                  ("groups", toJson result.groups),
+                  ("watermark", toJson watermark),
+                  ("groups", toJson result.ran.sum),
                   ("actions", toJson result.actions),
                   ("observations", toJson result.observations)
                 ]
             IO.println result.compress
             return 0
-    | _, _ => IO.eprintln "usage: consensus-replay [--schedule] TRACE.ndjson"; return 2
+    | _, _ =>
+        IO.eprintln "usage: consensus-replay [--schedule] [--strict=off] TRACE.ndjson";
+        return 2
   catch error =>
     IO.eprintln s!"{error}"
     return 1
