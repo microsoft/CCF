@@ -105,6 +105,12 @@ namespace ccf
           "A ledger subsystem and node transport must be provided");
       }
 
+      // The host has already validated these patterns. Built before the node
+      // and its subsystems are created.
+      auto interface_regexes =
+        ccf::NodeConfigurationSubsystem::build_interface_regexes(
+          config.network.rpc_interfaces);
+
       LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
 
@@ -156,7 +162,8 @@ namespace ccf
           std::make_shared<ccf::TaskSchedulerImpl>()));
 
       context->install_subsystem(
-        std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
+        std::make_shared<ccf::NodeConfigurationSubsystem>(
+          *node, std::move(interface_regexes)));
 
       auto cpss = std::make_shared<ccf::CustomProtocolSubsystem>(*node);
       context->install_subsystem(cpss);
@@ -362,17 +369,6 @@ namespace ccf
       LOG_TRACE_FMT(
         "Creating node with start_type {}", start_type_to_str(start_type));
       const auto create_info = node->create(start_type, ccf_config_);
-
-      // The node configuration is now set. Build the RPC interfaces'
-      // accepted_endpoints regexes before any request is processed, so that an
-      // invalid pattern stops the node from starting.
-      auto node_configuration_subsystem =
-        context->get_subsystem<ccf::NodeConfigurationSubsystem>();
-      if (node_configuration_subsystem == nullptr)
-      {
-        throw std::logic_error("NodeConfigurationSubsystem is not installed");
-      }
-      node_configuration_subsystem->get();
 
       // Copy node and service certs out
       result.node_cert = create_info.self_signed_node_cert.raw();
