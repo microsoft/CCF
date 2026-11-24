@@ -382,7 +382,9 @@ def verify_tree(
 def materialize_source(component: GitComponent, destination: Path) -> tuple[Path, str]:
     destination.mkdir()
     override = RELEASE_SOURCES.get(component.identity)
-    if override is None:
+    if override is None or (
+        isinstance(override, VersionedArchive) and component.tag is None
+    ):
         source = destination / "source"
         source.mkdir()
         checkout(component, source)

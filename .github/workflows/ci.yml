@@ -201,6 +201,13 @@ jobs:
       - name: "Install Lean"
         uses: ./.github/actions/install-lean
 
+      - name: "Build Lean consistency trace replayer"
+        run: |
+          set -euo pipefail
+          cd lean/consistency
+          lake build consistency-replay
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -225,6 +232,7 @@ jobs:
         run: |
           set -ex
           cd build
+          export CCF_LEAN_CONSISTENCY_REPLAYER="$GITHUB_WORKSPACE/lean/consistency/.lake/build/bin/consistency-replay"
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
       - name: "Upload logs for virtual C"
@@ -239,6 +247,7 @@ jobs:
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
+            build/workspace/*_consistency_trace.ndjson
           if-no-files-found: ignore
         if: success() || failure()
 
