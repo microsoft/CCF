@@ -1,0 +1,2 @@
+An unwrap that fails its integrity check with `ccf::crypto::ckm_aes_key_unwrap_pad()` or `ccf::crypto::ckm_rsa_aes_key_unwrap()`, and so with `ccf.crypto.unwrapKey` for `AES-KWP` or `RSA-OAEP-AES-KWP`, no longer writes 8 bytes past the end of the output buffer with OpenSSL releases that lack [the upstream fix](https://github.com/openssl/openssl/pull/30663), such as OpenSSL 3.3 and 3.5.
+See [Key Wrapping](doc/build_apps/crypto.rst#key-wrapping).

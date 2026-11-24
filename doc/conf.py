@@ -3,7 +3,6 @@
 
 import os
 import sys
-import shutil
 import subprocess
 import pathlib
 
@@ -42,18 +41,15 @@ autosectionlabel_prefix_document = True
 pygments_style = "default"
 pygments_dark_style = "zenburn"
 
-# Ignore main index file that has clickable images, JS/Doxygen output,
-# github anchors https://github.com/sphinx-doc/sphinx/issues/9016), and nghttp2
-# (which is now HTTP2-only)
+# Ignore main index file that has clickable images, JS/Doxygen output, and
+# github anchors https://github.com/sphinx-doc/sphinx/issues/9016).
 linkcheck_exclude_documents = [r"^index$"]
 linkcheck_ignore = [
     r"https://github.com/.*#",
     r"../js/ccf-app.*",
     r"../doxygen/index.html",
-    r"../trace-viewer/index.html",
     # The rustdoc role checks generated pages and anchors during HTML builds.
     r"(?:\.\./)*rust/ccf_app/.*",
-    r"https://nghttp2.org/.*",
     r"https://www.w3.org/Protocols/rfc2616/.*",
 ]
 
@@ -255,23 +251,6 @@ def setup(app):
             subprocess.run(
                 ["cp", "-r", str(doxygen_html_src), doxygen_html_dest], check=True
             )
-
-    if not os.environ.get("SKIP_TRACE_VIEWER"):
-        package_dir = root_dir / "lean" / "disaster-recovery"
-        replayer_dir = package_dir / "replayer"
-        subprocess.run(
-            ["lake", "build", "disaster-recovery-replay"], cwd=package_dir, check=True
-        )
-        subprocess.run(
-            [sys.executable, "viewer/build.py"], cwd=replayer_dir, check=True
-        )
-        viewer_dest = out_dir / "trace-viewer"
-        shutil.rmtree(viewer_dest, ignore_errors=True)
-        shutil.copytree(
-            replayer_dir / "viewer",
-            viewer_dest,
-            ignore=shutil.ignore_patterns("*.py", ".gitignore"),
-        )
 
     # configuration generator
     input_file_path = doc_dir / "host_config_schema/host_config.json"

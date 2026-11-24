@@ -9,7 +9,6 @@
 
 // CCF
 #include "ccf/app_interface.h"
-#include "ccf/common_auth_policies.h"
 #include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
 #include "ccf/crypto/sha256_hash.h"
@@ -17,6 +16,7 @@
 #include "ccf/ds/hash.h"
 #include "ccf/ds/locking.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/historical_queries_utils.h"
 #include "ccf/http_etag.h"

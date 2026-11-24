@@ -3,8 +3,8 @@
 
 #include "ccf/js/extensions/ccf/gov.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 
 #include <iostream>
 #include <quickjs/quickjs.h>
@@ -167,11 +167,11 @@ namespace ccf::js::extensions
   {
     auto gov = ctx.new_obj();
 
-    JS_CHECK_OR_THROW(gov.set(
+    CCF_JS_CHECK_OR_THROW(gov.set(
       "validateConstitution",
       ctx.new_c_function(js_validate_constitution, "validateConstitution", 1)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("gov", std::move(gov)));
+    CCF_JS_CHECK_OR_THROW(ccf.set("gov", std::move(gov)));
   }
 }

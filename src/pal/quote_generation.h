@@ -66,7 +66,7 @@ namespace ccf::pal
     [[maybe_unused]] const snp::EndorsementsServers& endorsements_servers = {})
   {
     auto quote = files::slurp_json(virtual_attestation_path("measurement"));
-    quote["report_data"] = ccf::crypto::b64_from_raw(report_data.data);
+    quote["report_data"] = ccf::ds::b64_from_raw(report_data.data);
 
     files::dump(quote.dump(2), virtual_attestation_path("attestation"));
 

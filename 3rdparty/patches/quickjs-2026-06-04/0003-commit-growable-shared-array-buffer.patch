@@ -1,0 +1,16 @@
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -60691,7 +60691,12 @@
+             memset(abuf->data, 0, sab_alloc_len);
+         } else {
+             /* the allocation must be done after the object creation */
+-            abuf->data = js_mallocz(ctx, max_int(len, 1));
++            /* growing a shared buffer never reallocates it, so commit
++               its maximum length now */
++            sab_alloc_len = len;
++            if (class_id == JS_CLASS_SHARED_ARRAY_BUFFER && max_len)
++                sab_alloc_len = *max_len;
++            abuf->data = js_mallocz(ctx, max_int(sab_alloc_len, 1));
+             if (!abuf->data)
+                 goto fail;
+         }

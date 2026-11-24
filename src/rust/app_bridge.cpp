@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/app_interface.h"
-#include "ccf/common_auth_policies.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/http_status.h"
 #include "ccf/kv/map.h"
 #include "ccf/odata_error.h"

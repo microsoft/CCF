@@ -3,8 +3,8 @@
 
 #include "ccf/endpoint_registry.h"
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/ds/locking.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "endpoints/rpc_context_impl.h"
@@ -157,16 +157,18 @@ namespace ccf::endpoints
       // Default regex is "([^/]+)", aka "match everything until the next /"
       std::string regex_terminator = "/";
 
-      if (template_end < regex_s.size() - 1)
+      // If another template follows in the same path segment, the literal
+      // between them separates them, so this template stops at the first
+      // character of that literal.
+      // eg: "/{foo}:{bar}" => "/([^/:]+):([^/]+)"
+      // Otherwise a literal which follows the template is matched at the end
+      // of the segment, so the template may contain it.
+      // eg: "/{foo}:bar" => "/([^/]+):bar", where "/a:b:bar" has foo = "a:b"
+      const auto segment_end = regex_s.find('/', template_end);
+      const auto next_template = regex_s.find('{', template_end);
+      if (next_template < segment_end)
       {
-        const auto terminator_candidate = regex_s[template_end + 1];
-        if (terminator_candidate != '/')
-        {
-          // If there's some other character literal following the template,
-          // treat that as a terminator as well.
-          // eg: "/{foo}:bar" => "/(^[/:]):bar"
-          regex_terminator += terminator_candidate;
-        }
+        regex_terminator += regex_s[template_end + 1];
       }
 
       spec.template_component_names.push_back(
