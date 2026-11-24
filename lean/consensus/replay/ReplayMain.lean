@@ -14,20 +14,20 @@ def main (args : List String) : IO UInt32 := do
     let (flags, paths) := args.partition (·.startsWith "--")
     match flags.eraseDups, paths with
     | flags, [path] =>
-        unless flags.all (["--schedule", "--strict=off"].contains ·) do
+        unless flags.all (["--schedule", "--lenient"].contains ·) do
           IO.eprintln s!"unknown option {flags}"
           return 2
-        let strict := !flags.contains "--strict=off"
+        let lenient := flags.contains "--lenient"
         let records ← readLog path
         let reduced := do
           let (streams, declared) ← prepareEvents (← records)
-          reduce streams declared strict
+          reduce streams declared lenient
         let (result, ran) :=
           match reduced with
           | .error error => (Except.error error, #[])
           | .ok reduced =>
               let (result, ran) :=
-                (schedule reduced.header reduced.queues strict).run.run #[]
+                (schedule reduced.header reduced.queues lenient).run.run #[]
               (
                 result.map
                   fun (result : Result) => (reduced.watermark result.ran, result),
@@ -51,7 +51,7 @@ def main (args : List String) : IO UInt32 := do
             IO.println result.compress
             return 0
     | _, _ =>
-        IO.eprintln "usage: consensus-replay [--schedule] [--strict=off] TRACE.ndjson";
+        IO.eprintln "usage: consensus-replay [--schedule] [--lenient] TRACE.ndjson";
         return 2
   catch error =>
     IO.eprintln s!"{error}"

@@ -37,12 +37,12 @@ private def group : Reduction (Option Group) := do
     }
 
 /--
-One node's groups and the number of its events they consume: all of them if `strict`, as
+One node's groups and the number of its events they consume: all of them unless `lenient`, as
 an ungrouped event is never a stutter.
 -/
-private def node (strict : Bool) : Reduction (Array Group × Nat) := do
+private def node (lenient : Bool) : Reduction (Array Group × Nat) := do
   let groups ← CCF.Parsec.many group
-  if strict then
+  unless lenient do
     if let some event ← CCF.Parsec.peek then
       CCF.Parsec.failure s!"{event.record.location}: ungrouped event {event.function}"
   return ((groups.filterMap id).toArray, ← CCF.Parsec.position)
@@ -56,7 +56,7 @@ structure Reduced where
 
 /--
 The least fraction of a node's events that replay consumed, having run `ran` groups of
-each node: 1 unless replay is not strict.
+each node: 1 unless replay is lenient.
 -/
 def Reduced.watermark (reduced : Reduced) (ran : Array Nat) : Float :=
   ((reduced.queues.zip reduced.events).zip ran).foldl
@@ -68,9 +68,9 @@ def Reduced.watermark (reduced : Reduced) (ran : Array Nat) : Float :=
 /--
 Prepare replay identities and reduce each node's events into its queue of groups.
 Request IDs continue across nodes, so they are unique in the trace.
-Unless `strict`, a node's groups end before its first event that no rule consumes.
+If `lenient`, a node's groups end before its first event that no rule consumes.
 -/
-def reduce (streams : Array (Array Event)) (declared : List String) (strict := true)
+def reduce (streams : Array (Array Event)) (declared : List String) (lenient := false)
     : Except String Reduced := do
   let header : Header := { bootstrap := ∅, declared }
   let mut bootstrap := none
@@ -79,7 +79,7 @@ def reduce (streams : Array (Array Event)) (declared : List String) (strict := t
   let mut nextRequestId := 1
   for events in streams do
     let ((found, consumed), state) ←
-      (CCF.Parsec.run events ((node strict).run { header, nextRequestId })).mapError
+      (CCF.Parsec.run events ((node lenient).run { header, nextRequestId })).mapError
         fun error =>
           match events.back? with
           | some last =>

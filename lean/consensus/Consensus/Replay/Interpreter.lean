@@ -423,7 +423,7 @@ private def runGroup (header : Header) (replay : ReplayState) (group : Group)
     replay
 
 structure Result where
-  /-- Groups run of each node, fewer than it has only if replay is not strict. -/
+  /-- Groups run of each node, fewer than it has only if replay is lenient. -/
   ran : Array Nat
   actions : Nat
   observations : Nat
@@ -472,9 +472,9 @@ makes diagnostics reproducible, as counters of different processes are not compa
 A group's node changes only through its own groups, other nodes only add packets it may
 receive, and a committed prefix stays committed, so the verdict does not depend on which
 enabled group runs.
-Unless `strict`, replay ends without failing once no group may run.
+If `lenient`, replay ends without failing once no group may run.
 -/
-def schedule (header : Header) (queues : Array (Array Group)) (strict := true)
+def schedule (header : Header) (queues : Array (Array Group)) (lenient := false)
     : ExceptT String (StateM (Array Group)) Result := do
   unless !header.declared.isEmpty
           && header.declared.all (!·.isEmpty)
@@ -507,7 +507,7 @@ def schedule (header : Header) (queues : Array (Array Group)) (strict := true)
       | some reason => blocked := blocked.push (group, reason)
     let some (group, queue) := chosen
     |
-      unless strict do
+      if lenient then
         break
       let rest := queues.zipIdx.flatMap fun (groups, queue) => groups.extract next[queue]!
       throw (stuck rest blocked)

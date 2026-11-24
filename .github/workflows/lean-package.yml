@@ -136,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           cd lean/consensus
-          replay() { ./.lake/build/bin/consensus-replay --strict=off "replay/fixtures/$1"; }
+          replay() { ./.lake/build/bin/consensus-replay --lenient "replay/fixtures/$1"; }
           [ "$(replay valid/replication.ndjson | jq .watermark)" = 1 ]
           [ "$(replay invalid/missing-packet.ndjson | jq '.watermark < 1')" = true ]
           if replay invalid/snapshot-mismatch.ndjson; then exit 1; fi

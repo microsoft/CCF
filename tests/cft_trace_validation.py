@@ -26,7 +26,7 @@ WATERMARK = 0.9
 def replay(replayer, path):
     """Whether the capture is accepted, and the replayer's output."""
     result = subprocess.run(
-        [replayer, "--strict=off", str(path)],
+        [replayer, "--lenient", str(path)],
         capture_output=True,
         text=True,
         check=False,
