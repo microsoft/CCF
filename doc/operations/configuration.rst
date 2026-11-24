@@ -123,7 +123,8 @@ Choose a ``delivery`` policy per collector:
 
 Each producer thread has one queue per array entry, shared by that thread's logs and traces.
 Optional ``queue_capacity`` limits the records in each queue and defaults to 4096.
-Optional ``queue_capacity_bytes`` limits the record bytes in each queue and defaults to 4194304 (4 MiB).
+Optional ``queue_capacity_bytes`` limits the encoded record bytes in each queue and defaults to 4194304 (4 MiB).
+Both limits must be greater than zero; the node rejects invalid values at startup.
 The byte limit is soft: a record of any size is accepted while fewer bytes than the limit are queued, so a queue can exceed it by one record.
 Unbound producers share one additional queue with the same limits.
 A queue that has reached either limit drops new records under either policy, without formatting or encoding them; larger limits use more memory.
