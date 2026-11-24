@@ -1945,8 +1945,7 @@ export function run() {
     // Same > 512-byte allocation trick as the wrapKey test: a 1032-byte
     // wrapped payload routes through the system malloc so ASAN can see
     // the transfer(0) as a real free and catch the C++ read.
-    // Use valid ciphertext to avoid OpenSSL's heap corruption on failed
-    // AES-KWP unwraps (see #8358); this test targets re-entry, not rejection.
+    // Valid ciphertext keeps this test about re-entry rather than rejection.
     ccf::js::core::Context ctx(TxAccess::APP_RW);
     ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
     const auto script = R"(
@@ -3171,6 +3170,35 @@ TEST_CASE("ccf.crypto bindings validate their arguments")
       ]);
     )JS");
   }
+}
+
+TEST_CASE("ccf.crypto.unwrapKey rejects tampered ciphertext")
+{
+  // An unwrap that fails its integrity check must throw a catchable error and
+  // leave the context usable. crypto_test checks the size of the buffer that
+  // the unwrap passes to OpenSSL.
+  run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const key = new Uint8Array(32).fill(0x42).buffer;
+      const aesKey = ccf.crypto.generateAesKey(256);
+      const rsaKp = ccf.crypto.generateRsaKeyPair(2048);
+      const algorithms = [
+        [{name: "AES-KWP"}, aesKey, aesKey],
+        [{name: "RSA-OAEP-AES-KWP", aesKeySize: 256},
+          ccf.strToBuf(rsaKp.publicKey), ccf.strToBuf(rsaKp.privateKey)],
+      ];
+      for (const [params, wrappingKey, unwrappingKey] of algorithms) {
+        const wrapped = ccf.crypto.wrapKey(key, wrappingKey, params);
+        const tampered = new Uint8Array(wrapped.slice(0));
+        tampered[tampered.length - 1] ^= 1;
+        expectThrows(params.name + " tampered",
+          () => ccf.crypto.unwrapKey(tampered.buffer, unwrappingKey, params),
+          InternalError, "Failed to unwrap key");
+        const unwrapped = new Uint8Array(
+          ccf.crypto.unwrapKey(wrapped, unwrappingKey, params));
+        if (unwrapped.length !== 32 || unwrapped.some((b) => b !== 0x42))
+          throw new Error(params.name + ": unwrap failed after a rejection");
+      }
+    )JS");
 }
 
 TEST_CASE("ccf.crypto key generation with non-default parameters")
