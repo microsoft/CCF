@@ -26,7 +26,7 @@ jobs:
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Unit tests, e2e (bucket_a)
     runs-on: [gha-vmss-d16av7-ci]
     container:
-      image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      image: mcr.microsoft.com/azurelinux/core:4
       # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
       env:
         PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -115,7 +115,7 @@ jobs:
     name: "VMSS Virtual B" # End-to-end tests (bucket_b)
     runs-on: [gha-vmss-d16av7-ci-b]
     container:
-      image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      image: mcr.microsoft.com/azurelinux/core:4
       # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
       env:
         PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -186,7 +186,7 @@ jobs:
     name: "VMSS Virtual C" # End-to-end tests (bucket_c)
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
-      image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+      image: mcr.microsoft.com/azurelinux/core:4
       # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
       env:
         PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

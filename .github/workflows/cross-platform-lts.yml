@@ -25,7 +25,7 @@ permissions: read-all
 env:
   PYTHON_VERSION: "3.12"
   AZL3_IMAGE: &azl3_image mcr.microsoft.com/azurelinux/base/core:3.0
-  AZL4_IMAGE: &azl4_image azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
+  AZL4_IMAGE: &azl4_image mcr.microsoft.com/azurelinux/core:4
   AZL3_POOL: &azl3_pool gha-vmss-d16av7-ci
   AZL4_POOL: &azl4_pool gha-vmss-d16av7-ci
   INSTALL_ARCHIVE: ccf-install.tar.gz
