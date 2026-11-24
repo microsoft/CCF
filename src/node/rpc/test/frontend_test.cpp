@@ -1622,6 +1622,111 @@ TEST_CASE("Retry on conflict")
   }
 }
 
+class CompactingEndpointRegistry : public UserEndpointRegistry
+{
+  using Values = ccf::kv::Map<size_t, size_t>;
+  ccf::kv::Store& tables;
+  const Values snapshot{"public:lookup_snapshot"};
+  const Values metadata{"public:lookup_metadata"};
+  size_t conflicts;
+
+public:
+  size_t lookup_count = 0;
+  size_t execution_count = 0;
+
+  CompactingEndpointRegistry(
+    ccf::AbstractNodeContext& context,
+    ccf::kv::Store& tables_,
+    size_t conflicts_) :
+    UserEndpointRegistry(context),
+    tables(tables_),
+    conflicts(conflicts_)
+  {
+    auto tx = tables.create_tx();
+    tx.rw(snapshot)->put(0, 0);
+    tx.rw(metadata)->put(0, 0);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    make_endpoint(
+      "/lookup",
+      HTTP_POST,
+      [this](auto& ctx) {
+        ++execution_count;
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_body(
+          std::to_string(ctx.tx.ro(metadata)->get(0).value()));
+      },
+      no_auth_required)
+      .install();
+  }
+
+  ccf::endpoints::EndpointDefinitionPtr find_endpoint(
+    ccf::kv::Tx& tx, ccf::RpcContext& ctx) override
+  {
+    ++lookup_count;
+    // Pin the request's snapshot before compaction races metadata acquisition.
+    tx.ro(snapshot)->get(0);
+    if (lookup_count <= conflicts)
+    {
+      auto update = tables.create_tx();
+      update.rw(metadata)->put(0, lookup_count);
+      REQUIRE(update.commit() == ccf::kv::CommitResult::SUCCESS);
+      tables.compact(tables.current_version());
+      ctx.set_response_header("test-lookup-conflicted", "true");
+    }
+
+    // Acquiring this handle throws a real CompactedVersionConflict if the
+    // request's snapshot has just been compacted away.
+    tx.ro(metadata)->get(0);
+    return UserEndpointRegistry::find_endpoint(tx, ctx);
+  }
+};
+
+TEST_CASE("Retry endpoint lookup on compaction conflict")
+{
+  constexpr size_t max_attempts = 30;
+  size_t conflicts = 1;
+  SUBCASE("Lookup succeeds on a fresh transaction") {}
+  SUBCASE("Lookup succeeds on the final attempt")
+  {
+    conflicts = max_attempts - 1;
+  }
+  SUBCASE("Lookup exhausts the retry limit")
+  {
+    conflicts = max_attempts;
+  }
+
+  NetworkState network;
+  prepare_callers(network);
+  ccf::StubNodeContext context;
+  CompactingEndpointRegistry registry(context, *network.tables, conflicts);
+  RpcFrontend frontend(*network.tables, registry, context);
+  frontend.open();
+
+  auto rpc_ctx = ccf::make_rpc_context(
+    anonymous_session, create_simple_request("/lookup").build_request());
+  frontend.process(rpc_ctx);
+  CHECK_FALSE(rpc_ctx->response_is_pending);
+  const auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK_FALSE(response.headers.contains("test-lookup-conflicted"));
+  if (conflicts < max_attempts)
+  {
+    CHECK(response.status == HTTP_STATUS_OK);
+    CHECK(parse_response_body(response) == std::to_string(conflicts));
+    CHECK(registry.lookup_count == conflicts + 1);
+    CHECK(registry.execution_count == 1);
+  }
+  else
+  {
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+    CHECK(
+      parse_response_body<nlohmann::json>(response)["error"]["code"] ==
+      ccf::errors::TransactionCommitAttemptsExceedLimit);
+    CHECK(registry.lookup_count == max_attempts);
+    CHECK(registry.execution_count == 0);
+  }
+}
+
 class TestCommitHistory : public ccf::NullTxHistory
 {
 public:
