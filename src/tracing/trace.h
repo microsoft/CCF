@@ -16,16 +16,6 @@
 
 namespace ccf::tracing
 {
-  inline std::vector<uint8_t>& event_buffer()
-  {
-    thread_local auto buffer = [] {
-      std::vector<uint8_t> buffer;
-      buffer.reserve(2048);
-      return buffer;
-    }();
-    return buffer;
-  }
-
   inline uint64_t next_sequence()
   {
     static std::atomic<uint64_t> sequence = 0;
@@ -42,14 +32,12 @@ namespace ccf::tracing
   }
 
   // Alternating string keys and borrowed values form the envelope's msg map.
-  // The returned record is valid until this thread encodes another.
   template <typename... Args>
     requires msgpack::map_arguments<Args...>
-  inline std::span<const uint8_t> encode(
-    std::string_view tag, const Args&... args)
+  inline void encode(
+    std::vector<uint8_t>& buffer, std::string_view tag, const Args&... args)
   {
     const auto sequence = next_sequence();
-    auto& buffer = event_buffer();
     buffer.clear();
     msgpack::write_array_header(buffer, 3);
     msgpack::write_str(buffer, tag);
@@ -70,14 +58,14 @@ namespace ccf::tracing
         write_msgpack(buffer, std::get<2 * I + 1>(refs))),
        ...);
     }(std::make_index_sequence<sizeof...(Args) / 2>{});
-    return buffer;
   }
 
   template <typename... Args>
     requires msgpack::map_arguments<Args...>
   inline void emit(std::string_view tag, const Args&... args)
   {
-    FluentdSink::submit(tag, [&] { return encode(tag, args...); });
+    FluentdSink::submit(
+      tag, [&](std::vector<uint8_t>& buffer) { encode(buffer, tag, args...); });
   }
 }
 

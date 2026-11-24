@@ -15,7 +15,7 @@ namespace ccf::tracing
       {
         return;
       }
-      FluentdSink::submit("ccf.log", [&line] {
+      FluentdSink::submit("ccf.log", [&line](std::vector<uint8_t>& buffer) {
         ::timespec host_ts{};
         if (::timespec_get(&host_ts, TIME_UTC) == 0)
         {
@@ -23,7 +23,8 @@ namespace ccf::tracing
         }
         std::tm host_tm{};
         ::gmtime_r(&host_ts.tv_sec, &host_tm);
-        return ccf::tracing::encode(
+        ccf::tracing::encode(
+          buffer,
           "ccf.log",
           "h_ts",
           ccf::logger::get_timestamp(host_tm, host_ts),

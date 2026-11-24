@@ -13,6 +13,7 @@
 #include <cerrno>
 #include <charconv>
 #include <chrono>
+#include <concepts>
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -30,6 +31,16 @@
 
 namespace ccf::tracing
 {
+  inline std::vector<uint8_t>& event_buffer()
+  {
+    thread_local auto buffer = [] {
+      std::vector<uint8_t> buffer;
+      buffer.reserve(2048);
+      return buffer;
+    }();
+    return buffer;
+  }
+
   // Configure before producers start; stop producers before shutdown.
   class FluentdSink
   {
@@ -710,42 +721,28 @@ namespace ccf::tracing
       }
     }
 
-    template <typename F>
-    static bool submit_at_slot(std::string_view tag, F& serialise, size_t slot)
+    static bool has_any_space(std::string_view tag, size_t slot, bool& allowed)
     {
-      const auto& transports = worker()->transports;
-      bool allowed = false;
-      bool space = false;
-      for (const auto& t : transports)
+      allowed = false;
+      for (const auto& t : worker()->transports)
       {
         if (t->accepts(tag))
         {
           allowed = true;
           if (t->has_space(slot))
           {
-            space = true;
-            break;
+            return true;
           }
         }
       }
-      if (!space)
-      {
-        record_drop(tag);
-        return !allowed;
-      }
-      std::span<const uint8_t> bytes;
-      try
-      {
-        bytes = serialise();
-      }
-      catch (const std::bad_alloc&)
-      {
-        report_allocation_failure();
-        record_drop(tag);
-        return false;
-      }
+      return false;
+    }
+
+    static bool push_at_slot(
+      std::string_view tag, std::span<const uint8_t> bytes, size_t slot)
+    {
       bool enqueued = true;
-      for (const auto& t : transports)
+      for (const auto& t : worker()->transports)
       {
         if (!t->accepts(tag))
         {
@@ -776,14 +773,8 @@ namespace ccf::tracing
       return enqueued;
     }
 
-  public:
-    // Calls serialise, which returns the record, only if a sink that selects
-    // tag has space for it; otherwise the record is counted as dropped without
-    // being built. Space is judged before the record's size is known, so the
-    // byte capacity is a soft limit.
-    // False may mean partial acceptance: other sinks still receive the record.
     template <typename F>
-    static bool submit(std::string_view tag, F&& serialise)
+    static bool with_slot(F&& fn)
     {
       if (!is_configured())
       {
@@ -794,15 +785,49 @@ namespace ccf::tracing
       {
         // Held while serialising, so the space found is still there to use.
         ccf::ds::MutexGuard lock(worker()->unbound_producer_mutex);
-        return submit_at_slot(
-          tag, serialise, worker()->transports.front()->queues.size() - 1);
+        return fn(worker()->transports.front()->queues.size() - 1);
       }
-      return submit_at_slot(tag, serialise, slot);
+      return fn(slot);
+    }
+
+  public:
+    // Calls serialise(buffer) only if a sink that selects tag has space for
+    // the record; otherwise the record is counted as dropped without being
+    // built. Space is judged before the record's size is known, so the byte
+    // capacity is a soft limit.
+    // False may mean partial acceptance: other sinks still receive the record.
+    template <typename F>
+      requires std::invocable<F&, std::vector<uint8_t>&>
+    static bool submit(std::string_view tag, F&& serialise)
+    {
+      return with_slot([&](size_t slot) {
+        bool allowed = false;
+        if (!has_any_space(tag, slot, allowed))
+        {
+          record_drop(tag);
+          return !allowed;
+        }
+        std::vector<uint8_t>* buffer = nullptr;
+        try
+        {
+          buffer = &event_buffer();
+          buffer->clear();
+          serialise(*buffer);
+        }
+        catch (const std::bad_alloc&)
+        {
+          report_allocation_failure();
+          record_drop(tag);
+          return false;
+        }
+        return push_at_slot(tag, *buffer, slot);
+      });
     }
 
     static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
     {
-      return submit(tag, [bytes] { return bytes; });
+      return with_slot(
+        [&](size_t slot) { return push_at_slot(tag, bytes, slot); });
     }
 
     static uint64_t dropped_count()
