@@ -1,0 +1,44 @@
+name: "Backport checks"
+
+# Runs only on PRs and merge groups for release branches. Uses only git, not
+# the GitHub API.
+on:
+  pull_request:
+    # edited covers PRs retargeted to a release branch.
+    types: [opened, synchronize, reopened, edited]
+    branches:
+      - "release/**"
+  merge_group:
+    types: [checks_requested]
+    branches:
+      - "release/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check backport
+    runs-on: ubuntu-26.04
+    steps:
+      # The default ref (the PR merge commit, or the merge group) has the
+      # checker even when the PR branch predates it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test backport checker
+        run: python3 scripts/tests/backport_test.py
+
+      # Merge groups hold squash commits without cherry-pick trailers, so they
+      # pass; this lets the check be required.
+      - name: Check cherry-picks
+        env:
+          BASE: ${{ github.event.merge_group.base_sha || format('origin/{0}', github.base_ref) }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+        run: python3 scripts/backport.py --base "$BASE" --head "$HEAD"

@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.TraceValidation.Dump
+public import DisasterRecovery.TraceValidation.Reduction
 
 public section
 
@@ -14,15 +14,7 @@ def completionTimeoutMs : Nat :=
 
 /-- Command-line syntax reported when replay arguments are invalid. -/
 def usage : String :=
-  "usage: disaster-recovery-replay --participants N [--wait-ms N] [--dump FILE] LOG..."
-
-/-- Takes `--dump FILE` out of the arguments. The trace viewer reads the file. -/
-def takeDump : List String → Option System.FilePath × List String
-  | "--dump" :: path :: rest => (some path, (takeDump rest).2)
-  | argument :: rest =>
-      let (dump, others) := takeDump rest
-      (dump, argument :: others)
-  | [] => (none, [])
+  "usage: disaster-recovery-replay --participants N [--wait-ms N] LOG..."
 
 /-- Parses the wait duration, participant count, and nonempty list of log paths. -/
 def parseArgs (args : List String) : Option (Nat × Scenario × List System.FilePath) :=
@@ -53,17 +45,14 @@ partial def reduceWhenComplete (scenario : Scenario) (logs : List System.FilePat
       IO.sleep 100
       reduceWhenComplete scenario logs deadline
 
-/-- Reduce and replay node logs, optionally writing the viewer dump, with failures fatal. -/
+/-- Reduce and replay node logs, with failures fatal. -/
 def main (args : List String) : IO UInt32 := do
-  let (dump, args) := takeDump args
   let some (waitMs, scenario, logs) := parseArgs args
   |
     IO.eprintln usage
     return 2
   let deadline := (← IO.monoMsNow) + waitMs
   let reduced ← reduceWhenComplete scenario logs deadline
-  if let some path := dump then
-    Dump.write path scenario logs reduced
   match reduced with
   | .error message =>
       IO.eprintln s!"reduction failed: {message}"

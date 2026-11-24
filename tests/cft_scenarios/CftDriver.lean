@@ -127,6 +127,14 @@ opaque dispatchOne (node : @& NodeId) : IO Unit
 @[extern "cft_dispatch_single"]
 opaque dispatchSingle (source target : @& NodeId) : IO Unit
 
+/--
+The undelivered messages sent by `source` to `target`, oldest first.
+Each is the JSON of its packet, without spaces: the fields which a trace records for it, in
+that order.
+-/
+@[extern "cft_pending_messages"]
+opaque pendingMessages (source target : @& NodeId) : IO (Array String)
+
 /-- Deliver the messages already sent by every node, but not their responses. -/
 @[extern "cft_dispatch_all_once"]
 opaque dispatchAllOnce : IO Unit

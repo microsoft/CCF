@@ -177,7 +177,6 @@ Additional bundled checkers are not enabled.
 The disaster recovery job also checks the records of the recovery trace fixtures in `lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with `check-schema.py`.
 It runs `replayer/check-fixtures.sh` using the package's built `disaster-recovery-replay` executable.
 That replays the fixtures' quorum, failover and multiple-timeout traces, which must pass, and invalid and valid traces stored as diffs against them, which must fail and pass.
-It then runs the trace viewer's `viewer/build.py`, which fails if a dump the viewer shows is missing or disagrees with the replayer.
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
@@ -209,6 +208,13 @@ File: `lean-mathlib-equivalence.yml`
 Verifies that files under `3rdparty/` match the Git commits or release artifacts recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main` that change vendored sources, the manifest, the verifier, or this workflow. It can also be run manually.
 
 File: `vendor-verification.yml`
+3rd party dependencies: None
+
+# Backport checks
+
+Checks that every `git cherry-pick -x` commit in a PR targeting `release/**` is an unchanged clean replay of a commit merged to `main`, by running `scripts/backport.py` and its tests. Triggered on pull requests and merge groups targeting `release/**`. Uses only git, not the GitHub API. See the [backporting skill](../skills/backporting/SKILL.md).
+
+File: `backport-checks.yml`
 3rd party dependencies: None
 
 # Release
@@ -246,4 +252,4 @@ Pushes to `main` and manual runs on `main` publish to GitHub Pages at `/main/`, 
 The `github-pages` deployment environment should allow deployments only from `main`.
 
 File: `documentation.yml`
-3rd party dependencies: elan
+3rd party dependencies: None

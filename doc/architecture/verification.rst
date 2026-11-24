@@ -115,8 +115,6 @@ The consensus package recommends running it only in CI.
 Each package README lists its complete validation commands, including how to build its replayer, replay its fixtures, and generate and replay traces from a local CCF build.
 For the KV model, see also :ref:`build_apps/kv/semantics:Reproducing a run`.
 
-The :ref:`trace viewer <operations/recovery:Trace viewer>` steps through recovery decision protocol traces as the Lean model replays them.
-
 Background
 ----------
 
