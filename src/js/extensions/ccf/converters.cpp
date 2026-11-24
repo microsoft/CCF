@@ -142,8 +142,12 @@ namespace ccf::js::extensions
       return JS_NewBool(ctx, JS_ToBool(ctx, argv[0]));
     }
 
+    // QuickJS requires a mutable argv pointer in its callback signature.
     JSValue js_enable_metrics_logging(
-      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+      JSContext* ctx,
+      JSValueConst,
+      int argc,
+      JSValueConst* argv) // NOLINT(readability-non-const-parameter)
     {
       if (argc != 1)
       {
