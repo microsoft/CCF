@@ -367,10 +367,22 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Cache CCF consensus replay
+        id: replay_cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: lean/consensus/.lake/build/bin/consensus-replay
+          key: >-
+            consensus-replay-${{ runner.os }}-${{ runner.arch }}-${{
+              hashFiles('lean/lean-toolchain', 'lean/common/**', 'lean/consensus/**')
+            }}
+
       - name: Install Lean
+        if: steps.replay_cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/install-lean
 
       - name: Build CCF consensus replay
+        if: steps.replay_cache.outputs.cache-hit != 'true'
         working-directory: lean/consensus
         run: |
           set -euo pipefail

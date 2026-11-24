@@ -6,6 +6,8 @@ module
 public import Consensus.Model
 public import Lean.Data.Json
 
+import Std.Data.HashMap
+
 public section
 
 namespace Consensus.Replay
@@ -30,8 +32,20 @@ def Origin.label (origin : Origin) : String :=
 structure Header where
   bootstrap : Finset NodeID
   declared : List String
+  nodeIds : Std.HashMap String NodeID := {}
+
+def Header.withIndex (header : Header) : Header :=
+  let nodeIds :=
+    header.declared.zipIdx.foldl
+      (fun acc (name, idx) => acc.insert name idx)
+      ({} : Std.HashMap String NodeID)
+  { header with nodeIds }
 
 def Header.nodeId (header : Header) (node : String) : Except String NodeID := do
+  if !header.nodeIds.isEmpty then
+    let some index := header.nodeIds[node]?
+    | throw s!"undeclared node '{node}'"
+    return index
   let some index := header.declared.findIdx? (· == node)
   | throw s!"undeclared node '{node}'"
   return index
@@ -58,10 +72,29 @@ def Step.name : Step → String
   | .local _ (.initAsBackup _) | .initAsBackup .. => "initAsBackup"
   | .receive .. => "receive"
 
+/-- Precomputed per-node observation fields derived in one pass over `state.log`. -/
+structure NodeObsCache where
+  nodeId : Json
+  leadershipState : Json
+  currentView : Json
+  lastIdx : Json
+  commitIdx : Json
+  committableIndices : Json
+  configurations : Json
+  membershipState : Json
+  retirementPhase : Json
+  retirementIdx : Json
+  retirementCommittableIdx : Json
+  retiredCommittedIdx : Json
+  /-- Cache key of the last `expected` snapshot already verified against this state. -/
+  lastVerifiedId : Option Nat := none
+
 structure ReplayState where
   state : Model.State
   /-- Envelopes queued by actions since the last send observation. -/
   queued : List Envelope := []
+  /-- Per-node cached observation summaries, invalidated when that node steps. -/
+  obsCache : Array (Option NodeObsCache) := #[]
 
 /-- A traced native send, or the proposal a nomination implies. -/
 structure NativeSend where
@@ -73,12 +106,13 @@ structure NativeSend where
 inductive Instruction where
   | action (step : Step) (origin : Origin)
   | observeNodeState (node : String) (expected : Json) (origin : Origin)
+    (stateId : Option Nat := none)
   /-- The envelopes queued since the last send observation must equal `sends`, as a multiset. -/
   | observeSends (sends : List NativeSend) (origin : Origin)
 
 def Instruction.origin : Instruction → Origin
   | .action _ origin
-  | .observeNodeState _ _ origin
+  | .observeNodeState _ _ origin _
   | .observeSends _ origin => origin
 
 /--
@@ -131,41 +165,116 @@ private def members (header : Header) (nodes : Finset NodeID) : List String :=
     fun (name, index) =>
       if index ∈ nodes then some name else none
 
-/-- Compare an action-boundary snapshot with the current model node. -/
-def observeState (header : Header) (node : String) (expected : Json)
-    (replay : ReplayState)
-    : Except String Unit := do
-  let state ← lookup header replay node
-  let self ← header.nodeId node
+private def checkJson (actual expected : Json) : Except String Unit := do
+  unless expected == actual do
+    throw s!"observed {expected.compress}, model {actual.compress}"
+
+/-- Derive all observed fields for `state` in one pass over `state.log`. -/
+private def buildNodeObsCache (header : Header) (self : NodeID) (node : String)
+    (state : NodeState)
+    : NodeObsCache :=
+  let (
+    lastIdx,
+    firstCommittable,
+    lastCommittable,
+    configHistory,
+    committedCount,
+    _,
+    retirementIndex,
+    retirementCommittableIndex
+  ) :=
+    state.log.foldl
+      (fun (index, firstC, lastC, configs, committed, prevIn, retIdx, retCommIdx) entry =>
+        let index := index + 1
+        match entry.content with
+        | .signature =>
+            let (firstC, lastC) :=
+              if index > state.commitIndex then
+                match firstC with
+                | none => (some index, lastC)
+                | some _ => (firstC, some index)
+              else
+                (firstC, lastC)
+            let retCommIdx :=
+              if retIdx.isSome && retCommIdx.isNone then some index else retCommIdx
+            (index, firstC, lastC, configs, committed, prevIn, retIdx, retCommIdx)
+        | .transaction _ metadata =>
+            match metadata.configuration with
+            | some nodes =>
+                let configs := configs.push { index, nodes : Configuration }
+                let committed :=
+                  if index <= state.commitIndex then committed + 1 else committed
+                let inConfig := decide (self ∈ nodes)
+                let retIdx :=
+                  if retIdx.isNone && prevIn && !inConfig then some index else retIdx
+                (index, firstC, lastC, configs, committed, inConfig, retIdx, retCommIdx)
+            | none =>
+                (index, firstC, lastC, configs, committed, prevIn, retIdx, retCommIdx))
+      (0, none, none, (#[] : Array Configuration), 0, false, none, none)
+  let committable : List Nat :=
+    match firstCommittable, lastCommittable with
+    | none, _ => []
+    | some f, none => [f]
+    | some f, some l => [f, l]
+  let activeConfigs :=
+    (configHistory.toList.drop (committedCount - 1)).filterMap
+      fun configuration =>
+        if configuration.index == 0 then
+          none
+        else
+          some (configuration.index, members header configuration.nodes)
+  let phase : MembershipState :=
+    match retirementIndex with
+    | none => .noRetirementObserved
+    | some index =>
+        if state.retiredCommittedIndex.isSome then
+          .retiredCommitted
+        else if index <= state.commitIndex then
+          .retirementCompleted
+        else if retirementCommittableIndex.isSome then
+          .retirementSigned
+        else
+          .retirementOrdered
+  {
+    nodeId := toJson node
+    leadershipState :=
+      toJson
+        (match state.role with
+          | .none => "None"
+          | .follower => "Follower"
+          | .preVoteCandidate => "PreVoteCandidate"
+          | .candidate => "Candidate"
+          | .primary => "Leader")
+    currentView := toJson state.currentTerm
+    lastIdx := toJson lastIdx
+    commitIdx := toJson state.commitIndex
+    committableIndices := toJson committable
+    configurations := toJson activeConfigs
+    membershipState :=
+      toJson (if phase == .noRetirementObserved then "Active" else "Retired")
+    retirementPhase :=
+      toJson
+        (match phase with
+          | .noRetirementObserved => (none : Option String)
+          | .retirementOrdered => some "Ordered"
+          | .retirementSigned => some "Signed"
+          | .retirementCompleted => some "Completed"
+          | .retiredCommitted => some "RetiredCommitted")
+    retirementIdx := toJson retirementIndex
+    retirementCommittableIdx := toJson retirementCommittableIndex
+    retiredCommittedIdx := toJson state.retiredCommittedIndex
+  }
+
+private def checkCachedObservation (cache : NodeObsCache) (expected : Json)
+    : Except String Unit :=
   checkFields
     (fun
-      | "node_id" => some (checkValue node)
-      | "leadership_state" =>
-          some
-            (checkValue
-              (match state.role with
-                | .none => "None"
-                | .follower => "Follower"
-                | .preVoteCandidate => "PreVoteCandidate"
-                | .candidate => "Candidate"
-                | .primary => "Leader"))
-      | "current_view" => some (checkValue state.currentTerm)
-      | "last_idx" => some (checkValue state.log.length)
-      | "commit_idx" => some (checkValue state.commitIndex)
-      | "committable_indices" =>
-          let indices :=
-            (state.log.zipIdx 1).filterMap
-              fun (entry, index) =>
-                if index > state.commitIndex && entry.content.isSignature then
-                  some index
-                else
-                  none
-          -- Native telemetry records only the first and last cache entries.
-          some
-            (checkValue
-              (match indices with
-                | [] => []
-                | first :: rest => first :: rest.getLast?.toList))
+      | "node_id" => some (checkJson cache.nodeId)
+      | "leadership_state" => some (checkJson cache.leadershipState)
+      | "current_view" => some (checkJson cache.currentView)
+      | "last_idx" => some (checkJson cache.lastIdx)
+      | "commit_idx" => some (checkJson cache.commitIdx)
+      | "committable_indices" => some (checkJson cache.committableIndices)
       | "configurations" =>
           some
             fun value => do
@@ -175,36 +284,49 @@ def observeState (header : Header) (node : String) (expected : Json)
                     let index ← configuration.getObjValAs? Nat "idx"
                     let nodes ← configuration.getObjVal? "nodes" >>= Json.getObj?
                     return (index, (nodes.toList.map Prod.fst).mergeSort)
-              let actual :=
-                (activeConfigurations state.log state.commitIndex).filterMap
-                  fun configuration =>
-                    if configuration.index == 0 then
-                      none
-                    else
-                      some (configuration.index, members header configuration.nodes)
-              checkValue actual (toJson observed)
-      | "membership_state" =>
-          some
-            (checkValue
-              (if (state.retirement self).phase == .noRetirementObserved then
-                  "Active"
-                else
-                  "Retired"))
-      | "retirement_phase" =>
-          some
-            (checkValue
-              (match (state.retirement self).phase with
-                | .noRetirementObserved => none
-                | .retirementOrdered => some "Ordered"
-                | .retirementSigned => some "Signed"
-                | .retirementCompleted => some "Completed"
-                | .retiredCommitted => some "RetiredCommitted"))
-      | "retirement_idx" => some (checkValue (state.retirement self).index)
-      | "retirement_committable_idx" =>
-          some (checkValue (state.retirement self).committableIndex)
-      | "retired_committed_idx" => some (checkValue state.retiredCommittedIndex)
+              checkJson cache.configurations (toJson observed)
+      | "membership_state" => some (checkJson cache.membershipState)
+      | "retirement_phase" => some (checkJson cache.retirementPhase)
+      | "retirement_idx" => some (checkJson cache.retirementIdx)
+      | "retirement_committable_idx" => some (checkJson cache.retirementCommittableIdx)
+      | "retired_committed_idx" => some (checkJson cache.retiredCommittedIdx)
       | _ => none)
     expected
+
+/-- Compare an action-boundary snapshot with the current model node. -/
+def observeState (header : Header) (node : String) (expected : Json)
+    (replay : ReplayState)
+    : Except String Unit := do
+  let state ← lookup header replay node
+  let self ← header.nodeId node
+  checkCachedObservation (buildNodeObsCache header self node state) expected
+
+private def observeStateCached (header : Header) (node : String) (expected : Json)
+    (stateId : Option Nat) (replay : ReplayState)
+    : Except String ReplayState := do
+  let self ← header.nodeId node
+  if self < replay.obsCache.size then
+    match replay.obsCache[self]! with
+    | some cache =>
+        if stateId.isSome && cache.lastVerifiedId == stateId then
+          return replay
+        checkCachedObservation cache expected
+        if stateId.isSome then
+          let obsCache :=
+            replay.obsCache.set! self (some { cache with lastVerifiedId := stateId })
+          return { replay with obsCache }
+        return replay
+    | none =>
+        let some state := nodeState replay.state self
+        | throw s!"node '{node}' is not in the network"
+        let cache := buildNodeObsCache header self node state
+        checkCachedObservation cache expected
+        let obsCache :=
+          replay.obsCache.set! self (some { cache with lastVerifiedId := stateId })
+        return { replay with obsCache }
+  else
+    observeState header node expected replay
+    return replay
 
 /-- Physical packet coordinates; lower-term NACK hints are not election terms. -/
 def messageJson (message : Model.Node.Message) : Json :=
@@ -332,16 +454,26 @@ private def ReplayState.run (replay : ReplayState) (header : Header)
   | throw s!"disabled model action '{name}'"
   -- A step appends the acting node's sends to the network left after any delivery.
   let pending := replay.state.network.length - if action matches .deliver _ then 1 else 0
-  return { state, queued := replay.queued ++ state.network.drop pending }
+  let acted :=
+    match action with
+    | .local node _ => node
+    | .deliver envelope => envelope.target
+  let obsCache :=
+    if acted < replay.obsCache.size then
+      replay.obsCache.set! acted none
+    else
+      replay.obsCache
+  return { state, queued := replay.queued ++ state.network.drop pending, obsCache }
 
 /-- Observations never change model state or repair a disabled action. -/
 def runInstruction (header : Header) (replay : ReplayState) (instruction : Instruction)
     : Except String ReplayState := do
   match instruction with
-  | .observeNodeState node expected _ =>
-      observeState header node expected replay
-      return replay
+  | .observeNodeState node expected _ stateId =>
+      observeStateCached header node expected stateId replay
   | .observeSends sends _ =>
+      if sends.isEmpty && replay.queued.isEmpty then
+        return replay
       let mut queued := replay.queued
       for send in sends do
         let context := s!"{send.origin.label}: send to '{send.target}'"
@@ -475,6 +607,7 @@ enabled group runs.
 If `lenient`, replay ends without failing once no group may run.
 -/
 def schedule (header : Header) (queues : Array (Array Group)) (lenient := false)
+    (record := true)
     : ExceptT String (StateM (Array Group)) Result := do
   unless !header.declared.isEmpty
           && header.declared.all (!·.isEmpty)
@@ -487,37 +620,67 @@ def schedule (header : Header) (queues : Array (Array Group)) (lenient := false)
   for node in header.bootstrap.sort do
     unless node < header.declared.length do
       throw s!"undeclared model node {node}"
+  let header := header.withIndex
   let total := queues.foldl (· + ·.size) 0
   if total == 0 then throw "replay groups must not be empty"
   let key (group : Group) := group.ts.getD group.m_ts
-  let mut state : ReplayState := { state := header.initial }
+  let mut state : ReplayState :=
+    {
+      state := header.initial
+      obsCache := Array.replicate header.declared.length none
+    }
   let mut next := Array.replicate queues.size 0
+  let mut actions : Nat := 0
+  let mut observations : Nat := 0
   for _ in [:total] do
-    let heads :=
-      (queues.zipIdx.filterMap
-        fun (groups, queue) => (·, queue) <$> groups[next[queue]!]?)
-      |>.qsort fun (a, i) (b, j) => key a < key b || (key a == key b && i < j)
-    let mut chosen := none
-    let mut blocked := #[]
-    for (group, queue) in heads do
-      match ← ofExcept (group.waiting header state) with
-      | none =>
-          chosen := some (group, queue)
-          break
-      | some reason => blocked := blocked.push (group, reason)
+    -- Fast path: find the earliest head without allocating; most groups are immediately ready.
+    let mut best : Option (Group × Nat × Nat) := none
+    for queue in [:queues.size] do
+      let idx := next[queue]!
+      let groups := queues[queue]!
+      if h : idx < groups.size then
+        let group := groups[idx]
+        let k := key group
+        match best with
+        | none => best := some (group, queue, k)
+        | some (_, bestQ, bestK) =>
+            if k < bestK || (k == bestK && queue < bestQ) then
+              best := some (group, queue, k)
+    let some (firstGroup, firstQueue, _) := best | break
+    let mut chosen : Option (Group × Nat) := none
+    let mut blocked : Array (Group × (Unit → String)) := #[]
+    match ← ofExcept (firstGroup.waiting header state) with
+    | none => chosen := some (firstGroup, firstQueue)
+    | some firstReason =>
+        blocked := blocked.push (firstGroup, firstReason)
+        let heads :=
+          (queues.zipIdx.filterMap
+            fun (groups, queue) =>
+              if queue == firstQueue then
+                none
+              else
+                (·, queue) <$> groups[next[queue]!]?)
+          |>.qsort fun (a, i) (b, j) => key a < key b || (key a == key b && i < j)
+        for (group, queue) in heads do
+          match ← ofExcept (group.waiting header state) with
+          | none =>
+              chosen := some (group, queue)
+              break
+          | some reason => blocked := blocked.push (group, reason)
     let some (group, queue) := chosen
     |
       if lenient then
         break
       let rest := queues.zipIdx.flatMap fun (groups, queue) => groups.extract next[queue]!
       throw (stuck rest blocked)
-    modify (·.push group)
+    if record then
+      modify (·.push group)
     state ← ofExcept (runGroup header state group)
+    for instr in group.instructions do
+      match instr with
+      | .action .. => actions := actions + 1
+      | _ => observations := observations + 1
     next := next.modify queue (· + 1)
-  let instructions :=
-    queues.zipIdx.flatMap
-      fun (groups, queue) => (groups.extract 0 next[queue]!).flatMap (·.instructions)
-  let actions := (instructions.filter (· matches .action ..)).size
-  return { ran := next, actions, observations := instructions.size - actions }
+  return { ran := next, actions, observations }
 
 end Consensus.Replay
