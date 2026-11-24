@@ -3,15 +3,12 @@
 
 """Local Fluentd-compatible TCP collectors for tests and benchmarks."""
 
-import collections
-import io
 import json
 import selectors
 import socket
 import struct
 import threading
 import time
-from dataclasses import dataclass, field
 
 import msgpack
 
@@ -53,9 +50,6 @@ class _Server:
     def received(self, connection, data):
         raise NotImplementedError
 
-    def disconnected(self, connection, eof):
-        pass
-
     def run(self):
         try:
             while True:
@@ -80,7 +74,6 @@ class _Server:
                     if data:
                         self.received(key.data, data)
                         continue
-                    self.disconnected(key.data, eof=data == b"")
                     self.selector.unregister(key.fileobj)
                     key.fileobj.close()
                 if deadline is not None and (
@@ -147,61 +140,26 @@ class Collector(_Server):
             raise self.error
 
 
-@dataclass
-class Connection:
-    data: bytearray = field(default_factory=bytearray)
-    eof: bool = False
-
-
 class Recorder(_Server):
-    """Retain each connection's raw Forward stream, from any number of nodes,
-    as connections."""
+    """Append each ccf.cft event, from any number of nodes, to a new NDJSON
+    file at path as it arrives: its {pid, m_ts, msg} record, with its emission
+    time in nanoseconds added as ts."""
 
-    def __init__(self, ipv6=False):
-        self.connections = []
+    def __init__(self, path, ipv6=False):
+        self.output = open(path, "x", encoding="utf-8")  # noqa: SIM115
         super().__init__("::1" if ipv6 else "127.0.0.1")
 
     def connected(self):
-        self.connections.append(Connection())
-        return self.connections[-1]
+        return msgpack.Unpacker(raw=False)
 
     def received(self, connection, data):
-        connection.data += data
+        connection.feed(data)
+        for tag, timestamp, record in connection:
+            if tag != "ccf.cft" or set(record) != {"pid", "m_ts", "msg"}:
+                raise ValueError(f"Unexpected {tag} event: {sorted(record)}")
+            record["ts"] = event_time_ns(timestamp)
+            self.output.write(json.dumps(record, allow_nan=False) + "\n")
 
-    def disconnected(self, connection, eof):
-        connection.eof = eof
-
-
-def write_cft_trace(connections, path):
-    """Decode recorded ccf.cft events into one NDJSON file of {pid, m_ts, msg}
-    records, in connection order, adding each event's emission time in
-    nanoseconds as ts.
-
-    Returns the record count per process ID, and any reasons the recorded
-    streams may be incomplete.
-    """
-    counts = collections.Counter()
-    problems = []
-    with open(path, "w", encoding="utf-8") as output:
-        for i, connection in enumerate(connections):
-            if not connection.eof:
-                problems.append(f"Connection {i} did not reach EOF")
-            unpacker = msgpack.Unpacker(io.BytesIO(connection.data), raw=False)
-            decoded = 0
-            try:
-                for tag, timestamp, record in unpacker:
-                    if tag != "ccf.cft" or set(record) != {"pid", "m_ts", "msg"}:
-                        raise ValueError(f"Unexpected {tag} event: {sorted(record)}")
-                    record["ts"] = event_time_ns(timestamp)
-                    output.write(json.dumps(record, allow_nan=False) + "\n")
-                    counts[record["pid"]] += 1
-                    decoded = unpacker.tell()
-            except Exception as error:
-                problems.append(f"Connection {i} is malformed: {error}")
-            else:
-                if decoded != len(connection.data):
-                    problems.append(
-                        f"Connection {i} ends with "
-                        f"{len(connection.data) - decoded} undecoded bytes"
-                    )
-    return counts, problems
+    def close(self, timeout=5):
+        super().close(timeout)
+        self.output.close()

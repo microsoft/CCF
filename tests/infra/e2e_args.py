@@ -453,7 +453,7 @@ def cli_args(
     parser.add_argument(
         "--capture-cft-trace",
         help="Record each network's ccf.cft trace events in "
-        "<workspace>/<label>_trace/<n>.ndjson, if the capture is complete",
+        "<workspace>/<label>_trace/<n>.ndjson",
         action="store_true",
     )
     parser.add_argument(

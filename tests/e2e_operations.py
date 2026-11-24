@@ -2271,6 +2271,8 @@ def run_runtime_lifecycle_checks(args):
             with tempfile.TemporaryDirectory(dir=root) as temp:
                 temp = pathlib.Path(temp).resolve()
                 config = copy.deepcopy(original_config)
+                # These nodes are not part of the network, or its trace capture.
+                config.pop("observability", None)
                 config["ledger"]["directory"] = str(temp / "ledger")
                 config["snapshots"]["directory"] = str(temp / "snapshots")
                 config["output_files"]["pid_file"] = str(temp / "node.pid")

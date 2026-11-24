@@ -66,7 +66,8 @@ The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`
 
 End to end tests record each network's CCF consensus protocol trace and upload it with their logs.
 The `Replay e2e consensus traces` job builds the Lean replayer while the Virtual jobs run, waits for them to finish, then replays every capture from their logs against the Lean model with `tests/cft_trace_validation.py`.
-Tests write a capture only when it is complete, and the job fails if a capture is rejected, or if there is none.
+A capture may be incomplete, for example if a test killed a node, so the job replays with `--strict=off`.
+It fails if the model disagrees with a capture, if replay consumes less than 90% of the events of one of a capture's nodes, or if there is no capture.
 It does not depend on the Virtual jobs, so re-running only a failed Virtual job does not replay its new captures: use `Re-run all jobs` for that.
 
 File: `ci.yml`
