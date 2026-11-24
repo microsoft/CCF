@@ -53,7 +53,7 @@ FIRST_RELEASE_WITH_COSE_SNAPSHOT_RECEIPTS = "ccf-7.0.0"
 FIRST_MAJOR_VERSION_BUILT_FOR_AZURE_LINUX_4 = 8
 
 
-def host_requires_azure_linux_4_builds():
+def is_azure_linux_4_or_later():
     try:
         os_release = platform.freedesktop_os_release()
     except OSError:
@@ -64,10 +64,14 @@ def host_requires_azure_linux_4_builds():
     return major_version.isdigit() and int(major_version) >= 4
 
 
-def release_runs_on_host(tag, azure_linux_4_host=None):
-    if azure_linux_4_host is None:
-        azure_linux_4_host = host_requires_azure_linux_4_builds()
-    if not azure_linux_4_host:
+def can_run_release_natively(tag, on_azure_linux_4=None):
+    """
+    Whether the published binaries of release `tag` can be executed directly on
+    the distribution this test runs on, rather than in a container.
+    """
+    if on_azure_linux_4 is None:
+        on_azure_linux_4 = is_azure_linux_4_or_later()
+    if not on_azure_linux_4:
         return True
     return (
         infra.github.get_version_from_tag_name(tag).major
@@ -663,7 +667,7 @@ def run_live_compatibility_with_latest(
         lts_tag = repo.get_latest_released_tag_for_branch(
             lts_branch, this_release_branch_only
         )
-        if lts_tag and not release_runs_on_host(lts_tag):
+        if lts_tag and not can_run_release_natively(lts_tag):
             LOG.warning(
                 f"Skipping live compatibility with {lts_tag}: it is not built for this distribution, and is covered by the cross-platform LTS workflow instead"
             )
@@ -1080,7 +1084,7 @@ if __name__ == "__main__":
                     json.load(compatibility_report_file),
                     lts_branch,
                     previous_lts_skipped=previous_lts_tag is not None
-                    and not release_runs_on_host(previous_lts_tag),
+                    and not can_run_release_natively(previous_lts_tag),
                 )
 
     LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")
