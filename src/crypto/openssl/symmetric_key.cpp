@@ -428,8 +428,18 @@ namespace ccf::crypto
     CHECK1(
       EVP_DecryptInit_ex(ctx, evp_cipher_wrap_pad, nullptr, nullptr, nullptr));
     CHECK1(EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), nullptr));
+    // The length query rejects invalid non-empty input lengths before the
+    // output buffer is allocated, but reports less than wrap modes may write:
+    // up to the input length rounded up to the block size, plus one block
+    // (see EVP_EncryptInit(3)). OpenSSL releases without openssl/openssl#30663
+    // clear the whole input length of the output when the integrity check
+    // fails.
     CHECK1(EVP_DecryptUpdate(ctx, nullptr, &len, cipher.data(), inl));
-    std::vector<uint8_t> plain(len);
+    const auto block_size = EVP_CIPHER_CTX_get_block_size(ctx);
+    CHECKPOSITIVE(block_size);
+    const auto block = static_cast<size_t>(block_size);
+    const auto input_blocks = (cipher.size() + block - 1) / block;
+    std::vector<uint8_t> plain((input_blocks + 1) * block);
     CHECK1(EVP_DecryptUpdate(ctx, plain.data(), &len, cipher.data(), inl));
     plain.resize(len);
     if (EVP_DecryptFinal_ex(ctx, nullptr, &len) != 1)

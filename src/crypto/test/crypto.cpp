@@ -2160,6 +2160,44 @@ TEST_CASE("AES Key wrap with padding")
   REQUIRE(key_to_wrap == unwrapped);
 }
 
+TEST_CASE("AES key unwrap with padding rejects invalid input")
+{
+  auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(get_raw_key());
+  auto other_key = std::make_unique<KeyAesGcm_OpenSSL>(
+    std::vector<uint8_t>(get_raw_key().size(), '%'));
+
+  // A failed unwrap clears output that OpenSSL has already written, so cover
+  // the single-block case and a range of padded lengths. A result keeps the
+  // buffer that the unwrap wrote to, so check that it holds the input plus
+  // one 8-byte block: the output size that EVP_DecryptUpdate() passes to the
+  // cipher. OpenSSL releases without openssl/openssl#30663 clear the whole
+  // input length when the integrity check fails.
+  for (size_t size = 1; size <= 72; ++size)
+  {
+    const auto key_to_wrap = get_entropy()->random(size);
+    const auto wrapped = ossl->ckm_aes_key_wrap_pad(key_to_wrap);
+    const auto unwrapped = ossl->ckm_aes_key_unwrap_pad(wrapped);
+    REQUIRE(unwrapped == key_to_wrap);
+    REQUIRE(unwrapped.capacity() >= wrapped.size() + 8);
+
+    REQUIRE_THROWS_AS(
+      (void)other_key->ckm_aes_key_unwrap_pad(wrapped), std::runtime_error);
+
+    auto tampered = wrapped;
+    tampered.back() ^= 1;
+    REQUIRE_THROWS_AS(
+      (void)ossl->ckm_aes_key_unwrap_pad(tampered), std::runtime_error);
+  }
+
+  // Non-empty input needs a whole number of 8-byte blocks, and at least two
+  for (const size_t size : {size_t{8}, size_t{15}, size_t{17}})
+  {
+    const std::vector<uint8_t> malformed(size, 0x42);
+    REQUIRE_THROWS_AS(
+      (void)ossl->ckm_aes_key_unwrap_pad(malformed), std::runtime_error);
+  }
+}
+
 TEST_CASE("CKM_RSA_PKCS_OAEP")
 {
   auto key = get_raw_key();
@@ -2191,6 +2229,11 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
 
   REQUIRE(wrapped != unwrapped);
   REQUIRE(unwrapped == key_to_wrap);
+
+  // The RSA-wrapped AES key stays valid, so the AES key unwrap is what fails
+  wrapped.back() ^= 1;
+  REQUIRE_THROWS_AS(
+    (void)ckm_rsa_aes_key_unwrap(rsa_kp, wrapped), std::runtime_error);
 }
 
 TEST_CASE("x509 time")
