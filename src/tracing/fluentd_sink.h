@@ -716,8 +716,8 @@ namespace ccf::tracing
       if (!reported)
       {
         reported = true;
-        std::fputs(
-          "Fluentd exporter is dropping records: allocation failed\n", stderr);
+        static_cast<void>(std::fputs(
+          "Fluentd exporter is dropping records: allocation failed\n", stderr));
       }
     }
 
@@ -785,9 +785,10 @@ namespace ccf::tracing
       {
         // Held while serialising, so the space found is still there to use.
         ccf::ds::MutexGuard lock(worker()->unbound_producer_mutex);
-        return fn(worker()->transports.front()->queues.size() - 1);
+        return std::forward<F>(fn)(
+          worker()->transports.front()->queues.size() - 1);
       }
-      return fn(slot);
+      return std::forward<F>(fn)(slot);
     }
 
   public:
@@ -797,7 +798,7 @@ namespace ccf::tracing
     // capacity is a soft limit.
     // False may mean partial acceptance: other sinks still receive the record.
     template <typename F>
-      requires std::invocable<F&, std::vector<uint8_t>&>
+      requires std::invocable<F, std::vector<uint8_t>&>
     static bool submit(std::string_view tag, F&& serialise)
     {
       return with_slot([&](size_t slot) {
@@ -812,7 +813,7 @@ namespace ccf::tracing
         {
           buffer = &event_buffer();
           buffer->clear();
-          serialise(*buffer);
+          std::forward<F>(serialise)(*buffer);
         }
         catch (const std::bad_alloc&)
         {

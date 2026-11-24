@@ -14,7 +14,8 @@
 namespace ccf::tracing
 {
   // One producer and one consumer. Stop both before destruction.
-  class SPSCQueue
+  // Cache-line padding separates consumer and producer state.
+  class SPSCQueue // NOLINT(clang-analyzer-optin.performance.Padding)
   {
     using Record = std::vector<uint8_t>;
     static constexpr size_t CACHE_LINE_SIZE = 64;
