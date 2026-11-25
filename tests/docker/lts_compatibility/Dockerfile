@@ -29,10 +29,7 @@ RUN . /etc/os-release && \
         ;; \
     esac
 
-# Path of the install tree within the build context. Releases before 7.0 install
-# to a platform-specific directory, such as opt/ccf_virtual.
-ARG INSTALL_DIR=opt/ccf
-COPY ${INSTALL_DIR} /opt/ccf
+COPY opt/ccf /opt/ccf
 
 ENV LD_LIBRARY_PATH=/opt/ccf/lib
 ENV PATH=/opt/ccf/bin:${PATH}

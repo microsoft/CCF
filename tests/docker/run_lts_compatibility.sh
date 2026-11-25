@@ -4,10 +4,9 @@
 
 set -euo pipefail
 
-# With --check-ledger-compatibility, the test also recovers the ledger and
-# snapshots of each supported LTS release in turn, up to TO_INSTALL_TAR. It
-# downloads those releases, and runs each in a container built from the base
-# image of the distribution it was built for.
+# With --check-ledger-compatibility, the test also recovers the end-of-life
+# service files on FROM_INSTALL_TAR, then the resulting ledger and snapshots on
+# TO_INSTALL_TAR.
 CHECK_LEDGER_COMPATIBILITY=false
 if [[ "${1:-}" == "--check-ledger-compatibility" ]]; then
   CHECK_LEDGER_COMPATIBILITY=true
@@ -32,19 +31,12 @@ for archive in "$FROM_INSTALL_TAR" "$TO_INSTALL_TAR"; do
   fi
 done
 
-REQUIRED_COMMANDS=(docker python3 tar)
 EXTRA_TEST_ARGS=()
 if [[ "$CHECK_LEDGER_COMPATIBILITY" == true ]]; then
-  # Release packages are unpacked on the host
-  REQUIRED_COMMANDS+=(rpm2cpio cpio)
-  EXTRA_TEST_ARGS+=(
-    --check-ledger-compatibility
-    --azure-linux-3-base-image "$FROM_BASE_IMAGE"
-    --azure-linux-4-base-image "$TO_BASE_IMAGE"
-  )
+  EXTRA_TEST_ARGS+=(--check-ledger-compatibility)
 fi
 
-for command in "${REQUIRED_COMMANDS[@]}"; do
+for command in docker python3 tar; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Required command not found: $command" >&2
     exit 1

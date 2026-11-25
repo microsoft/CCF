@@ -3,11 +3,7 @@
 
 import unittest
 
-from lts_compatibility import (
-    can_run_release_natively,
-    get_release_base_image,
-    validate_compatibility_report,
-)
+from lts_compatibility import can_run_release_natively, validate_compatibility_report
 
 
 class CompatibilityReportTest(unittest.TestCase):
@@ -69,18 +65,6 @@ class CompatibilityReportTest(unittest.TestCase):
         for tag in ("ccf-8.0.0-dev0", "ccf-8.0.0-rc1", "ccf-8.0.1"):
             with self.subTest(tag=tag):
                 self.assertTrue(can_run_release_natively(tag, on_azure_linux_4=True))
-
-    def test_release_base_image(self):
-        for tag in ("ccf-6.0.14", "ccf-7.0.20"):
-            with self.subTest(tag=tag):
-                self.assertEqual(get_release_base_image(tag, "al3", "al4"), "al3")
-                with self.assertRaisesRegex(ValueError, "Azure Linux 3"):
-                    get_release_base_image(tag, None, "al4")
-        for tag in ("ccf-8.0.0-dev0", "ccf-8.0.1"):
-            with self.subTest(tag=tag):
-                self.assertEqual(get_release_base_image(tag, "al3", "al4"), "al4")
-                with self.assertRaisesRegex(ValueError, "Azure Linux 4"):
-                    get_release_base_image(tag, "al3", None)
 
     def test_release_context_requires_previous_patch(self):
         for same_lts in (None, "ccf-7.0.20"):

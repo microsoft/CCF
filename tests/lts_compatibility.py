@@ -6,7 +6,6 @@ import os
 import platform
 import re
 import shutil
-import subprocess
 
 import ccf.ledger
 import infra.crypto
@@ -78,85 +77,6 @@ def can_run_release_natively(tag, on_azure_linux_4=None):
         infra.github.get_version_from_tag_name(tag).major
         >= FIRST_MAJOR_VERSION_BUILT_FOR_AZURE_LINUX_4
     )
-
-
-RELEASE_DOCKERFILE = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)),
-    "docker",
-    "lts_compatibility",
-    "Dockerfile",
-)
-
-
-def get_release_base_image(tag, azure_linux_3_base_image, azure_linux_4_base_image):
-    """
-    Base image of the distribution which the published binaries of release `tag`
-    are built for.
-    """
-    if (
-        infra.github.get_version_from_tag_name(tag).major
-        >= FIRST_MAJOR_VERSION_BUILT_FOR_AZURE_LINUX_4
-    ):
-        distribution, base_image = "Azure Linux 4", azure_linux_4_base_image
-    else:
-        distribution, base_image = "Azure Linux 3", azure_linux_3_base_image
-    if not base_image:
-        raise ValueError(
-            f"Running {tag} in a container requires a base image for {distribution}"
-        )
-    return base_image
-
-
-class ReleaseContainerImages:
-    """
-    Builds the images in which the nodes of installed releases run, when the test
-    runs nodes in containers, and removes them on exit.
-    """
-
-    def __init__(self, azure_linux_3_base_image, azure_linux_4_base_image):
-        self.azure_linux_3_base_image = azure_linux_3_base_image
-        self.azure_linux_4_base_image = azure_linux_4_base_image
-        self.images = {}
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.images:
-            subprocess.run(
-                ["docker", "image", "rm", "--force", *self.images.values()],
-                check=False,
-            )
-            self.images.clear()
-
-    def get(self, tag, install_path):
-        if tag not in self.images:
-            base_image = get_release_base_image(
-                tag, self.azure_linux_3_base_image, self.azure_linux_4_base_image
-            )
-            # Releases install to <context>/opt/ccf, or to a platform-specific
-            # <context>/opt/ccf_<platform> before 7.0
-            context = os.path.dirname(os.path.dirname(install_path))
-            image = f"ccf-lts-release-{infra.github.strip_release_tag_name(tag)}-{os.getpid()}"
-            LOG.info(f"Building image {image} for {tag} from {base_image}")
-            subprocess.run(
-                [
-                    "docker",
-                    "build",
-                    "--build-arg",
-                    f"BASE_IMAGE={base_image}",
-                    "--build-arg",
-                    f"INSTALL_DIR={os.path.relpath(install_path, context)}",
-                    "--file",
-                    RELEASE_DOCKERFILE,
-                    "--tag",
-                    image,
-                    context,
-                ],
-                check=True,
-            )
-            self.images[tag] = image
-        return self.images[tag]
 
 
 def writes_cose_snapshot_receipts(version):
@@ -788,11 +708,9 @@ def run_live_compatibility_with_latest(
 @reqs.description("Run ledger compatibility since first LTS")
 def run_ledger_compatibility_since_first(
     args,
-    repo,
-    lts_releases,
+    releases,
     use_snapshot,
     test_jwt_cleanup,
-    release_container_images=None,
     local_install_path=LOCAL_CHECKOUT_DIRECTORY,
     local_container_image=None,
 ):
@@ -800,13 +718,11 @@ def run_ledger_compatibility_since_first(
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
 
+    `releases` lists the version, install path and node container image of each
+    release, oldest first. Nodes without an image run directly on the host.
     The supplied release selection is shared between the ledger and snapshot passes.
     Snapshots are used if `use_snapshot` is True. Otherwise, the entire historical
     ledger is used.
-
-    Nodes run directly on the host by default. If `release_container_images` is
-    set, the nodes of each release run in the image it returns for that release,
-    and the nodes of the local version in `local_container_image`.
 
     Returns the releases whose data later steps recovered from: every release for
     the ledger pass, and the releases which write COSE snapshot receipts for the
@@ -814,7 +730,7 @@ def run_ledger_compatibility_since_first(
     """
 
     LOG.info("Use snapshot: {}", use_snapshot)
-    LOG.info(f"LTS releases: {list(lts_releases.values())}")
+    LOG.info(f"LTS releases: {[version for version, _, _ in releases]}")
 
     lts_versions = []
 
@@ -830,20 +746,12 @@ def run_ledger_compatibility_since_first(
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         # None is the final local-checkout step.
-        for idx, lts_release in enumerate([*lts_releases.values(), None]):
+        for idx, lts_release in enumerate([*releases, None]):
             if lts_release:
-                version, install_path = repo.install_release(
-                    lts_release,
-                    platform=infra.platform_detection.get_platform(),
-                )
+                version, install_path, container_image = lts_release
                 if not use_snapshot or writes_cose_snapshot_receipts(version):
                     lts_versions.append(version)
                 set_js_args(args, install_path)
-                container_image = (
-                    release_container_images.get(version, install_path)
-                    if release_container_images and not args.dry_run
-                    else None
-                )
             else:
                 version = args.ccf_version
                 install_path = local_install_path
@@ -870,10 +778,15 @@ def run_ledger_compatibility_since_first(
                 ):
                     kwargs["reconfiguration_type"] = "OneTransaction"
 
+                # The eol snapshots carry JSON receipts, which releases writing
+                # COSE receipts reject, so those recover from the eol ledger alone
+                use_eol_snapshots = use_snapshot and not writes_cose_snapshot_receipts(
+                    version
+                )
                 # The nodes of this step start from the eol snapshots, or from
                 # the snapshots handed over by the previous step
-                started_from_snapshots = use_snapshot and (
-                    idx == 0 or snapshots_dir is not None
+                started_from_snapshots = (
+                    use_eol_snapshots if idx == 0 else snapshots_dir is not None
                 )
 
                 if idx == 0:
@@ -905,7 +818,7 @@ def run_ledger_compatibility_since_first(
                         dirs_exist_ok=True,
                     )
 
-                    if use_snapshot:
+                    if use_eol_snapshots:
                         new_snapshots = os.path.join(new_common, "snapshots")
                         shutil.copytree(
                             os.path.join(service_dir, "snapshots"),
@@ -924,7 +837,7 @@ def run_ledger_compatibility_since_first(
                     network.start_in_recovery(
                         args,
                         committed_ledger_dirs=[new_ledger],
-                        snapshots_dir=new_snapshots if use_snapshot else None,
+                        snapshots_dir=new_snapshots if use_eol_snapshots else None,
                         common_dir=new_common,
                         node_container_image=container_image,
                         **kwargs,
@@ -1068,14 +981,6 @@ if __name__ == "__main__":
             "--local-install-image",
             help="Container image used to run nodes from --local-install-path",
         )
-        parser.add_argument(
-            "--azure-linux-3-base-image",
-            help="Base image of the containers running releases built for Azure Linux 3, when nodes run in containers",
-        )
-        parser.add_argument(
-            "--azure-linux-4-base-image",
-            help="Base image of the containers running releases built for Azure Linux 4, when nodes run in containers",
-        )
         parser.add_argument("--dry-run", action="store_true")
 
     args = infra.e2e_args.cli_args(add)
@@ -1105,7 +1010,6 @@ if __name__ == "__main__":
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
-    repo = None
     if args.release_install_path:
         version = run_live_compatibility_with_latest(
             args,
@@ -1150,36 +1054,41 @@ if __name__ == "__main__":
         )
 
     if args.check_ledger_compatibility:
-        repo = repo or infra.github.Repository()
-        lts_releases = repo.get_supported_lts_releases(local_branch)
-        # Nodes of the local version running in a container means that this host
-        # may not be able to run any node directly, so releases run in containers
-        # as well.
-        run_in_containers = args.local_install_image is not None
-        compatibility_report["data compatibility"] = {}
-        with ReleaseContainerImages(
-            args.azure_linux_3_base_image, args.azure_linux_4_base_image
-        ) as release_container_images:
-            for use_snapshot, report_key in (
-                (False, "with previous ledger"),
-                (True, "with previous snapshots"),
-            ):
-                lts_versions = run_ledger_compatibility_since_first(
-                    args,
-                    repo,
-                    lts_releases,
-                    use_snapshot=use_snapshot,
-                    # Destructive, so only once the ledger pass is done
-                    test_jwt_cleanup=use_snapshot,
-                    release_container_images=(
-                        release_container_images if run_in_containers else None
+        if args.release_install_path:
+            releases = [
+                (
+                    infra.github.get_version_from_install(args.release_install_path),
+                    args.release_install_path,
+                    args.release_install_image,
+                )
+            ]
+        else:
+            releases = [
+                (
+                    *repo.install_release(
+                        tag, platform=infra.platform_detection.get_platform()
                     ),
-                    local_install_path=args.local_install_path,
-                    local_container_image=args.local_install_image,
+                    None,
                 )
-                compatibility_report["data compatibility"].update(
-                    {report_key: lts_versions}
-                )
+                for tag in repo.get_supported_lts_releases(local_branch).values()
+            ]
+        compatibility_report["data compatibility"] = {}
+        for use_snapshot, report_key in (
+            (False, "with previous ledger"),
+            (True, "with previous snapshots"),
+        ):
+            lts_versions = run_ledger_compatibility_since_first(
+                args,
+                releases,
+                use_snapshot=use_snapshot,
+                # Destructive, so only once the ledger pass is done
+                test_jwt_cleanup=use_snapshot,
+                local_install_path=args.local_install_path,
+                local_container_image=args.local_install_image,
+            )
+            compatibility_report["data compatibility"].update(
+                {report_key: lts_versions}
+            )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:
