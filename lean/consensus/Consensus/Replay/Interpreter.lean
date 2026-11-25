@@ -437,7 +437,6 @@ def schedule (header : Header) (queues : Array (Array Group)) (lenient := false)
     unless node < header.declared.length do
       throw s!"undeclared model node {node}"
   let total := queues.foldl (· + ·.size) 0
-  if total == 0 then throw "replay groups must not be empty"
   let key (group : Group) := group.ts.getD group.m_ts
   let mut state : ReplayState := { state := header.initial }
   let mut next := Array.replicate queues.size 0

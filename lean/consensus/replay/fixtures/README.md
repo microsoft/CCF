@@ -4,7 +4,7 @@ The [Lean workflow](../../../../.github/workflows/lean.yml) runs the synthetic f
 A fixture is the NDJSON of a trace, which [`pack-trace.py`](../../../../scripts/pack-trace.py) packs as the MessagePack that replay reads.
 Replication failures follow a two-node history with a committed signature, membership expansion, a further signature, a joiner initializing from a snapshot at the committed signature, a heartbeat and log replication.
 The [valid control](valid/replication.ndjson) continues through follower catch-up, acknowledgement and commit.
-Its snapshot installation hook directly follows the leader's `replicate` batch and is followed by a tick before the initialization, which replays as a group of its own.
+Its snapshot installation hook directly follows the leader's `replicate` batch and is followed by a tick before the initialization, which is reduced on its own.
 The [hook order](valid/hook-order.ndjson) control is the same history with that tick on the leader instead, between the joiner's hook and its initialization.
 The [rejected replicate](valid/rejected-replicate.ndjson) control is a `replicate` call that CCF rejected at its first entry, so it traces no `replicate_entry` and appends nothing.
 The [bootstrap](valid/bootstrap.ndjson) control starts like a real node: a bare tick and a nomination before genesis, then a flush of the genesis entry.

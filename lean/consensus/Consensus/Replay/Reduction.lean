@@ -11,7 +11,8 @@ public section
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
 Explicit native boundaries distinguish related events from subsequent actions.
-After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
+After bootstrap, each rule observes its native group's starting snapshot before emitting actions;
+a tick with no action emits nothing.
 Each rule that may send checks the native sends among its events against the envelopes its
 actions queued.
 Reduction never executes or repairs model state.
@@ -330,6 +331,10 @@ private def ruleTick : Reduction Unit := do
         let destination ← modelNode next to_node_id
         return (next, destination, packet.idx)
     let demoted ← CCF.Parsec.optionalRule (event head "become_follower")
+    -- A tick which does nothing else emits no group: the node's state is as its next group
+    -- observes it.
+    if sends.isEmpty && demoted.isNone then
+      return
     -- emit
     emitObserve head "tick"
     for (source, destination, last) in sends do

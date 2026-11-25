@@ -66,6 +66,8 @@ If groups remain but none may run, replay fails, listing first the groups that c
 `--lenient` accepts a trace that is incomplete, for example because a node was killed before it sent its last events: a node's groups end before its first event that no rule consumes, and replay ends once no group may run.
 The reported `watermark` is then the least fraction of a node's events that replay consumed; a group that the model disagrees with still fails the trace.
 After bootstrap, each group emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
+A tick with no action emits no group, so its snapshot is not compared: the node's next group compares the state it starts from, and only the state after a node's last group goes unobserved.
+A trace may so have no group at all.
 
 A receive delivers any queued model envelope from its sender whose rendered packet has exactly the native packet's fields, with equal values.
 It delivers the queued **model payload**, not reconstructing unrecorded native bytes; if matching envelopes differ in payload, for example in AppendEntries entries, which packets omit, replay fails with an ambiguous delivery.
