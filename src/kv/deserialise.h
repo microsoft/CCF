@@ -118,10 +118,9 @@ namespace ccf::kv
         }
       }
 
-      const bool signature_in =
-        (changes.find(ccf::Tables::SIGNATURES) != changes.end());
+      const bool signature_in = (changes.contains(ccf::Tables::SIGNATURES));
       const bool cose_signature_in =
-        (changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end());
+        (changes.contains(ccf::Tables::COSE_SIGNATURES));
       const bool committable = signature_in || cose_signature_in;
 
       if (!store->commit_deserialised(
@@ -140,7 +139,7 @@ namespace ccf::kv
       if (committable)
       {
         const bool merkle_tree_in =
-          changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) != changes.end();
+          changes.contains(ccf::Tables::SERIALISED_MERKLE_TREE);
         switch (changes.size())
         {
           case 2:

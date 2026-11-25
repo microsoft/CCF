@@ -141,8 +141,7 @@ namespace ccf
             interface_it->second.enabled_operator_features;
           for (const auto& required_feature : required_features)
           {
-            if (
-              enabled_features.find(required_feature) == enabled_features.end())
+            if (!enabled_features.contains(required_feature))
             {
               LOG_INFO_FMT(
                 "Incoming request {} requires opt-in feature {}, which is not "
