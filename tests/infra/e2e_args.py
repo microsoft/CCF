@@ -453,7 +453,7 @@ def cli_args(
     parser.add_argument(
         "--capture-trace",
         help="Record each network's trace events, of every tag, in "
-        "<workspace>/<label>_trace/<n>.ndjson",
+        "<workspace>/<label>_trace/<n>.msgpack",
         action="store_true",
     )
     parser.add_argument(

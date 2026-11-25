@@ -4,6 +4,7 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import Consensus.Replay.Groups
+public import Lean.Data.Json
 
 public section
 
@@ -51,7 +52,7 @@ def main (args : List String) : IO UInt32 := do
             IO.println result.compress
             return 0
     | _, _ =>
-        IO.eprintln "usage: consensus-replay [--schedule] [--lenient] TRACE.ndjson";
+        IO.eprintln "usage: consensus-replay [--schedule] [--lenient] TRACE.msgpack";
         return 2
   catch error =>
     IO.eprintln s!"{error}"

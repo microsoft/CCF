@@ -20,7 +20,7 @@ A trace is written up to the command which fails.
 
 ## Trace
 
-A trace has the records of a [trace of the implementation](../../lean/consensus/replay/README.md), as the scenario test writes them to `consensus/raw/<name>.ndjson`: one line of JSON for each, with the same fields in the same order.
+A trace has the records of a [trace of the implementation](../../lean/consensus/replay/README.md), dumped from `consensus/raw/<name>.msgpack` as one line of JSON for each, with the same fields in the same order.
 
 - `pid` identifies the process, by its ID and the time at which it started, and `m_ts` numbers the records of a trace from 0.
 - `msg` is the record: `{"cmd": ...}` for each command of the scenario, followed by the events which it caused.
@@ -37,7 +37,7 @@ The model driver itself [differs](#driving-the-model) from the scenario driver w
 To compare the two traces of a scenario, after `cft_scenario_test` and `cft_model_test`:
 
 ```sh
-diff <(sed 's/"pid": "[^"]*"//' build/consensus/raw/<name>.ndjson) \
+diff <(python3 scripts/dump-trace.py < build/consensus/raw/<name>.msgpack | sed 's/"tag": "ccf.cft", "ts": [0-9]*, //; s/"pid": "[^"]*"//') \
   <(sed 's/"pid": "[^"]*"//' build/consensus/model/<name>.ndjson)
 ```
 

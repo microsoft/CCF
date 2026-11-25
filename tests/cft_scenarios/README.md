@@ -57,7 +57,7 @@ build/cft_driver <name>
 ctest --test-dir build -VV -R '^cft_scenario_test$' --no-tests=error
 ```
 
-The runner prints each scenario as a Mermaid sequence diagram, and writes its trace to `consensus/raw/<name>.ndjson` in the build directory.
+The runner prints each scenario as a Mermaid sequence diagram, and writes its trace to `consensus/raw/<name>.msgpack` in the build directory.
 [`consensus-replay`](../../lean/consensus/replay/README.md) validates these traces against the Lean model of the protocol.
 
 ## Diagrams
