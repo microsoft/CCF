@@ -18,24 +18,22 @@ def main (args : List String) : IO UInt32 := do
           IO.eprintln s!"unknown option {flags}"
           return 2
         let lenient := flags.contains "--lenient"
-        let recordSchedule := flags.contains "--schedule"
-        let events ← readEvents path
+        let records ← readLog path
         let reduced := do
-          let (streams, declared) ← events
+          let (streams, declared) ← prepareEvents (← records)
           reduce streams declared lenient
         let (result, ran) :=
           match reduced with
           | .error error => (Except.error error, #[])
           | .ok reduced =>
               let (result, ran) :=
-                (schedule reduced.header reduced.queues lenient recordSchedule).run.run
-                  #[]
+                (schedule reduced.header reduced.queues lenient).run.run #[]
               (
                 result.map
                   fun (result : Result) => (reduced.watermark result.ran, result),
                 ran
               )
-        if recordSchedule then
+        if flags.contains "--schedule" then
           for group in ran do
             IO.eprintln s!"{group.ts.getD group.m_ts} node '{group.node}' {group.label}"
         match result with
