@@ -2,14 +2,13 @@
 // Licensed under the Apache 2.0 License.
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <doctest/doctest.h>
-#include <random>
-
-#define FMT_HEADER_ONLY
 #include "crypto/sharing.h"
 
 #include <charconv>
-#include <fmt/format.h>
+#include <doctest/doctest.h>
+#include <format>
+#include <iostream>
+#include <random>
 
 using namespace ccf::crypto::sharing;
 
@@ -40,8 +39,8 @@ void check_share_is_not_trivially_wrong(const Share& share)
 void share_and_recover(
   std::mt19937& rng, size_t num_shares, size_t threshold, size_t recoveries)
 {
-  fmt::println(
-    "Testing {} shares with threshold {} for {} recoveries",
+  std::cout << std::format(
+    "Testing {} shares with threshold {} for {} recoveries\n",
     num_shares,
     threshold,
     recoveries);
@@ -67,7 +66,7 @@ void share_and_recover(
     {
       Share recovered;
       recover_unauthenticated_secret(recovered, recovered_shares, threshold);
-      INFO(fmt::format(
+      INFO(std::format(
         "Recovering secret with threshold {} from {} shares",
         threshold,
         recovered_shares.size()));
@@ -77,7 +76,7 @@ void share_and_recover(
     {
       Share recovered;
       recovered_shares.pop_back();
-      INFO(fmt::format(
+      INFO(std::format(
         "Recovering secret with threshold {} from {} shares",
         threshold - 1,
         recovered_shares.size()));
@@ -144,7 +143,7 @@ TEST_CASE("Cover a range of share and recover combinations")
   {
     seed = std::random_device{}();
   }
-  fmt::println("RNG Seed: {}", seed);
+  std::cout << std::format("RNG Seed: {}\n", seed);
 
   std::mt19937 rng;
   rng.seed(seed);

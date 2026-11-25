@@ -5,7 +5,6 @@
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "ds/champ_map.h"
 #include "ds/internal_logger.h"
-#include "ds/std_formatters.h"
 #include "kv/untyped_change_set.h"
 
 #include <doctest/doctest.h>

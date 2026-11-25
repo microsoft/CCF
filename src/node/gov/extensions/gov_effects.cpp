@@ -13,6 +13,7 @@
 #include "js/modules/kv_module_loader.h"
 #include "node/rpc/jwt_management.h"
 
+#include <format>
 #include <quickjs/quickjs.h>
 
 namespace ccf::js::extensions
@@ -81,7 +82,7 @@ namespace ccf::js::extensions
           out_buf = JS_WriteObject(ctx2, &out_buf_len, module_val.val, flags);
           if (!out_buf)
           {
-            throw std::runtime_error(fmt::format(
+            throw std::runtime_error(std::format(
               "Unable to serialize bytecode for JS module '{}'", name));
           }
 

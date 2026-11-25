@@ -4,7 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 
-#include <fmt/format.h>
+#include <format>
 #include <string>
 #include <utility>
 
@@ -62,8 +62,8 @@ namespace ccf
   {
     if (host.contains(':') && !host.starts_with('['))
     {
-      return fmt::format("[{}]:{}", host, port);
+      return std::format("[{}]:{}", host, port);
     }
-    return fmt::format("{}:{}", host, port);
+    return std::format("{}:{}", host, port);
   }
 }

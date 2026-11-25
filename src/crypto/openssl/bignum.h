@@ -19,7 +19,7 @@ namespace ccf::crypto::OpenSSL
   {
     if (bytes.size() > INT_MAX)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Big number size {} exceeds the maximum of {} bytes",
         bytes.size(),
         INT_MAX));

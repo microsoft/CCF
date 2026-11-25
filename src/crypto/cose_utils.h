@@ -11,7 +11,7 @@
 
 #include <chrono>
 #include <cstdint>
-#include <fmt/format.h>
+#include <format>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -105,7 +105,7 @@ namespace ccf::cose
         return cwt_claims.map_at(make_signed(ccf::cwt::header::iana::ISS))
           .as_string();
       },
-      fmt::format(
+      std::format(
         "Parse CWT claim iss({}) field", ccf::cwt::header::iana::ISS));
 
     claims.sub = rethrow_with_msg(
@@ -113,7 +113,7 @@ namespace ccf::cose
         return cwt_claims.map_at(make_signed(ccf::cwt::header::iana::SUB))
           .as_string();
       },
-      fmt::format(
+      std::format(
         "Parse CWT claim sub({}) field", ccf::cwt::header::iana::SUB));
 
     try
@@ -143,14 +143,14 @@ namespace ccf::cose
     if (x5chain.empty())
     {
       throw COSEDecodeError(
-        fmt::format("No certificates in {} x5chain", context));
+        std::format("No certificates in {} x5chain", context));
     }
 
     const auto common_validity_period =
       ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(x5chain);
     if (!common_validity_period.has_value())
     {
-      throw COSEDecodeError(fmt::format(
+      throw COSEDecodeError(std::format(
         "Certificates in {} x5chain have no common validity period", context));
     }
 
@@ -160,7 +160,7 @@ namespace ccf::cose
       iat < common_validity_period->not_before ||
       iat > common_validity_period->not_after)
     {
-      throw COSEDecodeError(fmt::format(
+      throw COSEDecodeError(std::format(
         "CWT iat {} in {} is outside x5chain common validity period [{}, {}]",
         claims.iat.value(),
         context,

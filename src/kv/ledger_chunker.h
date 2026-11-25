@@ -7,12 +7,10 @@
 #include "kv/ledger_chunker_interface.h"
 
 #include <cstdint>
+#include <format>
 #include <limits>
 #include <map>
 #include <numeric>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace ccf::kv
 {
@@ -55,7 +53,7 @@ namespace ccf::kv
     {
       if (threshold == 0 || threshold > max_chunk_threshold_size)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Error: Ledger chunk threshold ({}) must be between 1-{}",
           threshold,
           max_chunk_threshold_size));

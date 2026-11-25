@@ -45,7 +45,7 @@ namespace ccf::indexing
     void uninstall_strategy(const StrategyPtr& strategy)
     {
       std::lock_guard<ccf::ds::Mutex> guard(lock);
-      if (strategy == nullptr || strategies.find(strategy) == strategies.end())
+      if (strategy == nullptr || !strategies.contains(strategy))
       {
         throw std::logic_error("Strategy doesn't exist");
       }

@@ -521,7 +521,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     CHECK(event[2]["msg"]["h_ts"].get<std::string>().ends_with("Z"));
     const nlohmann::json expected = {
       {"h_ts", event[2]["msg"]["h_ts"]},
-      {"thread_id", fmt::format("{}", line.thread_id)},
+      {"thread_id", std::format("{}", line.thread_id)},
       {"level", ccf::logger::to_string(level)},
       {"tag", "app"},
       {"file", "file.cpp"},
@@ -738,7 +738,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(logs->shutdown_reports == 2);
   CHECK(
     logs->shutdown_messages[0] ==
-    fmt::format(
+    std::format(
       "Fluentd exporter shutdown: {} dropped events",
       drops_before_shutdown + 7));
   CHECK(
