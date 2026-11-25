@@ -567,9 +567,8 @@ namespace aft
       // a final state, and node identities never being re-used.
       if (
         !configurations.empty() &&
-        configurations.back().nodes.find(state->node_id) !=
-          configurations.back().nodes.end() &&
-        conf.find(state->node_id) == conf.end())
+        configurations.back().nodes.contains(state->node_id) &&
+        !conf.contains(state->node_id))
       {
         become_retired(idx, ccf::kv::RetirementPhase::Ordered);
       }
@@ -2301,7 +2300,7 @@ namespace aft
       for (auto const& conf : configurations)
       {
         auto const& nodes = conf.nodes;
-        if (nodes.find(from) == nodes.end())
+        if (!nodes.contains(from))
         {
           // from node is no longer in any active configuration.
           continue;
@@ -2607,7 +2606,7 @@ namespace aft
       if (!configurations.empty())
       {
         auto current_nodes = configurations.back().nodes;
-        present = current_nodes.find(state->node_id) != current_nodes.end();
+        present = current_nodes.contains(state->node_id);
       }
       return present;
     }

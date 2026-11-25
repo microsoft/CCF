@@ -103,7 +103,7 @@ namespace ccf::js::extensions
       {
         return ccf::js::core::constants::Exception;
       }
-      auto valid_from = *valid_from_str;
+      const auto& valid_from = *valid_from_str;
 
       size_t validity_period_days = 0;
       if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)

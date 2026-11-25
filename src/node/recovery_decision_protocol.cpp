@@ -839,16 +839,12 @@ namespace ccf
 
     auto& node_info = get_node_info(tx);
 
-    {
-      std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
-      iamopen_request_cache = recovery_decision_protocol::IAmOpenRequest{};
-      iamopen_request_cache->info = node_info;
-      iamopen_request_cache->prev_service_fingerprint =
-        previous_service_identity_fingerprint;
-      iamopen_request_cache->txid = get_last_recovered_signed_txid();
-    }
-
-    return iamopen_request_cache.value();
+    std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
+    auto& request = iamopen_request_cache.emplace();
+    request.info = node_info;
+    request.prev_service_fingerprint = previous_service_identity_fingerprint;
+    request.txid = get_last_recovered_signed_txid();
+    return request;
   }
 
   void RecoveryDecisionProtocolSubsystem::send_iamopen_unsafe(

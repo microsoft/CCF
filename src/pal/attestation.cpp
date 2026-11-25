@@ -287,9 +287,9 @@ namespace ccf::pal
 
     // ark_cert --signs--> ask_cert
     // ask_cert --signs--> vcek_cert
-    auto vcek_cert = certificates[0];
-    auto ask_cert = certificates[1];
-    auto ark_cert = certificates[2];
+    const auto& vcek_cert = certificates[0];
+    const auto& ask_cert = certificates[1];
+    const auto& ark_cert = certificates[2];
 
     TavSnpAttestationReport* raw_report = nullptr;
     TavErrorPtr error(

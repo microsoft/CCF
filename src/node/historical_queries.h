@@ -449,8 +449,8 @@ namespace ccf::historical
       // for before its own entries can be fetched
       [[nodiscard]] bool is_interested_in(ccf::SeqNo seqno) const
       {
-        return my_stores.find(seqno) != my_stores.end() ||
-          supporting_signatures.find(seqno) != supporting_signatures.end() ||
+        return my_stores.contains(seqno) ||
+          supporting_signatures.contains(seqno) ||
           (awaiting_ledger_secrets.has_value() &&
            awaiting_ledger_secrets.value() == seqno);
       }
@@ -497,9 +497,7 @@ namespace ccf::historical
             else if (prev_it != my_stores.end() && *new_it > prev_it->first)
             {
               // No longer looking for a seqno which was previously requested.
-              if (
-                supporting_signatures.find(prev_it->first) ==
-                supporting_signatures.end())
+              if (!supporting_signatures.contains(prev_it->first))
               {
                 removed.push_back(prev_it->first);
                 reply_consumers.remove(
@@ -560,9 +558,7 @@ namespace ccf::historical
             auto it = prev_it;
             while (it != my_stores.end())
             {
-              if (
-                supporting_signatures.find(it->first) ==
-                supporting_signatures.end())
+              if (!supporting_signatures.contains(it->first))
               {
                 removed.push_back(it->first);
                 reply_consumers.remove(
@@ -755,8 +751,7 @@ namespace ccf::historical
                 const auto filled_this =
                   fill_receipts_from_signature(details, new_seqno);
 
-                if (
-                  !filled_this && my_stores.find(new_seqno) != my_stores.end())
+                if (!filled_this && my_stores.contains(new_seqno))
                 {
                   throw std::logic_error(std::format(
                     "Unexpected: Found a signature at {}, and contiguous range "
@@ -1386,9 +1381,8 @@ namespace ccf::historical
         if (request.include_receipts)
         {
           const bool seqno_in_this_request =
-            (request.my_stores.find(seqno) != request.my_stores.end() ||
-             request.supporting_signatures.find(seqno) !=
-               request.supporting_signatures.end());
+            (request.my_stores.contains(seqno) ||
+             request.supporting_signatures.contains(seqno));
           if (seqno_in_this_request)
           {
             auto added = request.populate_receipts(seqno);

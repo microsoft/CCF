@@ -413,7 +413,9 @@ namespace ccf
       const auto signing_identity = signing_identity_from_key(service_key);
 
       // Builds with ML-DSA always hold a PQ identity, and a service which has
-      // one never loses it
+      // one never loses it. The analyzer treats the value as unread in builds
+      // where ML-DSA support is a compile-time constant.
+      // NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores)
       const bool prev_service_has_pq_cert =
         prev_service_info.has_value() && prev_service_info->pq_cert.has_value();
       const bool pq_identity_required = ccf::crypto::mldsa_supported() ||

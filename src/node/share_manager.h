@@ -575,9 +575,7 @@ namespace ccf
           "Recovering encrypted ledger secret valid at seqno {}",
           prev_secret.version);
 
-        if (
-          restored_ledger_secrets.find(prev_secret.version) !=
-          restored_ledger_secrets.end())
+        if (restored_ledger_secrets.contains(prev_secret.version))
         {
           // Already decrypted this ledger secret
           LOG_INFO_FMT(

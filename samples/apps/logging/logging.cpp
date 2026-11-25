@@ -200,7 +200,7 @@ namespace loggingapp
       m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
         if (v.has_value())
         {
-          std::string val = v.value();
+          const std::string& val = v.value();
           records[k] = val;
         }
         else
