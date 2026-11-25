@@ -3171,8 +3171,7 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
-  "A primary refuses a configuration with no nodes" *
-  doctest::test_suite("single"))
+  "Nodes refuse a configuration with no nodes" * doctest::test_suite("single"))
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
   TestNode node(node_id);
@@ -3210,11 +3209,115 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(details.membership_state == ccf::kv::MembershipState::Active);
   DOCTEST_REQUIRE(r0.is_primary());
 
-  DOCTEST_INFO("A backup follows the log of its primary, as before");
+  DOCTEST_INFO("A backup also refuses add_configuration with no nodes");
   TestNode backup(ccf::kv::test::FirstBackupNodeId);
   backup.cft.add_configuration(0, config);
-  backup.cft.add_configuration(2, {});
-  DOCTEST_REQUIRE(backup.cft.get_details().configs.size() == 2);
+  DOCTEST_REQUIRE_THROWS_WITH_AS(
+    backup.cft.add_configuration(2, {}),
+    "Configuration at 2 has no nodes",
+    std::logic_error);
+  DOCTEST_REQUIRE(backup.cft.get_details().configs.size() == 1);
+  DOCTEST_REQUIRE(backup.cft.get_details().configs.back().nodes == config);
+
+  DOCTEST_INFO(
+    "A follower receiving an AppendEntries with an empty configuration "
+    "rolls back and NACKs");
+
+  struct RollbackTrackingStore : public aft::LoggingStubStoreConfig
+  {
+    using LoggingStubStoreConfig::LoggingStubStoreConfig;
+    std::vector<ccf::kv::Version> rolled_back_to;
+
+    void rollback(const ccf::TxID& tx_id, aft::Term t) override
+    {
+      rolled_back_to.push_back(tx_id.seqno);
+      LoggingStubStoreConfig::rollback(tx_id, t);
+    }
+  };
+
+  const ccf::NodeId follower_id = ccf::kv::test::FirstBackupNodeId;
+  aft::Configuration::Nodes two_node_config;
+  two_node_config[node_id] = {};
+  two_node_config[follower_id] = {};
+
+  auto follower_store = std::make_shared<RollbackTrackingStore>(follower_id);
+  auto follower_channels = std::make_shared<aft::ChannelStubProxy>();
+  aft::Aft<aft::LedgerStubProxy> follower(
+    cft_settings,
+    std::make_unique<aft::Adaptor<RollbackTrackingStore>>(follower_store),
+    std::make_unique<aft::LedgerStubProxy>(follower_id),
+    follower_channels,
+    std::make_shared<aft::State>(follower_id),
+    nullptr);
+  follower.add_configuration(0, two_node_config);
+
+  auto make_replicated_bytes = [](
+                                 aft::ReplicatedDataType type,
+                                 const std::vector<uint8_t>& data) {
+    const auto serialized_json =
+      nlohmann::json(aft::ReplicatedData{type, data}).dump();
+    return std::vector<uint8_t>(serialized_json.begin(), serialized_json.end());
+  };
+
+  aft::LedgerStubProxy sender_ledger(node_id);
+  sender_ledger.put_entry(
+    make_replicated_bytes(aft::ReplicatedDataType::raw, {1, 2, 3}), true, 1, 1);
+  const auto empty_conf_json =
+    nlohmann::json(aft::Configuration::Nodes{}).dump();
+  sender_ledger.put_entry(
+    make_replicated_bytes(
+      aft::ReplicatedDataType::reconfiguration,
+      std::vector<uint8_t>(empty_conf_json.begin(), empty_conf_json.end())),
+    false,
+    1,
+    2);
+
+  // First deliver entry 1 so the follower has a committed baseline at index 1.
+  aft::AppendEntries ae1{};
+  ae1.idx = 1;
+  ae1.prev_idx = 0;
+  ae1.term = 1;
+  ae1.prev_term = 0;
+  ae1.leader_commit_idx = 1;
+  ae1.term_of_idx = 1;
+  auto payload1 = sender_ledger.get_append_entries_payload(ae1);
+  DOCTEST_REQUIRE(payload1.has_value());
+  follower.recv_message(
+    node_id, {reinterpret_cast<const uint8_t*>(&ae1), sizeof(ae1)}, *payload1);
+  DOCTEST_REQUIRE(follower.get_last_idx() == 1);
+  DOCTEST_REQUIRE(follower.ledger->ledger.size() == 1);
+  follower_channels->messages.clear();
+
+  // Now deliver entry 2 with an empty configuration.
+  aft::AppendEntries ae2{};
+  ae2.idx = 2;
+  ae2.prev_idx = 1;
+  ae2.term = 1;
+  ae2.prev_term = 1;
+  ae2.leader_commit_idx = 1;
+  ae2.term_of_idx = 1;
+  auto payload2 = sender_ledger.get_append_entries_payload(ae2);
+  DOCTEST_REQUIRE(payload2.has_value());
+  follower.recv_message(
+    node_id, {reinterpret_cast<const uint8_t*>(&ae2), sizeof(ae2)}, *payload2);
+
+  DOCTEST_REQUIRE(follower.get_last_idx() == 1);
+  DOCTEST_REQUIRE(follower.ledger->ledger.size() == 1);
+  DOCTEST_REQUIRE(
+    follower_store->rolled_back_to == std::vector<ccf::kv::Version>{1});
+  const auto follower_details = follower.get_details();
+  DOCTEST_REQUIRE(follower_details.configs.size() == 1);
+  DOCTEST_REQUIRE(follower_details.configs.back().nodes == two_node_config);
+  DOCTEST_REQUIRE(
+    follower_details.membership_state == ccf::kv::MembershipState::Active);
+
+  auto resp_msg =
+    follower_channels->pop_first(aft::append_entries_response, node_id);
+  DOCTEST_REQUIRE(resp_msg.has_value());
+  const auto* resp =
+    reinterpret_cast<const aft::AppendEntriesResponse*>(resp_msg->data());
+  DOCTEST_REQUIRE(resp->success == aft::AppendEntriesResponseType::FAIL);
+  DOCTEST_REQUIRE(resp->last_log_idx == 1);
 }
 
 int main(int argc, char** argv)

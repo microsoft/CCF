@@ -1500,7 +1500,7 @@ def run_remove_last_node(const_args):
         assert primary.remote.check_done(timeout=10), "The node is still running"
 
         out_path, _ = primary.get_logs()
-        refusal = "Refusing to replicate the configuration"
+        refusal = "Refusing configuration at"
         with open(out_path, encoding="utf-8") as out:
             assert any(
                 refusal in line for line in out
