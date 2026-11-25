@@ -2534,6 +2534,32 @@ def run_limit_config_checks(args):
                         in output
                     )
 
+    for tls_enabled in (False, True):
+        for limit in (None, 0, 1, 2, 23726566, 23726567):
+            config = copy.deepcopy(base)
+            if tls_enabled:
+                config["network"]["node_to_node_tls_interface"] = {
+                    "bind_address": "127.0.0.1:0"
+                }
+            if limit is not None:
+                config["node_to_node_message_limit"] = limit
+            valid = not tls_enabled or limit in (None, 2, 23726566)
+            with tempfile.NamedTemporaryFile(mode="w+") as temp_config:
+                json.dump(config, temp_config)
+                temp_config.flush()
+                for flags in (["--check"],) if valid else (["--check"], []):
+                    result = infra.proc.ccall(
+                        args.package, f"--config={temp_config.name}", *flags
+                    )
+                    if valid:
+                        assert result.returncode == 0, result
+                    else:
+                        assert result.returncode != 0, result
+                        assert (
+                            b"TLS sending-key record budget must be between 2 and 23726566"
+                            in result.stdout + result.stderr
+                        ), result
+
 
 def run_preopen_readiness_check(args):
     with infra.network.network(

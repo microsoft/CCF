@@ -877,7 +877,7 @@
     "node_to_node_message_limit": {
       "type": "integer",
       "default": 23726566,
-      "description": "Cap at which node-to-node message channels will be closed, and a new channel will be created. Can be used to limit use of single cryptographic key",
+      "description": "Per-key usage limit for node-to-node communication. Legacy channels count messages and establish a new channel; TLS connections count outgoing encrypted records and update the sending key. When TLS is enabled, must be between 2 and 23726566",
       "minimum": 0
     },
     "historical_cache_soft_limit": {

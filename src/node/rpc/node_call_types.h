@@ -141,6 +141,9 @@ namespace ccf
         std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
         std::optional<ccf::COSESignaturesConfig> cose_signatures_config =
           std::nullopt;
+        // Recorded trusted-peer endpoints let the joiner reply before it has
+        // replicated the node table. Older primaries omit this field.
+        std::map<NodeId, std::string> node_to_node_tls_addresses;
 
         NetworkInfo() = default;
 
@@ -169,7 +172,8 @@ namespace ccf
             identity == other.identity &&
             service_status == other.service_status &&
             endorsed_certificate == other.endorsed_certificate &&
-            cose_signatures_config == other.cose_signatures_config;
+            cose_signatures_config == other.cose_signatures_config &&
+            node_to_node_tls_addresses == other.node_to_node_tls_addresses;
         }
 
         bool operator!=(const NetworkInfo& other) const

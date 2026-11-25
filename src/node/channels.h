@@ -1022,42 +1022,6 @@ namespace ccf
       return true;
     }
 
-    bool recv_authenticated_with_load(const uint8_t*& data, size_t& size)
-    {
-      std::lock_guard<ccf::ds::Mutex> guard(lock);
-
-      // Receive authenticated message, modifying data to point to the start of
-      // the non-authenticated plaintext payload. data contains payload first,
-      // then GCM header
-
-      if (recv_key == nullptr)
-      {
-        LOG_INFO_FMT(
-          "Node channel with {} cannot receive authenticated message with "
-          "payload: not established a receive key, status={}",
-          peer_id,
-          status.value());
-        advance_connection_attempt();
-        return false;
-      }
-
-      const uint8_t* data_ = data;
-      size_t size_ = size;
-
-      GcmHdr hdr;
-      serialized::skip(data_, size_, (size_ - GcmHdr::serialised_size()));
-      hdr.deserialise(data_, size_);
-      size -= GcmHdr::serialised_size();
-
-      if (!verify(hdr, std::span<const uint8_t>(data, size)))
-      {
-        CHANNEL_RECV_FAIL("Failed to verify node message with payload");
-        return false;
-      }
-
-      return true;
-    }
-
     std::optional<std::vector<uint8_t>> recv_encrypted(
       std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {

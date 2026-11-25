@@ -607,9 +607,9 @@ namespace ccf::tls
       engine->send(id, data, size);
     }
 
-    void close_connection(::tcp::ConnID id)
+    void close_connection(::tcp::ConnID id, bool force = false)
     {
-      engine->close_connection(id);
+      engine->close_connection(id, force);
     }
   };
 }

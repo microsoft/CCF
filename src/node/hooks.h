@@ -17,6 +17,7 @@ namespace ccf
   {
     std::string hostname;
     std::string port;
+    std::optional<std::string> tls_address;
   };
 
   class ConfigurationChangeHook : public ccf::kv::ConsensusHook
@@ -63,7 +64,15 @@ namespace ccf
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
+            cfg_delta.try_emplace(
+              node_id,
+              NodeAddr{
+                host,
+                port,
+                ni.node_to_node_tls_interface ?
+                  std::make_optional(
+                    ni.node_to_node_tls_interface->published_address) :
+                  std::nullopt});
             break;
           }
           case NodeStatus::RETIRED:
@@ -99,7 +108,9 @@ namespace ccf
         if (opt_ni.has_value())
         {
           configuration_changed |=
-            configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port)
+            configuration
+              .try_emplace(
+                node_id, opt_ni->hostname, opt_ni->port, opt_ni->tls_address)
               .second;
         }
         else

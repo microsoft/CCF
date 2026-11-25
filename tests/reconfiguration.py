@@ -18,6 +18,7 @@ import ccf.signatures
 import infra.clients
 import infra.crypto
 import infra.e2e_args
+import infra.interfaces
 import infra.logging_app as app
 import infra.net
 import infra.network
@@ -120,20 +121,19 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         assert time.time() <= end_time, "Reconfiguration did not complete in time"
 
 
-@reqs.description("Record inactive node-to-node TLS metadata when joining")
+@reqs.description("Preserve node-to-node TLS endpoint metadata when joining")
 def test_node_to_node_tls_metadata(network, args):
     primary, _ = network.find_primary()
-    endpoint = {
-        "bind_address": "not-resolved.invalid:0",
-        "published_address": "peer.example:8082",
-    }
     new_node = network.create_node()
+    interface = infra.interfaces.NodeToNodeInterface(
+        host=new_node.n2n_interface.host, published_address="peer.example:8082"
+    )
+    new_node.host.node_to_node_tls_interface = interface
     network.join_node(
         new_node,
         args.package,
         args,
         from_snapshot=False,
-        node_to_node_tls_interface=endpoint,
     )
     new_node.stop()
     with primary.client() as c:
@@ -148,7 +148,9 @@ def test_node_to_node_tls_metadata(network, args):
         info = json.loads(
             tables[ccf.ledger.NODES_TABLE_NAME][new_node.node_id.encode()]
         )
-        assert info["node_to_node_tls_interface"] == endpoint, info
+        assert info["node_to_node_tls_interface"] == (
+            infra.interfaces.NodeToNodeInterface.to_json(interface)
+        ), info
     return network
 
 

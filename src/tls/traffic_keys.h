@@ -5,14 +5,25 @@
 #include <cstddef>
 #include <cstdint>
 #include <openssl/ssl.h>
+#include <stdexcept>
 
 namespace ccf::tls
 {
   struct TrafficKeyPolicy
   {
-    // Below RFC 8446 section 5.5's AES-GCM limit of 2^24.5 full records.
-    static constexpr uint64_t MAX_RECORD_BUDGET = uint64_t{1} << 24;
+    // RFC 8446 section 5.5's AES-GCM limit of 2^24.5 full records, rounded
+    // down.
+    static constexpr uint64_t MAX_RECORD_BUDGET = 23'726'566;
     uint64_t record_budget = uint64_t{1} << 20;
+
+    void validate() const
+    {
+      if (record_budget < 2 || record_budget > MAX_RECORD_BUDGET)
+      {
+        throw std::invalid_argument(
+          "TLS sending-key record budget must be between 2 and 23726566");
+      }
+    }
   };
 
   class TrafficKeys

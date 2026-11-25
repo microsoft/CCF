@@ -8,6 +8,7 @@
 #include "ledger_subsystem.h"
 #include "node/node_transport.h"
 #include "node/node_types.h"
+#include "node_frame.h"
 #include "tcp.h"
 #include "timer.h"
 
@@ -510,14 +511,15 @@ namespace asynchost
       const ccf::NodeId& from,
       std::vector<uint8_t>&& payload) override
     {
-      ordered(
-        "Node send",
-        [this, to, msg_type, from, payload = std::move(payload)]() {
-          auto frame = assemble_frame(to, msg_type, from, payload);
-          if (frame.has_value())
-          {
-            enqueue_ready(SendFrame{to, from, std::move(frame.value())});
-          }
+      send_node_frame(
+        ledger,
+        ledger_subsystem,
+        to,
+        msg_type,
+        from,
+        std::move(payload),
+        [this, to, from](std::vector<uint8_t>&& frame) {
+          enqueue_ready(SendFrame{to, from, std::move(frame)});
         });
     }
 
@@ -577,101 +579,6 @@ namespace asynchost
     }
 
   private:
-    // Ordered step: for an AppendEntries message, read the ledger entries it
-    // refers to and append them to the message. Returns the complete framed
-    // bytes to write to the peer, or nullopt if the message must be dropped.
-    //
-    // Wire format: [u32 frame size][msg type][sender ID][payload][entries].
-    std::optional<std::vector<uint8_t>> assemble_frame(
-      const ccf::NodeId& to,
-      ccf::NodeMsgType msg_type,
-      const ccf::NodeId& from,
-      const std::vector<uint8_t>& payload)
-    {
-      const auto& from_value = from.value();
-      std::vector<uint8_t> header(
-        sizeof(msg_type) + sizeof(size_t) + from_value.size());
-      {
-        auto* hdata = header.data();
-        auto hsize = header.size();
-        serialized::write(hdata, hsize, msg_type);
-        serialized::write(hdata, hsize, from_value);
-      }
-
-      const uint8_t* data = payload.data();
-      size_t size = payload.size();
-
-      std::vector<uint8_t> entries;
-      std::optional<::consensus::AppendEntriesIndex> ae_index;
-
-      if (
-        msg_type == ccf::NodeMsgType::consensus_msg &&
-        (serialized::read<aft::CftMsgType>(data, size) == aft::append_entries))
-      {
-        const auto& ae =
-          serialized::overlay<::consensus::AppendEntriesIndex>(data, size);
-        ae_index = ae;
-
-        if (ae.idx > ae.prev_idx)
-        {
-          std::optional<asynchost::LedgerReadResult> read_result =
-            ledger.read_entries(ae.prev_idx + 1, ae.idx);
-
-          if (!read_result.has_value())
-          {
-            LOG_FAIL_FMT(
-              "Unable to send AppendEntries ({}, {}]: Ledger read failed",
-              ae.prev_idx,
-              ae.idx);
-            return std::nullopt;
-          }
-
-          if (ae.idx != read_result->end_idx)
-          {
-            // NB: This should never happen since we do not pass a max_size
-            // to read_entries
-            LOG_FAIL_FMT(
-              "Unable to send AppendEntries ({}, {}]: Ledger read returned "
-              "entries to {}",
-              ae.prev_idx,
-              ae.idx,
-              read_result->end_idx);
-            return std::nullopt;
-          }
-
-          entries = std::move(read_result->data);
-        }
-      }
-
-      const auto frame_size =
-        static_cast<uint32_t>(header.size() + payload.size() + entries.size());
-      std::vector<uint8_t> frame;
-      frame.reserve(sizeof(frame_size) + frame_size);
-      frame.insert(
-        frame.end(),
-        reinterpret_cast<const uint8_t*>(&frame_size),
-        reinterpret_cast<const uint8_t*>(&frame_size) + sizeof(frame_size));
-      frame.insert(frame.end(), header.begin(), header.end());
-      frame.insert(frame.end(), payload.begin(), payload.end());
-      frame.insert(frame.end(), entries.begin(), entries.end());
-
-      if (ae_index.has_value())
-      {
-        LOG_DEBUG_FMT(
-          "send AE to node {} [{}]: {}, {}",
-          to,
-          frame_size,
-          ae_index->idx,
-          ae_index->prev_idx);
-      }
-      else
-      {
-        LOG_DEBUG_FMT("node send to {} [{}]", to, frame_size);
-      }
-
-      return frame;
-    }
-
     // Loop step: find or open the connection to the peer and write the frame.
     void send_frame(const ccf::NodeId& to, const std::vector<uint8_t>& frame)
     {

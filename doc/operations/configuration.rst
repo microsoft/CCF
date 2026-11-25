@@ -49,6 +49,32 @@ This is useful when running CCF in a container, where the configuration file may
 
 .. include:: generated_config.rst
 
+Node-to-Node TLS
+----------------
+
+The optional ``network.node_to_node_tls_interface`` enables mutually authenticated TLS for consensus and forwarded requests.
+It accepts ``bind_address`` and an optional ``published_address`` used by peers when different from the bind address.
+For example:
+
+.. code-block:: json
+
+    {
+      "network": {
+        "node_to_node_interface": {"bind_address": "10.0.0.4:8081"},
+        "node_to_node_tls_interface": {"bind_address": "10.0.0.4:8082"},
+        "rpc_interfaces": {}
+      }
+    }
+
+Keep the legacy ``node_to_node_interface`` configured and reachable for mixed networks.
+Restrict network access to both node-to-node ports to the trusted service nodes.
+TLS is selected only when both the local node and the recorded peer endpoint support it, never as a failure-triggered fallback.
+Omitting the TLS interface disables incoming and outgoing N2N TLS on that node.
+When port zero is requested, ``output_files.node_to_node_address_file`` includes the resolved TLS address alongside the legacy address.
+The existing ``node_to_node.max_message_size`` bounds both transports' frames.
+``node_to_node_message_limit`` limits key usage for both transports, counting messages for legacy channels and outgoing encrypted records for TLS.
+The default is 23,726,566; with TLS enabled, values must be between 2 and 23,726,566.
+See :doc:`/architecture/node_to_node` for authentication, connection lifetime, and resource limits.
 
 Identity ID Format
 ------------------

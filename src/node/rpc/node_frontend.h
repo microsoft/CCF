@@ -444,8 +444,24 @@ namespace ccf
           service_status,
           endorsed_certificate,
           node_operation.get_cose_signatures_config()};
+        set_join_tls_addresses(tx, *rep.network_info);
       }
       return make_success(rep);
+    }
+
+    void set_join_tls_addresses(
+      ccf::kv::Tx& tx, JoinNetworkNodeToNode::Out::NetworkInfo& info)
+    {
+      auto* nodes = tx.ro(this->network.nodes);
+      nodes->foreach([&info](const NodeId& peer, const NodeInfo& node) {
+        if (
+          node.status == NodeStatus::TRUSTED && node.node_to_node_tls_interface)
+        {
+          info.node_to_node_tls_addresses.emplace(
+            peer, node.node_to_node_tls_interface->published_address);
+        }
+        return true;
+      });
     }
 
     ccf::ds::Mutex jwt_refresh_metrics_lock;
@@ -612,6 +628,7 @@ namespace ccf
           LOG_DEBUG_FMT(
             "Join request accepted: {} already marked as TRUSTED",
             existing_node_info->node_id);
+          set_join_tls_addresses(args.tx, *rep.network_info);
           return make_success(rep);
         }
 
@@ -1124,7 +1141,8 @@ namespace ccf
            is_primary,
            ni.rpc_interfaces,
            ni.node_data,
-           nodes->get_version_of_previous_write(nid).value_or(0)});
+           nodes->get_version_of_previous_write(nid).value_or(0),
+           ni.node_to_node_tls_interface});
         return true;
       });
 
@@ -1157,7 +1175,8 @@ namespace ccf
                false /* is_primary */,
                node->rpc_interfaces,
                node->node_data,
-               nodes->get_version_of_previous_write(node_id).value_or(0)});
+               nodes->get_version_of_previous_write(node_id).value_or(0),
+               node->node_to_node_tls_interface});
           }
           return true;
         });
@@ -1264,7 +1283,8 @@ namespace ccf
         is_primary,
         ni.rpc_interfaces,
         ni.node_data,
-        nodes->get_version_of_previous_write(node_id).value_or(0)});
+        nodes->get_version_of_previous_write(node_id).value_or(0),
+        ni.node_to_node_tls_interface});
     }
 
     auto get_self_node(
@@ -1297,7 +1317,8 @@ namespace ccf
           is_primary,
           ni.rpc_interfaces,
           ni.node_data,
-          nodes->get_version_of_previous_write(node_id).value_or(0)});
+          nodes->get_version_of_previous_write(node_id).value_or(0),
+          ni.node_to_node_tls_interface});
       }
 
       // If the node isn't in its KV yet, fall back to configuration
@@ -1318,7 +1339,8 @@ namespace ccf
         is_primary,
         node_startup_config.network.rpc_interfaces,
         node_configuration_subsystem->get().node_data,
-        0});
+        0,
+        node_startup_config.network.node_to_node_tls_interface});
     }
 
     auto get_primary_node(
@@ -1354,8 +1376,8 @@ namespace ccf
           true,
           ni.rpc_interfaces,
           ni.node_data,
-          nodes->get_version_of_previous_write(primary_id.value())
-            .value_or(0)});
+          nodes->get_version_of_previous_write(primary_id.value()).value_or(0),
+          ni.node_to_node_tls_interface});
       }
 
       return make_error(

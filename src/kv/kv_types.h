@@ -66,17 +66,23 @@ namespace ccf::kv
     {
       std::string hostname;
       std::string port;
+      std::optional<std::string> tls_address = std::nullopt;
 
       NodeInfo() = default;
 
-      NodeInfo(std::string hostname_, std::string port_) :
+      NodeInfo(
+        std::string hostname_,
+        std::string port_,
+        std::optional<std::string> tls_address_ = std::nullopt) :
         hostname(std::move(hostname_)),
-        port(std::move(port_))
+        port(std::move(port_)),
+        tls_address(std::move(tls_address_))
       {}
 
       bool operator==(const NodeInfo& other) const
       {
-        return hostname == other.hostname && port == other.port;
+        return hostname == other.hostname && port == other.port &&
+          tls_address == other.tls_address;
       }
     };
 
@@ -90,6 +96,10 @@ namespace ccf::kv
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
   {
     j["address"] = ccf::make_net_address(ni.hostname, ni.port);
+    if (ni.tls_address)
+    {
+      j["tls_address"] = *ni.tls_address;
+    }
   }
 
   inline void from_json(const nlohmann::json& j, Configuration::NodeInfo& ni)
@@ -98,6 +108,9 @@ namespace ccf::kv
     const auto& [h, p] = ccf::split_net_address(addr);
     ni.hostname = h;
     ni.port = p;
+    ni.tls_address = j.contains("tls_address") ?
+      std::make_optional(j.at("tls_address").get<std::string>()) :
+      std::nullopt;
   }
 
   inline std::string schema_name(const Configuration::NodeInfo* /*unused*/)
@@ -114,6 +127,8 @@ namespace ccf::kv
     schema["properties"] = nlohmann::json::object();
     schema["properties"]["address"] = nlohmann::json::object();
     schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
+    schema["properties"]["tls_address"] = {
+      {"$ref", "#/components/schemas/string"}};
   }
 
   enum class LeadershipState : uint8_t

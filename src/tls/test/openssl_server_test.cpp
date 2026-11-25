@@ -1085,6 +1085,24 @@ namespace
     CHECK(pair.server_key_updates == 1);
   }
 
+  TEST_CASE("Sending-key policy validates the record budget")
+  {
+    for (const uint64_t budget : {uint64_t{2}, uint64_t{23'726'566}})
+    {
+      CHECK_NOTHROW(OpenSSLConnectionEngine(
+        {.traffic_key_policy = TrafficKeyPolicy{.record_budget = budget}}, {}));
+    }
+    for (const uint64_t budget :
+         {uint64_t{0}, uint64_t{1}, uint64_t{23'726'567}})
+    {
+      CHECK_THROWS_AS(
+        OpenSSLConnectionEngine(
+          {.traffic_key_policy = TrafficKeyPolicy{.record_budget = budget}},
+          {}),
+        std::invalid_argument);
+    }
+  }
+
   TEST_CASE(
     "Sending-key policy excludes inherited post-handshake authentication")
   {
@@ -1403,21 +1421,35 @@ TEST_CASE("Outbound handshake admission gates reads and queued writes")
 
 TEST_CASE("Outbound admission callback send-and-close flushes application data")
 {
+  bool force = false;
+  SUBCASE("Graceful close") {}
+  SUBCASE("Forced close discards queued application data")
+  {
+    force = true;
+  }
   EnginePair pair;
   pair.reply = false;
   const std::vector<uint8_t> payload(256 * 1024, 73);
   pair.after_client_handshake = [&](::tcp::ConnID id) {
     pair.client->send(id, payload.data(), payload.size());
-    pair.client->close_connection(id);
+    pair.client->close_connection(id, force);
   };
   REQUIRE(pair.client->connect(pair.config()).has_value());
   pair.loop.start();
   REQUIRE(pair.wait([&]() {
     return pair.client_closed == 1 &&
-      pair.accepted_data.size() == payload.size();
+      (force ? pair.server_closed == 1 :
+               pair.accepted_data.size() == payload.size());
   }));
   std::lock_guard<std::mutex> guard(pair.mutex);
-  CHECK(pair.accepted_data == payload);
+  if (force)
+  {
+    CHECK(pair.accepted_data.empty());
+  }
+  else
+  {
+    CHECK(pair.accepted_data == payload);
+  }
 }
 
 namespace

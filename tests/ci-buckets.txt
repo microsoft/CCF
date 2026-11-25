@@ -1,4 +1,6 @@
 bucket_a:
+  n2n_tls_test
+  n2n_transport_bridge_test
   tls_groups_test
   lts_compatibility
 

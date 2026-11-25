@@ -31,6 +31,7 @@
 #include "http_client/curl.h"
 #include "json_schema.h"
 #include "node_connections.h"
+#include "node_transport_bridge.h"
 #include "pal/quote_generation.h"
 #include "runtime_control.h"
 #include "sig_term.h"
@@ -384,11 +385,46 @@ namespace ccf
       config.network.node_to_node_interface.published_address =
         config.network.node_to_node_interface.bind_address;
     }
+    std::shared_ptr<ccf::NodeTLS> node_tls;
+    if (config.network.node_to_node_tls_interface)
+    {
+      auto& interface = *config.network.node_to_node_tls_interface;
+      const auto [host, port] = cli::validate_address(interface.bind_address);
+      if (!interface.published_address.empty())
+      {
+        const auto [published_host, published_port] =
+          cli::validate_address(interface.published_address);
+        interface.published_address =
+          ccf::make_net_address(published_host, published_port);
+      }
+      node_tls = std::make_shared<ccf::NodeTLS>(
+        host,
+        static_cast<uint16_t>(std::stoul(port)),
+        config.get_node_to_node_max_message_size(),
+        std::chrono::milliseconds(config.consensus.election_timeout) * 4,
+        config.client_connection_timeout,
+        config.node_client_interface.value_or(""),
+        ccf::tls::TrafficKeyPolicy{
+          .record_budget = config.node_to_node_message_limit});
+      interface.bind_address =
+        ccf::make_net_address(host, std::to_string(node_tls->port()));
+      if (interface.published_address.empty())
+      {
+        interface.published_address = interface.bind_address;
+      }
+    }
+    auto node_transport = std::make_shared<asynchost::NodeTransportBridge>(
+      ledger, *ledger_subsystem, node, node_tls);
     if (!config.output_files.node_to_node_address_file.empty())
     {
       ResolvedAddresses resolved_node_address;
       resolved_node_address[node_to_node_interface_name] =
         config.network.node_to_node_interface.bind_address;
+      if (config.network.node_to_node_tls_interface)
+      {
+        resolved_node_address["node_to_node_tls_interface"] =
+          config.network.node_to_node_tls_interface->bind_address;
+      }
       files::dump(
         nlohmann::json(resolved_node_address).dump(),
         config.output_files.node_to_node_address_file);
@@ -523,7 +559,7 @@ namespace ccf
     try
     {
       enclave = std::make_unique<Enclave>(
-        config, *runtime_control, ledger_subsystem, node);
+        config, *runtime_control, ledger_subsystem, node_transport);
       failure_status = CreateNodeStatus::InternalError;
       const auto startup = enclave->initialise(config);
       LOG_INFO_FMT("Created new node");
@@ -735,6 +771,12 @@ namespace ccf
     try
     {
       validate_ledger_transaction_size(config);
+      if (config.network.node_to_node_tls_interface)
+      {
+        ccf::tls::TrafficKeyPolicy{
+          .record_budget = config.node_to_node_message_limit}
+          .validate();
+      }
       for (const auto& endpoint : config.observability.fluentd)
       {
         ccf::tracing::FluentdSink::validate(

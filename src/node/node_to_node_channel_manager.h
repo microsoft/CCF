@@ -198,7 +198,8 @@ namespace ccf
       transport->associate_node_address(peer_id, peer_hostname, peer_service);
     }
 
-    bool have_channel(const ccf::NodeId& nid) override
+    // Only used by tests.
+    bool have_channel(const ccf::NodeId& nid)
     {
       std::lock_guard<ccf::ds::Mutex> guard(lock);
       return channels.contains(nid);
@@ -244,18 +245,6 @@ namespace ccf
         from);
 
       return get_channel(from)->recv_authenticated(header, data, size);
-    }
-
-    bool recv_authenticated_with_load(
-      const NodeId& from, const uint8_t*& data, size_t& size) override
-    {
-      CCF_ASSERT_FMT(
-        this_node != nullptr,
-        "Calling recv_authenticated_with_load (from {}) before channel manager "
-        "is initialized",
-        from);
-
-      return get_channel(from)->recv_authenticated_with_load(data, size);
     }
 
     std::vector<uint8_t> recv_encrypted(

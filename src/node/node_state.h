@@ -45,8 +45,8 @@
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
 #include "node/local_sealing.h"
+#include "node/node_channel_bridge.h"
 #include "node/node_inbound_message.h"
-#include "node/node_to_node_channel_manager.h"
 #include "node/open_service.h"
 #include "node/pending_node_cleanup.h"
 #include "node/recovered_service_opening_task.h"
@@ -1106,6 +1106,14 @@ namespace ccf
       n2n_channels_cert = resp.network_info->endorsed_certificate.value();
 
       setup_consensus(resp.network_info->public_only, n2n_channels_cert);
+      for (const auto& [peer, address] :
+           resp.network_info->node_to_node_tls_addresses)
+      {
+        if (peer != self)
+        {
+          n2n_channels->associate_node_tls_address(peer, address);
+        }
+      }
       auto_refresh_jwt_keys();
 
       if (resp.network_info->public_only)
@@ -1317,7 +1325,7 @@ namespace ccf
       // Register through the concrete type before storing the channel
       // interface.
       auto channel_manager =
-        std::make_shared<NodeToNodeChannelManager>(node_transport);
+        std::make_shared<NodeChannelBridge>(node_transport);
       channel_manager->register_periodic_tasks(job_board_, tick_interval_);
       n2n_channels = std::move(channel_manager);
 
@@ -3064,6 +3072,31 @@ namespace ccf
         cmd_forwarder.get(),
         n2n_channels.get(),
         consensus.get());
+    }
+
+    void recv_node_tls_inbound(
+      NodeMsgType type, const NodeId& from, const uint8_t* data, size_t size)
+    {
+      if (!can_process_node_inbound_message(sm))
+      {
+        LOG_DEBUG_FMT("Ignoring TLS node message before joining network");
+        return;
+      }
+      // Forwarding is deliberately dispatched independently of consensus.
+      if (type == forwarded_msg)
+      {
+        cmd_forwarder->recv_message(from, data, size, true);
+        return;
+      }
+      if (type != consensus_msg)
+      {
+        throw std::logic_error("Unexpected TLS node message purpose");
+      }
+      const auto header_size = NodeToNode::consensus_header_size(data, size);
+      const auto* header = data;
+      serialized::skip(data, size, header_size);
+      consensus->recv_message(
+        from, std::span(header, header_size), std::span(data, size));
     }
 
     //

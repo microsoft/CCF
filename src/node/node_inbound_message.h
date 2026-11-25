@@ -113,13 +113,45 @@ namespace ccf
   private:
     std::shared_ptr<ccf::tasks::OrderedTasks> lane;
     Receiver receiver;
+    Receiver tls_receiver;
     std::atomic<bool> stopped = false;
 
   public:
-    NodeIngress(ccf::tasks::JobBoard& job_board, Receiver receiver_) :
+    NodeIngress(
+      ccf::tasks::JobBoard& job_board,
+      Receiver receiver_,
+      Receiver tls_receiver_ = {}) :
       lane(ccf::tasks::OrderedTasks::create(job_board, "Node ingress")),
-      receiver(std::move(receiver_))
+      receiver(std::move(receiver_)),
+      tls_receiver(std::move(tls_receiver_))
     {}
+
+    void recv_node_tls_inbound(
+      NodeMsgType type,
+      const NodeId& from,
+      std::vector<uint8_t>&& payload) override
+    {
+      if (stopped.load())
+      {
+        return;
+      }
+      if (!tls_receiver)
+      {
+        throw std::logic_error("TLS node receiver not installed");
+      }
+      lane->add_action(ccf::tasks::make_basic_action(
+        [this, type, from, payload = std::move(payload)]() {
+          try
+          {
+            tls_receiver(type, from, payload.data(), payload.size());
+          }
+          catch (const std::exception& e)
+          {
+            LOG_DEBUG_FMT("Ignoring TLS node message: {}", e.what());
+          }
+        },
+        "TLS node inbound"));
+    }
 
     // Thread-safe. The payload is owned by the queued action. Peer input is
     // untrusted: an exception while processing it drops that message only.

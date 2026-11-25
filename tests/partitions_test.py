@@ -6,6 +6,7 @@ import copy
 import http
 import os
 import pprint
+import socket
 import subprocess
 import threading
 import time
@@ -72,6 +73,44 @@ def test_invalid_partitions(network, args):
         assert False, "All nodes should belong to network"
     except ValueError:
         pass
+
+    return network
+
+
+@reqs.description("Partitions cover every node-to-node listener")
+def test_partitioned_node_connections(network, args):
+    node, other = network.get_joined_nodes()[:2]
+    interfaces = [node.n2n_interface]
+    if node.host.node_to_node_tls_interface is not None:
+        interfaces.append(node.host.node_to_node_tls_interface)
+
+    def connect(interface):
+        return socket.create_connection(
+            (interface.host, interface.port),
+            timeout=0.5,
+            source_address=(other.node_client_host, 0),
+        )
+
+    for interface in interfaces:
+        with connect(interface):
+            pass
+
+    with network.partitioner.isolate_node(
+        node, other, infra.partitions.IsolationDir.INBOUND_REQUESTS
+    ):
+        for interface in interfaces:
+            try:
+                with connect(interface):
+                    pass
+            except TimeoutError:
+                continue
+            raise AssertionError(
+                f"Partition did not block node listener {interface.host}:{interface.port}"
+            )
+
+    for interface in interfaces:
+        with connect(interface):
+            pass
 
     return network
 
@@ -275,7 +314,7 @@ def test_new_joiner_helps_liveness(network, args):
 
     with contextlib.ExitStack() as stack:
         # Add a new node, but partition them before trusting them
-        new_node = network.create_node()
+        new_node = network.create_node(args.nodes[0])
         network.join_node(
             new_node,
             args.package,
@@ -500,7 +539,9 @@ def test_election_reconfiguration(network, args):
             )
         }
         rpc_interfaces.update(infra.interfaces.make_secondary_interface())
-        new_node = network.create_node(infra.interfaces.HostSpec(rpc_interfaces))
+        new_node = network.create_node(
+            infra.interfaces.HostSpec(rpc_interfaces).with_args(args)
+        )
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
@@ -569,7 +610,7 @@ def test_election_reconfiguration(network, args):
 
     LOG.info("Retire former primary and add new node")
     network.retire_node(backups[0], primary)
-    new_node = network.create_node()
+    new_node = network.create_node(args.nodes[0])
     network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args)
 
@@ -584,7 +625,7 @@ def test_join_rollback_on_primary_isolation(network, args):
 
     LOG.info("Join a pending node on an isolated primary")
     with network.partitioner.partition([primary], name="isolate primary during join"):
-        pending_node = network.create_node()
+        pending_node = network.create_node(args.nodes[0])
         network.setup_join_node(
             pending_node,
             args.package,
@@ -627,7 +668,7 @@ def test_join_rollback_on_primary_isolation(network, args):
     LOG.info("Trust a pending node on an isolated primary")
     primary = network.wait_for_stability()
     backups = network.find_backups(primary=primary)
-    host_spec = infra.interfaces.HostSpec()
+    host_spec = infra.interfaces.HostSpec().with_args(args)
     host_spec.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
     trusted_node = network.create_node(host_spec)
     network.join_node(
@@ -1481,9 +1522,57 @@ def partitioned_network(args):
         yield network
 
 
+@reqs.description("A partitioned replica catches up from an unknown primary")
+@reqs.exactly_n_nodes(3)
+def test_catch_up_from_unknown_primary(network, args):
+    primary, backups = network.find_nodes()
+    lagging = backups[0]
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
+    with contextlib.ExitStack() as partitions:
+        for peer in (primary, backups[1]):
+            partitions.enter_context(network.partitioner.isolate_node(lagging, peer))
+
+        replacements = []
+        for _ in range(2):
+            replacement = network.create_node(args.nodes[0])
+            network.join_node(replacement, args.package, args, from_snapshot=False)
+            partitions.enter_context(
+                network.partitioner.isolate_node(lagging, replacement)
+            )
+            network.trust_node(replacement, args, no_wait=True)
+            replacement.wait_for_node_to_join()
+            replacements.append(replacement)
+
+        for retired in (backups[1], primary):
+            network.retire_node(primary, retired)
+            retired.stop()
+        primary, _ = network.find_primary(nodes=replacements)
+
+        assert primary in replacements
+        check_can_progress(primary)
+        with lagging.client() as client:
+            for replacement in replacements:
+                response = client.get(f"/node/network/nodes/{replacement.node_id}")
+                assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+        LOG.info(
+            f"Restore replica {lagging.local_node_id}, which has no metadata for "
+            f"primary {primary.local_node_id} or its other replica"
+        )
+
+    network.wait_for_all_nodes_to_commit(primary=primary)
+    check_can_progress(lagging)
+
+
+def run_unknown_primary_catch_up(args):
+    with partitioned_network(args) as network:
+        test_catch_up_from_unknown_primary(network, args)
+
+
 def run_basic_partitions(args):
     with partitioned_network(args) as network:
         test_invalid_partitions(network, args)
+        test_partitioned_node_connections(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
@@ -1537,6 +1626,7 @@ if __name__ == "__main__":
     # relative order of the tests it contains.
     for name, target in (
         ("basic", run_basic_partitions),
+        ("unknown-primary", run_unknown_primary_catch_up),
         ("certs", run_certificate_partitions),
         ("isolate-reconnect", run_isolate_and_reconnect),
         ("reconfiguration", run_reconfiguration_partitions),
