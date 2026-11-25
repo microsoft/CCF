@@ -1421,21 +1421,35 @@ TEST_CASE("Outbound handshake admission gates reads and queued writes")
 
 TEST_CASE("Outbound admission callback send-and-close flushes application data")
 {
+  bool force = false;
+  SUBCASE("Graceful close") {}
+  SUBCASE("Forced close discards queued application data")
+  {
+    force = true;
+  }
   EnginePair pair;
   pair.reply = false;
   const std::vector<uint8_t> payload(256 * 1024, 73);
   pair.after_client_handshake = [&](::tcp::ConnID id) {
     pair.client->send(id, payload.data(), payload.size());
-    pair.client->close_connection(id);
+    pair.client->close_connection(id, force);
   };
   REQUIRE(pair.client->connect(pair.config()).has_value());
   pair.loop.start();
   REQUIRE(pair.wait([&]() {
     return pair.client_closed == 1 &&
-      pair.accepted_data.size() == payload.size();
+      (force ? pair.server_closed == 1 :
+               pair.accepted_data.size() == payload.size());
   }));
   std::lock_guard<std::mutex> guard(pair.mutex);
-  CHECK(pair.accepted_data == payload);
+  if (force)
+  {
+    CHECK(pair.accepted_data.empty());
+  }
+  else
+  {
+    CHECK(pair.accepted_data == payload);
+  }
 }
 
 namespace

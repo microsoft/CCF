@@ -101,6 +101,7 @@ namespace ccf::tls
       ::tcp::ConnID id = 0;
       std::vector<uint8_t> data;
       bool close = false;
+      bool force = false;
     };
 
     // adopt() consumes fd and poll even on failure. A non-null poll must be
@@ -1119,6 +1120,7 @@ namespace ccf::tls
           {
             cit->second->force_close = true;
           }
+          cit->second->force_close |= item.force;
         }
         else
         {
@@ -1743,12 +1745,12 @@ namespace ccf::tls
     }
 
     // Thread-safe. Request that `conn_id` be torn down.
-    void close_connection(::tcp::ConnID conn_id)
+    void close_connection(::tcp::ConnID conn_id, bool force = false)
       CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
       {
         ccf::ds::MutexGuard g(out_mutex);
-        pending_out.push_back({conn_id, {}, true});
+        pending_out.push_back({conn_id, {}, true, force});
       }
       wake();
     }

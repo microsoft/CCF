@@ -37,7 +37,11 @@ namespace asynchost
     {
       std::lock_guard guard(peers_mutex);
       const auto it = peers.find(peer);
-      return it != peers.end() && it->second.has_value();
+      if (it != peers.end())
+      {
+        return it->second.has_value();
+      }
+      return tls != nullptr && tls->has_authenticated_stream(peer);
     }
 
     void stop_tls() override
@@ -96,16 +100,19 @@ namespace asynchost
       const ccf::NodeId& from,
       std::vector<uint8_t>&& payload) override
     {
-      std::string address;
+      std::optional<std::string> address;
       {
         std::lock_guard guard(peers_mutex);
-        const auto& registered = peers.at(to);
-        if (!registered.has_value())
+        const auto it = peers.find(to);
+        if (it != peers.end())
         {
-          throw std::logic_error(
-            "Cannot send TLS traffic on a registered legacy transport");
+          if (!it->second.has_value())
+          {
+            throw std::logic_error(
+              "Cannot send TLS traffic on a registered legacy transport");
+          }
+          address = it->second;
         }
-        address = *registered;
       }
       return tls->send(
         to,

@@ -77,9 +77,10 @@ Each id returned by ``connect()`` receives exactly one close notification, inclu
 ``connect()`` returns no id, and no close notification follows, if the client has not been started or is stopping.
 This is an expected outcome rather than an error, so ``connect()`` is safe to call from ``OnClose``, including the close notifications delivered during shutdown.
 ``close_connection()`` cancels establishment without flushing pending application data; after establishment it retains the normal flush-before-close behavior.
+Passing ``force=true`` discards queued output after any in-flight worker finishes; N2N uses this when replacing a competing stream.
 For initiating connections, the loop's cancellation and the worker's entry into handshake admission atomically claim the establishment state.
 If cancellation wins, a concurrently completing TLS handshake cannot invoke admission or perform application I/O.
-If admission wins, including a close issued by the admission callback itself, close retains flush-before-close behavior.
+If admission wins, including a close issued by the admission callback itself, close retains flush-before-close behavior unless forced.
 Shutdown cancels outstanding resolution and connect attempts.
 Resolver requests retain their own callback storage and a weak reference to the client, so even a late completion after client destruction can safely free its result without accessing the client or engine.
 When stopping without a running loop, the caller must eventually drain the loop before closing it to reclaim outstanding libuv requests and handles.

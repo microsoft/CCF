@@ -12,7 +12,7 @@ Opt-in TLS Transport
 
 CCF supports mutually authenticated TLS 1.3 alongside its legacy channel protocol.
 Configure ``network.node_to_node_tls_interface`` to enable the TLS listener and outbound TLS.
-A pair uses TLS only when the local configuration enables it and the peer's recorded node metadata includes a TLS endpoint; all other pairs use legacy channels.
+Recorded node metadata selects the transport for new connections: a pair uses TLS when the local configuration enables it and the peer advertises a TLS endpoint; otherwise it uses legacy channels.
 The bridge retains that registration for the lifetime of the node pair, including across connection expiry and reconnects.
 Repeated registration must agree with the original endpoint and transport.
 A TLS connection failure never triggers a downgrade to legacy.
@@ -32,7 +32,9 @@ The temporary :ccf_repo:`NodeChannelBridge </src/node/node_channel_bridge.h>` an
 
 Consensus and forwarded requests/responses use separate TLS connections on one listener.
 ALPN identifiers ``ccf-consensus/1`` and ``ccf-forwarding/1`` distinguish their protocols; other or absent ALPN is rejected.
-Each sender owns one outbound stream per peer and purpose, independently of incoming streams, avoiding simultaneous-dial arbitration.
+Each peer pair uses one duplex stream per purpose, allowing replies to authenticated unknown peers before their endpoint metadata has replicated.
+When both nodes dial, competing connections keep the connection initiated by the lower SHA-256 public-key ID, regardless of connection age or node ID representation.
+The losing connection is closed without flushing queued output; its pending sends and late assembled frames are discarded, and subsequent sends use the surviving stream.
 There is no ordering between forwarding and consensus streams.
 Forwarding remains supported without a separate enablement flag.
 
@@ -40,6 +42,7 @@ The shared :doc:`tls_internals` engine enforces the TLS 1.3 AES-GCM sending-key 
 If blocked control output aborts a connection, later sends establish a fresh authenticated connection.
 Consensus retries replication through its existing protocol; forwarded calls are never automatically replayed and may return the existing forwarding timeout.
 Idle streams expire after four election timeouts.
+If a peer has not yet detected a connection's closure, a rejected reconnect can retry after the old connection closes or expires.
 
 This transport connects trusted service nodes; operators must restrict network access to the node-to-node ports to those nodes.
 Its resource policy aims for parity with legacy channels, not general-purpose listener or memory-exhaustion protection.

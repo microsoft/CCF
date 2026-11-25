@@ -400,6 +400,8 @@ TEST_CASE("NodeTLS accepts endorsed identities on separate purpose streams")
   const auto bob_id = f.bob.id(bob_format);
   ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
   sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
+  auto replies = std::make_shared<Receiver>();
+  sender.set_handler(replies);
   const auto address = fmt::format("127.0.0.1:{}", f.node.port());
   LoopRunner loop;
   const auto consensus = consensus_payload();
@@ -427,6 +429,26 @@ TEST_CASE("NodeTLS accepts endorsed identities on separate purpose streams")
       (message.purpose == ccf::consensus_msg ? consensus : forwarding));
   }
   CHECK(messages[0].purpose != messages[1].purpose);
+  CHECK(f.node.has_authenticated_stream(alice_id));
+  for (const auto purpose : {ccf::consensus_msg, ccf::forwarded_msg})
+  {
+    const auto payload = purpose == ccf::consensus_msg ? consensus : forwarding;
+    REQUIRE(f.node.send(
+      alice_id,
+      purpose,
+      std::nullopt,
+      [&, reply = frame(bob_id, purpose, payload)](::tcp::ConnID id) mutable {
+        f.node.send_frame(id, std::move(reply));
+      }));
+  }
+  REQUIRE(replies->wait(2));
+  for (const auto& reply : replies->snapshot())
+  {
+    CHECK(reply.from == bob_id);
+    CHECK(
+      reply.payload ==
+      (reply.purpose == ccf::consensus_msg ? consensus : forwarding));
+  }
 }
 
 TEST_CASE("NodeTLS bounds callbacks only while establishing a purpose stream")
@@ -1057,11 +1079,39 @@ TEST_CASE("NodeTransportBridge retains peer registration across reconnects")
       bridge.associate_tls_address(legacy_peer, "127.0.0.1:8082"),
       std::logic_error);
   }
+  SUBCASE("authenticated streams allow replies before metadata arrives")
+  {
+    Service service;
+    Identity local;
+    Identity peer_identity;
+    service.endorse(local);
+    service.endorse(peer_identity);
+    tls->set_identity(service.cert, local.key, local.cert);
+    auto received = std::make_shared<Receiver>();
+    tls->set_handler(received);
+    asynchost::NodeTransportBridge bridge(ledger, subsystem, nullptr, tls);
+    const auto peer_id = peer_identity.id(ccf::IdentityIdFormat::DIDKey);
+    CHECK_FALSE(bridge.uses_tls(peer_id));
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    {
+      LoopRunner loop;
+      Peer peer(tls->port(), service, &peer_identity);
+      REQUIRE(peer.connect());
+      peer.send(frame(peer_id, ccf::consensus_msg, consensus_payload()));
+      REQUIRE(received->wait(1));
+      CHECK(bridge.uses_tls(peer_id));
+      bridge.close_tls(peer_id);
+      CHECK(peer.closed());
+    }
+    CHECK_FALSE(bridge.uses_tls(peer_id));
+    bridge.associate_tls_address(peer_id, "127.0.0.1:8082");
+    CHECK(bridge.uses_tls(peer_id));
+  }
   tls->stop();
   uv_run(uv_default_loop(), UV_RUN_NOWAIT);
 }
 
-TEST_CASE("NodeChannelBridge selects TLS only from recorded metadata")
+TEST_CASE("NodeChannelBridge selects its backend without failure downgrade")
 {
   Service service;
   Identity alice;

@@ -1522,6 +1522,53 @@ def partitioned_network(args):
         yield network
 
 
+@reqs.description("A partitioned replica catches up from an unknown primary")
+@reqs.exactly_n_nodes(3)
+def test_catch_up_from_unknown_primary(network, args):
+    primary, backups = network.find_nodes()
+    lagging = backups[0]
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
+    with contextlib.ExitStack() as partitions:
+        for peer in (primary, backups[1]):
+            partitions.enter_context(network.partitioner.isolate_node(lagging, peer))
+
+        replacements = []
+        for _ in range(2):
+            replacement = network.create_node(args.nodes[0])
+            network.join_node(replacement, args.package, args, from_snapshot=False)
+            partitions.enter_context(
+                network.partitioner.isolate_node(lagging, replacement)
+            )
+            network.trust_node(replacement, args, no_wait=True)
+            replacement.wait_for_node_to_join()
+            replacements.append(replacement)
+
+        for retired in (backups[1], primary):
+            network.retire_node(primary, retired)
+            retired.stop()
+        primary, _ = network.find_primary(nodes=replacements)
+
+        assert primary in replacements
+        check_can_progress(primary)
+        with lagging.client() as client:
+            for replacement in replacements:
+                response = client.get(f"/node/network/nodes/{replacement.node_id}")
+                assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+        LOG.info(
+            f"Restore replica {lagging.local_node_id}, which has no metadata for "
+            f"primary {primary.local_node_id} or its other replica"
+        )
+
+    network.wait_for_all_nodes_to_commit(primary=primary)
+    check_can_progress(lagging)
+
+
+def run_unknown_primary_catch_up(args):
+    with partitioned_network(args) as network:
+        test_catch_up_from_unknown_primary(network, args)
+
+
 def run_basic_partitions(args):
     with partitioned_network(args) as network:
         test_invalid_partitions(network, args)
@@ -1579,6 +1626,7 @@ if __name__ == "__main__":
     # relative order of the tests it contains.
     for name, target in (
         ("basic", run_basic_partitions),
+        ("unknown-primary", run_unknown_primary_catch_up),
         ("certs", run_certificate_partitions),
         ("isolate-reconnect", run_isolate_and_reconnect),
         ("reconfiguration", run_reconfiguration_partitions),

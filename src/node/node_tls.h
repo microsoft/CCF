@@ -8,6 +8,8 @@
 #include "tls/openssl_client.h"
 #include "tls/openssl_server.h"
 
+#include <algorithm>
+#include <array>
 #include <charconv>
 #include <functional>
 #include <map>
@@ -38,11 +40,12 @@ namespace ccf
     std::mutex mutex;
     std::atomic<::tcp::ConnID> next_id = 1;
     std::map<::tcp::ConnID, Connection> connections;
-    std::map<std::pair<NodeId, NodeMsgType>, ::tcp::ConnID> outgoing;
+    std::map<std::pair<NodeId, NodeMsgType>, ::tcp::ConnID> streams;
     std::shared_ptr<NodeInboundHandler> handler;
     std::optional<crypto::Pem> service_cert;
     std::optional<crypto::Pem> node_cert;
     crypto::ECKeyPairPtr key;
+    std::optional<NodeId> self_key_id;
     std::unique_ptr<tls::OpenSSLServer> server;
     std::shared_ptr<tls::OpenSSLClient> client;
     const size_t max_frame_size;
@@ -145,7 +148,7 @@ namespace ccf
 
     bool handshake(::tcp::ConnID id, SSL* ssl, bool is_outgoing)
     {
-      std::lock_guard guard(mutex);
+      std::unique_lock guard(mutex);
       if (!is_outgoing)
       {
         connections.try_emplace(id);
@@ -153,7 +156,7 @@ namespace ccf
       const auto it = connections.find(id);
       if (
         it == connections.end() || it->second.rejected ||
-        SSL_get_verify_result(ssl) != X509_V_OK)
+        !self_key_id.has_value() || SSL_get_verify_result(ssl) != X509_V_OK)
       {
         return false;
       }
@@ -200,44 +203,49 @@ namespace ccf
       }
       connection.purpose =
         protocol == FORWARDING_ALPN ? forwarded_msg : consensus_msg;
-      if (!is_outgoing)
+      const auto stream = std::make_pair(peer, connection.purpose);
+      const auto current = streams.find(stream);
+      if (current != streams.end() && current->second != id)
       {
-        for (auto& [other_id, other] : connections)
+        auto& other = connections.at(current->second);
+        if (
+          !other.rejected && other.outgoing && !is_outgoing &&
+          self_key_id.value() < peer)
         {
-          if (
-            other_id != id && !other.outgoing && other.authenticated &&
-            other.peer_key_id == peer && other.purpose == connection.purpose)
-          {
-            // A peer repairing a failed link replaces its previous stream.
-            close_connection(other_id, other);
-          }
+          LOG_DEBUG_FMT("N2N TLS {}: keeping competing outgoing stream", id);
+          return false;
         }
+        // Competing dials keep the lower key ID's connection until it closes.
+        close_connection(current->second, other, true);
       }
+      streams[stream] = id;
       connection.authenticated = true;
-      for (auto& send : connection.pending_sends)
-      {
-        send(id);
-      }
-      connection.pending_sends.clear();
+      auto sends = std::move(connection.pending_sends);
       LOG_INFO_FMT(
         "N2N TLS {} authenticated {} ({})",
         id,
         connection.peer.value(),
         protocol);
+      guard.unlock();
+      for (auto& send : sends)
+      {
+        send(id);
+      }
       return true;
     }
 
-    void close_connection(::tcp::ConnID id, Connection& connection)
+    void close_connection(
+      ::tcp::ConnID id, Connection& connection, bool force = false)
     {
       connection.rejected = true;
       connection.pending_sends.clear();
       if (connection.outgoing)
       {
-        client->close_connection(id);
+        client->close_connection(id, force);
       }
       else
       {
-        server->close_connection(id);
+        server->close_connection(id, force);
       }
     }
 
@@ -315,14 +323,14 @@ namespace ccf
         return;
       }
       const auto& connection = it->second;
-      if (connection.outgoing && connection.peer.has_value())
+      if (connection.peer_key_id.has_value())
       {
         const auto stream =
-          std::make_pair(*connection.peer, connection.purpose);
-        auto current = outgoing.find(stream);
-        if (current != outgoing.end() && current->second == id)
+          std::make_pair(*connection.peer_key_id, connection.purpose);
+        auto current = streams.find(stream);
+        if (current != streams.end() && current->second == id)
         {
-          outgoing.erase(current);
+          streams.erase(current);
         }
       }
       LOG_DEBUG_FMT("N2N TLS {} closed; discarding outstanding output", id);
@@ -416,6 +424,7 @@ namespace ccf
       std::lock_guard guard(mutex);
       service_cert = service;
       key = std::move(key_);
+      self_key_id = compute_node_id_from_kp(key);
       node_cert = cert;
       // Replaces the context used by future handshakes, not established SSLs.
       server->set_server_cert(cert.str(), key->private_key_pem().str());
@@ -434,25 +443,48 @@ namespace ccf
       }
     }
 
+    bool has_authenticated_stream(const NodeId& peer)
+    {
+      std::lock_guard guard(mutex);
+      const auto peer_key_id = sha256_node_id(peer);
+      return std::ranges::any_of(
+        std::array{consensus_msg, forwarded_msg}, [&](const auto purpose) {
+          const auto it = streams.find({peer_key_id, purpose});
+          if (it == streams.end())
+          {
+            return false;
+          }
+          const auto& connection = connections.at(it->second);
+          return connection.authenticated && !connection.rejected;
+        });
+    }
+
     // on_ready schedules ledger-ordered frame assembly for this stream only.
     // A failed stream discards callbacks which have not run, without replay.
     bool send(
       const NodeId& peer,
       NodeMsgType purpose,
-      const std::string& address,
+      const std::optional<std::string>& address,
       std::function<void(::tcp::ConnID)> on_ready)
     {
-      std::lock_guard guard(mutex);
+      std::unique_lock guard(mutex);
       if (!node_cert)
       {
         LOG_DEBUG_FMT("N2N TLS: dropping send to {} before setup", peer);
         return false;
       }
-      const auto stream = std::make_pair(peer, purpose);
-      auto current = outgoing.find(stream);
-      if (current == outgoing.end())
+      const auto peer_key_id = sha256_node_id(peer);
+      const auto stream = std::make_pair(peer_key_id, purpose);
+      auto current = streams.find(stream);
+      if (current == streams.end())
       {
-        const auto [host, port] = split_net_address(address);
+        if (!address.has_value())
+        {
+          LOG_DEBUG_FMT(
+            "N2N TLS: no live stream or recorded endpoint for {}", peer);
+          return false;
+        }
+        const auto [host, port] = split_net_address(*address);
         uint16_t port_number = 0;
         const auto [end, error] =
           std::from_chars(port.data(), port.data() + port.size(), port_number);
@@ -461,7 +493,7 @@ namespace ccf
           end != port.data() + port.size() || port_number == 0)
         {
           LOG_FAIL_FMT(
-            "N2N TLS: invalid recorded endpoint for {}: {}", peer, address);
+            "N2N TLS: invalid recorded endpoint for {}: {}", peer, *address);
           return false;
         }
         auto ctx =
@@ -491,11 +523,11 @@ namespace ccf
           Connection{
             .outgoing = true,
             .peer = peer,
-            .peer_key_id = std::nullopt,
+            .peer_key_id = peer_key_id,
             .purpose = purpose,
             .pending = {},
             .pending_sends = {}});
-        current = outgoing.emplace(stream, *id).first;
+        current = streams.emplace(stream, *id).first;
       }
       auto& connection = connections.at(current->second);
       if (connection.rejected)
@@ -505,7 +537,9 @@ namespace ccf
       }
       if (connection.authenticated)
       {
-        on_ready(current->second);
+        const auto id = current->second;
+        guard.unlock();
+        on_ready(id);
         return true;
       }
 
@@ -532,7 +566,21 @@ namespace ccf
 
     void send_frame(::tcp::ConnID id, std::vector<uint8_t>&& frame)
     {
-      client->send(id, std::move(frame));
+      std::lock_guard guard(mutex);
+      const auto it = connections.find(id);
+      if (it == connections.end() || it->second.rejected)
+      {
+        LOG_DEBUG_FMT("N2N TLS: dropping frame for closed stream {}", id);
+        return;
+      }
+      if (it->second.outgoing)
+      {
+        client->send(id, std::move(frame));
+      }
+      else
+      {
+        server->send(id, std::move(frame));
+      }
     }
   };
 }
