@@ -1784,9 +1784,6 @@ if(BUILD_TESTS)
   )
 
   list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
-  if(LONG_TESTS)
-    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
-  endif()
 
   if(NOT SAN)
     add_e2e_test(
@@ -1806,11 +1803,6 @@ if(BUILD_TESTS)
       PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
     )
     add_test_label(lts_compatibility lts_compatibility)
-    if(LONG_TESTS)
-      # Full ledger and snapshot recovery across releases exceeds the default
-      # e2e timeout, particularly in coverage builds.
-      set_tests_properties(lts_compatibility PROPERTIES TIMEOUT 900)
-    endif()
   endif()
 
   if(LONG_TESTS)

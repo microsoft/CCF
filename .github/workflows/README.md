@@ -69,7 +69,7 @@ Each Azure Linux 4 job sets `PATH` on its container, because the image does not 
 The `lts_compatibility` test only upgrades from releases built for the distribution it runs on, so on Azure Linux 4 it starts from the latest 8.x release.
 On development branches, where no final release of the version under development exists yet, that is its latest published pre-release.
 Upgrades from 7.x, which is only built for Azure Linux 3, are covered by [Cross-platform LTS](#cross-platform-lts).
-For the same reason, a `LONG_TESTS` build only recovers the ledger and snapshots of earlier releases where it can run all of them, and otherwise leaves that to the `long` runs of the same workflow.
+So is the recovery of the ledger and snapshots of earlier releases, in the `long` runs of the same workflow.
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 

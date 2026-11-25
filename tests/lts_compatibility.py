@@ -1156,40 +1156,30 @@ if __name__ == "__main__":
         # may not be able to run any node directly, so releases run in containers
         # as well.
         run_in_containers = args.local_install_image is not None
-        foreign_releases = [
-            tag for tag in lts_releases.values() if not can_run_release_natively(tag)
-        ]
-        if foreign_releases and not run_in_containers:
-            # The recovery chain cannot leave a release out, so it only runs where
-            # every release does.
-            LOG.warning(
-                f"Skipping data compatibility: {foreign_releases} are not built for this distribution, and are covered by the cross-platform LTS workflow instead"
-            )
-        else:
-            compatibility_report["data compatibility"] = {}
-            with ReleaseContainerImages(
-                args.azure_linux_3_base_image, args.azure_linux_4_base_image
-            ) as release_container_images:
-                for use_snapshot, report_key in (
-                    (False, "with previous ledger"),
-                    (True, "with previous snapshots"),
-                ):
-                    lts_versions = run_ledger_compatibility_since_first(
-                        args,
-                        repo,
-                        lts_releases,
-                        use_snapshot=use_snapshot,
-                        # Destructive, so only once the ledger pass is done
-                        test_jwt_cleanup=use_snapshot,
-                        release_container_images=(
-                            release_container_images if run_in_containers else None
-                        ),
-                        local_install_path=args.local_install_path,
-                        local_container_image=args.local_install_image,
-                    )
-                    compatibility_report["data compatibility"].update(
-                        {report_key: lts_versions}
-                    )
+        compatibility_report["data compatibility"] = {}
+        with ReleaseContainerImages(
+            args.azure_linux_3_base_image, args.azure_linux_4_base_image
+        ) as release_container_images:
+            for use_snapshot, report_key in (
+                (False, "with previous ledger"),
+                (True, "with previous snapshots"),
+            ):
+                lts_versions = run_ledger_compatibility_since_first(
+                    args,
+                    repo,
+                    lts_releases,
+                    use_snapshot=use_snapshot,
+                    # Destructive, so only once the ledger pass is done
+                    test_jwt_cleanup=use_snapshot,
+                    release_container_images=(
+                        release_container_images if run_in_containers else None
+                    ),
+                    local_install_path=args.local_install_path,
+                    local_container_image=args.local_install_image,
+                )
+                compatibility_report["data compatibility"].update(
+                    {report_key: lts_versions}
+                )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:
