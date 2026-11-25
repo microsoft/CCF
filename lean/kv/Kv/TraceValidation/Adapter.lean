@@ -65,8 +65,7 @@ def reportedMatches : Event → Output → Bool
   | .foreachBegin _ _ _ _, .entries _ => true
   | .apply _ _ version term writes, .applied v t ws =>
       decide (version = v ∧ term = t)
-      && writes.length == ws.length
-      && writes.all (fun (k, value) => find ws k == some value)
+      && decide ((writes.map Prod.fst).Nodup ∧ writes.Perm ws)
   | .commitResult _ _ outcome version, .committed result v =>
       decide (outcome = result ∧ version = v)
   | .compact _ version _, .compacted v => decide (version = v)
