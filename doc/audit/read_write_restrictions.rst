@@ -84,14 +84,12 @@ Any violation of these restrictions (eg - calling ``set`` on a `Read-only` table
 Signature-Transaction Tables
 ----------------------------
 
-From CCF 8.0, the following public internal tables have no current-KV access in any application or governance context, including read-only endpoints, ballots and all constitution functions:
+From CCF 8.0, the following public internal tables are inaccessible in current-KV application and governance contexts, including read-only endpoints, ballots and constitution functions, as well as in C++ and Rust transactions:
 
 - ``public:ccf.internal.signatures``
 - ``public:ccf.internal.cose_signatures``
 - ``public:ccf.internal.tree``
 
-These tables are maintained by framework signature transactions and must not be treated as part of an ordinary live transaction's KV snapshot. This restriction applies to exactly these names, not the entire ``public:ccf.internal`` namespace. Other public internal tables retain the read-only permissions shown above.
+Other public internal tables retain the read-only permissions shown above. See :doc:`/build_apps/kv/kv_how_to` for the C++ and Rust transaction APIs.
 
-The restriction is enforced by the native KV API as well as JavaScript permissions, so also applies to C++ and Rust applications. See :doc:`/build_apps/kv/kv_how_to` for the native transaction restrictions. Historical read-only access to these tables remains supported, including JavaScript historical KV views and native historical read-only stores. :doc:`Receipt APIs </use_apps/rpc_api>` and :doc:`offline ledger parsing </audit/python_library>` are unaffected.
-
-Applications needing signature data should use historical state or receipt APIs instead of the current KV. For non-transactional progress metadata, use :http:GET:`/node/state`; this metadata is independent of an application's KV snapshot. Older copied constitutions which eagerly initialise member acknowledgement state digests from raw signatures must migrate to the :ref:`state-digest update and acknowledgement workflow <governance/adding_member:Activating a New Member>`.
+Historical read-only access to these tables, :doc:`receipt APIs </use_apps/rpc_api>` and :doc:`offline ledger parsing </audit/python_library>` remain supported. For non-transactional progress metadata, use :http:GET:`/node/state`. Custom constitutions based on releases before 7.0.17 that read signatures to initialise member acknowledgement state digests must migrate to the :ref:`state-digest update and acknowledgement workflow <governance/adding_member:Activating a New Member>`.

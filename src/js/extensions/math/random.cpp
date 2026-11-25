@@ -4,8 +4,8 @@
 #include "ccf/js/extensions/math/random.h"
 
 #include "ccf/crypto/entropy.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 
@@ -33,6 +33,7 @@ namespace ccf::js::extensions
         double double_value = 0;
         uint64_t uint_value;
       } value;
+
       try
       {
         value.uint_value = entropy->random64();
@@ -55,7 +56,7 @@ namespace ccf::js::extensions
   {
     // Overriding built-in Math.random
     auto math_val = ctx.get_global_property("Math");
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       math_val.set("random", ctx.new_c_function(js_random_impl, "random", 0)));
   }
 }

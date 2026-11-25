@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
 #include "ccf/base_endpoint_registry.h"
-#include "ccf/common_auth_policies.h"
 #include "ccf/ds/json.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
@@ -62,6 +62,7 @@ namespace nobuiltins
   {
     ccf::TxID transaction_id;
   };
+
   DECLARE_JSON_TYPE(GetCommit);
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit, transaction_id);
 

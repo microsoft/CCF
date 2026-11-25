@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 #include "kv/untyped_change_set.h"
 #include "kv_types.h"
 
@@ -153,6 +153,11 @@ namespace ccf::kv
         }
       }
     }
+
+    KV_TRACE(
+      if (!ok) { trace::local_result("conflict", 0); } else if (!has_writes) {
+        trace::local_result("success", 0);
+      });
 
     for (auto& [map_name, mc] : changes)
     {

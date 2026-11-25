@@ -16,6 +16,7 @@ namespace ccf
   // The there is always only one active configuration, so this is a single
   // Value
   using Configuration = ServiceValue<ServiceConfiguration>;
+
   namespace Tables
   {
     static constexpr auto CONFIGURATION = "public:ccf.gov.service.config";

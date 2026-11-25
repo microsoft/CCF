@@ -3,8 +3,8 @@
 
 #include "node/gov/extensions/network.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
-#include "js/checks.h"
 #include "node/network_state.h"
 
 #include <quickjs/quickjs.h>
@@ -103,7 +103,7 @@ namespace ccf::js::extensions
       {
         return ccf::js::core::constants::Exception;
       }
-      auto valid_from = *valid_from_str;
+      const auto& valid_from = *valid_from_str;
 
       size_t validity_period_days = 0;
       if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
@@ -129,11 +129,12 @@ namespace ccf::js::extensions
       }
     }
 
-    JSValue js_network_generate_certificate(
-      JSContext* ctx,
-      [[maybe_unused]] JSValueConst this_val,
-      int argc,
-      [[maybe_unused]] JSValueConst* argv)
+    // Shared body of the certificate renewal functions: renew(identity,
+    // valid_from, validity_period_days) returns the PEM, or nullopt to
+    // return undefined.
+    template <typename Renew>
+    JSValue js_network_renew_certificate(
+      JSContext* ctx, int argc, JSValueConst* argv, Renew renew)
     {
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
@@ -152,12 +153,11 @@ namespace ccf::js::extensions
         return JS_ThrowInternalError(ctx, "Network state is not set");
       }
 
-      auto valid_from_str = jsctx.to_str(argv[0]);
-      if (!valid_from_str)
+      auto valid_from = jsctx.to_str(argv[0]);
+      if (!valid_from)
       {
         return ccf::js::core::constants::Exception;
       }
-      auto valid_from = *valid_from_str;
 
       size_t validity_period_days = 0;
       if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)
@@ -167,15 +167,49 @@ namespace ccf::js::extensions
 
       try
       {
-        auto renewed_cert = network->identity->renew_certificate(
-          valid_from, validity_period_days);
+        const std::optional<ccf::crypto::Pem> renewed_cert =
+          renew(*network->identity, *valid_from, validity_period_days);
+        if (!renewed_cert.has_value())
+        {
+          return ccf::js::core::constants::Undefined;
+        }
 
-        return JS_NewString(ctx, renewed_cert.str().c_str());
+        return JS_NewString(ctx, renewed_cert->str().c_str());
       }
       catch (std::exception& exc)
       {
         return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
       }
+    }
+
+    JSValue js_network_generate_certificate(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
+    {
+      return js_network_renew_certificate(
+        ctx,
+        argc,
+        argv,
+        [](ccf::NetworkIdentity& identity, const auto& from, size_t days) {
+          return std::optional(identity.renew_certificate(from, days));
+        });
+    }
+
+    JSValue js_network_generate_pq_certificate(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      JSValueConst* argv)
+    {
+      return js_network_renew_certificate(
+        ctx,
+        argc,
+        argv,
+        [](ccf::NetworkIdentity& identity, const auto& from, size_t days) {
+          return identity.renew_pq_certificate(from, days);
+        });
     }
   }
 
@@ -183,24 +217,30 @@ namespace ccf::js::extensions
   {
     auto network = ctx.new_obj();
 
-    JS_CHECK_OR_THROW(network.set(
+    CCF_JS_CHECK_OR_THROW(network.set(
       "getLatestLedgerSecretSeqno",
       ctx.new_c_function(
         js_network_latest_ledger_secret_seqno,
         "getLatestLedgerSecretSeqno",
         0)));
-    JS_CHECK_OR_THROW(network.set(
+    CCF_JS_CHECK_OR_THROW(network.set(
       "generateEndorsedCertificate",
       ctx.new_c_function(
         js_network_generate_endorsed_certificate,
         "generateEndorsedCertificate",
         0)));
-    JS_CHECK_OR_THROW(network.set(
+    CCF_JS_CHECK_OR_THROW(network.set(
       "generateNetworkCertificate",
       ctx.new_c_function(
         js_network_generate_certificate, "generateNetworkCertificate", 0)));
+    CCF_JS_CHECK_OR_THROW(network.set(
+      "generatePQNetworkCertificate",
+      ctx.new_c_function(
+        js_network_generate_pq_certificate,
+        "generatePQNetworkCertificate",
+        0)));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
-    JS_CHECK_OR_THROW(ccf.set("network", std::move(network)));
+    CCF_JS_CHECK_OR_THROW(ccf.set("network", std::move(network)));
   }
 }

@@ -3,7 +3,7 @@ Issuing Commands
 
 Clients communicate with CCF using HTTP requests, over TLS.
 
-For example, to record a message at a specific id with the :doc:`C++ sample logging application </build_apps/example>` using curl:
+For example, to record a message at a specific id with the :doc:`C++ sample logging application </build_apps/example_cpp>` using curl:
 
 .. code-block:: bash
 
@@ -37,10 +37,31 @@ COSE Sign1
 
 CCF accepts signed requests in `COSE Sign1 <https://www.rfc-editor.org/rfc/rfc8152.html#section-4.2>`_ format.
 
-CCF identifies the signing identity for a request via the SHA-256 digest of its certificate, represented as a hex string.
-That value must be set in the ``kid`` protected header. Additional protected headers may be necessary, for example governance endpoints require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
+CCF identifies the signing identity for a request via its enrolled member or user ID.
+By default this is the SHA-256 digest of its certificate, represented as a hex string; identities enrolled with ``did_key`` use their full public-key DID instead.
+That value must be set in the ``kid`` protected header.
+Additional protected headers may be necessary, for example governance endpoints require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
 
 A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python package <https://pypi.org/project/ccf/>`_. The output can be piped directly into curl, or any other HTTP client.
+
+For DID identities, pass ``--signing-did-key <did:key>`` instead of ``--signing-cert`` to ``ccf_cose_sign1``, ``ccf_cose_sign1_prepare``, and ``ccf_cose_sign1_finish``.
+Preparation and completion must select the same DID.
+The equivalent SDK functions accept ``did_key="<did:key>"`` with no certificate argument.
+
+For example, a DID member can submit a proposal without a certificate:
+
+.. code-block:: bash
+
+    $ set -o pipefail
+    $ ccf_cose_sign1 \
+        --signing-key member_privk.pem \
+        --signing-did-key "$member_did_key" \
+        --ccf-gov-msg-type proposal \
+        --ccf-gov-msg-created_at "$(date -uIs)" \
+        --content proposal.json \
+      | curl "https://<ccf-node-address>/gov/members/proposals:create?api-version=2024-07-01" \
+        --cacert service_cert.pem \
+        -H "content-type: application/cose" --data-binary @-
 
 Commands can also be signed using the `python-cwt <https://github.com/dajiaji/python-cwt/>`_ library, and sent with any standard HTTP library such as `Python HTTPX <https://www.python-httpx.org/>`_.
 

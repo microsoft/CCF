@@ -1,13 +1,17 @@
-import DisasterRecovery.Model
+module
+
+public import DisasterRecovery.Model
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests
 
-def initial (config : Model.Config) (active : List Model.Local.Location) : Model.State :=
+/-- Initializes every configured node with no queued messages. -/
+def initial (config : Model.Config) : Model.State :=
   {
     nodes :=
       config.protocol.expectedLocations.map
         fun node => (node, Model.Local.initialNode node)
-    active
   }
 
 end DisasterRecovery.Tests

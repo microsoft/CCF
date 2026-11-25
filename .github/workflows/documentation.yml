@@ -1,0 +1,78 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-26.04
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          python-requirements: doc/requirements.txt
+
+      - name: Build Documentation
+        run: |
+          set -euxo pipefail
+          python3 -m venv --without-pip env
+          source env/bin/activate
+          uv pip install -e ./python -r doc/requirements.txt
+          python -m sphinx --fail-on-warning -b html -d build/doc-doctrees doc build/html/main
+          cp doc/index.html build/html/index.html
+        shell: bash
+
+      - name: Upload pages
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/html
+
+  deploy:
+    name: Deploy
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: build
+    runs-on: ubuntu-26.04
+    permissions:
+      # Needed to authorize deployment to GitHub Pages
+      pages: write
+      # Needed to authenticate via OIDC
+      # See https://github.com/actions/deploy-pages?tab=readme-ov-file#usage
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

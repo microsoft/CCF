@@ -35,6 +35,7 @@ namespace ccf
   // This map is used to broadcast encrypted ledger secrets to all nodes, during
   // recovery (past secrets) and re-keying (new secret)
   using Secrets = ServiceValue<LedgerSecretsForNodes>;
+
   namespace Tables
   {
     static constexpr auto ENCRYPTED_LEDGER_SECRETS =

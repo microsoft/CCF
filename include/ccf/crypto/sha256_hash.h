@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "ccf/service/map.h"
 
 #include <array>
 #include <span>
@@ -36,7 +35,9 @@ namespace ccf::crypto
       const Sha256Hash& third);
     Sha256Hash(const Sha256Hash& hash) = default;
     Sha256Hash& operator=(const Sha256Hash& hash) = default;
+
     Sha256Hash(Sha256Hash&& hash) noexcept : h(hash.h) {}
+
     Sha256Hash& operator=(Sha256Hash&& hash) noexcept
     {
       h = hash.h;
@@ -67,6 +68,7 @@ namespace ccf::crypto
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::crypto::Sha256Hash>
 {
@@ -82,23 +84,5 @@ struct formatter<ccf::crypto::Sha256Hash>
     return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
   }
 };
+
 FMT_END_NAMESPACE
-
-namespace ccf::kv::serialisers
-{
-  template <>
-  struct BlitSerialiser<ccf::crypto::Sha256Hash>
-  {
-    static SerialisedEntry to_serialised(const ccf::crypto::Sha256Hash& h)
-    {
-      auto hex_str = h.hex_str();
-      return {hex_str.begin(), hex_str.end()};
-    }
-
-    static ccf::crypto::Sha256Hash from_serialised(const SerialisedEntry& data)
-    {
-      auto data_str = std::string{data.begin(), data.end()};
-      return ccf::crypto::Sha256Hash::from_hex_string(data_str);
-    }
-  };
-}

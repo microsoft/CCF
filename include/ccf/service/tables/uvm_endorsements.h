@@ -14,6 +14,7 @@ namespace ccf
 
     bool operator==(const UVMEndorsementsData&) const = default;
   };
+
   DECLARE_JSON_TYPE(UVMEndorsementsData);
   DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsementsData, svn);
 

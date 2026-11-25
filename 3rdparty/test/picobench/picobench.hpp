@@ -1,4 +1,4 @@
-// picobench v2.08
+// picobench v2.10.0
 // https://github.com/iboB/picobench
 //
 // A micro microbenchmarking library in a single header file
@@ -7,7 +7,7 @@
 //
 // MIT License
 //
-// Copyright(c) 2017-2025 Borislav Stanimirov
+// Copyright(c) 2017-2026 Borislav Stanimirov
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -29,6 +29,15 @@
 //
 //
 //                  VERSION HISTORY
+//
+//  2.9.1 (2026-07-09) Introduce state inputs
+//                     * PICOBENCH_DEFAULT_INPUTS macro to set default inputs
+//                     * state::input struct to hold input data
+//                     * PICOBENCH_DEFAULT_ITERATIONS macro triggers an error
+//  2.9.0 (2026-04-30) * Completely drop binding benchmarks to a single core
+//                     * Drop custom Windows clock and just use
+//                       std::high_resolution_clock everywhere
+//  2.8.0 (2025-12-15) Switch to SemVer to appease certain package managers
 //
 //  2.08 (2025-04-04) Internal. This file was not affected
 //  2.07 (2024-03-06) * Text output is now markdown compatible
@@ -129,8 +138,8 @@
 #   include <functional>
 #endif
 
-#define PICOBENCH_VERSION 2.05
-#define PICOBENCH_VERSION_STR "2.05"
+#define PICOBENCH_VERSION 21000
+#define PICOBENCH_VERSION_STR "2.10.0"
 
 #if defined(PICOBENCH_DEBUG)
 #   include <cassert>
@@ -154,7 +163,7 @@
 namespace PICOBENCH_NAMESPACE
 {
 
-#if defined(_MSC_VER) || defined(__MINGW32__) || defined(PICOBENCH_TEST)
+#if defined(PICOBENCH_TEST)
 struct high_res_clock
 {
     typedef long long rep;
@@ -174,19 +183,32 @@ using result_t = intptr_t;
 class state
 {
 public:
-    explicit state(int num_iterations, uintptr_t user_data = 0)
-        : _user_data(user_data)
-        , _iterations(num_iterations)
+    struct input {
+        int iterations;
+        uintptr_t data;
+
+        bool operator==(const input& other) const {
+            return iterations == other.iterations && data == other.data;
+        }
+        bool operator!=(const input& other) const {
+            return !(*this == other);
+        }
+    };
+
+    explicit state(const input& in, uintptr_t benchmark_user_data = 0)
+        : _input(in)
+        , _benchmark_user_data(benchmark_user_data)
     {
-        I_PICOBENCH_ASSERT(_iterations > 0);
+        I_PICOBENCH_ASSERT(_input.iterations > 0);
     }
 
-    int iterations() const { return _iterations; }
+    int iterations() const { return _input.iterations; }
+    uintptr_t input_data() const { return _input.data; }
 
     int64_t duration_ns() const { return _duration_ns; }
     void add_custom_duration(int64_t duration_ns) { _duration_ns += duration_ns; }
 
-    uintptr_t user_data() const { return _user_data; }
+    uintptr_t benchmark_user_data() const { return _benchmark_user_data; }
 
     // optionally set result of benchmark
     // this can be used as a value sync to prevent optimizations
@@ -269,8 +291,8 @@ public:
 private:
     high_res_clock::time_point _start;
     int64_t _duration_ns = 0;
-    uintptr_t _user_data;
-    int _iterations;
+    input _input;
+    uintptr_t _benchmark_user_data;
     result_t _result = 0;
 };
 
@@ -305,7 +327,15 @@ class benchmark
 public:
     const char* name() const { return _name; }
 
-    benchmark& iterations(std::vector<int> data) { _state_iterations = std::move(data); return *this; }
+    benchmark& iterations(std::vector<int> data) {
+        _state_inputs.clear();
+        _state_inputs.reserve(data.size());
+        for (auto i : data) {
+            _state_inputs.push_back({i, 0});
+        }
+        return *this;
+    }
+    benchmark& inputs(std::vector<state::input> data) { _state_inputs = std::move(data); return *this; }
     benchmark& samples(int n) { _samples = n; return *this; }
     benchmark& label(const char* label) { _name = label; return *this; }
     benchmark& baseline(bool b = true) { _baseline = b; return *this; }
@@ -321,7 +351,7 @@ protected:
     bool _baseline = false;
 
     uintptr_t _user_data = 0;
-    std::vector<int> _state_iterations;
+    std::vector<state::input> _state_inputs;
     int _samples = 0;
 };
 
@@ -372,19 +402,6 @@ public:
 #include <cstring>
 #include <cstdlib>
 #include <algorithm>
-
-#if defined(_WIN32)
-#   define WIN32_LEAN_AND_MEAN
-#   include <Windows.h>
-#else
-#   if !defined(PICOBENCH_DONT_BIND_TO_ONE_CORE)
-#       if defined(__APPLE__)
-#           include <mach/mach.h>
-#       else
-#           include <sched.h>
-#       endif
-#   endif
-#endif
 
 namespace PICOBENCH_NAMESPACE
 {
@@ -719,7 +736,7 @@ private:
     friend class runner;
 
     // state
-    std::vector<state> _states; // length is _samples * _state_iterations.size()
+    std::vector<state> _states; // length is _samples * _state_inputs.size()
     std::vector<state>::iterator _istate;
 };
 
@@ -777,8 +794,12 @@ enum class report_output_format
     csv,
 };
 
-#if !defined(PICOBENCH_DEFAULT_ITERATIONS)
-#   define PICOBENCH_DEFAULT_ITERATIONS { 8, 64, 512, 4096, 8192 }
+#if defined(PICOBENCH_DEFAULT_ITERATIONS)
+#   error "PICOBENCH_DEFAULT_ITERATIONS is not supported anymore. Use PICOBENCH_DEFAULT_INPUTS instead."
+#endif
+
+#if !defined(PICOBENCH_DEFAULT_INPUTS)
+#   define PICOBENCH_DEFAULT_INPUTS { {8, 0}, {64, 0}, {512, 0}, {4096, 0}, {8192, 0} }
 #endif
 
 #if !defined(PICOBENCH_DEFAULT_SAMPLES)
@@ -842,7 +863,7 @@ class runner : public registry
 {
 public:
     runner(bool local = false)
-        : _default_state_iterations(PICOBENCH_DEFAULT_ITERATIONS)
+        : _default_state_inputs(PICOBENCH_DEFAULT_INPUTS)
         , _default_samples(PICOBENCH_DEFAULT_SAMPLES)
     {
         if (!local)
@@ -937,51 +958,29 @@ public:
         // initialize benchmarks
         for (auto b : benchmarks)
         {
-            const std::vector<int>& state_iterations =
-                b->_state_iterations.empty() ?
-                _default_state_iterations :
-                b->_state_iterations;
+            const std::vector<state::input>& state_inputs =
+                b->_state_inputs.empty() ?
+                _default_state_inputs :
+                b->_state_inputs;
 
             if (b->_samples == 0)
                 b->_samples = _default_samples;
 
-            b->_states.reserve(state_iterations.size() * size_t(b->_samples));
+            b->_states.reserve(state_inputs.size() * size_t(b->_samples));
 
             // fill states while random shuffling them
-            for (auto iters : state_iterations)
+            for (auto in : state_inputs)
             {
                 for (int i = 0; i < b->_samples; ++i)
                 {
                     auto index = rnd() % (b->_states.size() + 1);
                     auto pos = b->_states.begin() + long(index);
-                    b->_states.emplace(pos, iters, b->_user_data);
+                    b->_states.emplace(pos, in, b->_user_data);
                 }
             }
 
             b->_istate = b->_states.begin();
         }
-
-#if !defined(PICOBENCH_DONT_BIND_TO_ONE_CORE)
-        // set thread affinity to first cpu
-        // so the high resolution clock doesn't miss cycles
-        {
-#if defined(_WIN32)
-        SetThreadAffinityMask(GetCurrentThread(), 1);
-#elif defined(__APPLE__)
-        thread_affinity_policy_data_t policy = {0};
-        thread_policy_set(
-            pthread_mach_thread_np(pthread_self()),
-            THREAD_AFFINITY_POLICY,
-            (thread_policy_t)&policy, 1);
-#else
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(0, &cpuset);
-
-        sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
-#endif
-        }
-#endif
 
         // we run a random benchmark from it incrementing _istate for each
         // when _istate reaches _states.end(), we erase the benchmark
@@ -1024,15 +1023,15 @@ public:
                 rpt_benchmark->name = b->_name;
                 rpt_benchmark->is_baseline = b->_baseline;
 
-                const std::vector<int>& state_iterations =
-                    b->_state_iterations.empty() ?
-                    _default_state_iterations :
-                    b->_state_iterations;
+                const std::vector<state::input>& state_inputs =
+                    b->_state_inputs.empty() ?
+                    _default_state_inputs :
+                    b->_state_inputs;
 
-                rpt_benchmark->data.reserve(state_iterations.size());
-                for (auto d : state_iterations)
+                rpt_benchmark->data.reserve(state_inputs.size());
+                for (auto in : state_inputs)
                 {
-                    rpt_benchmark->data.push_back({d, 0, 0ll, result_t(0)});
+                    rpt_benchmark->data.push_back({in.iterations, 0, 0ll, result_t(0)});
                 }
 
                 for (auto& state : b->_states)
@@ -1113,14 +1112,23 @@ public:
         return rpt;
     }
 
-    void set_default_state_iterations(const std::vector<int>& data)
+    void set_default_state_inputs(const std::vector<state::input>& data)
     {
-        _default_state_iterations = data;
+        _default_state_inputs = data;
     }
 
-    const std::vector<int>& default_state_iterations() const
+    void set_default_state_iterations(const std::vector<int>& data)
     {
-        return _default_state_iterations;
+        _default_state_inputs.clear();
+        _default_state_inputs.reserve(data.size());
+        for (auto i : data) {
+            _default_state_inputs.push_back({i, 0});
+        }
+    }
+
+    const std::vector<state::input>& default_state_inputs() const
+    {
+        return _default_state_inputs;
     }
 
     void set_default_samples(int n)
@@ -1279,8 +1287,8 @@ private:
 
     // default data
 
-    // default iterations per state per benchmark
-    std::vector<int> _default_state_iterations;
+    // default inputs per state per benchmark
+    std::vector<state::input> _default_state_inputs;
 
     // default samples per benchmark
     int _default_samples;
@@ -1312,19 +1320,19 @@ private:
 
     bool cmd_iters(const char* line)
     {
-        std::vector<int> iters;
+        std::vector<state::input> inputs;
         auto p = line;
         while (true)
         {
             auto i = int(strtoul(p, nullptr, 10));
             if (i <= 0) return false;
-            iters.push_back(i);
+            inputs.push_back({i, 0});
             p = strchr(p + 1, ',');
             if (!p) break;
             ++p;
         }
-        if (iters.empty()) return false;
-        _default_state_iterations = iters;
+        if (inputs.empty()) return false;
+        _default_state_inputs = inputs;
         return true;
     }
 
@@ -1495,22 +1503,6 @@ int global_registry::set_bench_suite(const char* name)
     return 0;
 }
 
-#if (defined(_MSC_VER) || defined(__MINGW32__)) && !defined(PICOBENCH_TEST)
-
-static const long long high_res_clock_freq = []() -> long long
-{
-    LARGE_INTEGER frequency;
-    QueryPerformanceFrequency(&frequency);
-    return frequency.QuadPart;
-}();
-
-high_res_clock::time_point high_res_clock::now()
-{
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return time_point(duration((t.QuadPart * rep(period::den)) / high_res_clock_freq));
-}
-#endif
 }
 
 #endif

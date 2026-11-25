@@ -47,6 +47,10 @@ namespace ccf::historical
    */
   using RequestHandle = size_t;
 
+  /** Query retention duration. Queries throw std::overflow_error if the
+   * duration or resulting deadline cannot fit in the cache's millisecond
+   * clock.
+   */
   using ExpiryDuration = std::chrono::seconds;
 
   using CacheSize = size_t;

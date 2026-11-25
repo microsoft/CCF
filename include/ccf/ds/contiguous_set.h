@@ -522,6 +522,7 @@ namespace ccf::ds
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <typename T>
 struct formatter<ccf::ds::ContiguousSet<T>>
 {
@@ -547,4 +548,5 @@ struct formatter<ccf::ds::ContiguousSet<T>>
       fmt::join(ranges, ", "));
   }
 };
+
 FMT_END_NAMESPACE

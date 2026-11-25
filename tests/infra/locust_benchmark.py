@@ -4,10 +4,13 @@
 """Shared orchestration and reporting for Locust benchmarks."""
 
 import argparse
+import copy
 import csv
 import dataclasses
+import json
 import math
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -18,6 +21,7 @@ from typing import Any
 from loguru import logger as LOG
 
 import infra.bencher
+import infra.fluentd
 import infra.interfaces
 import infra.network
 import infra.proc
@@ -364,27 +368,91 @@ def measure(
     # interval configuration.
     args.consensus_update_timeout_ms = sig_ms_interval
 
-    LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
-        primary, _ = network.find_primary()
-        workload = prepare_workload(args, network, primary)
-        stats = run_locust(args, network, primary, workload)
-        target = workload.target_node or primary
-        memory = infra.proc.get_proc_memory_stats(target.remote.remote.proc.pid)
-        result = parse_result(
-            stats,
-            args.measure_time_s,
-            memory,
-            response_length_as_throughput_units=(
-                workload.response_length_as_throughput_units
-            ),
-            throughput_unit=workload.throughput_unit,
+    export = os.environ.get("CCF_BENCHMARK_FLUENTD", "0")
+    if export not in ("0", "1"):
+        raise ValueError("CCF_BENCHMARK_FLUENTD must be 0 or 1")
+    if args.observability is not None:
+        raise ValueError("Benchmark collector cannot override --observability")
+    if args.log_level in ("fail", "fatal"):
+        raise ValueError(
+            "Benchmark requires --log-level info, debug or trace to read "
+            "the Fluentd exporter shutdown summary"
         )
-        network.stop_all_nodes()
-        return result
+
+    with infra.fluentd.Collector(len(args.nodes)) as collector:
+        args = copy.deepcopy(args)
+        args.observability = {
+            "fluentd": [
+                {
+                    **collector.endpoint,
+                    "delivery": "buffered-best-effort",
+                    "tag-prefix-allow-list": ["ccf" if export == "1" else "ccf.log"],
+                }
+            ]
+        }
+        LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
+        with infra.network.network(
+            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        ) as network:
+            network.start_and_open(args)
+            primary, _ = network.find_primary()
+            workload = prepare_workload(args, network, primary)
+            stats = run_locust(args, network, primary, workload)
+            target = workload.target_node or primary
+            memory = infra.proc.get_proc_memory_stats(target.remote.remote.proc.pid)
+            result = parse_result(
+                stats,
+                args.measure_time_s,
+                memory,
+                response_length_as_throughput_units=(
+                    workload.response_length_as_throughput_units
+                ),
+                throughput_unit=workload.throughput_unit,
+            )
+            network.stop_all_nodes()
+            dropped = 0
+            for node in network.nodes:
+                out_path, _ = node.get_logs()
+                if out_path is None:
+                    raise RuntimeError("Missing Fluentd exporter shutdown log")
+                reports = re.findall(
+                    r"Fluentd exporter shutdown: (\d+) dropped events",
+                    Path(out_path).read_text(encoding="utf-8"),
+                )
+                if len(reports) != 1:
+                    raise RuntimeError(
+                        f"Expected one Fluentd exporter shutdown report in {out_path}"
+                    )
+                dropped += int(reports[0])
+    counts = {
+        "records": collector.records,
+        "bytes": collector.bytes,
+        "tags": sorted(collector.tags),
+        "processes": len(collector.processes),
+        "expected_processes": len(args.nodes),
+        "dropped": dropped,
+        "drop_rate": (
+            dropped / (collector.records + dropped)
+            if collector.records + dropped
+            else None
+        ),
+    }
+    (Path(network.common_dir) / f"{sig_ms_interval}ms_fluentd.json").write_text(
+        json.dumps(counts, indent=2), encoding="utf-8"
+    )
+    LOG.info(f"Fluentd collector: {counts}")
+    expected_tags = {"ccf.log", "ccf.cft"} if export == "1" else {"ccf.log"}
+    if (
+        collector.records == 0
+        or len(collector.processes) != len(args.nodes)
+        or not expected_tags <= collector.tags
+        or (export == "0" and collector.tags != expected_tags)
+    ):
+        raise RuntimeError(
+            f"Every benchmark node must export events; expected tags {expected_tags}, "
+            f"received {collector.tags}"
+        )
+    return result
 
 
 def run(args: argparse.Namespace, prepare_workload: PrepareWorkload) -> None:

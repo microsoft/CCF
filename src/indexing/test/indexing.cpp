@@ -4,7 +4,7 @@
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
-#include "consensus/aft/raft.h"
+#include "consensus/aft/cft.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "consensus/test/ledger_stub.h"
 #include "crypto/openssl/hash.h"
@@ -13,6 +13,7 @@
 #include "indexing/test/common.h"
 #include "node/share_manager.h"
 
+#include <future>
 #include <thread>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -28,6 +29,32 @@ auto valid_from =
   ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
+
+class StubCommitPoint : public ccf::AbstractCommitPoint
+{
+public:
+  std::optional<ccf::TxID> committed;
+  mutable size_t polls = 0;
+
+  std::optional<ccf::TxID> get_committed_txid() const override
+  {
+    ++polls;
+    return committed;
+  }
+};
+
+// Inspect the commit point consumed by the real update path, including its
+// view.
+class ObservedIndexer : public ccf::indexing::Indexer
+{
+public:
+  using Indexer::Indexer;
+
+  ccf::TxID observed_commit() const
+  {
+    return committed;
+  }
+};
 
 static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_hello,
@@ -165,6 +192,97 @@ void run_tests(
 }
 
 // Uses stub classes to test just indexing logic in isolation
+TEST_CASE(
+  "Periodic indexing uses the committed TxID" * doctest::test_suite("indexing"))
+{
+  ccf::tasks::JobBoard job_board;
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
+  auto context = std::make_unique<ccf::AbstractNodeContext>();
+  auto without_commit_point =
+    std::make_shared<ccf::indexing::Indexer>(fetcher, *context);
+  REQUIRE_THROWS_WITH(
+    without_commit_point->register_periodic_tasks(job_board, 10ms),
+    "Periodic indexing requires the CommitPoint subsystem");
+  REQUIRE_THROWS_WITH(
+    std::make_shared<ccf::indexing::Indexer>(fetcher)->register_periodic_tasks(
+      job_board, 10ms),
+    "Periodic indexing requires the CommitPoint subsystem");
+  auto commit_point = std::make_shared<StubCommitPoint>();
+  context->install_subsystem(commit_point);
+  auto indexer = std::make_shared<ObservedIndexer>(fetcher, *context);
+  indexer->register_periodic_tasks(job_board, 10ms);
+  // Registry access is complete at construction; ticks do not need the context.
+  context.reset();
+  auto strategy = std::make_shared<IndexA>(map_a);
+  indexer->install_strategy(strategy);
+  const auto run_all = [&]() {
+    while (auto task = job_board.get_task())
+    {
+      task->do_task();
+    }
+  };
+
+  job_board.tick(9ms);
+  run_all();
+  REQUIRE(commit_point->polls == 0);
+  job_board.tick(1ms);
+  run_all();
+  REQUIRE(commit_point->polls == 1);
+  REQUIRE(fetcher->requested.empty());
+
+  commit_point->committed = ccf::TxID{2, 3};
+  job_board.tick(35ms);
+  run_all();
+  REQUIRE(commit_point->polls == 2);
+  REQUIRE(check_seqnos({1, 2, 3}, fetcher->requested));
+  REQUIRE(indexer->observed_commit() == ccf::TxID{2, 3});
+
+  commit_point->committed = ccf::TxID{4, 5};
+  job_board.tick(10ms);
+  run_all();
+  REQUIRE(check_seqnos({1, 2, 3, 4, 5}, fetcher->requested));
+  REQUIRE(indexer->observed_commit() == ccf::TxID{4, 5});
+  const auto before_stop = commit_point->polls;
+  job_board.tick(10ms);
+
+  SUBCASE("Board shutdown rejects already runnable updates")
+  {
+    job_board.shutdown();
+  }
+  SUBCASE("Destroyed indexer is not retained by the periodic task")
+  {
+    std::weak_ptr<ccf::indexing::Indexer> weak_indexer = indexer;
+    indexer.reset();
+    REQUIRE(weak_indexer.expired());
+  }
+
+  run_all();
+  job_board.tick(100ms);
+  run_all();
+  REQUIRE(commit_point->polls == before_stop);
+}
+
+TEST_CASE(
+  "Periodic indexing owns only its commit-point dependency" *
+  doctest::test_suite("indexing"))
+{
+  ccf::tasks::JobBoard board;
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
+  auto context = std::make_unique<ccf::AbstractNodeContext>();
+  auto commit_point = std::make_shared<StubCommitPoint>();
+  std::weak_ptr<StubCommitPoint> weak_commit_point = commit_point;
+  context->install_subsystem(commit_point);
+  auto indexer = std::make_shared<ccf::indexing::Indexer>(fetcher, *context);
+  indexer->register_periodic_tasks(board, 10ms);
+  commit_point.reset();
+  context.reset();
+  REQUIRE_FALSE(weak_commit_point.expired());
+  indexer.reset();
+  REQUIRE(weak_commit_point.expired());
+  board.tick(10ms);
+  REQUIRE(board.get_task() == nullptr);
+}
+
 TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 {
   ccf::kv::Store kv_store;
@@ -266,15 +384,15 @@ ccf::kv::Version rekey(
   return tx_version;
 }
 
-aft::LedgerStubProxy* add_raft_consensus(
+aft::LedgerStubProxy* add_cft_consensus(
   std::shared_ptr<ccf::kv::Store> kv_store,
   std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
-  using TRaft = aft::Aft<aft::LedgerStubProxy>;
-  using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
+  using TCft = aft::Aft<aft::LedgerStubProxy>;
+  using AllCommittableCftConsensus = AllCommittableWrapper<TCft>;
   const std::string node_id = "Node 0";
   const ccf::consensus::Configuration settings{{"20ms"}, {"100ms"}};
-  auto consensus = std::make_shared<AllCommittableRaftConsensus>(
+  auto consensus = std::make_shared<AllCommittableCftConsensus>(
     settings,
     std::make_unique<aft::Adaptor<ccf::kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
@@ -318,7 +436,7 @@ TEST_CASE_TEMPLATE(
   auto index_a = std::make_shared<AA>(map_a);
   REQUIRE(indexer.install_strategy(index_a));
 
-  auto ledger = add_raft_consensus(kv_store_p, indexer_p);
+  auto ledger = add_cft_consensus(kv_store_p, indexer_p);
 
   ledger_secrets->init();
   {
@@ -514,7 +632,7 @@ TEST_CASE(
   auto index_b = std::make_shared<IndexB>(map_b);
   REQUIRE(indexer.install_strategy(index_b));
 
-  auto ledger = add_raft_consensus(kv_store_p, indexer_p);
+  auto ledger = add_cft_consensus(kv_store_p, indexer_p);
 
   ledger_secrets->init();
   {
@@ -715,6 +833,254 @@ public:
   }
 };
 
+using BucketedIndex =
+  ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_a)>;
+
+class ObservedBucketedIndex : public BucketedIndex
+{
+public:
+  using BucketedIndex::BucketedIndex;
+  using BucketedIndex::describe;
+  std::function<void()> after_visit;
+
+protected:
+  void visit_entry(
+    const ccf::TxID& tx_id,
+    const ccf::ByteVector& k,
+    const ccf::ByteVector& v) override
+  {
+    BucketedIndex::visit_entry(tx_id, k, v);
+    if (after_visit)
+    {
+      after_visit();
+    }
+  }
+};
+
+class ObservedTransactionFetcher : public TestTransactionFetcher
+{
+public:
+  std::function<void()> on_fetch;
+
+  std::vector<ccf::kv::ReadOnlyStorePtr> fetch_transactions(
+    const ccf::SeqNoCollection& seqnos) override
+  {
+    if (on_fetch)
+    {
+      on_fetch();
+    }
+    return TestTransactionFetcher::fetch_transactions(seqnos);
+  }
+};
+
+class TestLFSAccess : public ccf::indexing::AbstractLFSAccess
+{
+public:
+  std::map<ccf::indexing::LFSKey, ccf::indexing::LFSContents> files;
+  ccf::indexing::FetchResultPtr last_fetch;
+
+  void store(
+    const ccf::indexing::LFSKey& key,
+    ccf::indexing::LFSContents&& contents) override
+  {
+    files[key] = std::move(contents);
+  }
+
+  ccf::indexing::FetchResultPtr fetch(const ccf::indexing::LFSKey& key) override
+  {
+    last_fetch = std::make_shared<ccf::indexing::FetchResult>();
+    last_fetch->key = key;
+    last_fetch->fetch_result =
+      ccf::indexing::FetchResult::FetchResultType::Fetching;
+    return last_fetch;
+  }
+
+  void complete_fetch()
+  {
+    const auto it = files.find(last_fetch->key);
+    if (it == files.end())
+    {
+      last_fetch->fetch_result =
+        ccf::indexing::FetchResult::FetchResultType::NotFound;
+    }
+    else
+    {
+      last_fetch->contents = it->second;
+      last_fetch->fetch_result =
+        ccf::indexing::FetchResult::FetchResultType::Loaded;
+    }
+  }
+};
+
+template <typename Strategy>
+void test_bucketed_rebuild(ccf::indexing::FetchResult::FetchResultType failure)
+{
+  using FetchState = ccf::indexing::FetchResult::FetchResultType;
+  auto lfs = std::make_shared<TestLFSAccess>();
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(lfs);
+  auto strategy = std::make_shared<Strategy>(map_a, context, 2, 4);
+  auto fetcher = std::make_shared<ObservedTransactionFetcher>();
+  ccf::indexing::Indexer indexer(fetcher);
+  REQUIRE(indexer.install_strategy(strategy));
+
+  ccf::kv::Store store;
+  store.set_encryptor(fetcher->encryptor);
+  auto consensus = std::make_shared<AllCommittableConsensus>();
+  store.set_consensus(consensus);
+  ExpectedSeqNos expected;
+  REQUIRE(create_transactions(
+    store,
+    {{expected,
+      [](size_t, ccf::kv::Tx& tx) {
+        tx.wo(map_a)->put("hello", "value");
+        return true;
+      }}},
+    3));
+
+  const auto supply = [&](ccf::SeqNo seqno) {
+    const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+    fetcher->fetched_stores[seqno] =
+      fetcher->deserialise_transaction(seqno, entry->data(), entry->size());
+  };
+  const auto extend = [&](ccf::SeqNo seqno) {
+    if constexpr (std::is_same_v<
+                    Strategy,
+                    ccf::indexing::LazyStrategy<ObservedBucketedIndex>>)
+    {
+      strategy->extend_index_to({store.current_txid().view, seqno});
+    }
+  };
+
+  extend(2);
+  supply(1);
+  supply(2);
+  const ccf::TxID initial{store.current_txid().view, 2};
+  REQUIRE(indexer.update_strategies(step_time, initial));
+  REQUIRE(strategy->get_indexed_watermark() == initial);
+  REQUIRE(check_seqnos({2}, strategy->get_write_txs_in_range("hello", 2, 2)));
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 2, 3).has_value());
+  REQUIRE(strategy->get_indexed_watermark() == initial);
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 1, 1).has_value());
+  REQUIRE(lfs->last_fetch != nullptr);
+  REQUIRE(lfs->last_fetch->contents.empty());
+
+  const auto fail_query = [&]() {
+    // Run a query on another thread while the serialized indexing update is
+    // between its tick and watermark publication.
+    struct Observations
+    {
+      bool failed_range_available;
+      ccf::TxID watermark;
+      bool cached_range_available;
+      bool absent_key_available;
+      bool zero_range_available;
+    };
+    auto query = std::async(std::launch::async, [&]() {
+      return Observations{
+        strategy->get_write_txs_in_range("hello", 1, 1).has_value(),
+        strategy->get_indexed_watermark(),
+        strategy->get_write_txs_in_range("hello", 2, 2).has_value(),
+        strategy->get_write_txs_in_range("absent", 1, 1).has_value(),
+        strategy->get_write_txs_in_range("absent", 0, 0).has_value()};
+    });
+    const auto observed = query.get();
+    CHECK_FALSE(observed.failed_range_available);
+    CHECK(observed.watermark == initial);
+    CHECK_FALSE(observed.cached_range_available);
+    CHECK_FALSE(observed.absent_key_available);
+    CHECK_FALSE(observed.zero_range_available);
+  };
+
+  extend(3);
+  supply(3);
+  switch (failure)
+  {
+    case FetchState::NotFound:
+    {
+      lfs->files.erase(lfs->last_fetch->key);
+      lfs->complete_fetch();
+      break;
+    }
+    case FetchState::Loaded:
+    {
+      lfs->files.at(lfs->last_fetch->key).clear();
+      lfs->complete_fetch();
+      break;
+    }
+    case FetchState::Corrupt:
+    {
+      lfs->last_fetch->fetch_result = FetchState::Corrupt;
+      break;
+    }
+    case FetchState::Fetching:
+    {
+      FAIL("A completed failed fetch is required");
+    }
+  }
+  REQUIRE(lfs->last_fetch->fetch_result == failure);
+  SUBCASE("Failure between final visit and watermark publication")
+  {
+    strategy->after_visit = fail_query;
+  }
+  SUBCASE("Failure after tick before fetched batch delivery")
+  {
+    fetcher->on_fetch = fail_query;
+  }
+  REQUIRE(indexer.update_strategies(step_time, store.current_txid()));
+  strategy->after_visit = nullptr;
+  fetcher->on_fetch = nullptr;
+
+  REQUIRE(strategy->get_indexed_watermark() == store.current_txid());
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 2, 3).has_value());
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("absent", 1, 1).has_value());
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("absent", 0, 0).has_value());
+
+  // Even a lazy strategy which has reached its limit must process the reset.
+  REQUIRE(indexer.update_strategies(step_time, store.current_txid()));
+  REQUIRE(strategy->get_indexed_watermark() == ccf::TxID{});
+  REQUIRE(strategy->next_requested() == 1);
+  REQUIRE(strategy->describe()["current_results_size"] == 0);
+  REQUIRE(strategy->describe()["old_results_current_size"] == 0);
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 1, 3).has_value());
+
+  supply(1);
+  supply(2);
+  supply(3);
+  REQUIRE(indexer.update_strategies(step_time, store.current_txid()));
+  REQUIRE_FALSE(indexer.update_strategies(step_time, store.current_txid()));
+  REQUIRE(strategy->get_indexed_watermark() == store.current_txid());
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 1, 3).has_value());
+  REQUIRE(lfs->last_fetch->fetch_result == FetchState::Fetching);
+  REQUIRE(lfs->last_fetch->contents.empty());
+  lfs->complete_fetch();
+  REQUIRE(lfs->last_fetch->fetch_result == FetchState::Loaded);
+  REQUIRE(
+    check_seqnos(expected, strategy->get_write_txs_in_range("hello", 1, 3)));
+  REQUIRE(check_seqnos({}, strategy->get_write_txs_in_range("absent", 1, 3)));
+}
+
+TEST_CASE_TEMPLATE(
+  "Bucketed rebuild is deferred to the indexing tick",
+  Strategy,
+  ObservedBucketedIndex,
+  ccf::indexing::LazyStrategy<ObservedBucketedIndex>)
+{
+  using FetchState = ccf::indexing::FetchResult::FetchResultType;
+  SUBCASE("Missing file")
+  {
+    test_bucketed_rebuild<Strategy>(FetchState::NotFound);
+  }
+  SUBCASE("Corrupt file")
+  {
+    test_bucketed_rebuild<Strategy>(FetchState::Corrupt);
+  }
+  SUBCASE("Malformed loaded file")
+  {
+    test_bucketed_rebuild<Strategy>(FetchState::Loaded);
+  }
+}
+
 TEST_CASE(
   "multi-threaded indexing - bucketed" * doctest::test_suite("indexing"))
 {
@@ -752,7 +1118,7 @@ TEST_CASE(
   auto index_b = std::make_shared<IndexB>(map_b);
   REQUIRE(indexer.install_strategy(index_b));
 
-  auto ledger = add_raft_consensus(kv_store_p, indexer_p);
+  auto ledger = add_cft_consensus(kv_store_p, indexer_p);
   fetcher->ledger = ledger;
 
   ledger_secrets->init();

@@ -4,6 +4,7 @@
 #include "crypto/openssl/ec_public_key.h"
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/bignum.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 
@@ -25,6 +26,7 @@ namespace ccf::crypto
   using namespace OpenSSL;
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL() = default;
+
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(EVP_PKEY* key) :
     key(key, EVP_PKEY_free)
   {
@@ -34,9 +36,11 @@ namespace ccf::crypto
         "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
+
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(Unique_PKEY&& pkey) :
     ECPublicKey_OpenSSL(pkey.release())
   {}
+
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
@@ -49,6 +53,7 @@ namespace ccf::crypto
         "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
+
   ECPublicKey_OpenSSL::~ECPublicKey_OpenSSL() = default;
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(std::span<const uint8_t> der)
@@ -73,10 +78,10 @@ namespace ccf::crypto
     }
 
     std::pair<Unique_BIGNUM, Unique_BIGNUM> xy;
-    auto x_raw = raw_from_b64url(jwk.x);
-    auto y_raw = raw_from_b64url(jwk.y);
-    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), xy.first));
-    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), xy.second));
+    auto x_raw = ccf::ds::raw_from_b64url(jwk.x);
+    auto y_raw = ccf::ds::raw_from_b64url(jwk.y);
+    xy.first = bn_from_bytes(x_raw);
+    xy.second = bn_from_bytes(y_raw);
 
     return xy;
   }
@@ -128,13 +133,21 @@ namespace ccf::crypto
     switch (nid)
     {
       case NID_secp384r1:
+      {
         return CurveID::SECP384R1;
+      }
       case NID_X9_62_prime256v1:
+      {
         return CurveID::SECP256R1;
+      }
       case NID_secp521r1:
+      {
         return CurveID::SECP521R1;
+      }
       default:
+      {
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+      }
     }
     return CurveID::NONE;
   }
@@ -170,17 +183,27 @@ namespace ccf::crypto
     switch (gid)
     {
       case CurveID::NONE:
+      {
         return NID_undef;
+      }
       case CurveID::SECP384R1:
+      {
         return NID_secp384r1;
+      }
       case CurveID::SECP256R1:
+      {
         return NID_X9_62_prime256v1;
+      }
       case CurveID::SECP521R1:
+      {
         return NID_secp521r1;
+      }
       case CurveID::CURVE25519:
       case CurveID::X25519:
+      {
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
+      }
     }
     return NID_undef;
   }
@@ -324,8 +347,8 @@ namespace ccf::crypto
     int sz = (EC_GROUP_get_degree(group) + CHAR_BIT - 1) / CHAR_BIT;
     r.x.resize(sz);
     r.y.resize(sz);
-    BN_bn2binpad(x, r.x.data(), sz);
-    BN_bn2binpad(y, r.y.data(), sz);
+    CHECKPOSITIVE(BN_bn2binpad(x, r.x.data(), sz));
+    CHECKPOSITIVE(BN_bn2binpad(y, r.y.data(), sz));
     return r;
   }
 
@@ -334,8 +357,8 @@ namespace ccf::crypto
   {
     JsonWebKeyECPublic jwk;
     auto coords = coordinates();
-    jwk.x = b64url_from_raw(coords.x, false /* with_padding */);
-    jwk.y = b64url_from_raw(coords.y, false /* with_padding */);
+    jwk.x = ccf::ds::b64url_from_raw(coords.x, false /* with_padding */);
+    jwk.y = ccf::ds::b64url_from_raw(coords.y, false /* with_padding */);
     jwk.crv = curve_id_to_jwk_curve(get_curve_id());
     jwk.kid = kid;
     jwk.kty = JsonWebKeyType::EC;

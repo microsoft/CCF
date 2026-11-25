@@ -21,6 +21,7 @@ namespace ccf::crypto::sharing
   constexpr size_t SHIFT_OFFSET = 31;
   constexpr element prime =
     (1UL << SHIFT_OFFSET) - 1UL; // a notorious Mersenne prime
+
   /*
   Constant time version of:
     static element reduce(element x)

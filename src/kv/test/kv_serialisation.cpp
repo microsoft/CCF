@@ -11,10 +11,14 @@
 
 #include <doctest/doctest.h>
 #undef FAIL
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <limits>
+#include <numeric>
+#include <span>
 #include <string>
+#include <tuple>
 #include <vector>
 
 struct MapTypes
@@ -69,6 +73,13 @@ TEST_CASE(
     auto bytes = make_size_prefixed_bytes(2, 1);
     ccf::kv::RawReader reader(bytes);
     REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
+  }
+
+  SUBCASE("Span of more payload bytes than remain")
+  {
+    auto bytes = make_size_prefixed_bytes(2, 1);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next_span());
   }
 
   SUBCASE("Impossible payload length")
@@ -496,7 +507,8 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "RawWriter and SizeWriter agree" * doctest::test_suite("serialisation"))
+  "RawWriter, SizeWriter and SpanWriter agree" *
+  doctest::test_suite("serialisation"))
 {
   const auto check = [](const auto& entry) {
     ccf::kv::RawWriter raw_writer;
@@ -506,6 +518,24 @@ TEST_CASE(
     size_writer.append(entry);
     REQUIRE(raw_writer.size() == expected_size);
     REQUIRE(size_writer.size() == expected_size);
+
+    // A SpanWriter writes the same bytes into a buffer of exactly that size,
+    // and nothing beyond it
+    std::vector<uint8_t> buffer(expected_size);
+    ccf::kv::SpanWriter span_writer(buffer);
+    span_writer.append(entry);
+    REQUIRE(span_writer.size() == expected_size);
+    REQUIRE(buffer == raw_writer.get_raw_data());
+    REQUIRE_THROWS_AS(span_writer.append(1), std::length_error);
+    REQUIRE_THROWS_AS(span_writer.append(entry), std::length_error);
+    REQUIRE(span_writer.size() == expected_size);
+
+    // Once cleared, it writes from the start of the buffer again
+    span_writer.clear();
+    REQUIRE(span_writer.size() == 0);
+    span_writer.append(entry);
+    REQUIRE(span_writer.size() == expected_size);
+    REQUIRE(buffer == raw_writer.get_raw_data());
   };
 
   check(ccf::kv::EntryType::WriteSetWithCommitEvidenceAndClaims);
@@ -520,6 +550,163 @@ TEST_CASE(
   check(std::vector<ccf::kv::Version>{1, 2, 3});
   check(ccf::kv::serialisers::SerialisedEntry());
   check(ccf::kv::serialisers::SerialisedEntry(91, 'y'));
+}
+
+TEST_CASE(
+  "Writers append size-prefixed payloads in place" *
+  doctest::test_suite("serialisation"))
+{
+  for (const size_t payload_size : {0, 37})
+  {
+    INFO(payload_size);
+    std::vector<uint8_t> payload(payload_size);
+    std::iota(payload.begin(), payload.end(), uint8_t{1});
+    ccf::kv::RawWriter expected;
+    expected.append(payload);
+
+    size_t fills = 0;
+    const auto fill = [&](std::span<uint8_t> out) {
+      ++fills;
+      REQUIRE(out.size() == payload.size());
+      std::ranges::copy(payload, out.begin());
+    };
+
+    ccf::kv::RawWriter raw_writer;
+    raw_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(raw_writer.get_raw_data() == expected.get_raw_data());
+
+    // Only measures, so does not fill, and has no data to return
+    ccf::kv::SizeWriter size_writer;
+    size_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(size_writer.size() == expected.size());
+    REQUIRE_THROWS_AS(std::ignore = size_writer.view(), std::logic_error);
+
+    std::vector<uint8_t> buffer(expected.size());
+    ccf::kv::SpanWriter span_writer(buffer);
+    span_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(span_writer.size() == expected.size());
+    REQUIRE(buffer == expected.get_raw_data());
+
+    // A buffer too small for the payload is detected before filling it
+    std::vector<uint8_t> small_buffer(expected.size() - 1);
+    ccf::kv::SpanWriter small_writer(small_buffer);
+    REQUIRE_THROWS_AS(
+      small_writer.append_size_prefixed_in_place(payload_size, fill),
+      std::length_error);
+    REQUIRE(small_writer.size() == 0);
+
+    // Empty payloads are not filled
+    REQUIRE(fills == (payload_size == 0 ? 0 : 2));
+  }
+}
+
+TEST_CASE(
+  "Writers discard a payload whose in-place fill throws" *
+  doctest::test_suite("serialisation"))
+{
+  // Payloads within and beyond RawWriter's inline capacity
+  for (const size_t payload_size : {37, 1000})
+  {
+    INFO(payload_size);
+    const uint32_t header = 0x01020304;
+    std::vector<uint8_t> payload(payload_size);
+    std::iota(payload.begin(), payload.end(), uint8_t{1});
+    ccf::kv::RawWriter expected;
+    expected.append(header);
+    expected.append(payload);
+    const auto expected_header = expected.view().first(sizeof(header));
+
+    const auto failing_fill = [](std::span<uint8_t> out) {
+      std::ranges::fill(out.first(out.size() / 2), uint8_t{0xff});
+      throw std::runtime_error("fill failed");
+    };
+    const auto fill = [&](std::span<uint8_t> out) {
+      std::ranges::copy(payload, out.begin());
+    };
+
+    // The writer keeps only what it held before the failed append, so it
+    // exports neither the payload's size nor the part of it that was written,
+    // and can still be appended to
+    ccf::kv::RawWriter raw_writer;
+    raw_writer.append(header);
+    REQUIRE_THROWS_WITH_AS(
+      raw_writer.append_size_prefixed_in_place(payload_size, failing_fill),
+      "fill failed",
+      std::runtime_error);
+    REQUIRE(raw_writer.size() == sizeof(header));
+    REQUIRE(std::ranges::equal(raw_writer.view(), expected_header));
+    raw_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(raw_writer.get_raw_data() == expected.get_raw_data());
+
+    std::vector<uint8_t> buffer(expected.size());
+    ccf::kv::SpanWriter span_writer(buffer);
+    span_writer.append(header);
+    REQUIRE_THROWS_WITH_AS(
+      span_writer.append_size_prefixed_in_place(payload_size, failing_fill),
+      "fill failed",
+      std::runtime_error);
+    REQUIRE(span_writer.size() == sizeof(header));
+    REQUIRE(std::ranges::equal(span_writer.view(), expected_header));
+    span_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(buffer == expected.get_raw_data());
+  }
+}
+
+TEST_CASE(
+  "Writers reject sizes beyond the serialisable limit" *
+  doctest::test_suite("serialisation"))
+{
+  constexpr auto max_size = ccf::kv::RawWriter::MAX_SIZE;
+  size_t fills = 0;
+  const auto fill = [&fills](std::span<uint8_t>) { ++fills; };
+
+  // A payload which, with its size prefix, would not fit in a ptrdiff_t is
+  // rejected without reserving space for it or filling it
+  for (const size_t payload_size :
+       {max_size - sizeof(size_t) + 1, std::numeric_limits<size_t>::max()})
+  {
+    INFO(payload_size);
+    ccf::kv::RawWriter raw_writer;
+    REQUIRE_THROWS_AS(
+      raw_writer.append_size_prefixed_in_place(payload_size, fill),
+      std::length_error);
+    REQUIRE(raw_writer.size() == 0);
+
+    std::vector<uint8_t> buffer(sizeof(size_t));
+    ccf::kv::SpanWriter span_writer(buffer);
+    REQUIRE_THROWS_AS(
+      span_writer.append_size_prefixed_in_place(payload_size, fill),
+      std::length_error);
+    REQUIRE(span_writer.size() == 0);
+
+    ccf::kv::SizeWriter size_writer;
+    REQUIRE_THROWS_AS(
+      size_writer.append_size_prefixed_in_place(payload_size, fill),
+      std::length_error);
+    REQUIRE(size_writer.size() == 0);
+  }
+
+  // A payload which, with its size prefix, fits exactly is accepted
+  ccf::kv::SizeWriter exact_writer;
+  exact_writer.append_size_prefixed_in_place(max_size - sizeof(size_t), fill);
+  REQUIRE(exact_writer.size() == max_size);
+
+  // The total measured by a SizeWriter is bounded the same way, up to and
+  // including the limit, whichever way it is reached
+  ccf::kv::SizeWriter size_writer;
+  size_writer.append_size_prefixed_in_place(
+    max_size - sizeof(size_t) - sizeof(uint32_t), fill);
+  REQUIRE(size_writer.size() == max_size - sizeof(uint32_t));
+  REQUIRE_THROWS_AS(
+    size_writer.append_size_prefixed_in_place(0, fill), std::length_error);
+  REQUIRE_THROWS_AS(size_writer.append(uint64_t{0}), std::length_error);
+  REQUIRE(size_writer.size() == max_size - sizeof(uint32_t));
+  size_writer.append(uint32_t{0});
+  REQUIRE(size_writer.size() == max_size);
+  REQUIRE_THROWS_AS(size_writer.append(uint8_t{0}), std::length_error);
+  REQUIRE(size_writer.size() == max_size);
+
+  REQUIRE(fills == 0);
 }
 
 TEST_CASE(
@@ -605,6 +792,168 @@ TEST_CASE(
     REQUIRE(handle_priv->get("privk1") == "privv1");
     REQUIRE(handle_pub->get("pubk1") == "pubv1");
   }
+}
+
+TEST_CASE(
+  "Encrypted entries retain the GCM layout and authenticate public bytes" *
+  doctest::test_suite("serialisation"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  secrets->set_secret(4, ccf::make_ledger_secret());
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  const ccf::TxID tx_id{2, 2};
+
+  const auto check = [&](
+                       const std::vector<uint8_t>& public_domain,
+                       const std::vector<uint8_t>& private_domain,
+                       ccf::kv::EntryType type,
+                       bool historical_hint) {
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor, tx_id, type, 0, {}, ccf::no_claims(), historical_hint);
+    const auto entry =
+      serialiser.serialise_domains(public_domain, private_domain);
+
+    std::vector<uint8_t> header;
+    std::vector<uint8_t> cipher;
+    REQUIRE(encryptor->encrypt(
+      private_domain,
+      public_domain,
+      header,
+      cipher,
+      tx_id,
+      type,
+      historical_hint));
+
+    ccf::kv::SerialisedEntryHeader entry_header;
+    entry_header.set_size(
+      header.size() + sizeof(size_t) + public_domain.size() + cipher.size());
+    std::vector<uint8_t> expected(entry.size());
+    auto* data = expected.data();
+    auto remaining = expected.size();
+    serialized::write(data, remaining, entry_header);
+    serialized::write(data, remaining, header.data(), header.size());
+    serialized::write(data, remaining, public_domain.size());
+    serialized::write(
+      data, remaining, public_domain.data(), public_domain.size());
+    serialized::write(data, remaining, cipher.data(), cipher.size());
+    REQUIRE(remaining == 0);
+    REQUIRE(entry == expected);
+
+    std::vector<uint8_t> decrypted;
+    ccf::kv::Term term = 0;
+    REQUIRE(encryptor->decrypt(
+      cipher, public_domain, header, decrypted, tx_id.seqno, term, true));
+    REQUIRE(decrypted == private_domain);
+    if (type != ccf::kv::EntryType::Snapshot)
+    {
+      REQUIRE(term == tx_id.view);
+    }
+
+    auto changed_public_domain = public_domain;
+    changed_public_domain.front() ^= 1;
+    REQUIRE_FALSE(encryptor->decrypt(
+      cipher,
+      changed_public_domain,
+      header,
+      decrypted,
+      tx_id.seqno,
+      term,
+      true));
+  };
+
+  check({1, 2, 3}, {}, ccf::kv::EntryType::WriteSet, false);
+  check({1}, {4, 5, 6}, ccf::kv::EntryType::WriteSet, false);
+  check({1, 2, 3}, {4, 5, 6}, ccf::kv::EntryType::WriteSet, false);
+  check({1, 2, 3}, {4, 5, 6}, ccf::kv::EntryType::Snapshot, true);
+
+  auto missing_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ccf::kv::RawKvStoreSerialiser failing(
+    std::make_shared<ccf::NodeEncryptor>(missing_secrets),
+    tx_id,
+    ccf::kv::EntryType::WriteSet,
+    0);
+  REQUIRE_THROWS_AS(
+    failing.serialise_domains({1, 2, 3}, {4, 5, 6}),
+    ccf::kv::KvSerialiserException);
+}
+
+TEST_CASE(
+  "Encrypted public and private transactions replay" *
+  doctest::test_suite("serialisation"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  ccf::kv::Store source;
+  source.set_encryptor(encryptor);
+  source.set_consensus(consensus);
+  ccf::kv::Store recovered;
+  recovered.set_encryptor(encryptor);
+
+  MapTypes::StringString public_map("public:pub_map");
+  MapTypes::StringString private_map("priv_map");
+  for (size_t i = 1; i <= 3; ++i)
+  {
+    auto tx = source.create_tx();
+    if (i != 2)
+    {
+      tx.rw(public_map)->put(std::to_string(i), "public");
+    }
+    if (i != 1)
+    {
+      tx.rw(private_map)->put(std::to_string(i), "private");
+    }
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    const auto entry = consensus->get_latest_data();
+    REQUIRE(entry.has_value());
+    REQUIRE(
+      recovered.deserialize(*entry)->apply() == ccf::kv::ApplyResult::PASS);
+  }
+
+  auto tx = recovered.create_tx();
+  REQUIRE(tx.ro(public_map)->get("1") == "public");
+  REQUIRE(tx.ro(private_map)->get("2") == "private");
+  REQUIRE(tx.ro(public_map)->get("3") == "public");
+  REQUIRE(tx.ro(private_map)->get("3") == "private");
+}
+
+TEST_CASE(
+  "Partial encryption failure cannot replicate an entry" *
+  doctest::test_suite("serialisation"))
+{
+  class FailingEncryptor : public ccf::NodeEncryptor
+  {
+  public:
+    using ccf::NodeEncryptor::NodeEncryptor;
+
+    bool encrypt(
+      std::span<const uint8_t>,
+      std::span<const uint8_t>,
+      std::span<uint8_t> header,
+      std::span<uint8_t> cipher,
+      const ccf::TxID&,
+      ccf::kv::EntryType,
+      bool) override
+    {
+      std::fill(header.begin(), header.end(), 0xAA);
+      std::fill(cipher.begin(), cipher.end(), 0xBB);
+      return false;
+    }
+  };
+
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<FailingEncryptor>(secrets));
+  store.set_consensus(consensus);
+
+  auto tx = store.create_tx();
+  tx.rw<MapTypes::StringString>("private_map")->put("key", "secret");
+  REQUIRE_THROWS_AS(tx.commit(), ccf::kv::KvSerialiserException);
+  REQUIRE_FALSE(consensus->get_latest_data().has_value());
 }
 
 TEST_CASE(
@@ -705,6 +1054,7 @@ struct CustomClass
 // These macros allow the default nlohmann JSON serialiser to be used
 DECLARE_JSON_TYPE(CustomClass);
 DECLARE_JSON_REQUIRED_FIELDS(CustomClass, s, n);
+
 // SNIPPET_END: CustomClass definition
 
 // Not really intended to be extended, but lets us use the BlitSerialiser for
@@ -760,6 +1110,7 @@ struct CustomSerialiser
 
   static constexpr auto size_of_n = 8;
   static constexpr auto size_of_size_of_s = 8;
+
   static ccf::kv::serialisers::SerialisedEntry to_serialised(
     const CustomClass& cc)
   {
@@ -789,6 +1140,7 @@ struct CustomSerialiser
     return cc;
   }
 };
+
 // SNIPPET_END: CustomSerialiser definition
 
 struct CustomJsonSerialiser

@@ -3,13 +3,15 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose.h"
 
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
+#include "ccf/crypto/openssl/cose_key.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/hex.h"
 #include "crypto/cbor_helpers.h"
 #include "crypto/certs.h"
@@ -17,19 +19,21 @@
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/eddsa_public_key.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "crypto/openssl/rsa_public_key.h"
 #include "crypto/test/cbor_printer.h"
 #include "node/cose_common.h"
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <doctest/doctest.h>
 #include <exception>
 #include <limits>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tav/cbor.hpp>
@@ -126,6 +130,28 @@ static void verify_envelope(
       authned_content.begin(), authned_content.end());
     REQUIRE(payload == payload_copy);
   }
+}
+
+// An Ed25519 public key imported from its 32 raw bytes, as OpenSSL accepts
+// them, including encodings that are not canonical
+static ccf::crypto::EdDSAPublicKeyPtr eddsa_public_key_from_x(
+  const std::vector<uint8_t>& x)
+{
+  ccf::crypto::JsonWebKeyEdDSAPublic jwk;
+  jwk.kty = ccf::crypto::JsonWebKeyType::OKP;
+  jwk.crv = ccf::crypto::JsonWebKeyEdDSACurve::ED25519;
+  jwk.x = ccf::ds::b64url_from_raw(x, false /* with_padding */);
+  return ccf::crypto::make_eddsa_public_key(jwk);
+}
+
+// x with y = p, the Ed25519 field prime 2^255 - 19 in little-endian order: a
+// non-canonical encoding of the point with y = 0
+static std::vector<uint8_t> ed25519_x_with_y_equal_to_prime()
+{
+  std::vector<uint8_t> x(32, 0xff);
+  x.front() = 0xed;
+  x.back() = 0x7f;
+  return x;
 }
 
 TEST_CASE("COSE Sign1 TBS encoding")
@@ -271,10 +297,10 @@ TEST_CASE("COSE signing propagates CBOR encoding failures")
   CHECK_THROWS_AS(
     ccf::cose::sign_ledger(
       *key, "kid", 1700000000, invalid_utf8, "sub", "2.1", {}),
-    tav::cbor::EncodeError);
+    tav::Exception);
   CHECK_THROWS_AS(
     ccf::cose::sign_endorsement(*key, 1700000000, invalid_utf8, {}, {}, {}),
-    tav::cbor::EncodeError);
+    tav::Exception);
 }
 
 TEST_CASE("COSE ECDSA round trips and algorithm binding")
@@ -282,6 +308,7 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
   using namespace tav::cbor;
   using ccf::cose::header::iana::ALG;
   using ccf::crypto::CurveID;
+
   struct Curve
   {
     CurveID id;
@@ -289,6 +316,7 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
     int64_t esp;
     size_t signature_size;
   };
+
   constexpr std::array curves = {
     Curve{CurveID::SECP256R1, -7, -9, 64},
     Curve{CurveID::SECP384R1, -35, -51, 96},
@@ -444,6 +472,73 @@ TEST_CASE("COSE RSA-PSS verification")
   }
 }
 
+TEST_CASE("COSE EdDSA verification")
+{
+  const auto key = ccf::crypto::make_eddsa_key_pair();
+  const auto issuer =
+    ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  const auto cert = ccf::crypto::create_endorsed_cert(
+    key->public_key_pem(),
+    "CN=eddsa",
+    {},
+    "20200101000000Z",
+    "20301231235959Z",
+    issuer->private_key_pem(),
+    issuer->self_sign("CN=issuer", "20200101000000Z", "20301231235959Z"));
+  const std::array verifiers = {
+    ccf::crypto::make_cose_verifier_from_key(key->public_key_pem()),
+    ccf::crypto::make_cose_verifier_from_pem_cert(cert),
+    ccf::crypto::make_cose_verifier_from_key(
+      ccf::crypto::COSEKey::from_der_cert(ccf::crypto::cert_pem_to_der(cert)))};
+  auto wrong_payload = detached_payload;
+  wrong_payload.back() ^= 0xff;
+
+  // {1: -8} EdDSA, and {1: -19} Ed25519, its fully-specified identifier
+  for (const auto& [alg, phdr_hex] :
+       {std::pair{int64_t{-8}, "a10127"}, std::pair{int64_t{-19}, "a10132"}})
+  {
+    CAPTURE(alg);
+    const auto phdr = ccf::ds::from_hex(phdr_hex);
+    const auto sig =
+      key->sign(ccf::cose::make_cose_sign1_tbs(phdr, detached_payload));
+    REQUIRE(sig.size() == 64);
+    const auto envelope =
+      ccf::cose::make_cose_sign1_envelope(phdr, detached_payload, sig, false);
+    const auto other_alg = alg == -8 ? -19 : -8;
+
+    for (const auto& verifier : verifiers)
+    {
+      std::span<uint8_t> authenticated;
+      REQUIRE(verifier->verify(envelope, authenticated));
+      CHECK(std::ranges::equal(authenticated, detached_payload));
+      // Both identifiers name the same algorithm for an Ed25519 key
+      CHECK(
+        verifier->verify_decomposed(phdr, detached_payload, sig, other_alg));
+      CHECK_FALSE(verifier->verify_decomposed(phdr, wrong_payload, sig, alg));
+      CHECK_FALSE(verifier->verify_decomposed(phdr, detached_payload, sig, -7));
+      CHECK_FALSE(
+        verifier->verify_decomposed(phdr, detached_payload, sig, -37));
+      for (const auto size : {size_t{0}, sig.size() - 1, sig.size() + 1})
+      {
+        CAPTURE(size);
+        auto malformed_sig = sig;
+        malformed_sig.resize(size);
+        CHECK_FALSE(verifier->verify_decomposed(
+          phdr, detached_payload, malformed_sig, alg));
+      }
+    }
+
+    // The same key, through a parsed COSE_Key restricted to this alg
+    std::span<uint8_t> authenticated;
+    CHECK(ccf::crypto::make_cose_verifier_from_key(
+            ccf::crypto::COSEKey::from_cbor(
+              ccf::crypto::COSEKey(
+                ccf::crypto::make_eddsa_public_key(key->public_key_pem()))
+                .to_cbor(alg)))
+            ->verify(envelope, authenticated));
+  }
+}
+
 TEST_CASE("COSE verifier returns false for malformed messages")
 {
   const std::vector<uint8_t> malformed = {0xff};
@@ -569,6 +664,93 @@ TEST_CASE("Check unprotected header")
   }
 }
 
+TEST_CASE("Unprotected header edits preserve submitted encodings")
+{
+  using namespace tav::cbor;
+
+  const auto original =
+    nondet_parse(envelope_flat).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+  const auto append_head =
+    [](
+      std::vector<uint8_t>& out, uint8_t major, size_t argument, size_t width) {
+      // Additional info 24..27 selects a 1, 2, 4 or 8 byte argument.
+      const auto additional = 24 + std::countr_zero(width);
+      out.push_back((major << 5) | additional);
+      for (size_t i = width; i > 0; --i)
+      {
+        out.push_back((argument >> (8 * (i - 1))) & 0xff);
+      }
+    };
+
+  const auto append_bytes =
+    [&](std::vector<uint8_t>& out, const Value& bytes, size_t width) {
+      const auto payload = bytes.as_bytes();
+      append_head(out, 2, payload.size(), width);
+      out.insert(out.end(), payload.begin(), payload.end());
+    };
+
+  for (const size_t width : {1, 2, 4, 8})
+  {
+    CAPTURE(width);
+    std::vector<uint8_t> prefix;
+    append_head(prefix, 6, 18, width);
+    append_head(prefix, 4, 4, width);
+    append_bytes(prefix, original.array_at(0), width);
+    std::vector<uint8_t> suffix;
+    append_bytes(suffix, original.array_at(2), width);
+    append_bytes(suffix, original.array_at(3), width);
+
+    for (const auto* header_hex : {"a0", "b800", "a1182a83a10141ffd8184100f5"})
+    {
+      const auto header = ccf::ds::from_hex(header_hex);
+      auto submitted = prefix;
+      submitted.insert(submitted.end(), header.begin(), header.end());
+      submitted.insert(submitted.end(), suffix.begin(), suffix.end());
+      verify_envelope(submitted, detached_payload, false);
+
+      auto expected = prefix;
+      expected.push_back(0xa0);
+      expected.insert(expected.end(), suffix.begin(), suffix.end());
+      const auto stripped = ccf::cose::edit::set_unprotected_header(
+        submitted, ccf::cose::edit::desc::Empty{});
+      CHECK(stripped == expected);
+      verify_envelope(stripped, detached_payload, false);
+
+      const ccf::cose::edit::desc::Value receipt_desc{
+        ccf::cose::edit::pos::InArray{}, 394, value};
+      const auto transparent =
+        ccf::cose::edit::set_unprotected_header(stripped, receipt_desc);
+      CHECK(std::equal(prefix.begin(), prefix.end(), transparent.begin()));
+      CHECK(std::equal(suffix.rbegin(), suffix.rend(), transparent.rbegin()));
+      CHECK(
+        ccf::cose::edit::set_unprotected_header(
+          transparent, ccf::cose::edit::desc::Empty{}) == expected);
+      verify_envelope(transparent, detached_payload, false);
+    }
+  }
+
+  for (const auto* malformed_hex : {
+         "d28340a040", // Array of 3 elements
+         "d28540a0404000", // Array of 5 elements
+         "d28440004040", // Unprotected header is not a map
+         "d28440a00040", // Payload is neither bstr nor nil
+         "d28440a04000", // Signature is not a bstr
+         "d28440a0404000", // Trailing data after the envelope
+         "d2845f40ffa04040", // Indefinite-length protected header
+       })
+  {
+    CHECK_THROWS_AS(
+      ccf::cose::edit::set_unprotected_header(
+        ccf::ds::from_hex(malformed_hex), ccf::cose::edit::desc::Empty{}),
+      tav::Exception);
+  }
+
+  const auto empty_fields = ccf::ds::from_hex("d28440a04040");
+  CHECK(
+    ccf::cose::edit::set_unprotected_header(
+      empty_fields, ccf::cose::edit::desc::Empty{}) == empty_fields);
+}
+
 TEST_CASE("Detach payload")
 {
   using namespace tav::cbor;
@@ -632,15 +814,14 @@ TEST_CASE("Detach payload")
   // Malformed inputs are rejected rather than rewritten
   {
     const std::vector<uint8_t> garbage = {0xDE, 0xAD, 0xBE, 0xEF};
-    REQUIRE_THROWS_AS(
-      ccf::cose::edit::detach_payload(garbage), tav::cbor::DecodeError);
+    REQUIRE_THROWS_AS(ccf::cose::edit::detach_payload(garbage), tav::Exception);
 
     // Untagged COSE_Sign1 structure
     const auto untagged = nondet_parse(envelope_flat)
                             .tag_at(ccf::cbor::tag::COSE_SIGN_1)
                             .nondet_serialize();
     REQUIRE_THROWS_AS(
-      ccf::cose::edit::detach_payload(untagged), tav::cbor::DecodeError);
+      ccf::cose::edit::detach_payload(untagged), tav::Exception);
 
     // Payload which is neither a byte string nor nil
     const auto structure =
@@ -650,7 +831,7 @@ TEST_CASE("Detach payload")
       ccf::cbor::with_element(structure, 2, make_signed(42)));
     REQUIRE_THROWS_AS(
       ccf::cose::edit::detach_payload(with_int_payload.nondet_serialize()),
-      tav::cbor::DecodeError);
+      tav::Exception);
 
     // Missing signature
     std::vector<Value> truncated;
@@ -661,7 +842,7 @@ TEST_CASE("Detach payload")
       ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(truncated)));
     REQUIRE_THROWS_AS(
       ccf::cose::edit::detach_payload(without_signature.nondet_serialize()),
-      tav::cbor::DecodeError);
+      tav::Exception);
 
     // Extra element beyond the four of COSE_Sign1 must not be silently
     // dropped, even though the first four elements are well-formed
@@ -675,7 +856,7 @@ TEST_CASE("Detach payload")
       make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(extended)));
     REQUIRE_THROWS_AS(
       ccf::cose::edit::detach_payload(with_extra_element.nondet_serialize()),
-      tav::cbor::DecodeError);
+      tav::Exception);
   }
 }
 
@@ -796,6 +977,57 @@ TEST_CASE("Decode CCF COSE receipt")
   REQUIRE(receipt.phdr.ccf.txid == "2.17");
   REQUIRE(receipt.phdr.vds == 2);
 
+  {
+    using namespace tav::cbor;
+
+    const auto envelope =
+      nondet_parse(receipt_bytes).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    const auto phdr = nondet_parse(envelope.array_at(0).as_bytes());
+    const std::array<int64_t, 9> vds_values = {
+      0,
+      1,
+      2,
+      3,
+      -1,
+      (int64_t{1} << 32) + 2,
+      2 - (int64_t{1} << 32),
+      std::numeric_limits<int64_t>::min() + 2,
+      std::numeric_limits<int64_t>::max()};
+
+    for (const auto vds : vds_values)
+    {
+      CAPTURE(vds);
+      const auto encoded_phdr =
+        ccf::cbor::with_entry(
+          phdr, ccf::cose::header::iana::VDS, make_signed(vds))
+          .nondet_serialize();
+      const auto edited =
+        make_tagged(
+          ccf::cbor::tag::COSE_SIGN_1,
+          ccf::cbor::with_element(envelope, 0, make_bytes(encoded_phdr)))
+          .nondet_serialize();
+
+      for (const bool recompute_root : {false, true})
+      {
+        CAPTURE(recompute_root);
+        if (vds == ccf::cose::value::CCF_LEDGER_SHA256)
+        {
+          REQUIRE(
+            ccf::cose::decode_ccf_receipt(edited, recompute_root).phdr.vds ==
+            vds);
+        }
+        else
+        {
+          REQUIRE_THROWS_WITH_AS(
+            ccf::cose::decode_ccf_receipt(edited, recompute_root),
+            fmt::format("Unsupported vds value ({}) in protected header", vds)
+              .c_str(),
+            ccf::cose::COSEDecodeError);
+        }
+      }
+    }
+  }
+
   REQUIRE(
     ccf::ds::to_hex(receipt.merkle_root) ==
     "209f5aefb0f45d7647c917337044c44a1b848fe833fa2869d016bea797d79a9e");
@@ -837,6 +1069,129 @@ TEST_CASE("Decode CCF COSE receipt")
     REQUIRE_THROWS_AS(
       ccf::cose::recompute_merkle_root(malformed), ccf::cose::COSEDecodeError);
   }
+}
+
+TEST_CASE("CCF receipt proof schema and mixed proofs")
+{
+  using namespace tav::cbor;
+
+  const std::string hash = "5820" + std::string(64, '0');
+  const std::string leaf = "83" + hash + "626365" + hash;
+  const auto encode_bytes = [](const std::string& hex) {
+    return ccf::ds::to_hex(
+      make_bytes(ccf::ds::from_hex(hex)).nondet_serialize());
+  };
+
+  const auto inclusion =
+    [&](const std::string& leaf_hex, const std::string& path_hex) {
+      return encode_bytes("a201" + leaf_hex + "02" + path_hex);
+    };
+
+  const auto decode = [](const std::string& vdp_hex) {
+    const auto encoded = ccf::ds::from_hex("d28440a119018c" + vdp_hex + "f640");
+    const auto envelope =
+      nondet_parse(encoded).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    return ccf::cose::decode_merkle_proofs(envelope);
+  };
+
+  const auto valid = inclusion(leaf, "80");
+  REQUIRE(decode("a12081" + valid).front().path.empty());
+
+  for (const auto& malformed : {
+         // Leaf with 2 elements
+         inclusion("82" + hash + "626365", "80"),
+         // Leaf with 4 elements
+         inclusion("84" + hash + "626365" + hash + "00", "80"),
+         // Empty commit evidence
+         inclusion("83" + hash + "60" + hash, "80"),
+         // Commit evidence over the maximum size
+         inclusion(
+           "83" + hash +
+             ccf::ds::to_hex(
+               make_string(std::string(1025, 'x')).nondet_serialize()) +
+             hash,
+           "80"),
+         // Commit evidence is a bstr, not a tstr
+         inclusion("83" + hash + "426365" + hash, "80"),
+         // Claims digest of 31 bytes
+         inclusion(
+           "83" + hash + "626365" + "581f" + std::string(62, '0'), "80"),
+         // Path is a map, not an array
+         inclusion(leaf, "a0"),
+         // Path element direction is an int, not a bool
+         inclusion(leaf, "818200" + hash),
+         // Path element with 3 items
+         inclusion(leaf, "8183f4" + hash + "00"),
+         // Path sibling of 31 bytes
+         inclusion(leaf, "8182f4581f" + std::string(62, '0')),
+         // Unexpected extra label
+         encode_bytes("a301" + leaf + "02800300"),
+         // Duplicate leaf label
+         encode_bytes("a301" + leaf + "01800280"),
+         // Trailing data after the proof map
+         encode_bytes("a201" + leaf + "028000"),
+       })
+  {
+    CHECK_THROWS(decode("a12081" + malformed));
+  }
+
+  const auto maximum_evidence = inclusion(
+    "83" + hash +
+      ccf::ds::to_hex(make_string(std::string(1024, 'x')).nondet_serialize()) +
+      hash,
+    "80");
+  CHECK_NOTHROW(decode("a12081" + maximum_evidence));
+
+  for (const auto& malformed_vdp : std::vector<std::string>{
+         "a0", // Empty verifiable proofs map
+         "a12080", // Empty inclusion proofs array
+         "a120a0", // Inclusion proofs is a map, not an array
+         "a1208140", // Inclusion proof is an empty bstr
+         "a12281" + valid, // Unsupported proof label -3
+         "a22081" + valid + "2081" + valid, // Duplicate inclusion label
+         "a22081" + valid + "2180", // Empty consistency proofs array
+       })
+  {
+    CAPTURE(malformed_vdp);
+    CHECK_THROWS(decode(malformed_vdp));
+  }
+
+  const auto decoded = decode("a12081" + valid).front();
+  const auto anchor =
+    ccf::ds::to_hex(ccf::cose::recompute_merkle_root(decoded));
+  const auto path = "8182f4" + hash;
+  const auto inclusion_with_path = inclusion(leaf, path);
+  const auto consistency = encode_bytes("a2015820" + anchor + "02" + path);
+  CHECK_NOTHROW(decode("a22081" + inclusion_with_path + "2181" + consistency));
+
+  for (const auto& malformed : {
+         // Anchor does not reconstruct the inclusion root
+         encode_bytes("a201" + hash + "02" + path),
+         // Empty path
+         encode_bytes("a2015820" + anchor + "0280"),
+         // First sibling is on the left
+         encode_bytes("a2015820" + anchor + "028182f5" + hash),
+         // Path element direction is an int, not a bool
+         encode_bytes("a2015820" + anchor + "02818200" + hash),
+         // Unexpected extra label
+         encode_bytes("a3015820" + anchor + "02" + path + "0300"),
+         // Anchor of 31 bytes
+         encode_bytes("a201581f" + std::string(62, '0') + "02" + path),
+         // Trailing data after the proof map
+         encode_bytes("a2015820" + anchor + "02" + path + "00"),
+       })
+  {
+    CHECK_THROWS(decode("a22081" + inclusion_with_path + "2181" + malformed));
+    CHECK_THROWS(decode(
+      "a22081" + inclusion_with_path + "2182" + consistency + malformed));
+  }
+}
+
+static ccf::crypto::OpenSSL::Unique_X509 parse_der_cert(
+  const std::vector<uint8_t>& der)
+{
+  ccf::crypto::OpenSSL::Unique_BIO bio(der);
+  return {bio, false, true};
 }
 
 TEST_CASE("COSE verifier imports public keys and certificates")
@@ -889,6 +1244,50 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     CHECK(verifier->verify(envelope, authned));
   }
 
+  SUBCASE("parsed certificate")
+  {
+    auto cert = parse_der_cert(cert_der);
+    const auto key = ccf::crypto::OpenSSL::cose_key_from_x509(cert);
+    CHECK(
+      key.thumbprint_sha256() ==
+      ccf::crypto::COSEKey::from_der_cert(cert_der).thumbprint_sha256());
+    // The key does not depend on the certificate that it was taken from
+    cert.reset(nullptr);
+    std::span<uint8_t> authned;
+    CHECK(
+      ccf::crypto::make_cose_verifier_from_key(key)->verify(envelope, authned));
+
+    CHECK_THROWS_WITH_AS(
+      std::ignore = ccf::crypto::OpenSSL::cose_key_from_x509(nullptr),
+      "No certificate",
+      std::invalid_argument);
+  }
+
+  SUBCASE("DER public key bytes")
+  {
+    const auto spki = kp->public_key_der();
+    auto verifier = ccf::crypto::make_cose_verifier_from_key(
+      ccf::crypto::COSEKey::from_der_public_key(spki));
+    std::span<uint8_t> authned;
+    CHECK(verifier->verify(envelope, authned));
+
+    auto trailing = spki;
+    trailing.push_back(0x00);
+    CHECK_THROWS_WITH_AS(
+      std::ignore = ccf::crypto::COSEKey::from_der_public_key(trailing),
+      "Unexpected data after public key",
+      std::invalid_argument);
+    // The DER verifier factory imports keys the same way
+    CHECK_THROWS_WITH_AS(
+      ccf::crypto::make_cose_verifier_from_key(
+        std::span<const uint8_t>(trailing)),
+      "Unexpected data after public key",
+      std::runtime_error);
+    CHECK_THROWS_AS(
+      std::ignore = ccf::crypto::COSEKey::from_der_public_key({}),
+      std::invalid_argument);
+  }
+
   SUBCASE("unsupported certificate key type")
   {
     // Test-only key on a valid EC curve that COSE verification rejects.
@@ -897,9 +1296,16 @@ TEST_CASE("COSE verifier imports public keys and certificates")
       "MFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEgg35KU1dh2JezYWNWE1uGkQLG+NiLfje\n"
       "WJQtjC/UjQHVQVWvlfifZuz2jYYl9SehNLb7dMeVjcK6zloSMJz1Uw==\n"
       "-----END PUBLIC KEY-----\n");
+    // X25519 keys are OKP keys for key agreement, not signatures, and an
+    // Ed25519 key whose y is not below the field prime is not canonical
     for (const auto& subject_key :
-         {ccf::crypto::make_eddsa_key_pair()->public_key_pem(), secp256k1_key})
+         {ccf::crypto::make_eddsa_key_pair(ccf::crypto::CurveID::X25519)
+            ->public_key_pem(),
+          secp256k1_key,
+          eddsa_public_key_from_x(ed25519_x_with_y_equal_to_prime())
+            ->public_key_pem()})
     {
+      CAPTURE(subject_key.str());
       const auto unsupported_cert = ccf::crypto::create_endorsed_cert(
         subject_key,
         "CN=unsupported COSE key",
@@ -914,20 +1320,13 @@ TEST_CASE("COSE verifier imports public keys and certificates")
       CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_from_pem_cert(unsupported_cert),
         std::invalid_argument);
-      // cert_pem_to_der() throws for Ed25519 keys, so base64-decode the PEM
-      // body to get the DER
-      std::string der_b64;
-      std::istringstream pem_lines(unsupported_cert.str());
-      for (std::string line; std::getline(pem_lines, line);)
-      {
-        if (!line.starts_with("-----"))
-        {
-          der_b64 += line;
-        }
-      }
       CHECK_THROWS_AS(
         std::ignore = ccf::crypto::COSEKey::from_der_cert(
-          ccf::crypto::raw_from_b64(der_b64)),
+          ccf::crypto::cert_pem_to_der(unsupported_cert)),
+        std::invalid_argument);
+      CHECK_THROWS_AS(
+        std::ignore = ccf::crypto::OpenSSL::cose_key_from_x509(
+          parse_der_cert(ccf::crypto::cert_pem_to_der(unsupported_cert))),
         std::invalid_argument);
       CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_from_key(subject_key),
@@ -949,6 +1348,10 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     const auto weak_cert_der = ccf::crypto::cert_pem_to_der(weak_cert);
     CHECK_THROWS_AS(
       std::ignore = ccf::crypto::COSEKey::from_der_cert(weak_cert_der),
+      std::invalid_argument);
+    CHECK_THROWS_AS(
+      std::ignore =
+        ccf::crypto::OpenSSL::cose_key_from_x509(parse_der_cert(weak_cert_der)),
       std::invalid_argument);
     CHECK_THROWS_AS(
       ccf::crypto::make_cose_verifier_from_der_cert(weak_cert_der),
@@ -976,6 +1379,11 @@ TEST_CASE("COSE verifier imports public keys and certificates")
       std::invalid_argument);
     CHECK_THROWS_AS(
       std::ignore = ccf::crypto::COSEKey::from_der_cert(invalid_der),
+      std::invalid_argument);
+    CHECK_THROWS_WITH_AS(
+      std::ignore =
+        ccf::crypto::OpenSSL::cose_key_from_x509(parse_der_cert(invalid_der)),
+      doctest::Contains("Failed to get certificate public key"),
       std::invalid_argument);
   }
 
@@ -1060,6 +1468,11 @@ constexpr int64_t LABEL_RSA_N = -1;
 constexpr int64_t LABEL_RSA_E = -2;
 constexpr int64_t LABEL_RSA_D = -3;
 constexpr int64_t LABEL_RSA_PRIVATE_FIRST = -12;
+constexpr int64_t LABEL_OKP_CRV = -1;
+constexpr int64_t LABEL_OKP_X = -2;
+constexpr int64_t LABEL_OKP_D = -4;
+constexpr int64_t LABEL_AKP_PUB = -1;
+constexpr int64_t LABEL_AKP_PRIV = -2;
 
 // Values of COSE_Key fields, to build valid and malformed keys
 using CoseKeyField = std::variant<
@@ -1140,10 +1553,22 @@ static CoseKeyFields rsa_fields(const ccf::crypto::COSEKey::RSAParameters& key)
   return {{LABEL_KTY, int64_t{3}}, {LABEL_RSA_N, key.n}, {LABEL_RSA_E, key.e}};
 }
 
+static CoseKeyFields okp_fields(const ccf::crypto::COSEKey::OKPParameters& key)
+{
+  return {
+    {LABEL_KTY, int64_t{1}}, {LABEL_OKP_CRV, key.crv}, {LABEL_OKP_X, key.x}};
+}
+
 static ccf::crypto::COSEKey random_ec_cose_key(ccf::crypto::CurveID curve)
 {
   return ccf::crypto::COSEKey(ccf::crypto::make_ec_public_key(
     ccf::crypto::make_ec_key_pair(curve)->public_key_der()));
+}
+
+static ccf::crypto::COSEKey random_ed25519_cose_key()
+{
+  return ccf::crypto::COSEKey(ccf::crypto::make_eddsa_public_key(
+    ccf::crypto::make_eddsa_key_pair()->public_key_pem()));
 }
 
 // x + p for P-521, whose prime p = 2^521 - 1 still fits in 66 bytes: the same
@@ -1218,6 +1643,23 @@ TEST_CASE("COSE_Key encoding and thumbprints")
   const auto rsa = rsa_key.rsa_parameters().value();
   CHECK(rsa.n == from_hex(n));
   CHECK(rsa.e == std::vector<uint8_t>{0x01, 0x00, 0x01});
+
+  // Ed25519, with the public key of RFC 8032 Section 7.1 TEST 1, and the
+  // thumbprint computed independently of this code
+  const std::string ed25519_x =
+    "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
+  // {1: 1, -1: 6, -2: x}
+  const auto okp_key =
+    COSEKey::from_cbor(from_hex("a301012006215820" + ed25519_x));
+  CHECK_FALSE(okp_key.alg().has_value());
+  CHECK(
+    okp_key.thumbprint_sha256().hex_str() ==
+    "866eefbd6718c8846cd7ddfe43fc74ab1daac4538ff8514ea2ec2d410a415743");
+  // {1: 1, 3: -8, -1: 6, -2: x}
+  CHECK(okp_key.to_cbor(-8) == from_hex("a4010103272006215820" + ed25519_x));
+  const auto okp = okp_key.okp_parameters().value();
+  CHECK(okp.crv == 6);
+  CHECK(okp.x == from_hex(ed25519_x));
 }
 
 TEST_CASE("COSE_Key round trips")
@@ -1244,6 +1686,8 @@ TEST_CASE("COSE_Key round trips")
       key.ec_public_key()->public_key_der());
     CHECK(parsed.rsa_public_key() == nullptr);
     CHECK_FALSE(parsed.rsa_parameters().has_value());
+    CHECK(parsed.eddsa_public_key() == nullptr);
+    CHECK_FALSE(parsed.okp_parameters().has_value());
     // Coordinates keep any leading zero octets
     const auto parameters = parsed.ec2_parameters().value();
     CHECK(parameters.x.size() == coordinate_size);
@@ -1262,11 +1706,32 @@ TEST_CASE("COSE_Key round trips")
     rsa_key.rsa_public_key()->public_key_der());
   CHECK(parsed.ec_public_key() == nullptr);
   CHECK_FALSE(parsed.ec2_parameters().has_value());
+  CHECK(parsed.eddsa_public_key() == nullptr);
+  CHECK_FALSE(parsed.okp_parameters().has_value());
+
+  const auto okp_key = random_ed25519_cose_key();
+  const auto okp_encoded = okp_key.to_cbor(-19, "kid");
+  const auto okp_parsed = COSEKey::from_cbor(okp_encoded);
+  REQUIRE(okp_parsed.kty() == COSEKeyType::OKP);
+  CHECK(okp_parsed.alg() == -19);
+  CHECK(okp_parsed.to_cbor(-19, "kid") == okp_encoded);
+  CHECK(okp_parsed.thumbprint_sha256() == okp_key.thumbprint_sha256());
+  CHECK(
+    okp_parsed.eddsa_public_key()->public_key_pem() ==
+    okp_key.eddsa_public_key()->public_key_pem());
+  CHECK(okp_parsed.ec_public_key() == nullptr);
+  CHECK(okp_parsed.rsa_public_key() == nullptr);
+  CHECK_FALSE(okp_parsed.ec2_parameters().has_value());
+  CHECK_FALSE(okp_parsed.rsa_parameters().has_value());
 
   CHECK_THROWS_AS(
     COSEKey(ccf::crypto::ECPublicKeyPtr{}), std::invalid_argument);
   CHECK_THROWS_AS(
     COSEKey(ccf::crypto::RSAPublicKeyPtr{}), std::invalid_argument);
+  CHECK_THROWS_AS(
+    COSEKey(ccf::crypto::EdDSAPublicKeyPtr{}), std::invalid_argument);
+  CHECK_THROWS_AS(
+    COSEKey(ccf::crypto::MLDSAPublicKeyPtr{}), std::invalid_argument);
   CHECK_THROWS_AS(
     COSEKey(ccf::crypto::make_rsa_key_pair(1024)), std::runtime_error);
 
@@ -1343,6 +1808,64 @@ TEST_CASE("COSE_Key constructors reject unsupported parameters")
     CHECK_THROWS_WITH_AS(
       COSEKey{key}, doctest::Contains("e must be odd"), std::runtime_error);
   }
+
+  SUBCASE("OKP")
+  {
+    struct ReportedCurveKey : ccf::crypto::EdDSAPublicKey_OpenSSL
+    {
+      using ccf::crypto::EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL;
+      CurveID curve = CurveID::CURVE25519;
+
+      CurveID get_curve_id() const override
+      {
+        return curve;
+      }
+    };
+
+    const auto key = std::make_shared<ReportedCurveKey>(
+      ccf::crypto::make_eddsa_key_pair()->public_key_pem());
+    CHECK_NOTHROW(COSEKey{key});
+    for (const auto curve :
+         {CurveID::NONE,
+          CurveID::SECP256R1,
+          CurveID::X25519,
+          static_cast<CurveID>(0xff)})
+    {
+      CAPTURE(curve);
+      key->curve = curve;
+      CHECK_THROWS_WITH_AS(
+        COSEKey{key},
+        doctest::Contains("is not a COSE OKP signature curve"),
+        std::runtime_error);
+    }
+
+    // A real X25519 key, not only a reported curve
+    CHECK_THROWS_WITH_AS(
+      COSEKey{ccf::crypto::make_eddsa_public_key(
+        ccf::crypto::make_eddsa_key_pair(CurveID::X25519)->public_key_pem())},
+      doctest::Contains("is not a COSE OKP signature curve"),
+      std::runtime_error);
+
+    // Encodings that are not canonical: y = p, with and without the sign bit
+    // of x, and y = 2^255 - 1
+    auto y_is_prime_negative_x = ed25519_x_with_y_equal_to_prime();
+    y_is_prime_negative_x.back() = 0xff;
+    for (const auto& x :
+         {ed25519_x_with_y_equal_to_prime(),
+          y_is_prime_negative_x,
+          std::vector<uint8_t>(32, 0xff)})
+    {
+      CAPTURE(ccf::ds::to_hex(x));
+      CHECK_THROWS_WITH_AS(
+        COSEKey{eddsa_public_key_from_x(x)},
+        doctest::Contains("below the Ed25519 field prime"),
+        std::runtime_error);
+    }
+    // y = p - 1, the largest canonical y
+    auto y_below_prime = ed25519_x_with_y_equal_to_prime();
+    y_below_prime.front() = 0xec;
+    CHECK_NOTHROW(COSEKey{eddsa_public_key_from_x(y_below_prime)});
+  }
 }
 
 TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
@@ -1357,18 +1880,32 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
     random_ec_cose_key(CurveID::SECP521R1).ec2_parameters().value();
   const auto rsa =
     COSEKey(ccf::crypto::make_rsa_key_pair()).rsa_parameters().value();
+  const auto ed25519 = random_ed25519_cose_key().okp_parameters().value();
   const auto p256_key = ec2_fields(p256);
   const auto rsa_key = rsa_fields(rsa);
+  const auto okp_key = okp_fields(ed25519);
+  // ML-DSA-65 AKP fields, checked before any ML-DSA import, so on every build
+  const CoseKeyFields akp_key = {
+    {LABEL_KTY, int64_t{7}},
+    {LABEL_ALG, int64_t{-49}},
+    {LABEL_AKP_PUB, std::vector<uint8_t>(1952, 0)}};
   std::vector<Value> mixed_key_ops;
   mixed_key_ops.push_back(make_string("unknown"));
   mixed_key_ops.push_back(make_signed(2));
   std::vector<Value> text_key_ops;
   text_key_ops.push_back(make_string("2"));
+  const auto okp_x_y_is_prime = ed25519_x_with_y_equal_to_prime();
+  // y = 2^255 - 1, with the sign bit of x set
+  const std::vector<uint8_t> okp_x_y_above_prime(32, 0xff);
+  // y = p - 1, the largest canonical y
+  auto okp_x_y_below_prime = okp_x_y_is_prime;
+  okp_x_y_below_prime.front() = 0xec;
 
   // Valid keys, and edits of them that are still accepted
   for (const auto& accepted : {
          encode_cose_key_fields(p256_key),
          encode_cose_key_fields(rsa_key),
+         encode_cose_key_fields(okp_key),
          encode_with(p256_key, LABEL_KID, std::vector<uint8_t>{1, 2}),
          encode_with(p256_key, LABEL_ALG, int64_t{-9}), // ESP256
          encode_with(p256_key, LABEL_KEY_OPS, std::vector<int64_t>{1, 2}),
@@ -1387,6 +1924,9 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
          encode_with(rsa_key, LABEL_ALG, int64_t{-37}), // PS256
          encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>{3}),
          encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>(8, 0xff)),
+         encode_with(okp_key, LABEL_ALG, int64_t{-8}), // EdDSA
+         encode_with(okp_key, LABEL_ALG, int64_t{-19}), // Ed25519
+         encode_with(okp_key, LABEL_OKP_X, okp_x_y_below_prime),
        })
   {
     CHECK_NOTHROW(std::ignore = COSEKey::from_cbor(accepted));
@@ -1408,6 +1948,10 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
   padded_e.insert(padded_e.begin(), 0);
   const std::vector<uint8_t> short_n(rsa.n.begin(), rsa.n.begin() + 128);
   const std::vector<uint8_t> long_n(16384 / 8 + 1, 0xff);
+  auto short_okp_x = ed25519.x;
+  short_okp_x.erase(short_okp_x.begin());
+  auto long_okp_x = ed25519.x;
+  long_okp_x.push_back(0);
   auto trailing_bytes = encode_cose_key_fields(p256_key);
   trailing_bytes.push_back(0);
 
@@ -1417,14 +1961,17 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
     {"trailing bytes", trailing_bytes},
     {"kty missing", encode_without(p256_key, LABEL_KTY)},
     {"kty text", encode_with(p256_key, LABEL_KTY, std::string("EC2"))},
-    {"kty OKP", encode_with(p256_key, LABEL_KTY, int64_t{1})},
+    {"kty OKP with EC2 parameters",
+     encode_with(p256_key, LABEL_KTY, int64_t{1})},
     {"kty Symmetric", encode_with(p256_key, LABEL_KTY, int64_t{4})},
     {"kid text", encode_with(p256_key, LABEL_KID, std::string("kid"))},
     {"alg text", encode_with(p256_key, LABEL_ALG, std::string("ES256"))},
-    {"alg EdDSA", encode_with(p256_key, LABEL_ALG, int64_t{-8})},
+    {"alg ES256K", encode_with(p256_key, LABEL_ALG, int64_t{-47})},
+    {"alg for OKP", encode_with(p256_key, LABEL_ALG, int64_t{-8})},
     {"alg for P-384", encode_with(p256_key, LABEL_ALG, int64_t{-35})},
     {"alg for RSA", encode_with(p256_key, LABEL_ALG, int64_t{-37})},
     {"alg for EC2 on RSA", encode_with(rsa_key, LABEL_ALG, int64_t{-7})},
+    {"alg for EC2 on OKP", encode_with(okp_key, LABEL_ALG, int64_t{-7})},
     {"key_ops not an array", encode_with(p256_key, LABEL_KEY_OPS, int64_t{2})},
     {"key_ops empty",
      encode_with(p256_key, LABEL_KEY_OPS, std::vector<int64_t>{})},
@@ -1468,12 +2015,49 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
      encode_with(rsa_key, LABEL_RSA_D, std::vector<uint8_t>{1})},
     {"RSA private key at lower label boundary",
      encode_with(rsa_key, LABEL_RSA_PRIVATE_FIRST, std::vector<uint8_t>{1})},
+    {"OKP crv missing", encode_without(okp_key, LABEL_OKP_CRV)},
+    {"crv X25519", encode_with(okp_key, LABEL_OKP_CRV, int64_t{4})},
+    {"crv Ed448", encode_with(okp_key, LABEL_OKP_CRV, int64_t{7})},
+    {"OKP x missing", encode_without(okp_key, LABEL_OKP_X)},
+    {"OKP x too short", encode_with(okp_key, LABEL_OKP_X, short_okp_x)},
+    {"OKP x too long", encode_with(okp_key, LABEL_OKP_X, long_okp_x)},
+    {"OKP x with y equal to the field prime",
+     encode_with(okp_key, LABEL_OKP_X, okp_x_y_is_prime)},
+    {"OKP x with y above the field prime",
+     encode_with(okp_key, LABEL_OKP_X, okp_x_y_above_prime)},
+    {"OKP private key",
+     encode_with(okp_key, LABEL_OKP_D, std::vector<uint8_t>(32, 1))},
+    {"AKP alg missing", encode_without(akp_key, LABEL_ALG)},
+    {"AKP alg for EC2", encode_with(akp_key, LABEL_ALG, int64_t{-7})},
+    {"AKP pub missing", encode_without(akp_key, LABEL_AKP_PUB)},
+    {"AKP pub text", encode_with(akp_key, LABEL_AKP_PUB, std::string("pub"))},
+    {"AKP pub too short",
+     encode_with(akp_key, LABEL_AKP_PUB, std::vector<uint8_t>(1951, 0))},
+    {"AKP pub for ML-DSA-44",
+     encode_with(akp_key, LABEL_AKP_PUB, std::vector<uint8_t>(1312, 0))},
+    {"AKP private key",
+     encode_with(akp_key, LABEL_AKP_PRIV, std::vector<uint8_t>(32, 0))},
   };
   for (const auto& [name, encoded] : rejected)
   {
     CAPTURE(name);
     CHECK_THROWS_AS(
       std::ignore = COSEKey::from_cbor(encoded), std::invalid_argument);
+  }
+
+  // A well-formed AKP key needs ML-DSA to be imported; every FIPS 204 public
+  // key encoding of the right size decodes
+  const auto akp = encode_cose_key_fields(akp_key);
+  if (ccf::crypto::mldsa_supported())
+  {
+    CHECK(COSEKey::from_cbor(akp).kty() == ccf::crypto::COSEKeyType::AKP);
+  }
+  else
+  {
+    CHECK_THROWS_WITH_AS(
+      std::ignore = COSEKey::from_cbor(akp),
+      "Invalid COSE_Key: ML-DSA requires OpenSSL 3.5 or newer",
+      std::invalid_argument);
   }
 }
 
@@ -1533,5 +2117,26 @@ TEST_CASE("COSE_Key alg restricts verification")
     CHECK(verifier->verify_decomposed(phdr, detached_payload, ps256_sig, -37));
     CHECK_FALSE(
       verifier->verify_decomposed(phdr, detached_payload, ps384_sig, -38));
+  }
+
+  SUBCASE("OKP")
+  {
+    const auto key_pair = ccf::crypto::make_eddsa_key_pair();
+    const auto phdr = ccf::ds::from_hex("a0");
+    const auto sig =
+      key_pair->sign(ccf::cose::make_cose_sign1_tbs(phdr, detached_payload));
+
+    const COSEKey key(
+      ccf::crypto::make_eddsa_public_key(key_pair->public_key_pem()));
+    // Restricted to Ed25519 (-19)
+    const auto restricted = COSEKey::from_cbor(encode_with(
+      okp_fields(key.okp_parameters().value()), LABEL_ALG, int64_t{-19}));
+    CHECK(restricted.alg() == -19);
+
+    CHECK(ccf::crypto::make_cose_verifier_from_key(key)->verify_decomposed(
+      phdr, detached_payload, sig, -8));
+    const auto verifier = ccf::crypto::make_cose_verifier_from_key(restricted);
+    CHECK(verifier->verify_decomposed(phdr, detached_payload, sig, -19));
+    CHECK_FALSE(verifier->verify_decomposed(phdr, detached_payload, sig, -8));
   }
 }

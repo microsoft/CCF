@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "ccf/endpoint.h"
+#include "ccf/endpoints/endpoint.h"
 
 #include <map>
 #include <string>
@@ -18,6 +18,7 @@ namespace ccf::js
       std::map<std::string, ccf::endpoints::EndpointProperties>>
       endpoints;
   };
+
   DECLARE_JSON_TYPE(Metadata);
   DECLARE_JSON_REQUIRED_FIELDS(Metadata, endpoints);
 
@@ -26,6 +27,7 @@ namespace ccf::js
     std::string name;
     std::string module;
   };
+
   DECLARE_JSON_TYPE(ModuleDef);
   DECLARE_JSON_REQUIRED_FIELDS(ModuleDef, name, module);
 

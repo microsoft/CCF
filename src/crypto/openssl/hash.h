@@ -21,17 +21,29 @@ namespace ccf::crypto
       switch (type)
       {
         case MDType::NONE:
+        {
           return nullptr;
+        }
         case MDType::SHA1:
+        {
           return EVP_sha1();
+        }
         case MDType::SHA256:
+        {
           return EVP_sha256();
+        }
         case MDType::SHA384:
+        {
           return EVP_sha384();
+        }
         case MDType::SHA512:
+        {
           return EVP_sha512();
+        }
         default:
+        {
           throw std::runtime_error("Unsupported hash algorithm");
+        }
       }
     }
 

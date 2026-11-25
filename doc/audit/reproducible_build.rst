@@ -15,10 +15,9 @@ To reproduce a package:
 
 .. code-block:: bash
 
-    # Set CCF_VERSION to most recent LTS release
+    # Set CCF_VERSION to the latest release
     $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
-    # Alternatively, set this manually, e.g.:
-    # export CCF_VERSION=7.0.10
+    # To reproduce a different release, set CCF_VERSION to its version without the ccf- prefix.
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/reproduce.json
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/start_container_and_reproduce_rpm.sh
     $ chmod +x ./start_container_and_reproduce_rpm.sh 
@@ -28,9 +27,6 @@ This builds the RPM in a container and outputs it to ``./reproduced/``. You can 
 
 .. code-block:: bash
 
-    # Set CCF_VERSION to most recent LTS release
-    $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
-    # Alternatively, set this manually, e.g.:
-    # export CCF_VERSION=7.0.10
+    # Use the same CCF_VERSION as above.
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_devel_${CCF_VERSION}_x86_64.rpm
     $ cmp ./ccf_devel_${CCF_VERSION}_x86_64.rpm ./reproduced/ccf_devel_${CCF_VERSION}_x86_64.rpm

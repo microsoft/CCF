@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <shared_mutex>
+#include <tuple>
 #include <utility>
 
 namespace ccf::ds
@@ -158,7 +159,7 @@ namespace ccf::ds
 
       ~NativeLock()
       {
-        lock.release();
+        std::ignore = lock.release();
       }
 
       std::unique_lock<std::mutex>& get()

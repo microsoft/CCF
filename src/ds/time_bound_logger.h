@@ -14,6 +14,7 @@ namespace ccf::ds
   struct TimeBoundLogger
   {
     using TClock = std::chrono::steady_clock;
+
     static std::string human_time(const TClock::duration& d)
     {
       const auto us =

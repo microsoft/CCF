@@ -20,6 +20,10 @@ TAG_DAILY_RELEASE_PREFIX = "daily-"
 TAG_DEVELOPMENT_SUFFIX = "-dev"
 TAG_RELEASE_CANDIDATE_SUFFIX = "-rc"
 MAIN_BRANCH_NAME = "main"
+NON_FINAL_TAG_RE = (
+    f"^{TAG_RELEASE_PREFIX}\\d+\\.\\d+\\.\\d+"
+    f"({TAG_DEVELOPMENT_SUFFIX}|{TAG_RELEASE_CANDIDATE_SUFFIX})\\d+$"
+)
 RPM_PACKAGE_EXTENSION = "_x86_64.rpm"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
@@ -27,8 +31,6 @@ INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
 DOWNLOAD_FOLDER_NAME = "downloads"
 INSTALL_SUCCESS_FILE = "test_github_infra_installed"
 INSTALL_VERSION_FILE_PATH = "share/VERSION"
-
-BACKPORT_BRANCH_PREFIX = "backport/"  # Automatically added by backport CLI
 
 # To be updated when major versions are end of life. We expect these
 # versions to no longer be run in the recovery LTS compatibility test
@@ -83,12 +85,6 @@ def strip_non_final_tag_name(tag_name):
     return f'{TAG_RELEASE_PREFIX}{tag_name.rsplit("-")[1]}'
 
 
-def strip_backport_prefix(branch_name):
-    if branch_name.startswith(BACKPORT_BRANCH_PREFIX):
-        return branch_name[len(BACKPORT_BRANCH_PREFIX) :]
-    return branch_name
-
-
 def get_branch_name_from_latest_release_tag_name(tag_name):
     assert is_latest_release_tag(tag_name), tag_name
     branch = tag_name[len(TAG_DAILY_RELEASE_PREFIX) :]
@@ -119,7 +115,6 @@ def is_non_final_tag(tag_name):
 def sanitise_branch_name(branch_name):
     # Note: When checking out a specific tag, Azure DevOps does not know about the
     # branch but only the tag name so automatically convert release tags to release branch
-    branch_name = strip_backport_prefix(branch_name)
     if is_dev_tag(branch_name):
         # For simplification, assume that dev tags are only released from main branch
         LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
@@ -185,11 +180,6 @@ class GitEnv:
             for tag in self.g.ls_remote(REMOTE_URL).split("\n")
             if f"tags/{TAG_RELEASE_PREFIX}" in tag
         ]
-        self.release_branches = [
-            branch.split("heads/")[-1]
-            for branch in self.g.ls_remote(REMOTE_URL).split("\n")
-            if "heads/release" in branch
-        ]
         repo = git.Repo(os.getcwd(), search_parent_directories=True)
         current_commit = repo.head.commit
         self.tags_for_current_commit = [
@@ -241,7 +231,7 @@ class GitEnv:
 class Repository:
     """
     Helper class to verify CCF operations compatibility described at
-    https://microsoft.github.io/CCF/main/build_apps/release_policy.html#operations-compatibility
+    https://microsoft.github.io/CCF/main/releases/release_policy.html#operations-compatibility
     """
 
     def __init__(self, env=None):
@@ -393,6 +383,30 @@ class Repository:
             )
         return final_release_tags[0] if release_tags else None
 
+    def get_latest_non_final_tag(self):
+        """
+        Returns the latest released non-final tag (e.g. -dev or -rc) that is newer
+        than every final release, i.e. the latest pre-release of the version under
+        development, if any.
+        """
+        latest_final_tag = self.get_latest_tag(final_only=True)
+        tags = sorted(
+            (
+                tag
+                for tag in self.tags
+                if re.match(NON_FINAL_TAG_RE, tag)
+                and (
+                    latest_final_tag is None
+                    or get_version_from_tag_name(tag)
+                    > get_version_from_tag_name(latest_final_tag)
+                )
+            ),
+            key=get_version_from_tag_name,
+            reverse=True,
+        )
+        tags = self._filter_released_tags(tags)
+        return tags[0] if tags else None
+
     def get_latest_released_tag_for_branch(self, branch, this_release_branch_only):
         """
         If the branch is a release branch, return latest tag on this branch if
@@ -405,13 +419,7 @@ class Repository:
         branch = sanitise_branch_name(branch)
         if is_release_branch(branch):
             LOG.debug(f"{branch} is release branch")
-
-            tags = self.get_tags_for_release_branch(
-                get_release_branch_from_branch_name(branch)
-            )
-            if tags and this_release_branch_only:
-                return tags[0]
-            elif not this_release_branch_only:
+            if not this_release_branch_only:
                 branch_major_version = get_major_version_from_release_branch_name(
                     branch
                 )
@@ -419,15 +427,22 @@ class Repository:
                     LOG.warning(f"No previous major version for {branch}")
                     return None
                 return self.get_latest_tag_for_major_version(branch_major_version - 1)
-            else:
-                LOG.warning(f"Release branch {branch} has no release yet")
-                return None
-        else:
-            LOG.debug(f"{branch} is development branch")
-            # For development branches (e.g. main), only consider non-final tags (e.g. -rc or -dev)
-            # that have not been superseded by a later final release when testing compatibility with
-            # same branch
-            return self.get_latest_tag(final_only=not this_release_branch_only)
+
+            tags = self.get_tags_for_release_branch(
+                get_release_branch_from_branch_name(branch)
+            )
+            if tags:
+                return tags[0]
+            LOG.warning(f"Release branch {branch} has no release yet")
+            return None
+
+        LOG.debug(f"{branch} is development branch")
+        # For development branches (e.g. main), only consider non-final tags (e.g. -rc or -dev)
+        # that have not been superseded by a later final release when testing compatibility with
+        # same branch
+        if this_release_branch_only:
+            return self.get_latest_non_final_tag()
+        return self.get_latest_tag(final_only=True)
 
     def get_first_tag_for_next_release_branch(self, branch):
         """
@@ -508,10 +523,16 @@ if __name__ == "__main__":
         (env.mut(tag="ccf-0.0.1"), exp()),  # Create new tag
         (env.mut(local="main"), exp(prev="ccf-0.0.1")),  # Development on main
         (env.mut(tag="ccf-1.0.0-rc0"), exp()),  # 1.0 RC0
-        (env.mut(local="main"), exp(prev="ccf-0.0.1")),  # Dev on main
+        (
+            env.mut(local="main"),
+            exp(prev="ccf-0.0.1", same="ccf-1.0.0-rc0"),
+        ),  # Dev on main
         (env.mut(local="release/1.x"), exp()),  # Dev on new rel/1.x
         (env.mut(tag="ccf-1.0.0-rc1"), exp()),  # 1.0 RC1
-        (env.mut(local="main"), exp(prev="ccf-0.0.1")),  # Dev on main
+        (
+            env.mut(local="main"),
+            exp(prev="ccf-0.0.1", same="ccf-1.0.0-rc1"),
+        ),  # Dev on main
         (env.mut(local="release/1.x"), exp()),  # Dev on rel/1.x
         (env.mut(tag="ccf-1.0.0"), exp()),  # 1.0.0
         (
@@ -522,12 +543,21 @@ if __name__ == "__main__":
         (env.mut(tag="ccf-1.0.1"), exp(same="ccf-1.0.0")),  # 1.0.1
         (env.mut(local="release/1.x_new"), exp(same="ccf-1.0.1")),  # Branch off rel/1.x
         (env.mut(tag="ccf-2.0.0-dev0"), exp(prev="ccf-1.0.1")),  # 2.0 dev0 tag
-        (env.mut(local="main"), exp(prev="ccf-1.0.1")),  # Dev on main
-        (env.mut(tag="ccf-2.0.0-dev1"), exp(prev="ccf-1.0.1")),  # 2.0 dev1 tag
+        (
+            env.mut(local="main"),
+            exp(prev="ccf-1.0.1", same="ccf-2.0.0-dev0"),
+        ),  # Dev on main
+        (
+            env.mut(tag="ccf-2.0.0-dev1"),
+            exp(prev="ccf-1.0.1", same="ccf-2.0.0-dev0"),
+        ),  # 2.0 dev1 tag
         (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
         (env.mut(tag="ccf-2.0.0-rc0"), exp(prev="ccf-1.0.1")),  # 2.0 RC0
         (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
-        (env.mut(local="main"), exp(prev="ccf-1.0.1")),  # Dev on main
+        (
+            env.mut(local="main"),
+            exp(prev="ccf-1.0.1", same="ccf-2.0.0-rc0"),
+        ),  # Dev on main
         (env.mut(tag="ccf-2.0.0"), exp(prev="ccf-1.0.1")),  # 2.0.0
         (env.mut(local="main"), exp(prev="ccf-2.0.0")),  # Dev on main
         (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
@@ -553,10 +583,6 @@ if __name__ == "__main__":
             env.mut(local="release/3.x"),
             exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
         ),  # Dev on rel/3.x
-        (
-            env.mut(local=f"{BACKPORT_BRANCH_PREFIX}release/3.x"),
-            exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
-        ),  # backport/ prefix is ignored
         (
             env.mut(tag="unknown-tag"),
             exp(prev="ccf-3.0.0"),

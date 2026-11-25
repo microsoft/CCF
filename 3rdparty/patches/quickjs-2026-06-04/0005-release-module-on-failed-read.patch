@@ -1,0 +1,19 @@
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -40312,6 +40312,16 @@
+     return obj;
+  fail:
+     if (m) {
++        /* an entry array may not have been allocated */
++        if (!m->req_module_entries)
++            m->req_module_entries_count = 0;
++        if (!m->export_entries)
++            m->export_entries_count = 0;
++        if (!m->import_entries)
++            m->import_entries_count = 0;
++        /* also release the context's reference, so that the incomplete
++           module does not stay loaded */
++        JS_FreeValue(ctx, JS_MKPTR(JS_TAG_MODULE, m));
+         JS_FreeValue(ctx, JS_MKPTR(JS_TAG_MODULE, m));
+     }
+     return JS_EXCEPTION;

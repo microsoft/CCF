@@ -29,7 +29,7 @@ Members that are registered in CCF `with` a public encryption key are recovery m
 
 The member’s identity and encryption private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device (e.g. HSM) while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
-The CCF unique member identity is the hex-encoded string of the SHA-256 hash of the DER-encoded certificate, and can be computed from the certificate alone, without interacting with CCF:
+By default, the CCF unique member identity is the hex-encoded string of the SHA-256 hash of the DER-encoded certificate, and can be computed from the certificate alone, without interacting with CCF:
 
 .. code-block:: bash
 
@@ -46,6 +46,23 @@ Once the new member's keys and certificate have been generated, the existing con
 
 The :ref:`governance/proposals:Submitting a New Proposal` section describes the steps that members should follow to register a new member.
 
+To enroll a certificate-free member, pass ``did_key`` instead of ``cert`` to ``set_member``.
+For initial consortium members, set ``did_key`` instead of ``certificate_file`` in ``command.start.members``.
+See :ref:`architecture/cryptography:Identity IDs` and :doc:`migrating_identity_ids`.
+
+The Python SDK can derive the DID locally:
+
+.. code-block:: bash
+
+    $ keygenerator.sh --name new_member --public-key-only --gen-enc-key
+    $ python3 -m ccf.identity --public-key new_member_pubk.pem
+
+``--public-key-only`` generates an identity key pair without creating a certificate.
+Omit ``--gen-enc-key`` for non-recovery members.
+
+Pass ``--signing-did-key <did:key>`` instead of ``--signing-cert`` to every ``ccf_cose_sign1`` operation, including activation and recovery.
+Pass ``--member-did-key <did:key>`` instead of ``--member-id-cert`` to ``submit_recovery_share.sh`` before its curl options.
+
 Activating a New Member
 -----------------------
 
@@ -57,11 +74,9 @@ First, the new member should update and retrieve the latest state digest via the
 
 No state digest is recorded when a member is added. Until the member calls this ``:update`` endpoint, :http:GET:`/gov/members/state-digests/{memberId}` returns ``404 Not Found`` and the member cannot acknowledge a state digest.
 
-The signed root used by ``:update`` is obtained from an independent read-only view pinned to a materialised ledger prefix, rather than by reading signature metadata through its governance write transaction. The request and response schemas of the ``:update`` and ``:ack`` endpoints are unchanged.
-
 .. note::
 
-    The default constitution has used this workflow since CCF 7.0.17. Copied older constitutions may still eagerly read ``public:ccf.internal.signatures`` or ``public:ccf.internal.cose_signatures`` to initialise ``ack.state_digest`` when adding or resetting a member. From CCF 8.0, these reads fail under the :doc:`current-KV access restrictions </audit/read_write_restrictions>`. Remove that eager initialisation and follow the existing ``:update`` and ``:ack`` workflow described here instead.
+    From CCF 8.0, ``public:ccf.internal.signatures`` and ``public:ccf.internal.cose_signatures`` are inaccessible in the current KV. Custom constitutions based on releases before 7.0.17 that read those tables when adding or resetting a member must remove those reads and rely on the ``:update`` and ``:ack`` workflow described here instead. See :ref:`audit/read_write_restrictions:Signature-Transaction Tables`.
 
 .. code-block:: bash
 

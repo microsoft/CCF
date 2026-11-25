@@ -4,7 +4,7 @@
 
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/locking.h"
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
@@ -261,7 +261,7 @@ namespace ccf
       std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       CCF_ASSERT_FMT(
-        ledger_secrets.find(version) == ledger_secrets.end(),
+        !ledger_secrets.contains(version),
         "Ledger secret at seqno {} already exists",
         version);
 

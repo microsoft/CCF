@@ -14,6 +14,7 @@ extern "C"
 
   struct ccf_rust_registry;
   struct ccf_rust_endpoint_context;
+
   struct ccf_rust_slice
   {
     const uint8_t* data;

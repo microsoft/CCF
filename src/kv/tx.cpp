@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
@@ -109,6 +109,9 @@ namespace ccf::kv
     check_map_access(map_name, access);
 
     auto& read_txid = pimpl->read_txid;
+#ifdef CCF_KV_TRACING
+    trace::Context trace_context(pimpl->trace_attempt.id);
+#endif
 
     if (!read_txid.has_value())
     {
@@ -194,6 +197,7 @@ namespace ccf::kv
   {
     pimpl = std::make_unique<PrivateImpl>();
     pimpl->store = store_;
+    KV_TRACE(pimpl->trace_attempt.bind(store_));
   }
 
   ReadOnlyTx::ReadOnlyTx(

@@ -62,7 +62,7 @@ namespace ccf
     /** CCF member ID */
     MemberId member_id;
 
-    /** Member certificate, used to sign this request, described by keyId */
+    /** Legacy member certificate; empty for certificate-free DID identities. */
     ccf::crypto::Pem member_cert;
 
     /** COSE Protected Header */
@@ -87,7 +87,7 @@ namespace ccf
     /** CCF user ID */
     UserId user_id;
 
-    /** User certificate, used to sign this request, described by keyId */
+    /** Legacy user certificate; empty for certificate-free DID identities. */
     ccf::crypto::Pem user_cert;
 
     /** COSE Protected Header */
@@ -197,6 +197,7 @@ namespace ccf
       msg_type_name(std::move(msg_type_name_)),
       msg_created_at_name(std::move(msg_created_at_name_))
     {}
+
     ~UserCOSESign1AuthnPolicy() override;
 
     std::unique_ptr<AuthnIdentity> authenticate(

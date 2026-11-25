@@ -85,8 +85,7 @@ namespace ccf::tasks
     bool shut_down CCF_GUARDED_BY(mutex) = false;
     std::shared_ptr<Registry> registry = std::make_shared<Registry>();
 
-    // Collection of delayed tasks, that may be ready for execution on a future
-    // tick
+    // Collection of tasks that become runnable at future deadlines
     Delayed delayed;
 
     void set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon_)
@@ -302,6 +301,12 @@ namespace ccf::tasks
         add_task(std::move(task));
       }
     }
+
+    std::chrono::milliseconds get_current_time()
+    {
+      ccf::ds::MutexGuard lock(delayed.tasks_mutex);
+      return delayed.total_elapsed;
+    }
   };
 
   void JobBoard::add_timed_task(
@@ -458,6 +463,11 @@ namespace ccf::tasks
     std::chrono::milliseconds repeat_period)
   {
     add_timed_task(task, initial_delay, repeat_period);
+  }
+
+  std::chrono::milliseconds JobBoard::get_current_time()
+  {
+    return pimpl->get_current_time();
   }
 
   void JobBoard::tick(std::chrono::milliseconds elapsed)

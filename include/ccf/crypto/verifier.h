@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/jwk.h"
+#include "ccf/crypto/mldsa_public_key.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/rsa_public_key.h"
 #include "ccf/ds/nonstd.h"
@@ -15,7 +16,10 @@ namespace ccf::crypto
   class Verifier
   {
   protected:
-    std::variant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::ECPublicKeyPtr>
+    std::variant<
+      ccf::crypto::RSAPublicKeyPtr,
+      ccf::crypto::ECPublicKeyPtr,
+      ccf::crypto::MLDSAPublicKeyPtr>
       public_key;
 
   public:
@@ -30,7 +34,7 @@ namespace ccf::crypto
      * @param contents_size Size of @p contents
      * @param sig Signature
      * @param sig_size Size of @p sig
-     * @param md_type Hash algorithm
+     * @param md_type Hash algorithm. Pure ML-DSA accepts only MDType::NONE
      * @return Boolean indicating success
      */
     [[nodiscard]] virtual bool verify(
@@ -81,6 +85,7 @@ namespace ccf::crypto
      * @param sig_size Size of @p sig
      * @param md_type Hash algorithm
      * @return Boolean indicating success
+     * @throws std::logic_error for pure ML-DSA (no pre-hashed input support)
      */
     virtual bool verify_hash(
       const uint8_t* hash,
@@ -152,17 +157,22 @@ namespace ccf::crypto
     [[nodiscard]] virtual std::pair<std::string, std::string> validity_period()
       const = 0;
 
-    /** The number of seconds of the validity period of the
-     * certificate remaining, or 0 if the certificate has expired */
+    /** The number of seconds of the validity period of the certificate
+     * remaining at @p now. Both ends of the period are included, so this is
+     * the whole period before it starts, and 0 once it has expired */
     [[nodiscard]] virtual size_t remaining_seconds(
       const ccf::nonstd::SystemClock::time_point& now) const = 0;
 
-    /** The percentage of the validity period of the certificate remaining */
+    /** The fraction, from 0.0 to 1.0, of the validity period of the
+     * certificate remaining at @p now */
     [[nodiscard]] virtual double remaining_percentage(
       const ccf::nonstd::SystemClock::time_point& now) const = 0;
 
     /** The subject name of the certificate */
     [[nodiscard]] virtual std::string subject() const = 0;
+
+    /** The DER-encoded subject name of the certificate */
+    [[nodiscard]] virtual std::vector<uint8_t> subject_der() const = 0;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;
@@ -192,7 +202,18 @@ namespace ccf::crypto
    */
   VerifierPtr make_verifier(const Pem& pem);
 
+  /**
+   * Convert a DER-encoded certificate to PEM.
+   * Accepts certificates with any public key type.
+   * @throws std::invalid_argument if the input is not a DER-encoded certificate
+   */
   ccf::crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der);
+
+  /**
+   * Convert a PEM-encoded certificate to DER.
+   * Accepts certificates with any public key type.
+   * @throws std::invalid_argument if the input is not a PEM-encoded certificate
+   */
   std::vector<uint8_t> cert_pem_to_der(const Pem& pem);
 
   std::vector<uint8_t> public_key_der_from_cert(

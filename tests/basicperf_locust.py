@@ -22,7 +22,13 @@ LOCUST_FILE_NAME = "basicperf_locustfile.py"
 BLOCKING_ENDPOINT = "/records/blocking/{key}"
 
 
-def prepare_workload(args, _network, primary) -> infra.locust_benchmark.Workload:
+def prepare_workload(args, network, primary) -> infra.locust_benchmark.Workload:
+    if args.js_app_bundle:
+        bundle = network.consortium.read_bundle_from_dir(args.js_app_bundle)
+        for module in bundle["modules"]:
+            module["module"] = "ccf.enableMetricsLogging(false);\n" + module["module"]
+        network.consortium.set_js_app_from_bundle(primary, bundle)
+
     infra.key_space.create_and_fill_key_space(args.key_space_size, primary)
     session_auth = primary.session_auth("user0")["session_auth"]
     return infra.locust_benchmark.Workload(

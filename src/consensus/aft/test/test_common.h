@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/raft.h"
+#include "consensus/aft/cft.h"
 #include "ds/internal_logger.h"
 #include "kv/test/stub_consensus.h"
 #include "logging_stub.h"
@@ -10,7 +10,7 @@
 #include <chrono>
 #include <string>
 
-using TRaft = aft::Aft<aft::LedgerStubProxy>;
+using TCft = aft::Aft<aft::LedgerStubProxy>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -23,37 +23,36 @@ static const size_t max_uncommitted_tx_count_ = 0;
 static const std::chrono::milliseconds request_timeout = request_timeout_;
 static const std::chrono::milliseconds election_timeout = election_timeout_;
 
-static const ccf::consensus::Configuration raft_settings{
+static const ccf::consensus::Configuration cft_settings{
   request_timeout_, election_timeout_, max_uncommitted_tx_count_};
 
 static auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
 
-static aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
+static aft::ChannelStubProxy* channel_stub_proxy(const TCft& r)
 {
   return (aft::ChannelStubProxy*)r.channels.get();
 }
 
 static void receive_message(
-  TRaft& sender, TRaft& receiver, std::vector<uint8_t> contents)
+  TCft& sender, TCft& receiver, std::vector<uint8_t> contents)
 {
   bool should_send = true;
+  std::vector<uint8_t> body;
 
   {
-    // If this is AppendEntries, then append the serialised ledger entries to
-    // the message before transmitting
+    // If this is AppendEntries, fetch the corresponding ledger entries.
     const uint8_t* data = contents.data();
     auto size = contents.size();
-    auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
-    if (msg_type == aft::raft_append_entries)
+    auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
+    if (msg_type == aft::append_entries)
     {
       // Parse the indices to be sent to the recipient.
       auto ae = *(aft::AppendEntries*)data;
 
-      const auto payload_opt = sender.ledger->get_append_entries_payload(ae);
+      auto payload_opt = sender.ledger->get_append_entries_payload(ae);
       if (payload_opt.has_value())
       {
-        contents.insert(
-          contents.end(), payload_opt->begin(), payload_opt->end());
+        body = std::move(*payload_opt);
       }
       else
       {
@@ -64,7 +63,7 @@ static void receive_message(
 
   if (should_send)
   {
-    receiver.recv_message(sender.id(), contents.data(), contents.size());
+    receiver.recv_message(sender.id(), contents, body);
   }
 }
 
@@ -130,7 +129,7 @@ static std::shared_ptr<std::vector<uint8_t>> make_ledger_entry(
 
   // Each entry is so large that it produces a single AppendEntries, there are
   // never multiple combined into a single AppendEntries
-  e->resize(TRaft::append_entries_size_limit);
+  e->resize(TCft::append_entries_size_limit);
 
   return e;
 }

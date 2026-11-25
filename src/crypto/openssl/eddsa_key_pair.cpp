@@ -47,7 +47,7 @@ namespace ccf::crypto
         "X25519");
     }
 
-    auto d_raw = raw_from_b64url(jwk.d);
+    auto d_raw = ccf::ds::raw_from_b64url(jwk.d);
     OpenSSL::CHECKNULL(
       key = EVP_PKEY_new_raw_private_key(
         curve, nullptr, d_raw.data(), d_raw.size()));
@@ -112,9 +112,10 @@ namespace ccf::crypto
 
     std::vector<uint8_t> raw_priv(EVP_PKEY_size(key));
     size_t raw_priv_len = raw_priv.size();
-    EVP_PKEY_get_raw_private_key(key, raw_priv.data(), &raw_priv_len);
+    OpenSSL::CHECK1(
+      EVP_PKEY_get_raw_private_key(key, raw_priv.data(), &raw_priv_len));
     raw_priv.resize(raw_priv_len);
-    jwk.d = b64url_from_raw(raw_priv, false /* with_padding */);
+    jwk.d = ccf::ds::b64url_from_raw(raw_priv, false /* with_padding */);
     return jwk;
   }
 }

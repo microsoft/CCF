@@ -9,131 +9,103 @@ Applications can be written in JavaScript/TypeScript or C++. An application cons
 
 These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :doc:`kv/kv_how_to`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
 
-.. panels::
-
-    :fa:`rocket` :doc:`get_started`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Get Started: Application Development using CCF.
-
-    ---
-
-    :fa:`download` :doc:`install_bin`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Install CCF on Linux.
-
-    ---
-
-    .. image:: ../img/cpp.svg
-      :alt: C++
-      :align: left
-      :class: ccf-tile-icon
-
-    :doc:`example`
-    ^^^^^^^^^^^^^^
-
-    Sample CCF application written in C++.
-
-    ---
-
-    :fa:`gear` :doc:`example_rust`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Minimal native CCF application written in Rust (experimental).
-
-    ---
-
-    .. image:: ../img/ts.svg
-      :alt: TypeScript
-      :align: left
-      :class: ccf-tile-icon
-
-    :doc:`js_app_ts`
-    ^^^^^^^^^^^^^^^
-
-    Sample CCF application written in TypeScript, using the API specified in :typedoc-package:`ccf-app`.
-
-    ---
-
-    :fa:`luggage-cart` :doc:`js_app_bundle`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Description of the bundle format for JS applications in CCF.
-
-    ---
-
-    :fa:`tools` :doc:`build_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Building a CCF application.
-
-    ---
-
-    :fa:`rocket` :doc:`run_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Running a CCF application demo in a sandbox environment.
-
-    ---
-
-    :fa:`users` :doc:`auth/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    User authentication mechanisms in CCF.
-
-    ---
-
-    :fa:`database` :doc:`kv/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Transactional access to state is provided by the Key-Value store.
-
-    ---
-
-    :fa:`terminal` :doc:`api`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    C++ API reference.
-
-    ---
-
-    :fa:`terminal` :doc:`rust_api`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Rust API reference (experimental).
-
-    ---
-
-    :fa:`rocket` :doc:`release_policy`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF release cadence and compatibility commitments.
-
-    ---
-
-    :fa:`mail-forward ` :doc:`fwd_to_redirect`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Migrate from forwarding (deprecated) to redirect (recommended) endpoints.
-
+For CCF release cadence, compatibility commitments and migration guides, see :doc:`/releases/index`.
 
 .. toctree::
     :hidden:
 
     get_started
     install_bin
-    example
-    example_rust
-    rust_api
+    run_app
+    example_cpp
     js_app_ts
+    example_rust
     js_app_bundle
     logging
-    build_app
-    run_app
     auth/index
     kv/index
     api
+    rust_api
     crypto
-    release_policy
-    fwd_to_redirect
+
+Get Started
+-----------
+
+.. grid:: 1 2 2 2
+    :gutter: 3
+
+    .. grid-item-card:: :fas:`rocket` :doc:`get_started`
+
+        Go from a fresh machine to a running CCF application.
+
+    .. grid-item-card:: :fas:`download` :doc:`install_bin`
+
+        Install CCF on Linux.
+
+    .. grid-item-card:: :fas:`play` :doc:`run_app`
+
+        Run a CCF application in a sandbox environment.
+
+Write an Application
+--------------------
+
+.. grid:: 1 2 2 2
+    :gutter: 3
+
+    .. grid-item-card:: |cpp| :doc:`example_cpp`
+
+        Write, build and package a CCF application in C++.
+
+    .. grid-item-card:: |ts| :doc:`js_app_ts`
+
+        Write a CCF application in TypeScript using :typedoc-package:`ccf-app`.
+
+    .. grid-item-card:: |rust| :doc:`example_rust`
+
+        Write a native CCF application in Rust (experimental).
+
+    .. grid-item-card:: :fas:`luggage-cart` :doc:`js_app_bundle`
+
+        Package and deploy JavaScript/TypeScript application bundles.
+
+    .. grid-item-card:: :fas:`file-alt` :doc:`logging`
+
+        Log messages from a CCF application.
+
+    .. grid-item-card:: :fas:`users` :doc:`auth/index`
+
+        Authenticate users of a CCF application.
+
+    .. grid-item-card:: :fas:`database` :doc:`kv/index`
+
+        Access application state transactionally through the key-value store.
+
+Reference
+---------
+
+.. grid:: 1 2 2 2
+    :gutter: 3
+
+    .. grid-item-card:: :fas:`terminal` :doc:`api`
+
+        Consult the C++ API reference.
+
+    .. grid-item-card:: :fas:`terminal` :doc:`rust_api`
+
+        Consult the Rust API reference (experimental).
+
+    .. grid-item-card:: :fas:`key` :doc:`crypto`
+
+        Use CCF cryptographic APIs.
+
+.. |cpp| image:: ../img/cpp.svg
+    :alt: C++
+    :class: ccf-inline-icon
+
+.. |ts| image:: ../img/ts.svg
+    :alt: TypeScript
+    :class: ccf-inline-icon
+
+.. |rust| image:: ../img/rust.svg
+    :alt: Rust
+    :class: ccf-inline-icon

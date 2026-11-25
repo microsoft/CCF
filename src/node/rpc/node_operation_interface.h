@@ -5,11 +5,11 @@
 #include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/kv/tx.h"
 #include "ccf/node/quote.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/tables/code_id.h"
-#include "ccf/tx.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/session_metrics.h"
 
@@ -49,7 +49,6 @@ namespace ccf
     virtual ccf::kv::Version get_startup_snapshot_seqno() = 0;
 
     virtual SessionMetrics get_session_metrics() = 0;
-    virtual size_t get_jwt_attempts() = 0;
 
     virtual QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,

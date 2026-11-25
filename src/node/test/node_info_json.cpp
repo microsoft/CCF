@@ -6,10 +6,30 @@
 #include "common/cli_helper.h"
 #include "ds/internal_logger.h"
 
+#include <type_traits>
 #include <utility>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+
+TEST_CASE("Redirection configurations retain aggregate initialization")
+{
+  using Redirections = ccf::NodeInfoNetwork_v2::NetInterface::Redirections;
+  static_assert(std::is_aggregate_v<Redirections>);
+  static_assert(std::is_nothrow_move_constructible_v<Redirections>);
+  static_assert(!noexcept(Redirections{}));
+  const ccf::RedirectionResolverConfig primary{
+    ccf::RedirectionResolutionKind::StaticAddress,
+    {{"address", "primary.test"}}};
+  const ccf::RedirectionResolverConfig backup{
+    ccf::RedirectionResolutionKind::StaticAddress,
+    {{"address", "backup.test"}}};
+  const Redirections positional{primary, backup};
+  const Redirections designated{.to_primary = primary, .to_backup = backup};
+  CHECK(positional == designated);
+  const Redirections defaults{};
+  CHECK(defaults.to_backup.target.at("role") == "backup");
+}
 
 TEST_CASE("Multiple versions of NodeInfoNetwork")
 {
@@ -44,7 +64,7 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
       rpc_b,
       rpc_b_pub,
       "udp",
-      "HTTP2",
+      "CUSTOM",
       300,
       400,
       std::nullopt,
@@ -138,6 +158,34 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
       REQUIRE(it != j.end());
       REQUIRE(it.value() == v_);
     }
+  }
+}
+
+TEST_CASE("Optional node-to-node TLS metadata")
+{
+  using Json = nlohmann::json;
+  const auto legacy = Json::parse(R"({
+    "node_to_node_interface": {"bind_address": "127.0.0.1:8081"},
+    "rpc_interfaces": {}
+  })");
+  const auto without_tls = legacy.get<ccf::NodeInfoNetwork>();
+  CHECK_FALSE(without_tls.node_to_node_tls_interface.has_value());
+  CHECK(Json(without_tls) == legacy);
+
+  for (const auto& endpoint :
+       {Json{{"bind_address", "not-resolved.invalid:0"}},
+        Json{
+          {"bind_address", "[::1]:8082"},
+          {"published_address", "peer.example:8082"}}})
+  {
+    auto input = legacy;
+    input["node_to_node_tls_interface"] = endpoint;
+    const auto parsed = input.get<ccf::NodeInfoNetwork>();
+    REQUIRE(parsed.node_to_node_tls_interface.has_value());
+    CHECK(Json(parsed) == input);
+    CHECK(
+      parsed.node_to_node_tls_interface->published_address.empty() ==
+      !endpoint.contains("published_address"));
   }
 }
 

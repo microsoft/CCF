@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
+#include "kv/trace.h"
 
 namespace ccf::kv
 {
@@ -17,6 +18,9 @@ namespace ccf::kv
 
     AbstractStore* store = nullptr;
     Role role = Role::Ordinary;
+#ifdef CCF_KV_TRACING
+    trace::Attempt trace_attempt;
+#endif
 
     // NB: This exists only to maintain the old API, where this Tx stores
     // MapHandles and returns raw pointers to them. It could be removed entirely

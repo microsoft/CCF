@@ -1,35 +1,196 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+This is a searchable archive which may lag multiple releases.
+The authoritative release notes are on [GitHub Releases](https://github.com/microsoft/CCF/releases).
 
-The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
-and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [8.0.0]
+## [7.0.25]
 
-[8.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-8.0.0
+[7.0.25]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.25
+
+### Added
+
+- `ccf::crypto::OpenSSL::cose_key_from_x509()`, in the new public header `ccf/crypto/openssl/cose_key.h`, makes a `ccf::crypto::COSEKey` from a certificate that is already parsed, without parsing it again as `COSEKey::from_der_cert()` does; see [COSE Keys](doc/build_apps/crypto.rst#cose-keys). (#8751)
+- Services publish their ML-DSA signing public key in `service.signing_identities[PQ]` alongside `service.info.pq_cert`, with no fallback when the PQ pair is incomplete or mismatched; see the [built-in maps reference](doc/audit/builtin_maps.rst) and the [7.x to 8.x migration guide](doc/releases/migration_7_x_to_8_x.rst#ml-dsa-service-identity). (#8696)
 
 ### Changed
 
-- `GET /node/state` is now a non-transactional command endpoint. Its response body schema is unchanged, but it no longer returns `x-ms-ccf-transaction-id`; `last_signed_seqno` reports progress from a coherent materialised ledger prefix, not an application KV snapshot. It is also served while the node's KV store is not yet ready, for example during public ledger recovery or snapshot installation, rather than returning `503 FrontendNotOpen`; `last_signed_seqno` then reports the last recovered signed seqno (#8490).
+- The Build Apps landing page now groups application guides by task, with release cadence, compatibility and migration guidance collected under Releases and Upgrades.
+  See [Build Apps](doc/build_apps/index.rst) and [Releases and Upgrades](doc/releases/index.rst). (#8708)
+- Transactions before an uncommitted reconfiguration transaction now commit once their signature has a quorum in each active configuration defined at or before that signature, without waiting for a quorum of the new configuration.
+  See [Reconfiguration](doc/architecture/consensus/index.rst#reconfiguration). (#8728)
+- Release notes now select change descriptions by their adding commits in a release tag range, so retained published descriptions are not repeated.
+  An optional consolidation script archives released descriptions in `CHANGELOG.md` and removes unchanged published fragments; see the [release procedure](doc/contribute/release_ccf.rst). (#8755)
 
 ### Removed
 
-- Removed ordinary live KV access to `public:ccf.internal.signatures`, `public:ccf.internal.cose_signatures` and `public:ccf.internal.tree` in native C++/Rust and current-KV JavaScript application/governance contexts. `Tx`, `ReadOnlyTx` and `TxDiff` reject all typed and untyped handles to these tables. Use historical state or receipt APIs instead; historical read-only access and offline ledger parsing remain supported. All other table permissions are unchanged (#8490).
-  - Copied older constitutions must remove eager raw-signature reads which initialise `ack.state_digest` when adding or resetting members, and use the existing [state-digest update and acknowledgement workflow](doc/governance/adding_member.rst#activating-a-new-member). Default constitutions from 7.0.17 onward already use this workflow (#8490).
+- Nodes and `ccf.ledger.Snapshot` accept only COSE snapshot receipts, so snapshots written by 6.x and earlier releases, which are out of support, are rejected when joining or recovering.
+  Before upgrading, make sure the service has a snapshot written by 7.0 or later and remove the older ones, upgrading a service still on 6.x to an earlier 7.0 release first; a 6.x snapshot left as the primary's newest prevents nodes from joining (see [Snapshot Generation](doc/operations/ledger_snapshot.rst#snapshot-generation)). (#8746)
+
+### Fixed
+
+- `ccf_cose_sign1_prepare` and `ccf.cose.create_cose_sign1_prepare` again return the `alg` as a JSON Web Algorithm name such as `"ES384"`, as Azure Key Vault expects, and hash the message with the algorithm of the signing key rather than that of the certificate's own signature.
+  See [COSE Signing](doc/governance/hsm_keys.rst#cose-signing). (#8740)
+- JWT signature verification now uses a thread-local signing-key cache rather than serialising verification across worker threads.
+  See [JWT authentication](doc/build_apps/auth/jwt.rst#validating-tokens). (#8771)
+- `ccf.ledger.Ledger` now reads a ledger chunk that is committed in only some of the given directories regardless of the order of those directories, preferring its committed copy, then a completed copy over an open one.
+  With `contiguous_suffix=True`, conflicting chunk ranges are only rejected if they are part of the selected suffix. (#8742)
+- `ccf.ledger.PublicDomain` now rejects snapshot map entries that extend beyond their map's serialised size, as the node does, and the `OFFSETS` verification level rejects ledger chunks with bytes outside their transactions. (#8745)
+- `ledger_viz.py` now shows a tile for every transaction, including the `WaitingForRecoveryShares` service status change of a recovering service, so that tiles stay aligned with transactions. (#8743)
+- `ccf.read_ledger.run` no longer appends the default format rules to the `tables_format_rules` list passed by its caller. (#8744)
+- `ccf.ledger.Snapshot` no longer skips receipt verification or reports an uncommitted snapshot as committed, when a directory containing the snapshot has `.committed` in its name. (#8741)
+- `ccf.ledger.range_from_filename`, `ccf.ledger.snapshot_index_from_filename` and `ccf.tx_id.TxID.parse` now reject names and transaction IDs containing signs, whitespace, underscores, non-ASCII digits or unexpected prefixes.
+  `range_from_filename` also rejects ordinary ledger chunk names whose end seqno precedes their start seqno. (#8739)
+- Respond-on-commit requests now report invalidated transactions after a later view commits, without waiting for the commit sequence number to catch up with the transaction.
+  See [deferring responses until commit](doc/build_apps/example_cpp.rst#deferring-response-until-commit). (#8714)
+- Joining and backup nodes now allocate the buffer for a snapshot fetched from a peer once, at the snapshot's full size, so a fetch needs about the snapshot's size in memory rather than up to three times it.
+  They also stop fetching a snapshot larger than `command.join.fetch_snapshot_max_size` or `snapshots.backup_fetch.max_size` after its first byte range; see [Backup Snapshot Fetching](doc/operations/ledger_snapshot.rst#backup-snapshot-fetching). (#8775)
+- `SeqnosByKey_Bucketed` no longer creates empty bucket files for late first writes or gaps between writes.
+  See [indexing strategies](doc/build_apps/example_cpp.rst) for query costs and remaining memory limitations. (#8686)
+
+### Dependencies
+
+- Updated didx509cpp to [1.0.1](https://github.com/microsoft/didx509cpp/releases/tag/didx509cpp-1.0.1), which decodes standalone Fulcio extensions only when selected by DID policy and only on the leaf certificate. (#8774)
+- Updated the bundled `fmt` library from `12.2.0` to `12.2.1`, fixing allocation-size overflow checks, truncated `std::error_code` format parsing, and `nullptr` formatting with `FMT_COMPILE` and `fmt::to_string`.
+  See [C++ logging](doc/build_apps/logging.rst) and the [upstream release notes](https://github.com/fmtlib/fmt/releases/tag/12.2.1). (#8754)
+- Update the exported Valijson headers from 1.1.3 to [1.1.4](https://github.com/tristanpenman/valijson/releases/tag/v1.1.4), adding JSON Schema `ipv6` and `hostname` format validation for C++ applications. (#8753)
+
+## [7.0.24]
+
+[7.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.24
+
+### Added
+
+- `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
+- Nodes built with OpenSSL 3.5 or newer give the services they start or recover an ML-DSA service certificate (`pq_service_certificate` in `GET /node/network`, `pqCertificate` in `GET /gov/service/info`), selected by `service_mldsa_parameter_set` and renewed by the `set_pq_service_certificate_validity` proposal. Such services only accept nodes with ML-DSA support; see the [7.x to 8.x migration guide](doc/build_apps/migration_7_x_to_8_x.rst) (#8632).
+- `ccf::crypto::COSEKey` and COSE verifiers support ML-DSA public keys (RFC 9964 AKP keys) and verify ML-DSA `COSE_Sign1` signatures; see [COSE Keys](doc/build_apps/crypto.rst#cose-keys).
+  `make_cose_verifier_from_key()` now rejects DER keys followed by trailing data. (#8634)
+- Node logger records can now be exported to Fluentd under `ccf.log`, using the JSON console schema.
+  Collectors now default to `["ccf.log"]`; set `["ccf"]` explicitly to retain consensus traces, as described in [observability export](doc/operations/configuration.rst#observability-export). (#8698)
+- Fluentd sinks support literal tag-prefix filtering through [`observability.fluentd[].tag-prefix-allow-list`](doc/operations/configuration.rst#observability-export). (#8668)
+- On Start and Recover, nodes with an ML-DSA service identity write their [certificate](doc/operations/certificates.rst) to `command.pq_service_certificate_file` (default `pq_service_cert.pem`). (#8694)
+
+### Changed
+
+- CCF-owned fatal termination paths now all emit flushed diagnostics to stderr, while recoverable logs and fatal-severity-only entries remain on stdout. See [Logging](doc/build_apps/logging.rst) (#8690).
+- CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
+- `observability.fluentd` now accepts an array of independent sinks, and configurable delivery behaviour.
+  See [Observability Export](doc/operations/configuration.rst#observability-export) for more details (#8666).
+- Contributors now add isolated change descriptions instead of editing the shared changelog or assigning a release version.
+  The release workflow generates GitHub release notes directly from these files and resolves PR references automatically; see the [release procedure](doc/contribute/release_ccf.rst). (#8685)
+
+### Fixed
+
+- `ccf::indexing::strategies::SeqnosByKey_Bucketed` queries remain unavailable while a rebuild is pending after a missing or corrupt index file is detected, including when indexing advances concurrently. See [Indexing](doc/architecture/indexing.rst) for rebuild behaviour (#8684).
+- Python ledger verification now uses less memory on large ledgers; see [Python Library](doc/audit/python_library.rst) (#8665).
+- `ccf.receipt.verify_cose` now rejects receipts that do not conform to the [CCF Profile for COSE Receipts, draft -06](https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html), including malformed CBOR or proofs and proofs that do not all recompute the signed root, and `ccf::cose::edit::set_unprotected_header` now preserves all bytes outside the unprotected header. See [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for details, including migration from the deprecated `ccf.cose.verify_receipt` (#8646).
+- Nodes no longer abort when a compaction races a transaction run outside of an endpoint, such as the primary's snapshot evidence transaction, a backup's lookup of the primary before fetching a snapshot, JWT key auto-refresh, or the network identity fetch; the operation is retried and otherwise skipped until its next scheduled run. A backup also no longer aborts if a fetched snapshot cannot be written to disk (#8652).
+- The `ccf.merkletree.MerkleTree` Python class now computes each root in time proportional to the leaves added since the previous root, so `ccf.ledger.LedgerValidator` no longer slows down as ledgers grow (#8660).
+- Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB, and Base64 encoding and decoding no longer use stack buffers proportional to the input size. `ccf::crypto::OpenSSL::Unique_BIO(const void*, int)` now takes a `size_t` and throws `std::invalid_argument` rather than accepting a negative length (#8645).
+- Fluentd exporter startup failures now emit a fatal diagnostic to stderr as well as the configured logger output. (#8737)
+
+### Dependencies
+
+- The Python `ccf` package now requires `cwt` 4.0.0 or later and `cbor2` 6.1.5 or later.
+  `ccf.receipt.verify_cose` now rejects receipts with NaN CBOR map keys, and its errors for malformed receipt CBOR include the underlying `cbor2` decoding error, such as `Duplicate map key`. (#8711)
+
+## [7.0.23]
+
+[7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23
+
+### Changed
+
+- `ccf::crypto::OpenSSL::Unique_BIO` no longer accepts temporary `std::vector<uint8_t>` or `Pem` arguments, which would leave it dangling (#8628).
+
+### Fixed
+
+- `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
+- Service certificate renewal, recovery and previous-identity endorsements now preserve multi-RDN `service_subject_name` values such as `CN=CCF Service,O=CCF User` (#8627).
+- Nodes can now generate and load snapshots of services whose public or private state exceeds 2 GiB, including the snapshot taken when a recovered service opens. `ccf::crypto::KeyAesGcm` encryption and decryption now accept AAD and data larger than 2 GiB (#8644).
+
+## [7.0.22]
+
+[7.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.22
+
+### Added
+
+- The header-only Valijson library is now available to C++ applications through the CCF development package (#8621).
+- Added the `network.node_to_node_tls_interface` configuration field for future compatibility (#8617).
+
+## [7.0.21]
+
+[7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21
+
+### Added
+
+- Added Ed25519 certificate support to `ccf::crypto::cert_der_to_pem()` and `cert_pem_to_der()` (#8598).
+- Experimental support for exporting Raft trace events to a Fluentd collector, configured with [`observability.fluentd`](doc/host_config_schema/host_config.json).
+  The configuration and event format may change in future releases (#8386).
+
+### Fixed
+
+- Nodes becoming primary at the end of public recovery now always wait for their certificate to be recorded successfully before emitting ledger signatures, so that private recovery, joining nodes and later recoveries accept the ledger (#8597).
+- Nodes which join a recovered service from a snapshot taken before the recovery now stop tracking the previous service's nodes in consensus once the recovery transaction is committed, see [Disaster Recovery](doc/operations/recovery.rst) (#8596).
+
+## [7.0.20]
+
+[7.0.20]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.20
+
+### Changed
+
+- No user-visible changes. Internal request-processing code was restructured without changing behaviour (#8562).
 
 ## [7.0.19]
 
 [7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
 
+### Added
+
+- Ledger chunk download clients can opt in to immutable `.committed_prefix` resources containing recent committed entries that are not yet available in canonical `.committed` files (#8214).
+- `ccf::crypto::COSEKey` now also parses, validates and encodes OKP COSE_Keys on Ed25519, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_*()` and `ccf::crypto::COSEKey::from_der_cert()` now also accept Ed25519 public keys and certificates, and COSE verifiers verify `EdDSA` (-8) and `Ed25519` (-19) signatures with such keys (#8548).
+
 ### Changed
 
+- Updated didx509cpp to [1.0.0](https://github.com/microsoft/didx509cpp/releases/tag/didx509cpp-1.0.0), adding Fulcio extension selectors and OtherName SAN support, and stricter DID and certificate validation.
+  CCF's supported attestation signing algorithms are unchanged (#8587).
+- Replaced the vendored SmallVector dependency with a standalone byte-only `ccf::ByteVector`, and separated ledger-write buffering into its own implementation.
+  Serialized formats and byte operations are preserved, but native applications must rebuild for the changed C++ type and layout (#8559).
+- Updated snmalloc from 0.7.3 to [0.7.6](https://github.com/microsoft/snmalloc/releases/tag/0.7.6), including allocator and cross-thread deallocation improvements. CCF retains pthread-atfork protection, which upstream now makes opt-in (#8557).
+- Node configuration validation now accepts exact integer-valued JSON numbers such as `1.0` for integer settings, while still rejecting fractional values and enforcing limits. Schema error paths now quote object property names (#8558).
+- Python packages are now built and published separately through the [OneBranch pipeline](.pipelines/README.md), rather than attached to GitHub releases and automatically published by GitHub Actions. Release-build tests use the latest released Python package from PyPI, while development and normal CI tests continue using the local package. Python wheel attestations are disabled (#8546).
+- CCF no longer advances its subsystems in a single atomic tick step. Each subsystem schedules its own periodic work, which can run independently of other subsystems and incoming node messages (#8535).
+- `ccf::endpoints::EndpointRegistry::tick()` overrides now run on task-system worker threads rather than the enclave main thread. Ticks for the same registry do not overlap, but may run concurrently with endpoint execution and ticks for other registries (#8445).
 - Ledger writes and reads of uncommitted ledger entries no longer travel over the host-enclave ringbuffer. The number of ledger entries the host has accepted but not yet written to disk was previously bounded by the ringbuffer filling up and stalling the enclave. It is now bounded by a backpressure threshold instead: a node returns `503` `TooManyPendingTransactions` for application and governance requests while the bytes of pending ledger appends are at or above `memory.circuit_size` (16MB by default), and drops incoming `AppendEntries` replication messages, including heartbeats, until the backlog clears. `/node` endpoints are exempt. Threshold crossings are logged. See the Backpressure section of the Resource Usage operations documentation (#8405).
 - The `503` `TooManyPendingTransactions` check for `consensus.max_uncommitted_tx_count` now applies on backups as well as the primary, so a backup whose uncommitted transaction count reaches the limit rejects requests, including reads, rather than serving or forwarding them. Setting `consensus.max_uncommitted_tx_count` to `0` disables only this count-based check, not the ledger write backpressure above (#8405).
+- First-party node configuration tools now enable redirects by default; manually configured interfaces without `redirections` retain legacy forwarding. JavaScript bundles can omit `forwarding_required`, inferring `always` for `to_primary` and `never` for `none` or `to_backup`, while explicit legacy policies remain supported. Request forwarding remains deprecated and will be removed in CCF 8.0. See [Migrating from forwarding to redirection](https://microsoft.github.io/CCF/main/build_apps/fwd_to_redirect.html) (#8538).
+- Setting a C++ endpoint's `redirection_strategy` now also infers its legacy `forwarding_required` policy (`Always` for `ToPrimary`, `Never` for `None` and `ToBackup`), unless a policy was set earlier through `set_forwarding_required()`. The `Sometimes` policy assigned by `make_read_only_endpoint()` and `make_command_endpoint()` is not explicit, so endpoints which chain `set_redirection_strategy(ToBackup)` now report `never` in their OpenAPI `x-ccf-forwarding` metadata, as the logging sample's `/log/private/backup` and `/log/public/backup` endpoints do. On interfaces still using forwarding, such endpoints are always executed locally, rather than being forwarded on sessions which previously forwarded a request (#8538).
+
+### Deprecated
+
+- The `memory` configuration section is deprecated and will be removed in 8.0. Use `ledger.max_pending_append_bytes` instead of `memory.circuit_size`, and `ledger.max_read_size` and `node_to_node.max_message_size` instead of `memory.max_msg_size`. Explicit new settings take precedence over legacy values. `memory.max_fragment_size` is ignored. Explicit legacy fields produce INFO deprecation notices, including with `--check` (#8568).
+- The helper functions in `ccf/endpoints/authentication/js.h` are deprecated and will be removed in 8.0. Their signatures are unchanged. Applications using these helpers for JavaScript endpoint dispatch can use the extensible registries in `ccf/js/registry.h` (#8520).
 
 ### Fixed
 
+- Node startup reports a diagnostic and exits with an error status for invalid ledger-cleanup settings, unavailable RPC bind addresses, and unwritable certificate output paths (#8572).
+- Byte-vector growth now reports allocation failures and size overflow, and preserves aliased byte inputs across reallocation (#8559).
+- Node configuration validation now rejects negative values for unsigned integer settings and HTTP header counts above `4294967295`, instead of allowing them to wrap during parsing. See the [Configuration](doc/operations/configuration.rst) documentation (#8566).
+- Fixed invalid receipts from the shared historical query cache, affecting `/node/receipt`, `/node/receipt/cose`, application receipt endpoints, and C++/JavaScript historical query APIs. A cross-view range query could replace a cached receipt using the signing view instead of the original transaction view, causing subsequent point queries to return receipts that failed signature verification. The historical cache now takes every transaction's ID from the ledger entry itself, rejects signature transactions which declare a different ID, and keeps the first receipt it produces for a transaction rather than replacing it when a later signature is fetched (#8549).
+- Forwarding timeouts now return HTTP `504` with an `application/json` CCF error envelope and the `ForwardingTimeout` error code, conforming to the governance OpenAPI error schema. The message still identifies the target node and timeout duration (#8518).
 - Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
+- Recovered services no longer reuse stale incomplete ledger chunks behind the committed frontier after service opening, which could misplace later transactions and leave backup application frontends closed. See the [Disaster Recovery](doc/operations/recovery.rst) operations documentation (#8522).
+- Concurrent first requests to JavaScript endpoints now safely initialise the named authentication policy registry. Previously, requests could fail with `Unknown auth policy` while another worker was still populating the registry (#8520).
+- Snapshot and ledger chunk discovery now reject malformed `since` selectors with HTTP `400` `InvalidQueryParameterValue`. Previously, snapshot discovery silently ignored them and ledger chunk discovery misreported them as missing parameters. See the [Ledger and Snapshots](doc/operations/ledger_snapshot.rst) operations documentation (#8532).
+- When the host reports that a ledger entry is missing or too large, the historical query cache now drops only the requests which were waiting for that entry. Previously, unrelated requests could also be dropped, including every in-flight request when the entry was being fetched to recover an older ledger secret (#8527).
+- Historical query cache ticks no longer scan every retained request and store, so retaining many historical queries is much cheaper. Unrepresentable cache times or expiry deadlines now throw instead of overflowing (#8525).
+- Historical ledger replies no longer scan unrelated retained requests to select decryption mode or populate receipts. Reply processing still scales with actual consumers and their requested ranges, and the non-owning routing index adds per-dependency metadata (#8543).
+- `to_backup` redirection resolvers now target a backup by default, whether `redirections.to_backup` is omitted or configured as `NodeByRole` without a `role`. Previously, `to_backup` fell back to the primary, so `ToBackup` endpoints received by the primary were redirected back to the primary unless `"role": "backup"` was configured explicitly (#8538).
+
+### Dependencies
+
+- Updated `llhttp` from `9.3.0` to `9.4.3` (#8552).
+- Updated `fmt` from `12.1.0` to `12.2.0` (#8555).
 
 ## [7.0.18]
 

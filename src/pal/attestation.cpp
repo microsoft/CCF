@@ -188,6 +188,7 @@ namespace ccf::pal
 
     return raw;
   }
+
 #undef RETRIEVE_TCB_FIELD
 
   std::optional<snp::TcbVersionRaw> get_endorsed_tcb_from_cert(
@@ -197,11 +198,17 @@ namespace ccf::pal
     {
       case snp::ProductName::Milan:
       case snp::ProductName::Genoa:
+      {
         return get_milan_genoa_tcb_from_cert(vcek_leaf_cert);
+      }
       case snp::ProductName::Turin:
+      {
         return get_turin_tcb_from_cert(vcek_leaf_cert);
+      }
       default:
+      {
         throw std::logic_error("Unknown SEV-SNP product");
+      }
     }
   }
 
@@ -278,9 +285,9 @@ namespace ccf::pal
 
     // ark_cert --signs--> ask_cert
     // ask_cert --signs--> vcek_cert
-    auto vcek_cert = certificates[0];
-    auto ask_cert = certificates[1];
-    auto ark_cert = certificates[2];
+    const auto& vcek_cert = certificates[0];
+    const auto& ask_cert = certificates[1];
+    const auto& ark_cert = certificates[2];
 
     TavSnpAttestationReport* raw_report = nullptr;
     TavErrorPtr error(

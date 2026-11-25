@@ -64,6 +64,10 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 Update the Documentation
 ------------------------
 
+Building the documentation and Python SDK requires Python 3.12 or newer.
+Diagrams use ``sphinx-pele`` with its default rendering options and bundled browser assets; no Mermaid CDN is required.
+Keep using the ``mermaid`` directive for diagram sources.
+
 It is possible to preview local documentation changes by running
 
 .. code-block:: bash
@@ -76,11 +80,20 @@ or if there are no Doxygen changes
 
     $ SKIP_DOXYGEN=ON ./livehtml.sh
 
+The published documentation tracks ``main``.
+Use `GitHub releases <https://github.com/microsoft/CCF/releases>`_ for release notes and links to the source for a particular release.
+The documentation workflow validates changes targeting ``main`` and publishes only from ``main``.
+To reproduce its build locally from the repository root, activate a Python virtual environment and make sure ``uv``, Doxygen, Node.js and npm, and Cargo are available.
+
+.. code-block:: bash
+
+    $ uv pip install -e ./python -r doc/requirements.txt
+    $ python -m sphinx --fail-on-warning -b html -d build/doc-doctrees doc build/html/main
+
 Rust API documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
-HTML builds generate the :doc:`Rust API reference </build_apps/rust_api>` by running ``cargo doc`` on ``src/rust/ccf-app``, without building CCF, and publish it in each version's ``rust/`` directory.
-Versions without the SDK are skipped.
+HTML builds generate the :doc:`Rust API reference </build_apps/rust_api>` by running ``cargo doc`` on ``src/rust/ccf-app``, without building CCF, and publish it under ``rust/`` in the site.
 Document the SDK in rustdoc comments, and link to its pages from RST with the ``rustdoc`` role:
 
 .. code-block:: rst

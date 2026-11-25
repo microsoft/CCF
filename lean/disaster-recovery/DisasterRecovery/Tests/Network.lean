@@ -1,8 +1,14 @@
-import DisasterRecovery.Shared.MultiNodeTransitionSystem
+module
+
+import all Init.Control.State
+
+public import CCF.MultiNodeTransitionSystem
+
+public section
 
 namespace DisasterRecovery.Tests.Network
 
-open Shared
+open CCF
 
 private inductive Input where
   | receive (source message : Nat)
@@ -17,34 +23,37 @@ private def protocol
     match action with
     | .receive source message =>
         guard (message != 0)
+        host.notify message
+        host.send 1 source
         guard (message != 99)
-        pure do
-          host.notify message
-          host.send 1 source
-          return state + message
-    | .increment => pure (pure (state + 1))
-    | .blocked => none
+        return state + message
+    | .increment => return state + 1
+    | .blocked => failure
     | .burst =>
-        pure do
-          host.notify 10
-          host.send 1 0
-          host.notify 20
-          host.send 2 0
-          return state + 1
+        host.notify 10
+        host.send 1 0
+        host.notify 20
+        host.send 2 0
+        return state + 1
   receive := .receive
   internal := id
 
 example (host : Capabilities Nat Nat Nat) (node state : Nat)
-    : protocol.step host node state .blocked = none :=
-  rfl
-
-example (host : Capabilities Nat Nat Nat) (node state : Nat)
-    : protocol.step host node state (.receive 0 99) = none :=
+    : (protocol.step host node state .blocked).run {} = none :=
   rfl
 
 example (node state : Nat)
-    : (protocol.step (Capabilities.record node) node state .burst).map
-        (fun execute => execute.run {})
+    : (protocol.step (Capabilities.record node) node state (.receive 0 99)).run {}
+      = none :=
+  rfl
+
+example (node state : Nat) (pending : Outputs Nat Nat Nat)
+    : (protocol.step (Capabilities.record node) node state (.receive 0 99)).run pending
+      = none :=
+  rfl
+
+example (node state : Nat)
+    : (protocol.step (Capabilities.record node) node state .burst).run {}
       = some
           (
             state + 1,
@@ -76,22 +85,20 @@ private def burstStep : MultiNodeTransitionSystem.LocalStep Nat Nat Input Nat Na
       }
   }
 
-example : protocol.ValidStep burstStep := ⟨_, rfl, rfl⟩
+example : protocol.ValidStep burstStep := rfl
 
 example : ¬ protocol.ValidStep { burstStep with action := .blocked } := by
-  rintro ⟨execute, enabled, _⟩
-  cases enabled
+  intro result
+  cases result
 
 example : ¬ protocol.ValidStep { burstStep with after := 44 } := by
-  rintro ⟨execute, enabled, result⟩
-  cases enabled
+  intro result
   cases result
 
 example
     : ¬ protocol.ValidStep
           { burstStep with effects := { notifications := [10, 20] } } := by
-  rintro ⟨execute, enabled, result⟩
-  cases enabled
+  intro result
   cases result
 
 example
@@ -100,26 +107,31 @@ example
             burstStep with
               effects := { burstStep.effects with notifications := [20, 10] }
           } := by
-  rintro ⟨execute, enabled, result⟩
-  cases enabled
+  intro result
   cases result
 
 private def initial : MultiNodeTransitionSystem.State Nat Nat Nat :=
-  {
-    nodes := [(0, 0), (1, 0)]
-    active := [0, 1]
-  }
+  { nodes := [(0, 0), (1, 0)] }
+
+example
+    : (MultiNodeTransitionSystem.lift protocol).init { nodes := [(9, 0), (1, 0)] } := by
+  simp [protocol, or_imp, and_imp]
+
+example
+    : ¬ (MultiNodeTransitionSystem.lift protocol).init { nodes := [(1, 0), (1, 0)] } := by
+  simp
 
 private def expect (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
 
-private def requireSome (value : Option α) (message : String) : IO α :=
+private def requireSome {α : Type} (value : Option α) (message : String) : IO α :=
   match value with
   | some result => pure result
   | none => throw (IO.userError message)
 
+/-- Checks message multiplicity, delivery guards, and output ordering in the shared network. -/
 def run : IO Unit := do
-  let machine := MultiNodeTransitionSystem.lift [0, 1] protocol
+  let machine := MultiNodeTransitionSystem.lift protocol
   let message : Envelope Nat Nat := { source := 0, target := 1, payload := 5 }
   let reply : Envelope Nat Nat := { source := 1, target := 0, payload := 1 }
   let queued := { initial with network := [message, message] }
@@ -139,10 +151,8 @@ def run : IO Unit := do
     "non-head delivery failed to preserve other queued messages and append its reply"
   expect ((machine.step initial (.deliver message)).isNone)
     "delivery fabricated a queued message"
-  expect ((machine.step { queued with active := [0] } (.deliver message)).isNone)
-    "inactive receiver accepted a message"
   expect ((machine.step { queued with nodes := [(0, 0)] } (.deliver message)).isNone)
-    "an active receiver with no local state accepted a message"
+    "a receiver with no local state accepted a message"
 
   let blocked : Envelope Nat Nat := { message with payload := 0 }
   expect
@@ -169,7 +179,7 @@ def run : IO Unit := do
     "synthetic receive failed to update local state"
   expect (synthetic.network == [message, message, reply])
     "synthetic receive removed a queued message"
-  let isolated := { queued with nodes := [(1, 0)], active := [1] }
+  let isolated := { queued with nodes := [(1, 0)] }
   let isolatedSent <- requireSome (machine.step isolated (.local 1 (.receive 0 5)))
                         "sending to an absent node disabled the local step"
   expect
@@ -179,15 +189,6 @@ def run : IO Unit := do
     "other nodes influenced a local step or its sends"
   expect ((machine.step isolatedSent (.deliver reply)).isNone)
     "an absent recipient accepted a queued message"
-  let inactiveSent <- requireSome
-                        (machine.step { initial with active := [1] }
-                          (.local 1 (.receive 0 5)))
-                        "sending to an inactive node disabled the local step"
-  expect
-    (MultiNodeTransitionSystem.nodeState inactiveSent 1
-        == MultiNodeTransitionSystem.nodeState synthetic 1
-      && inactiveSent.network == [reply])
-    "recipient activity or the existing queue influenced a local step"
   let incremented <- requireSome (machine.step synthetic (.local 1 .increment))
                       "internal increment disabled"
   expect (incremented.network == synthetic.network)

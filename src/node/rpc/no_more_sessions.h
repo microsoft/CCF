@@ -10,8 +10,7 @@ namespace ccf
   //
   // It sends a single 503 response explaining that the service is busy, then
   // closes the connection. It is templated on the concrete server session type
-  // (HTTPServerSession / HTTP2ServerSession) so it reuses that session's
-  // response machinery.
+  // so it reuses that session's response machinery.
   template <typename Base>
   class NoMoreSessionsImpl : public Base
   {

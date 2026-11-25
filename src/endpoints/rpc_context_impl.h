@@ -3,17 +3,11 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/rpc_context.h"
 
 namespace ccf
 {
-  enum class HttpVersion : uint8_t
-  {
-    HTTP1 = 0,
-    HTTP2
-  };
-
   // Partial implementation of RpcContext, private to the framework (not visible
   // to apps). Serves 2 purposes:
   // - Default implementation of simple methods accessing member fields
@@ -22,16 +16,12 @@ namespace ccf
   {
   protected:
     std::shared_ptr<SessionContext> session;
-    HttpVersion http_version;
 
     std::shared_ptr<void> user_data;
 
   public:
-    RpcContextImpl(
-      const std::shared_ptr<SessionContext>& s,
-      HttpVersion v = HttpVersion::HTTP1) :
-      session(s),
-      http_version(v)
+    explicit RpcContextImpl(const std::shared_ptr<SessionContext>& s) :
+      session(s)
     {}
 
     [[nodiscard]] std::shared_ptr<SessionContext> get_session_context()
@@ -51,28 +41,27 @@ namespace ccf
     }
 
     ccf::ClaimsDigest claims = ccf::empty_claims();
+
     // NOLINTBEGIN(performance-move-const-arg)
     void set_claims_digest(ccf::ClaimsDigest::Digest&& digest) override
     {
       claims.set(std::move(digest));
     }
+
     // NOLINTEND(performance-move-const-arg)
 
     ccf::PathParams path_params;
+
     const ccf::PathParams& get_request_path_params() override
     {
       return path_params;
     }
 
     ccf::PathParams decoded_path_params;
+
     const ccf::PathParams& get_decoded_request_path_params() override
     {
       return decoded_path_params;
-    }
-
-    [[nodiscard]] HttpVersion get_http_version() const
-    {
-      return http_version;
     }
 
     void set_error(
@@ -127,6 +116,7 @@ namespace ccf
       std::string commit_evidence;
       ccf::ClaimsDigest claims_digest;
     };
+
     std::optional<RespondOnCommitInfo> respond_on_commit = std::nullopt;
 
     [[nodiscard]] virtual bool should_apply_writes() const = 0;

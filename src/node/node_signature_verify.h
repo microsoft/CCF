@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/kv/tx.h"
 #include "ccf/service/tables/nodes.h"
-#include "ccf/tx.h"
 
 namespace ccf
 {

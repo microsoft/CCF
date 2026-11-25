@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/base64.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/base64.h"
 #include "ccf/ds/json.h"
 #include "ccf/http_consts.h"
 #include "http_parser.h"
@@ -30,6 +30,7 @@ namespace http
     JwtCryptoAlgorithm alg{};
     std::string kid;
   };
+
   DECLARE_JSON_TYPE(JwtHeader);
   DECLARE_JSON_REQUIRED_FIELDS(JwtHeader, alg, kid);
 
@@ -40,6 +41,7 @@ namespace http
     std::optional<size_t> nbf;
     std::optional<std::string> tid;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtPayload);
   DECLARE_JSON_REQUIRED_FIELDS(JwtPayload, exp, iss);
   DECLARE_JSON_OPTIONAL_FIELDS(JwtPayload, nbf, tid);
@@ -83,7 +85,7 @@ namespace http
     {
       try
       {
-        auto raw = ccf::crypto::raw_from_b64url(b64url);
+        auto raw = ccf::ds::raw_from_b64url(b64url);
         if (raw.empty())
         {
           error_reason = fmt::format("JWT part is empty ({})", part);

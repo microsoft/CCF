@@ -1,0 +1,5 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3.out
+@@ -5 +5 @@
+-RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":4,"source":"0","txid":"2.22","version":25}
++RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"

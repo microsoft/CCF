@@ -78,6 +78,39 @@ namespace ccf::kv
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) override
     {
+      std::vector<uint8_t> header(get_header_length());
+      std::vector<uint8_t> output(plain.size());
+      if (!encrypt(
+            std::span<const uint8_t>(plain),
+            std::span<const uint8_t>(additional_data),
+            std::span<uint8_t>(header),
+            std::span<uint8_t>(output),
+            tx_id,
+            entry_type,
+            historical_hint))
+      {
+        return false;
+      }
+
+      serialised_header = std::move(header);
+      cipher = std::move(output);
+      return true;
+    }
+
+    bool encrypt(
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> additional_data,
+      std::span<uint8_t> serialised_header,
+      std::span<uint8_t> cipher,
+      const TxID& tx_id,
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) override
+    {
+      if (serialised_header.size() != get_header_length())
+      {
+        throw std::logic_error("Incorrect serialised GCM header size");
+      }
+
       S hdr;
 
       set_iv(hdr, tx_id, entry_type);
@@ -101,8 +134,7 @@ namespace ccf::kv
         secret->encrypt(hdr.get_iv(), plain, additional_data, cipher, hdr.tag);
       }
 
-      serialised_header = hdr.serialise();
-
+      hdr.serialise(serialised_header);
       return true;
     }
 
@@ -131,8 +163,29 @@ namespace ccf::kv
       Term& term,
       bool historical_hint = false) override
     {
+      return decrypt(
+        std::span<const uint8_t>(cipher),
+        std::span<const uint8_t>(additional_data),
+        std::span<const uint8_t>(serialised_header),
+        plain,
+        version,
+        term,
+        historical_hint);
+    }
+
+    bool decrypt(
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      std::vector<uint8_t>& plain,
+      Version version,
+      Term& term,
+      bool historical_hint = false) override
+    {
       S hdr;
-      hdr.deserialise(serialised_header);
+      const auto* hdr_data = serialised_header.data();
+      auto hdr_size = serialised_header.size();
+      hdr.deserialise(hdr_data, hdr_size);
       term = hdr.get_term();
 
       auto secret = ledger_secrets->get_secret_for(version, historical_hint);
@@ -149,6 +202,36 @@ namespace ccf::kv
       }
 
       return ret;
+    }
+
+    bool decrypt_in_place(
+      std::span<uint8_t> data,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      Version version,
+      Term& term,
+      bool historical_hint = false) override
+    {
+      S hdr;
+      const auto* hdr_data = serialised_header.data();
+      auto hdr_size = serialised_header.size();
+      hdr.deserialise(hdr_data, hdr_size);
+      term = hdr.get_term();
+
+      auto secret = ledger_secrets->get_secret_for(version, historical_hint);
+      if (secret == nullptr)
+      {
+        return false;
+      }
+
+      // Used for snapshots, which may be large, so do not hold the shared
+      // reusable context while decrypting
+      return secret->key->decrypt(
+        hdr.get_iv(),
+        hdr.tag,
+        std::span<const uint8_t>(data),
+        additional_data,
+        data);
     }
 
     ccf::crypto::HashBytes get_commit_nonce(

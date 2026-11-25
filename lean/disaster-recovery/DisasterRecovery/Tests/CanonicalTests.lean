@@ -1,17 +1,29 @@
-import DisasterRecovery.Tests.Initial
-import DisasterRecovery.Tests.Network
+module
+
+import all Init.Control.State
+meta import DisasterRecovery.Tests.Initial
+meta import DisasterRecovery.Tests.Network
+
+public import DisasterRecovery.Tests.Initial
+public import DisasterRecovery.Tests.Network
+
+public section
+
+namespace DisasterRecovery.Tests.CanonicalTests
 
 open DisasterRecovery
-open Shared
+open CCF
 open DisasterRecovery.Model.Local
 
-private def localMachine (config : Config) (recovered : TxID) (location : Location)
-    : TransitionSystem NodeState Event where
+private abbrev localMachine (config : Config) (recovered : TxID) (location : Location)
+    : TransitionSystem where
+  State := NodeState
+  Action := Event
   init := fun state => state = initialNode location
   step :=
     fun state event =>
-      (step (Capabilities.record location) config recovered state event).map
-        (fun execute => (execute.run {}).1)
+      ((step (Capabilities.record location) config recovered state event).run {}).map
+        Prod.fst
 
 example (config : Config) (recovered : TxID) (location : Location)
     : (localMachine config recovered location).Reachable (initialNode location) :=
@@ -33,21 +45,18 @@ private def frozenStep
     effects := { notifications := [.rejected "gossip-frozen"] }
   }
 
-example : (Model.protocol stepConfig).ValidStep frozenStep := ⟨_, rfl, rfl⟩
+example : (Model.protocol stepConfig).ValidStep frozenStep := rfl
 
 example : ¬ (Model.protocol stepConfig).ValidStep { frozenStep with effects := {} } := by
-  rintro ⟨execute, enabled, result⟩
-  cases enabled
+  intro result
   cases result
 
-example (config : Model.Config) (active : List Location)
-    (valid : config.Valid)
-    (nodup : active.Nodup)
-    (configured : forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
-    : (Model.transitionSystem config).Reachable (Tests.initial config active) := by
+example (config : Model.Config) (valid : config.Valid)
+    : (Model.transitionSystem config).Reachable (Tests.initial config) := by
   apply TransitionSystem.Reachable.initial
-  refine ⟨valid, valid.2.1, ?_, nodup, configured, rfl, ?_⟩
+  refine ⟨valid, ?_, ?_, rfl, ?_⟩
   · simp [Tests.initial, List.map_map, Function.comp_def]
+  · simpa [Tests.initial, List.map_map, Function.comp_def] using valid.2.1
   · intro entry member
     rcases List.mem_map.mp member with ⟨node, _, rfl⟩
     rfl
@@ -55,7 +64,7 @@ example (config : Model.Config) (active : List Location)
 private def expect (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
 
-private def requireSome (value : Option α) (message : String) : IO α :=
+private def requireSome {α : Type} (value : Option α) (message : String) : IO α :=
   match value with
   | some result => pure result
   | none => throw (IO.userError message)
@@ -64,8 +73,8 @@ private def runLocal (config : Config) (state : NodeState) (event : Event)
     : IO (NodeState × Outputs Location Message Notification) :=
   requireSome
     ((step (Capabilities.record state.location) config { view := 1, seqno := 10 } state
-        event).map
-      (fun execute => execute.run {}))
+        event).run
+      {})
     s!"disabled local event: {repr event}"
 
 private def runGlobal (config : Model.Config) (state : Model.State)
@@ -148,14 +157,14 @@ private def enumerate (config : Config) (location : Location) : IO (Nat × Nat) 
     for event in eventsFor config do
       edges := edges + 1
       let emitted := step (Capabilities.record location) config recovered state event
-      if let some execute := emitted then
-        let (after, effects) := execute.run {}
+      if let some (after, effects) := emitted.run {} then
         let pending : Outputs Location Message Notification :=
           {
             outgoing := [{ source := location, target := location, payload := .vote }]
             notifications := [.rejected "existing-notification"]
           }
-        let (afterPending, accumulated) := execute.run pending
+        let (afterPending, accumulated) <- requireSome (emitted.run pending)
+          s!"pending outputs disabled local execution: {repr event}"
         expect
           (afterPending == after
             && accumulated.outgoing == pending.outgoing ++ effects.outgoing
@@ -172,7 +181,8 @@ private def enumerate (config : Config) (location : Location) : IO (Nat × Nat) 
     cursor := cursor + 1
   pure (states.size, edges)
 
-def main : IO UInt32 := do
+/-- Runs the canonical local-state enumeration and recovery scenario checks. -/
+def run : IO Unit := do
   Tests.Network.run
   let config : Config :=
     {
@@ -272,8 +282,9 @@ def main : IO UInt32 := do
   let retry (config : Model.Config) (state : NodeState)
       : Option (NodeState × List Model.Envelope) := do
     let recovered <- Model.recoveredTxID config "A"
-    let execute <- step (Capabilities.record "A") config.protocol recovered state .retry
-    let (after, effects) := execute.run {}
+    let (after, effects) <- (step (Capabilities.record "A") config.protocol recovered
+                              state .retry).run
+                              {}
     pure (after, effects.outgoing)
   let (retried, outgoing) <- requireSome
                               (retry globalConfig second.1)
@@ -324,7 +335,7 @@ def main : IO UInt32 := do
   expect
     ((retry noPeers { initial with phase := .opening }).isNone)
     "opening retry without recipients must be disabled"
-  let globalInitial := Tests.initial globalConfig ["A", "B"]
+  let globalInitial := Tests.initial globalConfig
   expect
     (((Model.transitionSystem globalConfig).step globalInitial
         (.local "A" .timeout)).isNone)
@@ -332,7 +343,7 @@ def main : IO UInt32 := do
   expect
     (((Model.transitionSystem globalConfig).step globalInitial
         (.local "C" .retry)).isNone)
-    "inactive nodes must not send messages"
+    "absent nodes must not send messages"
   let sent <- runGlobal globalConfig globalInitial (.local "A" .retry)
   expect (sent.network.length == 2 && sent.nodes == globalInitial.nodes)
     "retry must enqueue messages without changing node state"
@@ -367,16 +378,6 @@ def main : IO UInt32 := do
   let ignoredAgain <- runGlobal globalConfig ignored (.deliver envelope)
   expect (ignoredAgain.network.isEmpty && ignoredAgain.nodes == ignored.nodes)
     "second ignored delivery did not consume the remaining occurrence"
-  let toInactive := Tests.initial globalConfig ["A"]
-  let inactiveSent <- runGlobal globalConfig toInactive (.local "A" .retry)
-  let inactiveMessage <- requireSome
-                          (inactiveSent.network.find? fun env => env.target == "B")
-                          "inactive gossip missing"
-  expect
-    (((Model.transitionSystem globalConfig).step inactiveSent
-        (.deliver inactiveMessage)).isNone)
-    "an inactive destination accepted a delivery"
-
   let sentA <- runGlobal globalConfig globalInitial (.local "A" .retry)
   let sentBoth <- runGlobal globalConfig sentA (.local "B" .retry)
   let gossipAA <- deliverMessage globalConfig sentBoth "A" "A"
@@ -417,7 +418,7 @@ def main : IO UInt32 := do
       protocol := { instanceId := "different-snapshots", expectedLocations := ["A"] }
       recovered := [("A", { view := 1, seqno := 10 })]
     }
-  let singleInitial := Tests.initial singleConfig ["A"]
+  let singleInitial := Tests.initial singleConfig
   let singleSend1 <- runGlobal singleConfig singleInitial (.local "A" .retry)
   let singleSend2 <- runGlobal singleConfig singleSend1 (.local "A" .retry)
   let singleReceived <- deliverMessage singleConfig singleSend2 "A" "A"
@@ -449,4 +450,7 @@ def main : IO UInt32 := do
   IO.println s!"canonical n=1: {oneStates} states, {oneEdges} event edges"
   IO.println s!"canonical n=2: {twoStates} states, {twoEdges} event edges"
   IO.println "all canonical semantic checks passed"
-  pure 0
+
+#eval run
+
+end DisasterRecovery.Tests.CanonicalTests

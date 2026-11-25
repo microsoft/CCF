@@ -3,12 +3,14 @@
 
 #include "ccf/endpoint_registry.h"
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/ds/locking.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "endpoints/rpc_context_impl.h"
 #include "http/http_parser.h"
+
+#include <tuple>
 
 namespace ccf::endpoints
 {
@@ -60,11 +62,11 @@ namespace ccf::endpoints
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
       {
-        ds::openapi::response(path_op, HTTP_STATUS_OK);
+        std::ignore = ds::openapi::response(path_op, HTTP_STATUS_OK);
       }
 
       // Add a default error response
-      ds::openapi::error_response_default(path_op);
+      std::ignore = ds::openapi::error_response_default(path_op);
 
       // Add summary and description if set
       {
@@ -155,16 +157,18 @@ namespace ccf::endpoints
       // Default regex is "([^/]+)", aka "match everything until the next /"
       std::string regex_terminator = "/";
 
-      if (template_end < regex_s.size() - 1)
+      // If another template follows in the same path segment, the literal
+      // between them separates them, so this template stops at the first
+      // character of that literal.
+      // eg: "/{foo}:{bar}" => "/([^/:]+):([^/]+)"
+      // Otherwise a literal which follows the template is matched at the end
+      // of the segment, so the template may contain it.
+      // eg: "/{foo}:bar" => "/([^/]+):bar", where "/a:b:bar" has foo = "a:b"
+      const auto segment_end = regex_s.find('/', template_end);
+      const auto next_template = regex_s.find('{', template_end);
+      if (next_template < segment_end)
       {
-        const auto terminator_candidate = regex_s[template_end + 1];
-        if (terminator_candidate != '/')
-        {
-          // If there's some other character literal following the template,
-          // treat that as a terminator as well.
-          // eg: "/{foo}:bar" => "/(^[/:]):bar"
-          regex_terminator += terminator_candidate;
-        }
+        regex_terminator += regex_s[template_end + 1];
       }
 
       spec.template_component_names.push_back(
@@ -238,17 +242,18 @@ namespace ccf::endpoints
     const ReadOnlyEndpointFunction& f,
     const AuthnPolicies& ap)
   {
-    return make_endpoint(
-             method,
-             verb,
-             [f](EndpointContext& ctx) {
-               ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
-               ro_ctx.caller = std::move(ctx.caller);
-               f(ro_ctx);
-             },
-             ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_redirection_strategy(RedirectionStrategy::None);
+    auto endpoint = make_endpoint(
+      method,
+      verb,
+      [f](EndpointContext& ctx) {
+        ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
+        ro_ctx.caller = std::move(ctx.caller);
+        f(ro_ctx);
+      },
+      ap);
+    endpoint.set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
+    return endpoint;
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -261,8 +266,9 @@ namespace ccf::endpoints
       make_endpoint(method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap);
     endpoint.execution_mode = EndpointExecutionMode::Command;
     endpoint.command_func = f;
-    return endpoint.set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
+    return endpoint;
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)

@@ -138,7 +138,7 @@ def generate_cert(
     if issuer_cn is None:
         issuer_cn = cn
     if valid_from is None:
-        valid_from = datetime.datetime.now(datetime.timezone.utc)
+        valid_from = datetime.datetime.now(datetime.UTC)
     priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
     pub = priv.public_key()
     issuer_priv = load_pem_private_key(
@@ -368,6 +368,22 @@ def compute_cert_der_hash_hex_from_pem(pem: str):
     return cert.fingerprint(hashes.SHA256()).hex()
 
 
+def did_key_from_private_key(pem: str) -> str:
+    from ccf.identity import did_key_from_public_key
+
+    key = load_pem_private_key(pem.encode("ascii"), None, default_backend())
+    return did_key_from_public_key(key.public_key())
+
+
+def node_id_from_cert(pem: str, id_format: str = "sha256") -> str:
+    if id_format == "sha256":
+        return compute_public_key_der_hash_hex_from_pem(pem)
+    from ccf.identity import did_key_from_public_key
+
+    cert = load_pem_x509_certificate(pem.encode(), default_backend())
+    return did_key_from_public_key(cert.public_key())
+
+
 def get_san_from_pem_cert(pem: str):
     cert = load_pem_x509_certificate(pem.encode(), default_backend())
     return cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
@@ -408,7 +424,7 @@ def create_signed_statement(
     will be reused so that the issuer DID is stable across calls.
     """
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     validity = datetime.timedelta(days=10)
 
     # Generate or reuse CA key and self-signed cert
@@ -522,7 +538,7 @@ def create_signed_statement(
         1: -7,  # alg: ES256
         3: "application/octet-stream",  # content_type
         33: [leaf_der, ca_der],  # x5chain
-        15: cwt_claims,
+        int(cwt.COSEHeaders.CWT_CLAIMS): cwt_claims,
     }
 
     leaf_key_pem = leaf_key.private_bytes(

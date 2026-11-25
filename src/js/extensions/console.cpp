@@ -4,10 +4,10 @@
 #include "ccf/js/extensions/console.h"
 
 #include "ccf/ds/logger.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ds/gov_logging.h"
 #include "ds/internal_logger.h"
-#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 
@@ -137,13 +137,13 @@ namespace ccf::js::extensions
     {
       auto console = jsctx.new_obj();
 
-      JS_CHECK_OR_THROW(
+      CCF_JS_CHECK_OR_THROW(
         console.set("log", jsctx.new_c_function(js_info, "log", 1)));
-      JS_CHECK_OR_THROW(
+      CCF_JS_CHECK_OR_THROW(
         console.set("info", jsctx.new_c_function(js_info, "info", 1)));
-      JS_CHECK_OR_THROW(
+      CCF_JS_CHECK_OR_THROW(
         console.set("warn", jsctx.new_c_function(js_fail, "warn", 1)));
-      JS_CHECK_OR_THROW(
+      CCF_JS_CHECK_OR_THROW(
         console.set("error", jsctx.new_c_function(js_fatal, "error", 1)));
 
       return console;
@@ -153,7 +153,7 @@ namespace ccf::js::extensions
   void ConsoleExtension::install(js::core::Context& ctx)
   {
     auto global_obj = ctx.get_global_obj();
-    JS_CHECK_OR_THROW(global_obj.set("console", create_console_obj(ctx)));
+    CCF_JS_CHECK_OR_THROW(global_obj.set("console", create_console_obj(ctx)));
   }
 
   void ConsoleExtension::log_info_with_tag(

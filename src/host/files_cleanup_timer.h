@@ -124,67 +124,78 @@ namespace asynchost
     {
       namespace fs = std::filesystem;
 
-      auto local_hash = hash_file(local_path);
-      if (!local_hash.has_value())
-      {
-        // Distinguish between a concurrent deletion (benign) and a genuine
-        // read error on an existing file. Use non-throwing overloads to
-        // avoid exceptions from permission issues or broken mounts.
+      const auto check_local_file_status =
+        [&]() -> std::optional<DigestCheckResult> {
         std::error_code ec;
-        const auto exists = fs::exists(local_path, ec);
-        if (ec)
-        {
-          LOG_FAIL_FMT(
-            "Failed to query existence of ledger chunk {}: {}. "
-            "Skipping deletion.",
-            local_path.filename(),
-            ec.message());
-          return DigestCheckResult::no_match;
-        }
-        if (!exists)
+        const auto status = fs::status(local_path, ec);
+        if (status.type() == fs::file_type::not_found)
         {
           LOG_INFO_FMT(
             "Ledger chunk {} no longer exists, skipping",
             local_path.filename());
           return DigestCheckResult::file_gone;
         }
-
-        ec.clear();
-        const auto is_reg = fs::is_regular_file(local_path, ec);
         if (ec)
         {
           LOG_FAIL_FMT(
-            "Failed to query type of ledger chunk {}: {}. "
+            "Failed to query status of ledger chunk {}: {}. "
             "Skipping deletion.",
             local_path.filename(),
             ec.message());
           return DigestCheckResult::no_match;
         }
-        if (!is_reg)
+        if (!fs::is_regular_file(status))
         {
           LOG_INFO_FMT(
             "Ledger chunk {} is no longer a regular file, skipping",
             local_path.filename());
           return DigestCheckResult::file_gone;
         }
+        return std::nullopt;
+      };
 
-        LOG_FAIL_FMT(
-          "Ledger chunk {} exists but could not be read, skipping deletion",
-          local_path.filename());
-        return DigestCheckResult::no_match;
-      }
-
+      std::optional<ccf::crypto::Sha256Hash> local_hash;
       auto file_name = local_path.filename();
 
       for (const auto& ro_dir : read_only_dirs)
       {
         auto candidate = ro_dir / file_name;
         std::error_code ec;
-        if (
-          !fs::exists(candidate, ec) || ec ||
-          !fs::is_regular_file(candidate, ec) || ec)
+        const auto status = fs::status(candidate, ec);
+        if (status.type() == fs::file_type::not_found)
         {
           continue;
+        }
+        if (ec)
+        {
+          LOG_FAIL_FMT(
+            "Failed to query ledger chunk {} in read-only directory {}: {}. "
+            "Skipping deletion.",
+            file_name,
+            ro_dir,
+            ec.message());
+          continue;
+        }
+        if (!fs::is_regular_file(status))
+        {
+          continue;
+        }
+
+        if (!local_hash.has_value())
+        {
+          local_hash = hash_file(local_path);
+          if (!local_hash.has_value())
+          {
+            const auto result = check_local_file_status();
+            if (result.has_value())
+            {
+              return result.value();
+            }
+            LOG_FAIL_FMT(
+              "Ledger chunk {} exists but could not be read, skipping deletion",
+              local_path.filename());
+            return DigestCheckResult::no_match;
+          }
         }
 
         try
@@ -222,6 +233,14 @@ namespace asynchost
         }
       }
 
+      if (!local_hash.has_value())
+      {
+        const auto result = check_local_file_status();
+        if (result.has_value())
+        {
+          return result.value();
+        }
+      }
       return DigestCheckResult::no_match;
     }
 

@@ -5,9 +5,10 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/bignum.h"
+#include "crypto/openssl/csr.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
-#include "x509_time.h"
 
 #define FMT_HEADER_ONLY
 #include <climits>
@@ -18,31 +19,13 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include <openssl/rand.h>
-#include <openssl/x509v3.h>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
 namespace ccf::crypto
 {
   using namespace OpenSSL;
-
-  namespace
-  {
-    std::map<std::string, std::string> parse_name(const std::string& name)
-    {
-      std::map<std::string, std::string> result;
-      const auto ns = ccf::nonstd::split(name, ",");
-      for (const auto& n : ns)
-      {
-        const auto& [key, value] = ccf::nonstd::split_1(n, "=");
-        result.emplace(
-          std::string(key.data(), key.size()),
-          std::string(value.data(), value.size()));
-      }
-      return result;
-    }
-  }
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(CurveID curve_id)
   {
@@ -73,9 +56,8 @@ namespace ccf::crypto
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
-    Unique_BIGNUM d;
-    auto d_raw = raw_from_b64url(jwk.d);
-    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
+    auto d_raw = ccf::ds::raw_from_b64url(jwk.d);
+    Unique_BIGNUM d = bn_from_bytes(d_raw);
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     // Note: d_raw is big endian while OSSL_PARAM_construct_BN expects native
     // endianness
@@ -213,62 +195,12 @@ namespace ccf::crypto
   }
 
   Unique_X509_REQ ECKeyPair_OpenSSL::create_req(
-    const std::string& subject_name,
+    const X509_NAME* subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
   {
-    Unique_X509_REQ req;
-
-    if (public_key)
-    {
-      Unique_BIO mem(*public_key);
-      Unique_PKEY pubkey(mem);
-      OpenSSL::CHECK1(X509_REQ_set_pubkey(req, pubkey));
-    }
-    else
-    {
-      OpenSSL::CHECK1(X509_REQ_set_pubkey(req, key));
-    }
-
-    X509_NAME* subj_name = nullptr;
-    OpenSSL::CHECKNULL(subj_name = X509_NAME_new());
-
-    for (const auto& [k, v] : parse_name(subject_name))
-    {
-      OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
-        subj_name,
-        k.c_str(),
-        MBSTRING_ASC,
-        reinterpret_cast<const unsigned char*>(v.data()),
-        v.size(),
-        -1,
-        0));
-    }
-
-    OpenSSL::CHECK1(X509_REQ_set_subject_name(req, subj_name));
-    X509_NAME_free(subj_name);
-
-    if (!subject_alt_names.empty())
-    {
-      Unique_STACK_OF_X509_EXTENSIONS exts;
-
-      X509_EXTENSION* ext = nullptr;
-      OpenSSL::CHECKNULL(
-        ext = X509V3_EXT_conf_nid(
-          nullptr,
-          nullptr,
-          NID_subject_alt_name,
-          fmt::format("{}", fmt::join(subject_alt_names, ", ")).c_str()));
-      sk_X509_EXTENSION_push(exts, ext);
-      X509_REQ_add_extensions(req, exts);
-    }
-
-    if (key != nullptr)
-    {
-      OpenSSL::CHECKPOSITIVE(X509_REQ_sign(req, key, EVP_sha512()));
-    }
-
-    return req;
+    return OpenSSL::make_csr(
+      key, EVP_sha512(), subject_name, subject_alt_names, public_key);
   }
 
   Pem ECKeyPair_OpenSSL::create_csr(
@@ -276,15 +208,17 @@ namespace ccf::crypto
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
   {
-    Unique_X509_REQ req =
-      create_req(subject_name, subject_alt_names, public_key);
+    return csr_to_pem(create_req(
+      subject_name_from_string(subject_name), subject_alt_names, public_key));
+  }
 
-    Unique_BIO mem;
-    OpenSSL::CHECK1(PEM_write_bio_X509_REQ(mem, req));
-
-    BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(mem, &bptr);
-    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
+  Pem ECKeyPair_OpenSSL::create_csr(
+    const std::vector<uint8_t>& subject_name_der,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
+  {
+    return csr_to_pem(create_req(
+      subject_name_from_der(subject_name_der), subject_alt_names, public_key));
   }
 
   std::vector<uint8_t> ECKeyPair_OpenSSL::create_csr_der(
@@ -292,8 +226,8 @@ namespace ccf::crypto
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
   {
-    Unique_X509_REQ req =
-      create_req(subject_name, subject_alt_names, public_key);
+    Unique_X509_REQ req = create_req(
+      subject_name_from_string(subject_name), subject_alt_names, public_key);
 
     Unique_BIO mem;
     CHECK1(i2d_X509_REQ_bio(mem, req));
@@ -314,163 +248,15 @@ namespace ccf::crypto
     bool ca,
     Signer signer) const
   {
-    X509* icrt = nullptr;
-    Unique_BIO mem(signing_request);
-    Unique_X509_REQ csr(mem);
-    Unique_X509 crt;
-    EVP_PKEY* req_pubkey = nullptr;
-
-    // First, verify self-signed CSR
-    if (signer == Signer::SUBJECT)
-    {
-      req_pubkey = X509_REQ_get0_pubkey(csr);
-      OpenSSL::CHECK1(X509_REQ_verify(csr, req_pubkey));
-    }
-
-    // Add version
-    OpenSSL::CHECK1(X509_set_version(crt, 2));
-
-    // Add serial number
-    constexpr size_t SERIAL_NUMBER_SIZE = 16;
-    unsigned char rndbytes[SERIAL_NUMBER_SIZE];
-    OpenSSL::CHECK1(
-      RAND_bytes(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes)));
-    BIGNUM* bn = nullptr;
-    OpenSSL::CHECKNULL(bn = BN_new());
-    OpenSSL::CHECKNULL(
-      BN_bin2bn(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes), bn));
-    ASN1_INTEGER* serial = ASN1_INTEGER_new();
-    BN_to_ASN1_INTEGER(bn, serial);
-    OpenSSL::CHECK1(X509_set_serialNumber(crt, serial));
-    ASN1_INTEGER_free(serial);
-    BN_free(bn);
-
-    // Add issuer name
-    if (issuer_cert.has_value())
-    {
-      Unique_BIO imem(*issuer_cert);
-      OpenSSL::CHECKNULL(
-        icrt = PEM_read_bio_X509(imem, nullptr, nullptr, nullptr));
-      OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
-
-      if (signer == Signer::ISSUER)
-      {
-        // Verify issuer-signed CSR
-        req_pubkey = X509_REQ_get0_pubkey(csr);
-        auto* issuer_pubkey = X509_get0_pubkey(icrt);
-        OpenSSL::CHECK1(X509_REQ_verify(csr, issuer_pubkey));
-      }
-    }
-    else
-    {
-      OpenSSL::CHECK1(
-        X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
-    }
-
-    Unique_X509_TIME not_before(valid_from);
-    Unique_X509_TIME not_after(valid_to);
-    if (!validate_chronological_times(not_before, not_after))
-    {
-      throw std::logic_error(fmt::format(
-        "Certificate cannot be created with not_before date {} > not_after "
-        "date {}",
-        to_x509_time_string(not_before),
-        to_x509_time_string(not_after)));
-    }
-
-    OpenSSL::CHECK1(X509_set1_notBefore(crt, not_before));
-    OpenSSL::CHECK1(X509_set1_notAfter(crt, not_after));
-
-    X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
-    X509_set_pubkey(crt, req_pubkey);
-
-    // Extensions
-    X509V3_CTX v3ctx;
-    X509V3_set_ctx_nodb(&v3ctx);
-    X509V3_set_ctx(
-      &v3ctx, icrt != nullptr ? icrt : crt, nullptr, csr, nullptr, 0);
-
-    std::string constraints = "critical,CA:FALSE";
-    if (ca)
-    {
-      // 1 to allow for intermediate CAs with a different subject name,
-      // which can occur in service endorsements of some services.
-      constraints = "critical,CA:TRUE,pathlen:1";
-    }
-
-    // Add basic constraints
-    X509_EXTENSION* ext = nullptr;
-    OpenSSL::CHECKNULL(
-      ext = X509V3_EXT_conf_nid(
-        nullptr, &v3ctx, NID_basic_constraints, constraints.c_str()));
-    OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
-    X509_EXTENSION_free(ext);
-
-    if (ca)
-    {
-      // Add key usage
-      OpenSSL::CHECKNULL(
-        ext = X509V3_EXT_conf_nid(
-          nullptr,
-          &v3ctx,
-          NID_key_usage,
-          "critical, keyCertSign, digitalSignature"));
-      OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
-      X509_EXTENSION_free(ext);
-    }
-
-    // Add subject key identifier
-    OpenSSL::CHECKNULL(
-      ext = X509V3_EXT_conf_nid(
-        nullptr, &v3ctx, NID_subject_key_identifier, "hash"));
-    OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
-    X509_EXTENSION_free(ext);
-
-    // Add authority key identifier
-    OpenSSL::CHECKNULL(
-      ext = X509V3_EXT_conf_nid(
-        nullptr, &v3ctx, NID_authority_key_identifier, "keyid:always"));
-    OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
-    X509_EXTENSION_free(ext);
-
-    // Add subject alternative names (read from csr)
-    Unique_STACK_OF_X509_EXTENSIONS exts = X509_REQ_get_extensions(csr);
-    int extension_count = sk_X509_EXTENSION_num(exts);
-    if (extension_count > 0)
-    {
-      for (int i = 0; i < extension_count; i++)
-      {
-        X509_EXTENSION* csr_ext = sk_X509_EXTENSION_value(exts, i);
-        ASN1_OBJECT* obj = X509_EXTENSION_get_object(csr_ext);
-        auto nid = OBJ_obj2nid(obj);
-        if (nid == NID_subject_alt_name)
-        {
-          OpenSSL::CHECK1(X509_add_ext(crt, csr_ext, -1));
-        }
-      }
-    }
-
-    // Sign
-    const auto* md = get_md_type(get_md_for_ec(get_curve_id()));
-    int size = X509_sign(crt, key, md);
-    if (size <= 0)
-    {
-      throw std::runtime_error("could not sign CRT");
-    }
-    Unique_BIO omem;
-    OpenSSL::CHECK1(PEM_write_bio_X509(omem, crt));
-
-    // Export
-    BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(omem, &bptr);
-    Pem result(reinterpret_cast<uint8_t*>(bptr->data), bptr->length);
-
-    if (icrt != nullptr)
-    {
-      X509_free(icrt);
-    }
-
-    return result;
+    return OpenSSL::sign_csr(
+      key,
+      get_md_type(get_md_for_ec(get_curve_id())),
+      issuer_cert,
+      signing_request,
+      valid_from,
+      valid_to,
+      ca,
+      signer);
   }
 
   CurveID ECKeyPair_OpenSSL::get_curve_id() const
@@ -530,7 +316,7 @@ namespace ccf::crypto
     {
       throw std::runtime_error(fmt::format("BN_bn2binpad failed: {}", rc));
     }
-    jwk.d = b64url_from_raw(bytes, false /* with_padding */);
+    jwk.d = ccf::ds::b64url_from_raw(bytes, false /* with_padding */);
 
     return jwk;
   }

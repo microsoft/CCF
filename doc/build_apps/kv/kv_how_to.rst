@@ -10,7 +10,13 @@ A :cpp:type:`ccf::kv::Map` (often referred to as a `Table`) is a collection of k
 
 If a :cpp:type:`ccf::kv::Map` with the given name did not previously exist, it will be created in this transaction.
 
-A :cpp:type:`ccf::kv::Map` can either be created as private (default) or public. Public map's names begin with a ``public:`` prefix, any other name indicates a private map. For instance the name ``public:foo`` to a public map, while ``foo`` refers to a private map. Transactions on private maps are written to the ledger in encrypted form and can only be decrypted in the enclave of nodes that have joined the network. Transactions on public maps are written to the ledger as plaintext and can be read from outside the enclave; only their integrity is protected. The security domain of a map (public or private) cannot be changed after its creation, since this is encoded in the map's name. Public and private maps with similar names in different domains are distinct; writes to ``public:foo`` have no impact on ``foo``, and vice versa.
+A :cpp:type:`ccf::kv::Map` can either be created as private (default) or public.
+Public map's names begin with a ``public:`` prefix, any other name indicates a private map.
+For instance the name ``public:foo`` to a public map, while ``foo`` refers to a private map.
+Transactions on private maps are written to the ledger in encrypted form and can only be decrypted inside the TEE of nodes that have joined the network.
+Transactions on public maps are written to the ledger as plaintext and can be read by anyone with access to the ledger; only their integrity is protected.
+The security domain of a map (public or private) cannot be changed after its creation, since this is encoded in the map's name.
+Public and private maps with similar names in different domains are distinct; writes to ``public:foo`` have no impact on ``foo``, and vice versa.
 
 Some table names are reserved for governance of a CCF service and cannot be modified by application code. For more information, see :doc:`/audit/read_write_restrictions`.
 
@@ -23,7 +29,10 @@ A reference to a new :cpp:class:`ccf::kv::Tx` is passed to each endpoint handler
 
 Each :cpp:class:`ccf::kv::Tx` gets a consistent, opaque view of the KV, including the values which have been left by previous writes. Any writes produced by this transaction will be visible to all future transactions.
 
-When the endpoint handler indicates that its :cpp:class:`ccf::kv::Tx` should be applied (see :ref:`this section <build_apps/kv/kv_how_to:Applying and reverting writes>` for details), the executing node attempts to apply the changes to its local KV. If this produces conflicts with concurrently executing transactions, it will be automatically re-executed. Once the transaction is applied successfully, it is automatically replicated to other nodes and will, if the network is healthy, eventually be committed.
+When the endpoint handler indicates that its :cpp:class:`ccf::kv::Tx` should be applied (see :ref:`this section <build_apps/kv/kv_how_to:Applying and reverting writes>` for details), the executing node attempts to apply the changes to its local KV.
+If this produces conflicts with concurrently executing transactions, it will be automatically re-executed.
+Conflicts with KV compaction during KV-backed endpoint lookup or handler execution also cause the request to be retried with a fresh transaction, including endpoint lookup.
+Once the transaction is applied successfully, it is automatically replicated to other nodes and will, if the network is healthy, eventually be committed.
 
 For each :cpp:type:`ccf::kv::Map` that a transaction wants to write to or read from, a :cpp:class:`ccf::kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`ccf::kv::Tx::rw` (`read-write`) method. These may be acquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:type:`ccf::kv::Map` instance which defines both the map's name and key-value types.
 
@@ -122,13 +131,9 @@ Note that, as in the sample above, it is possible to acquire different kinds of 
 Signature Metadata
 ------------------
 
-From CCF 8.0, ordinary live ``Tx``, ``ReadOnlyTx`` and ``TxDiff`` cannot acquire any handle to ``public:ccf.internal.signatures``, ``public:ccf.internal.cose_signatures`` or ``public:ccf.internal.tree``. This includes typed and untyped handles, whether read-only, read/write, write-only or diff handles. The restriction is enforced centrally by the KV API, including for native C++ and Rust applications; read-only endpoints are not exempt. See :ref:`audit/read_write_restrictions:Signature-Transaction Tables` for the corresponding JavaScript permissions and the unchanged permissions for other public internal tables.
+From CCF 8.0, ``public:ccf.internal.signatures``, ``public:ccf.internal.cose_signatures`` and ``public:ccf.internal.tree`` are inaccessible in live transactions. ``Tx``, ``ReadOnlyTx`` and ``TxDiff`` reject all handles to these tables (``ro``, ``rw``, ``wo`` and ``diff``) with ``ccf::kv::MapAccessDenied`` in C++ and ``BridgeError::AccessDenied`` in Rust; see :ref:`audit/read_write_restrictions:Signature-Transaction Tables` for JavaScript.
 
-For signature data and proofs, use :ref:`historical state <build_apps/example_cpp:Historical Queries>` or :doc:`receipt APIs </use_apps/rpc_api>` instead. Historical JavaScript KV views and native historical read-only stores retain read-only access to these tables, and offline ledger parsing remains supported. For progress metadata, use :http:GET:`/node/state`, whose response is non-transactional and must not be interpreted as part of your KV snapshot.
-
-.. note::
-
-    Framework signature production uses ``ReservedTx``, which is limited to write-only handles on these three tables. It cannot read them or backfill ordinary readable maps. Framework verification, recovery, restore and metadata reads use an independent read-only view pinned to a materialised ledger prefix, selected using existing replication and commit metadata. These internal mechanisms are not ordinary live transaction exemptions or public opt-outs. No new wait for signature publication is introduced for ordinary transactions.
+For signature data and proofs, use :ref:`historical state <build_apps/example_cpp:Historical Queries>` or :doc:`receipt APIs </use_apps/rpc_api>` instead. Historical KV views and offline ledger parsing remain supported. For node progress metadata, use :http:GET:`/node/state`, which is non-transactional and independent of any KV snapshot.
 
 Removing a key
 --------------

@@ -21,6 +21,7 @@ namespace ccf::crypto
     EdDSAPublicKey_OpenSSL() = default;
     EdDSAPublicKey_OpenSSL(const Pem& pem);
     EdDSAPublicKey_OpenSSL(const JsonWebKeyEdDSAPublic& jwk);
+    EdDSAPublicKey_OpenSSL(OpenSSL::Unique_PKEY&& pkey);
     ~EdDSAPublicKey_OpenSSL() override;
 
     [[nodiscard]] Pem public_key_pem() const override;

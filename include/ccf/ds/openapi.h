@@ -12,6 +12,7 @@
 #include <regex>
 #include <set>
 #include <string_view>
+#include <tuple>
 #include <unordered_set>
 
 /**
@@ -152,7 +153,7 @@ namespace ccf::ds::openapi
     {
       // responses is required field in a path_operation, but caller may
       // choose to add their own later
-      access::get_object(po, "responses");
+      std::ignore = access::get_object(po, "responses");
     }
 
     return po;
@@ -195,7 +196,7 @@ namespace ccf::ds::openapi
   static inline nlohmann::json& request_body(nlohmann::json& path_operation)
   {
     auto& request_body = access::get_object(path_operation, "requestBody");
-    access::get_object(request_body, "content");
+    std::ignore = access::get_object(request_body, "content");
     return request_body;
   }
 
@@ -336,7 +337,7 @@ namespace ccf::ds::openapi
         ccf::nonstd::is_specialization<T, std::set>::value ||
         ccf::nonstd::is_specialization<T, std::unordered_set>::value)
       {
-        if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
+        if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
         {
           // Byte vectors are always base64 encoded
           schema["type"] = "string";
@@ -394,9 +395,9 @@ namespace ccf::ds::openapi
           document, ccf::ds::json::schema_name<T>(), schema);
       }
       else if constexpr (
-        std::is_same<T, std::string>::value || std::is_arithmetic_v<T> ||
-        std::is_same<T, nlohmann::json>::value ||
-        std::is_same<T, ccf::ds::json::JsonSchema>::value)
+        std::is_same_v<T, std::string> || std::is_arithmetic_v<T> ||
+        std::is_same_v<T, nlohmann::json> ||
+        std::is_same_v<T, ccf::ds::json::JsonSchema>)
       {
         ccf::ds::json::fill_schema<T>(schema);
         return add_schema_to_components(
@@ -421,7 +422,7 @@ namespace ccf::ds::openapi
 #endif
           // Use argument-dependent-lookup to call correct functions
           T* t = nullptr;
-          if constexpr (std::is_enum<T>::value)
+          if constexpr (std::is_enum_v<T>)
           {
             fill_enum_schema(j, t);
           }

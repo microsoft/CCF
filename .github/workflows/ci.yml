@@ -23,10 +23,13 @@ env:
 
 jobs:
   vmss-virtual-a:
-    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
+    name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Unit tests, e2e (bucket_a)
     runs-on: [gha-vmss-d16av7-ci]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -34,9 +37,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git tar zstd
+          dnf -y update
+          dnf -y install ca-certificates git tar zstd
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -44,14 +46,12 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
-        with:
-          python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt,tests/requirements.txt
 
       - name: "Install development dependencies"
         shell: bash
         run: |
           set -ex
-          ./scripts/setup-dev.sh
+          ./scripts/setup-dev-al4.sh
 
       - name: "Run Checks and Build Debug with clang-tidy"
         run: |
@@ -60,10 +60,16 @@ jobs:
           ./scripts/ci-checks.sh
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON \
-            -DDOCS_PYTHON="$GITHUB_WORKSPACE/env/bin/python" ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON -DTEST_MLDSA=ON ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
+
+      - name: "Check C++ case scopes"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/clang-tidier.py -p build -j auto
 
       - name: "Run tests for Python package"
         run: |
@@ -73,28 +79,25 @@ jobs:
           uv pip install -q pytest
           uv pip install -q -e python
           cd python
-          pytest
+          python ../tests/infra/test_reporting.py pytest
+        shell: bash
 
       - name: "Run Unit tests"
         run: |
           set -ex
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+        shell: bash
 
-      - name: "Build docs and run e2e tests (bucket_a)"
+      - name: "Run e2e tests (bucket_a)"
         shell: bash
         run: |
           set -ex
-          source env/bin/activate
-          uv pip install -e ./python
-          uv pip install -r doc/requirements.txt
-          uv pip install -r doc/historical_ccf_requirements.txt
-
           cd build
           ./tests.sh --timeout 360 --output-on-failure -L bucket_a -j2
 
       - name: "Upload logs for virtual A"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-azurelinux-virtual-a
           path: |
@@ -112,16 +115,18 @@ jobs:
     name: "VMSS Virtual B" # End-to-end tests (bucket_b)
     runs-on: [gha-vmss-d16av7-ci-b]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
       - name: "Checkout dependencies"
         shell: bash
         run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          dnf -y update
+          dnf -y install ca-certificates git
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -148,6 +153,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja bucket_b
         shell: bash
 
@@ -162,7 +168,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for virtual B"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-azurelinux-virtual-b
           path: |
@@ -180,7 +186,10 @@ jobs:
     name: "VMSS Virtual C" # End-to-end tests (bucket_c)
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -188,9 +197,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          dnf -y update
+          dnf -y install ca-certificates git
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -199,6 +207,17 @@ jobs:
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
 
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
+
+      - name: "Build Lean consistency trace replayer"
+        run: |
+          set -euo pipefail
+          cd lean/consistency
+          lake build consistency-replay
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -206,6 +225,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja bucket_c partitions
         shell: bash
 
@@ -223,10 +243,12 @@ jobs:
         run: |
           set -ex
           cd build
+          export CCF_LEAN_CONSISTENCY_REPLAYER="$GITHUB_WORKSPACE/lean/consistency/.lake/build/bin/consistency-replay"
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+        shell: bash
 
       - name: "Upload logs for virtual C"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-azurelinux-virtual-c
           path: |
@@ -237,6 +259,7 @@ jobs:
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
+            build/workspace/*_consistency_trace.ndjson
           if-no-files-found: ignore
         if: success() || failure()
 
@@ -272,6 +295,20 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
+      - name: "Build Lean recovery trace replayer"
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
+            -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          rm /tmp/elan-init.sh
+          export PATH="${HOME}/.elan/bin:${PATH}"
+          elan toolchain install "$(cat lean/lean-toolchain)"
+          cd lean/disaster-recovery
+          lake build disaster-recovery-replay
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -294,6 +331,8 @@ jobs:
         shell: bash
         env:
           CCF_TEST_SYNC_AFTER_SETUP: 1
+          CCF_RECOVERY_TRACE: 1
+          CCF_LEAN_TRACE_REPLAYER: ${{ github.workspace }}/lean/disaster-recovery/.lake/build/bin/disaster-recovery-replay
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
@@ -307,7 +346,7 @@ jobs:
         if: success() || failure()
 
       - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-caci-snp-genoa
           path: |

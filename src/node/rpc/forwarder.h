@@ -30,7 +30,6 @@ namespace ccf
     std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder;
     std::shared_ptr<ChannelProxy> n2n_channels;
     std::weak_ptr<ccf::RPCMap> rpc_map;
-    NodeId self;
 
     using ForwardedCommandId = ForwardedHeader_v2::ForwardedCommandId;
     ForwardedCommandId next_command_id = 0;
@@ -48,17 +47,17 @@ namespace ccf
       auto rpc_responder_shared = rpcresponder.lock();
       if (rpc_responder_shared)
       {
-        auto response = ::http::Response(HTTP_STATUS_GATEWAY_TIMEOUT);
-        auto body = fmt::format(
-          "Request was forwarded to node {}, but no response was received "
-          "after {}ms",
-          to,
-          timeout.count());
-        response.set_body(body);
-        response.set_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
         rpc_responder_shared->reply_async(
-          client_session_id, false, response.build_response());
+          client_session_id,
+          false,
+          ::http::error(
+            HTTP_STATUS_GATEWAY_TIMEOUT,
+            ccf::errors::ForwardingTimeout,
+            fmt::format(
+              "Request was forwarded to node {}, but no response was received "
+              "after {}ms",
+              to,
+              timeout.count())));
       }
     }
 
@@ -71,11 +70,6 @@ namespace ccf
       n2n_channels(std::move(n2n_channels)),
       rpc_map(std::move(rpc_map_))
     {}
-
-    void initialize(const NodeId& self_)
-    {
-      self = self_;
-    }
 
     bool forward_command(
       std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,

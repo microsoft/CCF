@@ -4,6 +4,8 @@
 
 #include "kv/kv_types.h"
 
+#include <algorithm>
+
 namespace ccf::kv
 {
   // NullTxEncryptor does not decrypt or verify integrity
@@ -23,6 +25,26 @@ namespace ccf::kv
       return true;
     }
 
+    bool encrypt(
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> additional_data,
+      std::span<uint8_t> serialised_header,
+      std::span<uint8_t> cipher,
+      const TxID& tx_id,
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) override
+    {
+      if (!serialised_header.empty() || cipher.size() != plain.size())
+      {
+        throw std::logic_error("Incorrect null-encryptor output size");
+      }
+      if (plain.data() != cipher.data())
+      {
+        std::copy(plain.begin(), plain.end(), cipher.begin());
+      }
+      return true;
+    }
+
     bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -33,6 +55,20 @@ namespace ccf::kv
       bool historical_hint = false) override
     {
       plain = cipher;
+      term = 0;
+      return true;
+    }
+
+    bool decrypt(
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      std::vector<uint8_t>& plain,
+      Version version,
+      Term& term,
+      bool historical_hint = false) override
+    {
+      plain.assign(cipher.begin(), cipher.end());
       term = 0;
       return true;
     }

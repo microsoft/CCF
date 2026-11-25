@@ -74,6 +74,24 @@ def test_primary(network, args):
 @reqs.description("Network node info")
 @reqs.at_least_n_nodes(2)
 def test_network_node_info(network, args):
+    def check_interfaces(host, interfaces):
+        expected_interfaces = infra.interfaces.HostSpec.to_json(host)
+        actual_interfaces = {
+            name: dict(interface) for name, interface in interfaces.items()
+        }
+        for interface in actual_interfaces.values():
+            if "redirections" in interface:
+                # C++ serialization omits resolvers equal to their defaults.
+                interface["redirections"] = infra.interfaces.RedirectionConfig.to_json(
+                    infra.interfaces.RedirectionConfig.from_json(
+                        interface["redirections"]
+                    )
+                )
+        assert expected_interfaces == actual_interfaces, (
+            expected_interfaces,
+            actual_interfaces,
+        )
+
     primary, backups = network.find_nodes()
 
     all_nodes = [primary, *backups]
@@ -85,7 +103,7 @@ def test_network_node_info(network, args):
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
-            assert infra.interfaces.HostSpec.to_json(n.host) == node["rpc_interfaces"]
+            check_interfaces(n.host, node["rpc_interfaces"])
             del nodes_by_id[n.node_id]
 
         assert nodes_by_id == {}
@@ -100,10 +118,7 @@ def test_network_node_info(network, args):
                 assert r.status_code == http.HTTPStatus.OK.value
                 body = r.body.json()
                 assert body["node_id"] == node.node_id
-                assert (
-                    infra.interfaces.HostSpec.to_json(node.host)
-                    == body["rpc_interfaces"]
-                )
+                check_interfaces(node.host, body["rpc_interfaces"])
                 assert body["primary"] == (node == primary)
 
                 node_infos[node.node_id] = body
@@ -248,16 +263,13 @@ def test_large_messages(network, args):
                 expected_errors[metrics_name] += 1
             assert get_main_interface_errors() == expected_errors
 
-    def get_sizes(n, http2):
+    def get_sizes(n):
         ns = [n // 2, n - 10, n - 1, n, n + 1, n + 10, n * 2]
-        if not http2:
-            # nghttp2 does not currently allow header larger than 64KB
-            # https://github.com/nghttp2/nghttp2/issues/1841
-            ns.append(n * 20)
+        ns.append(n * 20)
         random.shuffle(ns)
         return ns
 
-    for s in get_sizes(args.max_http_body_size, args.http2):
+    for s in get_sizes(args.max_http_body_size):
         long_msg = "X" * s
         LOG.info(f"Verifying cap on max body size, sending a {s} byte body")
         run_large_message_test(
@@ -270,7 +282,7 @@ def test_large_messages(network, args):
             headers={"content-type": "application/json"},
         )
 
-    for s in get_sizes(args.max_http_header_size, args.http2):
+    for s in get_sizes(args.max_http_header_size):
         long_header = "X" * s
         LOG.info(f"Verifying cap on max header value, sending a {s} byte header value")
         run_large_message_test(
@@ -292,36 +304,35 @@ def test_large_messages(network, args):
             headers={long_header: "some header value"},
         )
 
-    if not args.http2:
-        for size in (
-            args.max_http_request_target_size - 1,
-            args.max_http_request_target_size,
-            args.max_http_request_target_size + 1,
-        ):
-            prefix = "/node/commit?padding="
-            if size < len(prefix):
-                LOG.warning(
-                    f"Skipping {size} byte request target: the test endpoint "
-                    f"requires at least {len(prefix)} bytes"
-                )
-                continue
-            target = prefix + "a" * (size - len(prefix))
-            assert len(target) == size
-            LOG.info(f"Verifying cap on request target, sending a {size} byte target")
-            run_large_message_test(
-                args.max_http_request_target_size,
-                http.HTTPStatus.REQUEST_URI_TOO_LONG,
-                "RequestTargetTooLong",
-                "request_target_too_long",
-                len(target),
-                path=target,
+    for size in (
+        args.max_http_request_target_size - 1,
+        args.max_http_request_target_size,
+        args.max_http_request_target_size + 1,
+    ):
+        prefix = "/node/commit?padding="
+        if size < len(prefix):
+            LOG.warning(
+                f"Skipping {size} byte request target: the test endpoint "
+                f"requires at least {len(prefix)} bytes"
             )
+            continue
+        target = prefix + "a" * (size - len(prefix))
+        assert len(target) == size
+        LOG.info(f"Verifying cap on request target, sending a {size} byte target")
+        run_large_message_test(
+            args.max_http_request_target_size,
+            http.HTTPStatus.REQUEST_URI_TOO_LONG,
+            "RequestTargetTooLong",
+            "request_target_too_long",
+            len(target),
+            path=target,
+        )
 
     # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
-    extra_headers_count = infra.clients.CCFClient.default_impl_type.extra_headers_count(
-        args.http2
+    extra_headers_count = (
+        infra.clients.CCFClient.default_impl_type.extra_headers_count()
     )
-    for s in get_sizes(args.max_http_headers_count, args.http2):
+    for s in get_sizes(args.max_http_headers_count):
         LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
         headers = {f"header-{h}": str(h) for h in range(s - extra_headers_count)}
         run_large_message_test(

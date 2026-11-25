@@ -27,10 +27,7 @@ message(STATUS "RPM package version: ${CPACK_RPM_PACKAGE_VERSION}")
 set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
 set(CPACK_RPM_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
 
-set(
-  CCF_RPM_DEPENDENCIES
-  "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}"
-)
+set(CCF_RPM_DEPENDENCIES "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}")
 # + build toolchain
 set(
   CCF_RPM_DEPENDENCIES
@@ -39,7 +36,7 @@ set(
 # + runtime dependencies
 set(
   CCF_RPM_DEPENDENCIES
-  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}"
+  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, libcurl-devel >= ${CURL_MINIMAL_VERSION}"
 )
 if(CCF_STACKTRACE_BACKEND_RESOLVED STREQUAL "LIBBACKTRACE")
   string(

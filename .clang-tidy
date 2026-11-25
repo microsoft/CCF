@@ -1,4 +1,11 @@
 ---
+# The checks below introduced after clang-tidy 18 are disabled until their
+# existing findings are addressed: bugprone-nondeterministic-pointer-iteration-order,
+# cert-int09-c, cppcoreguidelines-use-enum-class, misc-use-internal-linkage,
+# modernize-use-designated-initializers, modernize-use-integer-sign-comparison,
+# modernize-use-ranges, modernize-use-scoped-lock, portability-avoid-pragma-once,
+# readability-enum-initial-value, readability-math-missing-parentheses,
+# readability-use-concise-preprocessor-directives, readability-use-std-min-max.
 Checks: >
   clang-diagnostic-*,
   clang-analyzer-*,
@@ -10,6 +17,7 @@ Checks: >
   -bugprone-reserved-identifier,
   -bugprone-macro-parentheses,
   -bugprone-branch-clone,
+  -bugprone-nondeterministic-pointer-iteration-order,
   cert-*,
   -cert-con36-c,
   -cert-dcl37-c,
@@ -18,6 +26,7 @@ Checks: >
   -cert-dcl50-cpp,
   -cert-dcl51-cpp,
   -cert-dcl21-cpp,
+  -cert-int09-c,
   concurrency-*,
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-do-while,
@@ -37,31 +46,148 @@ Checks: >
   -cppcoreguidelines-non-private-member-variables-in-classes,
   -cppcoreguidelines-special-member-functions,
   -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-use-enum-class,
   misc-*,
   -misc-const-correctness,
   -misc-include-cleaner,
   -misc-non-private-member-variables-in-classes,
   -misc-no-recursion,
+  -misc-use-internal-linkage,
   modernize-*,
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
+  -modernize-use-designated-initializers,
+  -modernize-use-integer-sign-comparison,
+  -modernize-use-ranges,
+  -modernize-use-scoped-lock,
   performance-*,
   -performance-avoid-endl,
   -performance-unnecessary-value-param,
   -performance-no-int-to-ptr,
   portability-*,
+  -portability-avoid-pragma-once,
   readability-*,
   -readability-identifier-length,
   -readability-avoid-nested-conditional-operator,
   -readability-convert-member-functions-to-static,
   -readability-uppercase-literal-suffix,
   -readability-magic-numbers,
+  -readability-enum-initial-value,
+  -readability-math-missing-parentheses,
+  -readability-use-concise-preprocessor-directives,
+  -readability-use-std-min-max,
 
 CheckOptions:
   - key: readability-function-cognitive-complexity.IgnoreMacros
     value: 'true'
   - key: readability-function-cognitive-complexity.Threshold
     value: '50'
+  # Setting CheckedFunctions replaces the check's default list, so the
+  # default function names (unchanged from clang-tidy 18 to 21) are restated
+  # first, followed by the POSIX file and descriptor calls used in CCF that
+  # neither this check nor cert-err33-c covers by default.
+  - key: bugprone-unused-return-value.CheckedFunctions
+    value: >-
+      ::std::async;
+      ::std::launder;
+      ::std::remove;
+      ::std::remove_if;
+      ::std::unique;
+      ::std::unique_ptr::release;
+      ::std::basic_string::empty;
+      ::std::vector::empty;
+      ::std::back_inserter;
+      ::std::distance;
+      ::std::find;
+      ::std::find_if;
+      ::std::inserter;
+      ::std::lower_bound;
+      ::std::make_pair;
+      ::std::map::count;
+      ::std::map::find;
+      ::std::map::lower_bound;
+      ::std::multimap::equal_range;
+      ::std::multimap::upper_bound;
+      ::std::set::count;
+      ::std::set::find;
+      ::std::setfill;
+      ::std::setprecision;
+      ::std::setw;
+      ::std::upper_bound;
+      ::std::vector::at;
+      ::bsearch;
+      ::ferror;
+      ::feof;
+      ::isalnum;
+      ::isalpha;
+      ::isblank;
+      ::iscntrl;
+      ::isdigit;
+      ::isgraph;
+      ::islower;
+      ::isprint;
+      ::ispunct;
+      ::isspace;
+      ::isupper;
+      ::iswalnum;
+      ::iswprint;
+      ::iswspace;
+      ::isxdigit;
+      ::memchr;
+      ::memcmp;
+      ::strcmp;
+      ::strcoll;
+      ::strncmp;
+      ::strpbrk;
+      ::strrchr;
+      ::strspn;
+      ::strstr;
+      ::wcscmp;
+      ::access;
+      ::bind;
+      ::connect;
+      ::difftime;
+      ::dlsym;
+      ::fnmatch;
+      ::getaddrinfo;
+      ::getopt;
+      ::htonl;
+      ::htons;
+      ::iconv_open;
+      ::inet_addr;
+      ::isascii;
+      ::isatty;
+      ::mmap;
+      ::newlocale;
+      ::openat;
+      ::pathconf;
+      ::pthread_equal;
+      ::pthread_getspecific;
+      ::pthread_mutex_trylock;
+      ::readdir;
+      ::readlink;
+      ::recvmsg;
+      ::regexec;
+      ::scandir;
+      ::semget;
+      ::setjmp;
+      ::shm_open;
+      ::shmget;
+      ::sigismember;
+      ::strcasecmp;
+      ::strsignal;
+      ::ttyname;
+      ::fseeko;
+      ::ftello;
+      ::fileno;
+      ::fdopen;
+      ::fsync;
+      ::ftruncate;
+      ::fcntl;
+      ::ioctl;
+      ::open;
+      ::close;
+      ::write
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(include\/ccf|src)\/.*'

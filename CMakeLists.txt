@@ -321,6 +321,32 @@ add_ccf_static_library(
 )
 
 # CCF kv lib
+option(CCF_KV_TRACING "Enable test-only KV semantic trace capture" OFF)
+set(
+  CCF_KV_TRACE_CHECKER
+  ""
+  CACHE FILEPATH
+  "Existing Lean KV trace checker executable"
+)
+set(
+  CCF_KV_TRACE_TIMEOUT
+  "900"
+  CACHE STRING
+  "Timeout in seconds for each KV trace capture or replay subprocess"
+)
+set(
+  CCF_KV_FUZZ_SEEDS
+  "8"
+  CACHE STRING
+  "Number of bounded concurrent KV fuzz seeds checked by trace replay"
+)
+set(CCF_KV_FUZZ_SEED_START "0" CACHE STRING "First concurrent KV fuzz seed")
+if(CCF_KV_TRACING)
+  # Tracing changes the layout of internal KV types, so every target in the
+  # build must agree on it.
+  add_compile_definitions(CCF_KV_TRACING)
+endif()
+
 add_ccf_static_library(
   ccf_kv
   SRCS
@@ -329,6 +355,9 @@ add_ccf_static_library(
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
   LINK_LIBS ccf_threading
 )
+if(CCF_KV_TRACING)
+  target_sources(ccf_kv PRIVATE ${CCF_DIR}/src/kv/trace.cpp)
+endif()
 
 # CCF endpoints lib
 add_ccf_static_library(
@@ -482,17 +511,11 @@ configure_file(
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
-option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
-
-option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
-if(CCF_RAFT_TRACING)
-  add_compile_definitions(CCF_RAFT_TRACING)
-endif()
+option(CLIENT_PROTOCOLS_TEST "Test client TLS configuration" OFF)
 
 # Build common library for CCF enclaves
 set(
   CCF_IMPL_SOURCE
-  ${CCF_DIR}/src/enclave/main.cpp
   ${CCF_DIR}/src/node/env.cpp
   ${CCF_DIR}/src/node/quote.cpp
   ${CCF_DIR}/src/pal/uvm_endorsements.cpp
@@ -509,7 +532,6 @@ add_ccf_static_library(
     ccfcrypto
     ccf_kv
     ccf_tasks
-    nghttp2
     ${CMAKE_THREAD_LIBS_INIT}
     curl
     ccf_pal
@@ -520,9 +542,6 @@ target_include_directories(
   SYSTEM
   PUBLIC
     $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-    $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
-    #< which are currently under src, and
-    #< should be removed or renamed
     $<INSTALL_INTERFACE:include/>
     $<INSTALL_INTERFACE:include/3rdparty/>
 )
@@ -543,24 +562,15 @@ install(
 
 install(
   FILES
+    ${TAV_INCLUDE_DIR}/tav/byte_buffer.h
+    ${TAV_INCLUDE_DIR}/tav/byte_buffer.hpp
+    ${TAV_INCLUDE_DIR}/tav/cbor.h
     ${TAV_INCLUDE_DIR}/tav/cbor.hpp
+    ${TAV_INCLUDE_DIR}/tav/errors.h
+    ${TAV_INCLUDE_DIR}/tav/errors.hpp
     ${TAV_INCLUDE_DIR}/tav/snp.h
     ${TAV_INCLUDE_DIR}/tav/utils.h
   DESTINATION include/3rdparty/tav
-)
-install(
-  FILES ${TAV_INCLUDE_DIR}/tav/internal/cbor_abi.h
-  DESTINATION include/3rdparty/tav/internal
-)
-
-# Install all private CCF headers, which may still be needed
-install(
-  DIRECTORY src/
-  DESTINATION include/ccf/_private
-  FILES_MATCHING
-  PATTERN "*.h"
-  PATTERN "msgpack/*" EXCLUDE
-  PATTERN "*/test*" EXCLUDE
 )
 
 # Install all public CCF headers
@@ -619,25 +629,6 @@ install(TARGETS verify_attestation DESTINATION bin)
 
 if(BUILD_TESTS)
   enable_testing()
-
-  set(
-    DOCS_PYTHON
-    ""
-    CACHE FILEPATH
-    "Python interpreter for the optional documentation test"
-  )
-  if(DOCS_PYTHON)
-    add_test(
-      NAME docs
-      COMMAND
-        "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
-        "${CCF_DIR}/doc/html"
-    )
-    set_tests_properties(
-      docs
-      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}"
-    )
-  endif()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
@@ -727,23 +718,45 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/raw_writer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_trace.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_fuzzer.cpp
     )
     target_link_libraries(
       kv_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_kv
     )
+    if(CCF_KV_TRACING AND CCF_KV_TRACE_CHECKER)
+      add_test(
+        NAME kv_trace_validation
+        COMMAND
+          python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py
+          --binary $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER}
+          --output ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --seeds
+          ${CCF_KV_FUZZ_SEEDS} --seed-start ${CCF_KV_FUZZ_SEED_START} --timeout
+          ${CCF_KV_TRACE_TIMEOUT}
+      )
+      # The Lean checker is built outside CMake and passed in by path.
+      add_test_target(kv_trace_validation kv_test)
+      add_test_label(kv_trace_validation kv_trace)
+    endif()
+
+    add_unit_test(
+      byte_storage_allocation_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/byte_storage_allocation.cpp
+    )
+    target_link_options(
+      byte_storage_allocation_test
+      PRIVATE -Wl,--wrap=malloc -Wl,--wrap=realloc -Wl,--wrap=calloc
+    )
 
     add_unit_test(
       ds_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serialized.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/byte_vector.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
@@ -795,11 +808,19 @@ if(BUILD_TESTS)
     add_unit_test(
       openssl_server_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_server_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/traffic_keys_test.cpp
     )
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
     target_link_options(
       openssl_server_test
-      PRIVATE "LINKER:--wrap=uv_async_send"
+      PRIVATE
+        "LINKER:--wrap=uv_async_send"
+        "LINKER:--wrap=uv_poll_start"
+        "LINKER:--wrap=uv_getaddrinfo"
+        "LINKER:--wrap=uv_freeaddrinfo"
+        "LINKER:--wrap=socket"
+        "LINKER:--wrap=SSL_do_handshake"
+        "LINKER:--wrap=SSL_shutdown"
     )
     add_unit_test(
       node_connections_test
@@ -814,21 +835,32 @@ if(BUILD_TESTS)
     target_link_libraries(tcp_test PRIVATE uv)
 
     add_unit_test(
-      raft_test
+      cft_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_rollback.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_kv ccf_tasks)
+    target_link_libraries(cft_test PRIVATE ccfcrypto ccf_kv ccf_tasks)
 
     add_unit_test(
-      raft_enclave_test
+      tracing_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/fluentd.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/events.cpp
+    )
+    target_link_options(
+      tracing_test
+      PRIVATE "LINKER:--wrap=send" "LINKER:--wrap=close" "LINKER:--wrap=_Znwm"
+    )
+    set_tests_properties(tracing_test PROPERTIES TIMEOUT 30)
+
+    add_unit_test(
+      cft_enclave_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
-    target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(raft_enclave_test PRIVATE ccfcrypto)
+    target_include_directories(cft_enclave_test PRIVATE ${CCFCRYPTO_INC})
+    target_link_libraries(cft_enclave_test PRIVATE ccfcrypto)
 
     add_unit_test(
       crypto_test
@@ -972,6 +1004,7 @@ if(BUILD_TESTS)
       node_inbound_message_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_inbound_message.cpp
     )
+    target_link_libraries(node_inbound_message_test PRIVATE ccf_tasks)
 
     add_unit_test(
       indexing_test
@@ -1026,11 +1059,19 @@ if(BUILD_TESTS)
     )
     target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
+    if(TEST_MLDSA)
+      add_test_bin(
+        pqtest
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pqtest.cpp
+      )
+      target_link_libraries(pqtest PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+    endif()
+
     add_unit_test(
       channels_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
     )
-    target_link_libraries(channels_test PRIVATE)
+    target_link_libraries(channels_test PRIVATE ccf_tasks)
 
     add_unit_test(
       http_test
@@ -1091,6 +1132,15 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      retry_on_compacted_version_conflict_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/retry_on_compacted_version_conflict.cpp
+    )
+    target_link_libraries(
+      retry_on_compacted_version_conflict_test
+      PRIVATE ccf_kv
+    )
+
+    add_unit_test(
       tx_status_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
@@ -1136,35 +1186,157 @@ if(BUILD_TESTS)
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
 
-    # Raft driver and scenario test
-    add_executable(
-      raft_driver
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-    )
-    add_warning_checks(raft_driver)
-    enable_coverage(raft_driver)
-    target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
-    target_include_directories(raft_driver PRIVATE src/aft)
+    # Consensus driver and scenario test. The scenarios are Lean programs,
+    # which lake compiles to a static library defining main. The driver binds
+    # the commands they call, so it can only be built with Lean installed.
+    set(CFT_SCENARIOS_DIR ${CMAKE_SOURCE_DIR}/tests/cft_scenarios)
+    find_program(LAKE lake HINTS $ENV{HOME}/.elan/bin)
+    if(LAKE)
+      execute_process(
+        COMMAND ${LAKE} env printenv LEAN_SYSROOT
+        WORKING_DIRECTORY ${CFT_SCENARIOS_DIR}
+        OUTPUT_VARIABLE LEAN_SYSROOT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY
+      )
+      set_property(
+        DIRECTORY
+        APPEND
+        PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/lean/lean-toolchain
+      )
+
+      # lake tracks the scenario sources itself, so always run it
+      set(
+        CFT_SCENARIOS_LIBRARY
+        ${CFT_SCENARIOS_DIR}/.lake/build/lib/libcft_Scenarios.a
+      )
+      add_custom_target(
+        cft_scenarios
+        COMMAND ${LAKE} build Scenarios:static
+        WORKING_DIRECTORY ${CFT_SCENARIOS_DIR}
+        BYPRODUCTS ${CFT_SCENARIOS_LIBRARY}
+        COMMENT "Building consensus scenarios"
+        VERBATIM
+      )
+
+      add_executable(
+        cft_driver
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+      )
+      add_dependencies(cft_driver cft_scenarios)
+      add_san(cft_driver)
+      add_warning_checks(cft_driver)
+      enable_coverage(cft_driver)
+      # The Lean runtime exports its own unwinder. Unless libgcc_s precedes
+      # it, the C++ exceptions thrown by the driver terminate the process.
+      target_link_libraries(
+        cft_driver
+        PRIVATE
+          ${CFT_SCENARIOS_LIBRARY}
+          ccfcrypto
+          ccf_tasks
+          gcc_s
+          ${LEAN_SYSROOT}/lib/lean/libleanshared.so
+      )
+      target_include_directories(cft_driver PRIVATE src/consensus/aft)
+      target_include_directories(
+        cft_driver
+        SYSTEM
+        PRIVATE ${LEAN_SYSROOT}/include
+      )
+    else()
+      message(
+        WARNING
+        "lake not found: cft_driver will not be built, and cft_scenario_test is disabled. Install Lean (https://lean-lang.org/install/) to enable them."
+      )
+    endif()
 
     add_test(
-      NAME raft_scenario_test
+      NAME cft_scenario_test
       COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/cft_scenarios_runner.py ./cft_driver
+        ${CFT_SCENARIOS_DIR}/Scenarios/
     )
-    add_test_target(raft_scenario_test raft_driver)
-    add_test_label(raft_scenario_test raft_scenario bucket_c)
+    if(LAKE)
+      add_test_target(cft_scenario_test cft_driver)
+    else()
+      add_test_target(cft_scenario_test)
+      set_tests_properties(cft_scenario_test PROPERTIES DISABLED TRUE)
+    endif()
+    add_test_label(cft_scenario_test cft_scenario bucket_c)
 
     if(COVERAGE)
-      # The scenario runner spawns raft_driver once per scenario file; give
+      # The scenario runner spawns cft_driver once per scenario file; give
       # each process a uniquely-named .profraw (by PID) in the build directory
       # so scripts/coverage.sh discovers them and the scenarios contribute to
       # the aggregated coverage report.
       set_property(
-        TEST raft_scenario_test
+        TEST cft_scenario_test
         APPEND
-        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=raft_scenario-%p.profraw"
+        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=cft_scenario-%p.profraw"
       )
+    endif()
+
+    # Consensus model driver: the consensus scenarios, with their commands bound
+    # to the Lean model of the protocol, and so without the implementation.
+    # Opt-in, because lake then builds the model, and fetches the formatter
+    # which the package of the model requires.
+    option(
+      CFT_MODEL_DRIVER
+      "Build cft_model_driver, which runs consensus scenarios on the Lean model"
+      OFF
+    )
+    if(CFT_MODEL_DRIVER)
+      if(NOT LAKE)
+        message(
+          FATAL_ERROR
+          "CFT_MODEL_DRIVER needs lake. Install Lean (https://lean-lang.org/install/)."
+        )
+      endif()
+
+      set(CFT_MODEL_DIR ${CMAKE_SOURCE_DIR}/tests/cft_model)
+      set(
+        CFT_MODEL_LIBRARIES
+        ${CFT_MODEL_DIR}/.lake/build/lib/libcft__model_ModelDriver.a
+        ${CMAKE_SOURCE_DIR}/lean/consensus/.lake/build/lib/libconsensus_Consensus.a
+        ${CMAKE_SOURCE_DIR}/lean/common/.lake/build/lib/libccf__common_CCF.a
+      )
+      add_custom_target(
+        cft_model
+        COMMAND
+          ${LAKE} build ModelDriver:static @consensus/Consensus:static
+          @ccf_common/CCF:static
+        WORKING_DIRECTORY ${CFT_MODEL_DIR}
+        BYPRODUCTS ${CFT_MODEL_LIBRARIES}
+        COMMENT "Building consensus model driver"
+        VERBATIM
+      )
+      # lake builds the scenarios for this package too, so never at once
+      add_dependencies(cft_model cft_scenarios)
+
+      add_executable(cft_model_driver ${CFT_MODEL_DIR}/shim.c)
+      add_dependencies(cft_model_driver cft_model)
+      # The model driver library comes first, so that its main is linked, and
+      # not that of the scenario library.
+      target_link_libraries(
+        cft_model_driver
+        PRIVATE
+          ${CFT_MODEL_LIBRARIES}
+          ${CFT_SCENARIOS_LIBRARY}
+          ${LEAN_SYSROOT}/lib/lean/libleanshared.so
+      )
+      target_include_directories(
+        cft_model_driver
+        SYSTEM
+        PRIVATE ${LEAN_SYSROOT}/include
+      )
+
+      # Writes the trace of each scenario to consensus/model/
+      add_test(
+        NAME cft_model_test
+        COMMAND cft_model_driver --all consensus/model
+      )
+      add_test_target(cft_model_test cft_model_driver)
     endif()
 
     add_test(
@@ -1173,6 +1345,15 @@ if(BUILD_TESTS)
     )
     add_test_target(csr_test kp_cert_test)
     add_test_label(csr_test unit)
+
+    if(TEST_MLDSA)
+      add_test(
+        NAME pq_tls_test
+        COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/pqtest.py ./pqtest
+      )
+      add_test_target(pq_tls_test pqtest)
+      add_test_label(pq_tls_test unit)
+    endif()
 
     add_test(
       NAME versionifier_test
@@ -1187,6 +1368,14 @@ if(BUILD_TESTS)
     )
     add_test_target(github_version_lts_test)
     add_test_label(github_version_lts_test bucket_c)
+
+    add_test(
+      NAME lts_compatibility_report_test
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/lts_compatibility_report_test.py
+    )
+    add_test_target(lts_compatibility_report_test)
+    add_test_label(lts_compatibility_report_test unit)
   endif()
 
   if(NOT TSAN)
@@ -1195,7 +1384,6 @@ if(BUILD_TESTS)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(msgpack_bench SRCS src/msgpack/test/msgpack_bench.cpp)
-    add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
     add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
     add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
@@ -1415,8 +1603,8 @@ if(BUILD_TESTS)
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
         rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-        --branch v3.2rc4 --single-branch -c advice.detachedHead=false
-        https://github.com/drwetter/testssl.sh
+        --branch v3.2.5 --single-branch -c advice.detachedHead=false
+        https://github.com/testssl/testssl.sh
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
     )
     add_custom_target(
@@ -1434,6 +1622,43 @@ if(BUILD_TESTS)
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME sandbox_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/start_network.py
+    BUCKET bucket_c
+    BUILD_DEPENDS js_generic
+    ADDITIONAL_ARGS
+      --use-defaults-from-host-config
+      --package
+      js_generic
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --node
+      local://127.0.0.1:0
+      --auto-shutdown
+  )
+
+  find_program(FLUENTD_EXECUTABLE fluentd)
+  set(FLUENTD_TEST_ARGS)
+  if(FLUENTD_EXECUTABLE)
+    list(APPEND FLUENTD_TEST_ARGS --fluentd ${FLUENTD_EXECUTABLE})
+  endif()
+  add_e2e_test(
+    NAME cft_trace_e2e
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/cft_trace_e2e.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging ${FLUENTD_TEST_ARGS}
+  )
+
+  add_e2e_test(
+    NAME e2e_forwarding_smoke
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/forwarding.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging
   )
 
   add_e2e_test(
@@ -1486,17 +1711,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME e2e_logging_http2
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    BUCKET bucket_b
-    BUILD_DEPENDS logging logging_cose_only programmability js_generic
-    ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-      --http2
-  )
-
-  add_e2e_test(
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
@@ -1505,11 +1719,14 @@ if(BUILD_TESTS)
     CONFIGURATIONS partitions
   )
 
-  set_property(
-    TEST partitions
-    APPEND
-    PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
-  )
+  # Azure Linux 3 installs iptables extensions outside the default search path.
+  if(EXISTS "/usr/lib/iptables")
+    set_property(
+      TEST partitions
+      APPEND
+      PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
+    )
+  endif()
 
   add_e2e_test(
     NAME tls_stress_test
@@ -1697,6 +1914,38 @@ if(BUILD_TESTS)
       20
       100
   )
+
+  add_e2e_test(
+    NAME fluentd
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
+    LABEL perf
+    CONFIGURATIONS perf
+    BUILD_DEPENDS basic
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/basic/basic"
+      --perf-label
+      "FluentD"
+      --snapshot-tx-interval
+      10000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      20
+  )
+  if(BUILD_END_TO_END_TESTS)
+    set_property(
+      TEST fluentd
+      APPEND
+      PROPERTY ENVIRONMENT "CCF_BENCHMARK_FLUENTD=1"
+    )
+  endif()
 
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.

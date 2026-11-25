@@ -1,5 +1,4 @@
 bucket_a:
-  docs
   tls_groups_test
   lts_compatibility
 
@@ -8,12 +7,11 @@ bucket_b:
   recovery_stale_snapshot_join_test
   recovery_intermediate_snapshot_join_test
   recovery_snapshot_endorsements_test
-  e2e_logging_http2
   schema_test
   nodes_test
 
 bucket_c:
-  raft_scenario_test
+  cft_scenario_test
   versionifier_test
   github_version_lts_test
   js_batched_stress_test
@@ -22,6 +20,9 @@ bucket_c:
   governance_test
   code_update_test
   e2e_logging
+  sandbox_test
+  cft_trace_e2e
+  e2e_forwarding_smoke
   e2e_basic_rust
   programmability_and_jwt
   e2e_limits
@@ -33,7 +34,6 @@ no_bucket:
   logger_bench
   json_bench
   msgpack_bench
-  ring_buffer_bench
   ledger_bench
   crypto_bench
   cose_bench

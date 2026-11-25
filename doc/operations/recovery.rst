@@ -42,11 +42,22 @@ Each node will then immediately restore the public entries of its ledger (``ledg
 
 .. note::
 
-    From CCF 8.0, :http:GET:`/node/state` is a non-transactional command endpoint and no longer returns the ``x-ms-ccf-transaction-id`` response header. Its response body schema is unchanged. The ``last_signed_seqno`` field is read from a coherent, locally materialised ledger prefix. It is progress metadata, independent of application KV snapshots, not a transaction ID for this request. The endpoint is served while the node's KV store is not yet ready, so it can be polled throughout public ledger recovery and snapshot installation.
+    From CCF 8.0, :http:GET:`/node/state` is non-transactional: it does not return the ``x-ms-ccf-transaction-id`` header, and ``last_signed_seqno`` reports node progress rather than a KV snapshot. The endpoint is available throughout public ledger recovery and snapshot installation, before the KV store is ready.
 
-Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration. When the recovery service is created, the recovery transaction deletes all previous-service node entries and their associated endorsed certificates and local-sealing records. These nodes do not pass through the normal ``Retired`` and ``retired_committed`` states because the previous service does not participate in the new service's consensus. Consequently, previous-service nodes are absent from both :http:GET:`/node/network/nodes` and :http:GET:`/node/network/removable_nodes` after recovery. See :ref:`architecture/consensus/index:Retirement details` for the normal live-service retirement sequence.
+At startup, the host discovers the latest committed chunk end across all configured ledger directories before restoring mutable chunks. Mutable chunks whose reconstructed end is at or before this committed frontier, including incomplete chunks without an end index in their filename, are renamed with an ``.ignored`` suffix rather than reused for new appends. Chunks which overlap the committed history but extend beyond that frontier are retained.
+
+Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration.
+When the recovery service is created, the recovery transaction deletes all previous-service node entries and their associated endorsed certificates and local-sealing records.
+These nodes do not pass through the normal ``Retired`` and ``retired_committed`` states because the previous service does not participate in the new service's consensus.
+Consequently, previous-service nodes are absent from both :http:GET:`/node/network/nodes` and :http:GET:`/node/network/removable_nodes` after recovery.
+Once the recovery transaction is globally committed, they are also absent from :http:GET:`/node/consensus` on every node, including nodes which joined from a snapshot taken before the recovery, and are no longer contacted.
+See :ref:`architecture/consensus/index:Retirement details` for the normal live-service retirement sequence.
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.
+
+Recovery checks each candidate snapshot's header and authenticates its receipt against the configured previous service identity, directly or through COSE endorsements in the ledger, before reading its body.
+Only after receipt authentication succeeds is the body read, hashed against the receipt's claims digest, and checked against the sequence number in the file name.
+An invalid candidate is skipped in favour of an older snapshot; if none can be validated, recovery replays the public ledger without a snapshot.
 
 The state machine for the ``recover`` node is as follows:
 
@@ -130,6 +141,9 @@ Recovery Decision Protocol
 
 At a high level, the recovery decision protocol allows recovering nodes to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
 The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to unseal and recover the private ledger.
+
+Recovery traffic must be isolated between services, or protocol messages must include and validate a distinct per-service identifier.
+Without one of these protections, nodes from different services with identical attestations may be aliased as participants in the same recovery decision.
 
 The protocol uses three phases to ensure that so long as the hosts and network between them is sufficiently healthy, forks are prevented and the most up-to-date ledger is recovered.
 Specifically, the protocol ensures this so long as: all nodes restart, have full network connectivity and a majority of nodes' on-disk ledger contains every committed transaction.
@@ -216,6 +230,11 @@ This failover path is illustrated below.
 
 If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
 
+Trace validation
+^^^^^^^^^^^^^^^^
+
+The :ccf_repo:`disaster-recovery-replay command <lean/disaster-recovery/replayer/README.md>` checks recorded recovery decision protocol runs against the Lean model.
+
 Local Sealing
 ~~~~~~~~~~~~~
 
@@ -246,13 +265,13 @@ The following diagram illustrates the key hierarchy and encryption relationships
 
         subgraph KG["Key Generation"]
             subgraph Sealing Key
-                SK["Sealing Key<br/>(HKDF)"]
-                Label["Label: <br/>CCF AMD Local Sealing Key"]
+                SK["Sealing Key (HKDF)"]
+                Label["Label: CCF AMD Local Sealing Key"]
                 DK -->|ikm| SK
                 Label -->|info| SK
             end
             
-            RSA["Recovery Key<br/>(RSA Key Pair)"]
+            RSA["Recovery Key (RSA Key Pair)"]
             PubKey["Public Key"]
             PrivKey["Private Key"]
             RSA --> PubKey
@@ -263,7 +282,7 @@ The following diagram illustrates the key hierarchy and encryption relationships
         end
 
         subgraph Sealed["Store: nodes.sealed_recovery_keys"]
-            SPK["Sealed Private Key<br/>(AES-GCM encrypted)"]
+            SPK["Sealed Private Key (AES-GCM encrypted)"]
             SK -->|key| SPK
             PrivKey --> SPK
 
@@ -273,11 +292,11 @@ The following diagram illustrates the key hierarchy and encryption relationships
 
 
         subgraph Shares["Store: internal.sealed_shares table"]
-            WLS["Wrapped Ledger Secret<br/>(AES-GCM encrypted)"]
+            WLS["Wrapped Ledger Secret (AES-GCM encrypted)"]
             LSWK -->|key| WLS
             LS --> WLS
 
-            EWK["Encrypted Wrapping Key<br/>(per-node, RSA-OAEP encrypted)"]
+            EWK["Encrypted Wrapping Key (per-node, RSA-OAEP encrypted)"]
             StoredPubKey -->|key| EWK
             LSWK --> EWK
         end

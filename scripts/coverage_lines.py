@@ -35,7 +35,7 @@ aggregate ``BRDA:`` record at the definition line *in addition to* one per
 expansion/instantiation site, all describing the same branch, so counting
 them all over-counts found/missed branches (verified: a two-line macro
 invoked twice moves llvm-cov's correct 4/2 to a naive 6/3). CCF's headers use
-branching macros heavily (LOG_*_FMT, CCF_ASSERT*, RAFT_TRACE_JSON_OUT), so
+branching macros heavily (LOG_*_FMT, CCF_ASSERT*, CFT_TRACE_FMT), so
 this is not a corner case. Treat llvm-cov's own branch numbers (``report``,
 or this export's ``BRF``/``BRH``) as authoritative until a correct
 per-branch-region reconciliation is implemented and verified.

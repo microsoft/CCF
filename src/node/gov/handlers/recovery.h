@@ -17,6 +17,7 @@ namespace ccf::gov::endpoints
       ccf::MemberId member_id;
       std::string encrypted_share;
     };
+
     DECLARE_JSON_TYPE(EncryptedRecoveryShare);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       EncryptedRecoveryShare,
@@ -32,6 +33,7 @@ namespace ccf::gov::endpoints
       size_t recovery_threshold = 0;
       bool full_key_submitted = false;
     };
+
     DECLARE_JSON_TYPE(RecoveryResponse);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       RecoveryResponse,
@@ -79,7 +81,7 @@ namespace ccf::gov::endpoints
             }
 
             const api::EncryptedRecoveryShare response_body{
-              member_id, ccf::crypto::b64_from_raw(encrypted_share.value())};
+              member_id, ccf::ds::b64_from_raw(encrypted_share.value())};
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
@@ -161,8 +163,8 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          auto raw_recovery_share = ccf::crypto::raw_from_b64(
-            params["share"].template get<std::string>());
+          auto raw_recovery_share =
+            ccf::ds::raw_from_b64(params["share"].template get<std::string>());
 
           size_t submitted_shares_count = 0;
           bool full_key_submitted = false;

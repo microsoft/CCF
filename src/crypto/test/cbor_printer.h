@@ -26,15 +26,25 @@ namespace ccf::cbor::test
     switch (casted)
     {
       case tav::cbor::SimpleValue::False:
+      {
         return "Simple: False";
+      }
       case tav::cbor::SimpleValue::True:
+      {
         return "Simple: True";
+      }
       case tav::cbor::SimpleValue::Null:
+      {
         return "Simple: Null";
+      }
       case tav::cbor::SimpleValue::Undefined:
+      {
         return "Simple: Undefined";
+      }
       default:
+      {
         return "Simple: " + std::to_string(casted);
+      }
     }
   }
 
@@ -46,9 +56,11 @@ namespace ccf::cbor::test
     switch (value.kind())
     {
       case Kind::SIGNED:
+      {
         print_indent(os, indent);
         os << "Signed: " << value.as_signed() << std::endl;
         break;
+      }
 
       case Kind::BYTES:
       {
@@ -64,9 +76,11 @@ namespace ccf::cbor::test
       }
 
       case Kind::STRING:
+      {
         print_indent(os, indent);
         os << "String: \"" << value.as_string() << "\"" << std::endl;
         break;
+      }
 
       case Kind::ARRAY:
       {
@@ -107,15 +121,19 @@ namespace ccf::cbor::test
       }
 
       case Kind::SIMPLE:
+      {
         print_indent(os, indent);
         os << format_simple(value.as_simple()) << std::endl;
         break;
+      }
 
       case Kind::INVALID:
       default:
+      {
         print_indent(os, indent);
         os << "<null>" << std::endl;
         break;
+      }
     }
   }
 

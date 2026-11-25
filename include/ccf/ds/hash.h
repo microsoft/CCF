@@ -6,10 +6,7 @@
 
 #include <array>
 #include <cstdint>
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#include <small_vector/SmallVector.h>
-#pragma clang diagnostic pop
+#include <functional>
 #include <string_view>
 #include <vector>
 
@@ -88,6 +85,7 @@ namespace std
   };
 
 }
+
 // NOLINTEND(cert-dcl58-cpp)
 
 namespace ccf::ds

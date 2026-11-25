@@ -184,7 +184,7 @@ namespace ccf::js::extensions::kvhelpers
 
     auto buf =
       jsctx.new_array_buffer_copy(val.value().data(), val.value().size());
-    JS_CHECK_EXC(buf);
+    CCF_JS_CHECK_EXC(buf);
 
     return buf.take();
   }
@@ -385,6 +385,7 @@ namespace ccf::js::extensions::kvhelpers
 
     return ccf::js::core::constants::Undefined;
   }
+
 #undef JS_CHECK_HANDLE
 
   template <ROHandleGetter GetReadOnlyHandle, RWHandleGetter GetWriteHandle>
@@ -398,7 +399,7 @@ namespace ccf::js::extensions::kvhelpers
     // Keys and values are ArrayBuffers. Keys are matched based on their
     // contents.
     auto view_val = ctx.new_obj_class(kv_map_handle_class_id);
-    JS_CHECK_EXC(view_val);
+    CCF_JS_CHECK_EXC(view_val);
 
     // Ownership passes to the handle finalizer.
     auto state = std::make_unique<KVMapHandleState>(std::move(handle_state));
@@ -426,8 +427,9 @@ namespace ccf::js::extensions::kvhelpers
       !permitted ? C_FUNC_NAME##_denied : C_FUNC_NAME<HANDLE_GETTER>, \
       JS_METHOD_NAME, \
       ARG_COUNT); \
-    JS_CHECK_EXC(fn_val); \
-    JS_CHECK_SET(view_val.SETTER_METHOD(JS_METHOD_NAME, std::move(fn_val))); \
+    CCF_JS_CHECK_EXC(fn_val); \
+    CCF_JS_CHECK_SET( \
+      view_val.SETTER_METHOD(JS_METHOD_NAME, std::move(fn_val))); \
   } while (0)
 
 #define MAKE_READ_FUNCTION(C_FUNC_NAME, JS_METHOD_NAME, ARG_COUNT) \

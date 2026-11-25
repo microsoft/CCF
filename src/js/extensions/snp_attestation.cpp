@@ -3,11 +3,11 @@
 
 #include "ccf/js/extensions/snp_attestation.h"
 
+#include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/version.h"
-#include "js/checks.h"
 #include "pal/uvm_endorsements.h"
 
 #include <algorithm>
@@ -18,6 +18,7 @@
 namespace ccf::js::extensions
 {
 #pragma clang diagnostic push
+
   namespace
   {
 
@@ -25,13 +26,8 @@ namespace ccf::js::extensions
       js::core::Context& jsctx, std::span<const uint8_t> tcb)
     {
       auto data_hex = jsctx.new_string(pal::snp::TcbVersionRaw(tcb).to_hex());
-      JS_CHECK_EXC(data_hex);
+      CCF_JS_CHECK_EXC(data_hex);
       return data_hex.take();
-    }
-
-    JSValue JS_NewArrayBuffer2(JSContext* ctx, std::span<const uint8_t> data)
-    {
-      return JS_NewArrayBufferCopy(ctx, data.data(), data.size());
     }
 
     JSValue js_verify_snp_attestation(
@@ -107,38 +103,38 @@ namespace ccf::js::extensions
               default_uvm_roots_of_trust);
         }
         auto r = jsctx.new_obj();
-        JS_CHECK_EXC(r);
+        CCF_JS_CHECK_EXC(r);
 
         auto a = jsctx.new_obj();
-        JS_CHECK_EXC(a);
+        CCF_JS_CHECK_EXC(a);
 
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "version", tav_snp_attestation_report_version(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "guest_svn",
           tav_snp_attestation_report_guest_svn(attestation.get())));
 
         auto policy = jsctx.new_obj();
-        JS_CHECK_EXC(policy);
+        CCF_JS_CHECK_EXC(policy);
 
-        JS_CHECK_SET(policy.set_uint32(
+        CCF_JS_CHECK_SET(policy.set_uint32(
           "abi_minor",
           tav_snp_attestation_report_policy_abi_minor(attestation.get())));
-        JS_CHECK_SET(policy.set_uint32(
+        CCF_JS_CHECK_SET(policy.set_uint32(
           "abi_major",
           tav_snp_attestation_report_policy_abi_major(attestation.get())));
-        JS_CHECK_SET(policy.set_uint32(
+        CCF_JS_CHECK_SET(policy.set_uint32(
           "smt", tav_snp_attestation_report_policy_smt(attestation.get())));
-        JS_CHECK_SET(policy.set_uint32(
+        CCF_JS_CHECK_SET(policy.set_uint32(
           "migrate_ma",
           tav_snp_attestation_report_policy_migrate_ma(attestation.get())));
-        JS_CHECK_SET(policy.set_uint32(
+        CCF_JS_CHECK_SET(policy.set_uint32(
           "debug", tav_snp_attestation_report_policy_debug(attestation.get())));
-        JS_CHECK_SET(policy.set_uint32(
+        CCF_JS_CHECK_SET(policy.set_uint32(
           "single_socket",
           tav_snp_attestation_report_policy_single_socket(attestation.get())));
 
-        JS_CHECK_SET(a.set("policy", std::move(policy)));
+        CCF_JS_CHECK_SET(a.set("policy", std::move(policy)));
 
         {
           const uint8_t* data = nullptr;
@@ -146,8 +142,8 @@ namespace ccf::js::extensions
           tav_snp_attestation_report_family_id(attestation.get(), &data, &size);
           auto family_id =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(family_id);
-          JS_CHECK_SET(a.set("family_id", std::move(family_id)));
+          CCF_JS_CHECK_EXC(family_id);
+          CCF_JS_CHECK_SET(a.set("family_id", std::move(family_id)));
         }
 
         {
@@ -156,13 +152,13 @@ namespace ccf::js::extensions
           tav_snp_attestation_report_image_id(attestation.get(), &data, &size);
           auto image_id =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(image_id);
-          JS_CHECK_SET(a.set("image_id", std::move(image_id)));
+          CCF_JS_CHECK_EXC(image_id);
+          CCF_JS_CHECK_SET(a.set("image_id", std::move(image_id)));
         }
 
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "vmpl", tav_snp_attestation_report_vmpl(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "signature_algo",
           static_cast<uint32_t>(
             tav_snp_attestation_report_signature_algo(attestation.get()))));
@@ -174,35 +170,36 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto platform_version = jsctx.wrap(
             make_js_tcb_version(jsctx, std::span<const uint8_t>{data, size}));
-          JS_CHECK_EXC(platform_version);
-          JS_CHECK_SET(a.set("platform_version", std::move(platform_version)));
+          CCF_JS_CHECK_EXC(platform_version);
+          CCF_JS_CHECK_SET(
+            a.set("platform_version", std::move(platform_version)));
         }
 
         {
           auto platform_info = jsctx.new_obj();
-          JS_CHECK_EXC(platform_info);
+          CCF_JS_CHECK_EXC(platform_info);
           const auto raw_platform_info =
             tav_snp_attestation_report_platform_info(attestation.get());
-          JS_CHECK_SET(
+          CCF_JS_CHECK_SET(
             platform_info.set_uint32("smt_en", raw_platform_info & 1));
-          JS_CHECK_SET(
+          CCF_JS_CHECK_SET(
             platform_info.set_uint32("tsme_en", (raw_platform_info >> 1) & 1));
-          JS_CHECK_SET(a.set("plaform_info", std::move(platform_info)));
+          CCF_JS_CHECK_SET(a.set("plaform_info", std::move(platform_info)));
         }
 
         {
           auto flags = jsctx.new_obj();
-          JS_CHECK_EXC(flags);
-          JS_CHECK_SET(flags.set_uint32(
+          CCF_JS_CHECK_EXC(flags);
+          CCF_JS_CHECK_SET(flags.set_uint32(
             "author_key_en",
             tav_snp_attestation_report_flags_author_key_en(attestation.get())));
-          JS_CHECK_SET(flags.set_uint32(
+          CCF_JS_CHECK_SET(flags.set_uint32(
             "mask_chip_key",
             tav_snp_attestation_report_flags_mask_chip_key(attestation.get())));
-          JS_CHECK_SET(flags.set_uint32(
+          CCF_JS_CHECK_SET(flags.set_uint32(
             "signing_key",
             tav_snp_attestation_report_flags_signing_key(attestation.get())));
-          JS_CHECK_SET(a.set("flags", std::move(flags)));
+          CCF_JS_CHECK_SET(a.set("flags", std::move(flags)));
         }
 
         {
@@ -212,8 +209,8 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto attestation_report_data =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(attestation_report_data);
-          JS_CHECK_SET(
+          CCF_JS_CHECK_EXC(attestation_report_data);
+          CCF_JS_CHECK_SET(
             a.set("report_data", std::move(attestation_report_data)));
         }
 
@@ -224,8 +221,8 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto attestation_measurement =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(attestation_measurement);
-          JS_CHECK_SET(
+          CCF_JS_CHECK_EXC(attestation_measurement);
+          CCF_JS_CHECK_SET(
             a.set("measurement", std::move(attestation_measurement)));
         }
 
@@ -235,8 +232,9 @@ namespace ccf::js::extensions
           tav_snp_attestation_report_host_data(attestation.get(), &data, &size);
           auto attestation_host_data =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(attestation_host_data);
-          JS_CHECK_SET(a.set("host_data", std::move(attestation_host_data)));
+          CCF_JS_CHECK_EXC(attestation_host_data);
+          CCF_JS_CHECK_SET(
+            a.set("host_data", std::move(attestation_host_data)));
         }
 
         {
@@ -246,8 +244,8 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto attestation_id_key_digest =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(attestation_id_key_digest);
-          JS_CHECK_SET(
+          CCF_JS_CHECK_EXC(attestation_id_key_digest);
+          CCF_JS_CHECK_SET(
             a.set("id_key_digest", std::move(attestation_id_key_digest)));
         }
 
@@ -258,8 +256,8 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto attestation_author_key_digest =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(attestation_author_key_digest);
-          JS_CHECK_SET(a.set(
+          CCF_JS_CHECK_EXC(attestation_author_key_digest);
+          CCF_JS_CHECK_SET(a.set(
             "author_key_digest", std::move(attestation_author_key_digest)));
         }
 
@@ -269,8 +267,9 @@ namespace ccf::js::extensions
           tav_snp_attestation_report_report_id(attestation.get(), &data, &size);
           auto attestation_report_id =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(attestation_report_id);
-          JS_CHECK_SET(a.set("report_id", std::move(attestation_report_id)));
+          CCF_JS_CHECK_EXC(attestation_report_id);
+          CCF_JS_CHECK_SET(
+            a.set("report_id", std::move(attestation_report_id)));
         }
 
         {
@@ -280,8 +279,8 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto attestation_report_id_ma =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(attestation_report_id_ma);
-          JS_CHECK_SET(
+          CCF_JS_CHECK_EXC(attestation_report_id_ma);
+          CCF_JS_CHECK_SET(
             a.set("report_id_ma", std::move(attestation_report_id_ma)));
         }
 
@@ -292,17 +291,17 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto reported_tcb = jsctx.wrap(
             make_js_tcb_version(jsctx, std::span<const uint8_t>{data, size}));
-          JS_CHECK_EXC(reported_tcb);
-          JS_CHECK_SET(a.set("reported_tcb", std::move(reported_tcb)));
+          CCF_JS_CHECK_EXC(reported_tcb);
+          CCF_JS_CHECK_SET(a.set("reported_tcb", std::move(reported_tcb)));
         }
 
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "cpuid_fam_id",
           tav_snp_attestation_report_cpuid_fam_id(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "cpuid_mod_id",
           tav_snp_attestation_report_cpuid_mod_id(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "cpuid_step",
           tav_snp_attestation_report_cpuid_step(attestation.get())));
 
@@ -312,8 +311,8 @@ namespace ccf::js::extensions
           tav_snp_attestation_report_chip_id(attestation.get(), &data, &size);
           auto attestation_chip_id =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(attestation_chip_id);
-          JS_CHECK_SET(a.set("chip_id", std::move(attestation_chip_id)));
+          CCF_JS_CHECK_EXC(attestation_chip_id);
+          CCF_JS_CHECK_SET(a.set("chip_id", std::move(attestation_chip_id)));
         }
 
         {
@@ -323,26 +322,26 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto committed_tcb = jsctx.wrap(
             make_js_tcb_version(jsctx, std::span<const uint8_t>{data, size}));
-          JS_CHECK_EXC(committed_tcb);
-          JS_CHECK_SET(a.set("committed_tcb", std::move(committed_tcb)));
+          CCF_JS_CHECK_EXC(committed_tcb);
+          CCF_JS_CHECK_SET(a.set("committed_tcb", std::move(committed_tcb)));
         }
 
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "current_minor",
           tav_snp_attestation_report_current_minor(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "current_build",
           tav_snp_attestation_report_current_build(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "current_major",
           tav_snp_attestation_report_current_major(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "committed_build",
           tav_snp_attestation_report_committed_build(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "committed_minor",
           tav_snp_attestation_report_committed_minor(attestation.get())));
-        JS_CHECK_SET(a.set_uint32(
+        CCF_JS_CHECK_SET(a.set_uint32(
           "committed_major",
           tav_snp_attestation_report_committed_major(attestation.get())));
 
@@ -353,12 +352,12 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto launch_tcb = jsctx.wrap(
             make_js_tcb_version(jsctx, std::span<const uint8_t>{data, size}));
-          JS_CHECK_EXC(launch_tcb);
-          JS_CHECK_SET(a.set("launch_tcb", std::move(launch_tcb)));
+          CCF_JS_CHECK_EXC(launch_tcb);
+          CCF_JS_CHECK_SET(a.set("launch_tcb", std::move(launch_tcb)));
         }
 
         auto signature = jsctx.new_obj();
-        JS_CHECK_EXC(signature);
+        CCF_JS_CHECK_EXC(signature);
 
         {
           const uint8_t* data = nullptr;
@@ -367,8 +366,8 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto signature_r =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(signature_r);
-          JS_CHECK_SET(signature.set("r", std::move(signature_r)));
+          CCF_JS_CHECK_EXC(signature_r);
+          CCF_JS_CHECK_SET(signature.set("r", std::move(signature_r)));
         }
 
         {
@@ -378,35 +377,35 @@ namespace ccf::js::extensions
             attestation.get(), &data, &size);
           auto signature_s =
             jsctx.new_array_buffer_copy(std::span<const uint8_t>{data, size});
-          JS_CHECK_EXC(signature_s);
-          JS_CHECK_SET(signature.set("s", std::move(signature_s)));
+          CCF_JS_CHECK_EXC(signature_s);
+          CCF_JS_CHECK_SET(signature.set("s", std::move(signature_s)));
         }
 
-        JS_CHECK_SET(a.set("signature", std::move(signature)));
-        JS_CHECK_SET(r.set("attestation", std::move(a)));
+        CCF_JS_CHECK_SET(a.set("signature", std::move(signature)));
+        CCF_JS_CHECK_SET(r.set("attestation", std::move(a)));
 
         if (parsed_uvm_endorsements.has_value())
         {
           auto u = jsctx.new_obj();
-          JS_CHECK_EXC(u);
+          CCF_JS_CHECK_EXC(u);
 
           {
             auto did = jsctx.new_string(parsed_uvm_endorsements.value().did);
-            JS_CHECK_EXC(did);
-            JS_CHECK_SET(u.set("did", std::move(did)));
+            CCF_JS_CHECK_EXC(did);
+            CCF_JS_CHECK_SET(u.set("did", std::move(did)));
           }
 
           {
             auto feed = jsctx.new_string(parsed_uvm_endorsements.value().feed);
-            JS_CHECK_EXC(feed);
-            JS_CHECK_SET(u.set("feed", std::move(feed)));
+            CCF_JS_CHECK_EXC(feed);
+            CCF_JS_CHECK_SET(u.set("feed", std::move(feed)));
           }
 
           {
             auto svn = jsctx.new_string(parsed_uvm_endorsements.value().svn);
-            JS_CHECK_EXC(svn);
-            JS_CHECK_SET(u.set("svn", std::move(svn)));
-            JS_CHECK_SET(r.set("uvm_endorsements", std::move(u)));
+            CCF_JS_CHECK_EXC(svn);
+            CCF_JS_CHECK_SET(u.set("svn", std::move(svn)));
+            CCF_JS_CHECK_SET(r.set("uvm_endorsements", std::move(u)));
           }
         }
 
@@ -426,13 +425,13 @@ namespace ccf::js::extensions
   {
     auto snp_attestation = ctx.new_obj();
 
-    JS_CHECK_OR_THROW(snp_attestation.set(
+    CCF_JS_CHECK_OR_THROW(snp_attestation.set(
       "verifySnpAttestation",
       ctx.new_c_function(
         js_verify_snp_attestation, "verifySnpAttestation", 4)));
 
     auto global_obj = ctx.get_global_obj();
-    JS_CHECK_OR_THROW(
+    CCF_JS_CHECK_OR_THROW(
       global_obj.set("snp_attestation", std::move(snp_attestation)));
   }
 }

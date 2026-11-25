@@ -19,6 +19,7 @@ namespace ccf::gov::endpoints
 
       bool operator==(const ServiceConfiguration&) const = default;
     };
+
     DECLARE_JSON_TYPE(ServiceConfiguration);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       ServiceConfiguration,
@@ -41,7 +42,9 @@ namespace ccf::gov::endpoints
         std::nullopt;
       nlohmann::json service_data = nullptr;
       std::optional<ServiceConfiguration> configuration = std::nullopt;
+      std::optional<std::string> pq_certificate = std::nullopt;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       ServiceInfo,
@@ -60,12 +63,15 @@ namespace ccf::gov::endpoints
       previous_service_creation_transaction_id,
       "previousServiceCreationTransactionId",
       configuration,
-      "configuration");
+      "configuration",
+      pq_certificate,
+      "pqCertificate");
 
     struct JavascriptApp
     {
       nlohmann::json endpoints = nlohmann::json::object();
     };
+
     DECLARE_JSON_TYPE(JavascriptApp);
     DECLARE_JSON_REQUIRED_FIELDS(JavascriptApp, endpoints);
 
@@ -80,6 +86,7 @@ namespace ccf::gov::endpoints
     {
       std::string module_name;
     };
+
     DECLARE_JSON_TYPE(JavascriptModule);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       JavascriptModule, module_name, "moduleName");
@@ -88,6 +95,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<JavascriptModule> value;
     };
+
     DECLARE_JSON_TYPE(JavascriptModules);
     DECLARE_JSON_REQUIRED_FIELDS(JavascriptModules, value);
 
@@ -95,6 +103,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<std::string> measurements;
     };
+
     DECLARE_JSON_TYPE(BasicJoinPolicy);
     DECLARE_JSON_REQUIRED_FIELDS(BasicJoinPolicy, measurements);
 
@@ -103,6 +112,7 @@ namespace ccf::gov::endpoints
       std::vector<std::string> measurements;
       std::vector<std::string> host_data;
     };
+
     DECLARE_JSON_TYPE(VirtualJoinPolicy);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       VirtualJoinPolicy, measurements, "measurements", host_data, "hostData");
@@ -114,6 +124,7 @@ namespace ccf::gov::endpoints
       std::map<ccf::DID, ccf::FeedToEndorsementsDataMap> uvm_endorsements;
       std::map<std::string, pal::snp::TcbVersionPolicy> tcb_versions;
     };
+
     DECLARE_JSON_TYPE(SnpJoinPolicy);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       SnpJoinPolicy,
@@ -132,6 +143,7 @@ namespace ccf::gov::endpoints
       VirtualJoinPolicy virtual_;
       SnpJoinPolicy snp;
     };
+
     DECLARE_JSON_TYPE(JoinPolicy);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       JoinPolicy, sgx, "sgx", virtual_, "virtual", snp, "snp");
@@ -141,6 +153,7 @@ namespace ccf::gov::endpoints
       bool auto_refresh = false;
       std::optional<std::string> ca_cert_bundle_name = std::nullopt;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuer);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       JwtIssuer, auto_refresh, "autoRefresh");
@@ -153,6 +166,7 @@ namespace ccf::gov::endpoints
       std::string issuer;
       nlohmann::json constraint = nullptr;
     };
+
     DECLARE_JSON_TYPE(Jwk);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Jwk, public_key, "publicKey", issuer, "issuer", constraint, "constraint");
@@ -163,6 +177,7 @@ namespace ccf::gov::endpoints
       std::map<ccf::JwtKeyId, std::vector<Jwk>> keys;
       std::map<std::string, std::string> ca_cert_bundles;
     };
+
     DECLARE_JSON_TYPE(JwkInfo);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       JwkInfo,
@@ -183,6 +198,7 @@ namespace ccf::gov::endpoints
       ccf::MemberRecoveryRole recovery_role =
         ccf::MemberRecoveryRole::NonParticipant;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Member);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Member,
@@ -205,29 +221,27 @@ namespace ccf::gov::endpoints
     {
       std::vector<Member> value;
     };
+
     DECLARE_JSON_TYPE(Members);
     DECLARE_JSON_REQUIRED_FIELDS(Members, value);
 
     struct User
     {
       ccf::UserId user_id;
-      std::string certificate;
+      std::optional<std::string> certificate = std::nullopt;
       nlohmann::json user_data = nullptr;
     };
-    DECLARE_JSON_TYPE(User);
+
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(User);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
-      User,
-      user_id,
-      "userId",
-      certificate,
-      "certificate",
-      user_data,
-      "userData");
+      User, user_id, "userId", user_data, "userData");
+    DECLARE_JSON_OPTIONAL_FIELDS(User, certificate);
 
     struct Users
     {
       std::vector<User> value;
     };
+
     DECLARE_JSON_TYPE(Users);
     DECLARE_JSON_REQUIRED_FIELDS(Users, value);
 
@@ -236,6 +250,7 @@ namespace ccf::gov::endpoints
       std::string published_address;
       std::optional<std::string> protocol = std::nullopt;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NetworkInterface);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       NetworkInterface, published_address, "publishedAddress");
@@ -251,6 +266,7 @@ namespace ccf::gov::endpoints
       nlohmann::json quote_info = nlohmann::json::object();
       std::map<std::string, NetworkInterface> rpc_interfaces;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Node);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Node,
@@ -272,6 +288,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<Node> value;
     };
+
     DECLARE_JSON_TYPE(Nodes);
     DECLARE_JSON_REQUIRED_FIELDS(Nodes, value);
   }
@@ -295,7 +312,7 @@ namespace ccf::gov::endpoints
     {
       member.certificate = cert.value().str();
     }
-    else
+    else if (!member_id.value().starts_with("did:key:"))
     {
       GOV_INFO_FMT("Member {} has no certificate", member_id);
     }
@@ -324,13 +341,14 @@ namespace ccf::gov::endpoints
 
   inline api::User produce_user_description(
     const ccf::UserId& user_id,
-    const ccf::crypto::Pem& user_cert,
+    const std::optional<ccf::crypto::Pem>& user_cert,
     ccf::UserInfo::ReadOnlyHandle* user_info_handle)
   {
     const auto user_info = user_info_handle->get(user_id);
     return {
       user_id,
-      user_cert.str(),
+      user_cert.has_value() ? std::make_optional(user_cert->str()) :
+                              std::nullopt,
       user_info.has_value() ? user_info->user_data : nlohmann::json(nullptr)};
   }
 
@@ -364,10 +382,9 @@ namespace ccf::gov::endpoints
       case ccf::QuoteFormat::oe_sgx_v1:
       {
         quote_info["format"] = "OE_SGX_v1";
-        quote_info["quote"] =
-          ccf::crypto::b64_from_raw(node_info.quote_info.quote);
+        quote_info["quote"] = ccf::ds::b64_from_raw(node_info.quote_info.quote);
         quote_info["endorsements"] =
-          ccf::crypto::b64_from_raw(node_info.quote_info.endorsements);
+          ccf::ds::b64_from_raw(node_info.quote_info.endorsements);
         break;
       }
       case ccf::QuoteFormat::insecure_virtual:
@@ -391,12 +408,12 @@ namespace ccf::gov::endpoints
         quote_info["format"] = "AMD_SEV_SNP_v1";
         if (node_info.quote_info.uvm_endorsements.has_value())
         {
-          quote_info["uvmEndorsements"] = ccf::crypto::b64_from_raw(
+          quote_info["uvmEndorsements"] = ccf::ds::b64_from_raw(
             node_info.quote_info.uvm_endorsements.value());
         }
         if (node_info.quote_info.endorsed_tcb.has_value())
         {
-          quote_info["endorsedTcb"] = ccf::crypto::b64_from_raw(
+          quote_info["endorsedTcb"] = ccf::ds::b64_from_raw(
             ds::from_hex(node_info.quote_info.endorsed_tcb.value()));
         }
         break;
@@ -489,6 +506,11 @@ namespace ccf::gov::endpoints
             std::nullopt,
             service_info->service_data,
             std::nullopt};
+
+          if (service_info->pq_cert.has_value())
+          {
+            response_body.pq_certificate = service_info->pq_cert->str();
+          }
 
           if (!service_info->current_service_create_txid.has_value())
           {
@@ -1003,6 +1025,15 @@ namespace ccf::gov::endpoints
                 produce_user_description(user_id, user_cert, user_info_handle));
               return true;
             });
+          ctx.tx
+            .template ro<ccf::UserPublicKeys>(ccf::Tables::USER_PUBLIC_KEYS)
+            ->foreach(
+              [&response_body, user_info_handle](
+                const ccf::UserId& user_id, const std::vector<uint8_t>&) {
+                response_body.value.push_back(produce_user_description(
+                  user_id, std::nullopt, user_info_handle));
+                return true;
+              });
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;
@@ -1029,7 +1060,11 @@ namespace ccf::gov::endpoints
             ctx.tx.template ro<ccf::UserCerts>(ccf::Tables::USER_CERTS);
 
           const auto user_cert = user_certs_handle->get(user_id);
-          if (!user_cert.has_value())
+          if (
+            !user_cert.has_value() &&
+            !ctx.tx
+               .template ro<ccf::UserPublicKeys>(ccf::Tables::USER_PUBLIC_KEYS)
+               ->has(user_id))
           {
             detail::set_gov_error(
               ctx.rpc_ctx,
@@ -1042,8 +1077,8 @@ namespace ccf::gov::endpoints
           auto user_info_handle =
             ctx.tx.template ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
 
-          const auto user = produce_user_description(
-            user_id, user_cert.value(), user_info_handle);
+          const auto user =
+            produce_user_description(user_id, user_cert, user_info_handle);
 
           ctx.rpc_ctx->set_response_json(user, HTTP_STATUS_OK);
           return;

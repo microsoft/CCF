@@ -179,17 +179,21 @@ namespace ccf::sealing
       LOG_INFO_FMT("No sealed shares found to unseal recovery share");
       return std::nullopt;
     }
-    auto sealed_share_info = sealed_shares.value();
+    const auto& sealed_share_info = sealed_shares.value();
 
     // Unseal the recovery key pair
     std::vector<uint8_t> derived_key;
     switch (sealed_recovery_key.version)
     {
       case DerivedSealingKeyAlgorithm::SNP_v1:
+      {
         derived_key = derive_snp_sealing_key(sealed_recovery_key.tcb_version);
         break;
+      }
       default:
+      {
         throw std::logic_error("Unknown derived sealing key algorithm");
+      }
     }
 
     auto recovery_key_pair =
