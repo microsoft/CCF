@@ -103,13 +103,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: previous LTS
+          - name: 7.latest
             artifact: al3
             ccf_version: ${{ needs.configure.outputs.from_version }}
             ref: ccf-${{ needs.configure.outputs.from_version }}
             pool: *azl3_pool
             image: *azl3_image
-          - name: current
+          - name: dev
             artifact: al4
             ccf_version: ${{ needs.configure.outputs.to_version }}
             ref: ${{ needs.configure.outputs.to_ref }}
@@ -176,7 +176,7 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade previous LTS to current"
+    name: "Upgrade 7.latest to dev"
     needs: [configure, build-install]
     timeout-minutes: ${{ inputs.long && 120 || 60 }}
     runs-on: [*azl3_pool]
