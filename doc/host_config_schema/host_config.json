@@ -168,7 +168,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "ECMAScript regular expressions for the endpoints the interface serves. An endpoint runs only if one of them matches its whole path, including the ``/app``, ``/gov`` or ``/node`` prefix and any template parameters, rather than the request URL: ``/app/records/[{]id[}]`` matches the endpoint ``/app/records/{id}``, and a handler set with ``set_default()`` is matched as an empty path. An empty list allows none. Optional; if not present, endpoints aren't filtered, except on an unsecured interface, where none run. Automatic responses that only list a path's allowed methods, for example to ``OPTIONS``, aren't filtered. A pattern that isn't a valid regular expression fails configuration validation"
+                "description": "An array of ECMAScript regular expressions matched against each registered endpoint's full path, including its ``/app``, ``/gov`` or ``/node`` prefix. For this matching, a registered default handler's path is the empty string. An endpoint is allowed if any pattern matches its path. Template parameters are matched literally: for ``/app/records/{id}``, use ``/app/records/[{]id[}]``, not a concrete record ID. Optional; by default, all endpoints are allowed on TLS interfaces and no endpoints are allowed on unsecured (plaintext) interfaces. An empty array rejects all endpoints. Automatic ``OPTIONS`` and ``405`` method-listing responses are not filtered. Invalid patterns fail configuration validation."
               },
               "forwarding_timeout_ms": {
                 "type": "integer",
