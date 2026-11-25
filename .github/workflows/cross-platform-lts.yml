@@ -96,7 +96,7 @@ jobs:
           echo "to_ref=$to_ref" >> "$GITHUB_OUTPUT"
 
   build-install:
-    name: "Build CCF ${{ matrix.ccf_version }} on ${{ matrix.name }}"
+    name: "Build on ${{ matrix.name }}"
     needs: configure
     timeout-minutes: 90
     strategy:
@@ -176,7 +176,7 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade ${{ needs.configure.outputs.from_version }} AL3 to ${{ needs.configure.outputs.to_version }} AL4"
+    name: "Upgrade from Azure Linux 3 to Azure Linux 4"
     needs: [configure, build-install]
     timeout-minutes: ${{ inputs.long && 120 || 60 }}
     runs-on: [*azl3_pool]

@@ -689,6 +689,24 @@ class CCFRemote:
             t_env = Environment(loader=loader, autoescape=select_autoescape())
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
 
+            previous_service_identity_file = kwargs.get(
+                "previous_service_identity_file"
+            )
+            if node_container_image and previous_service_identity_file:
+                # Only the node directory is mounted in the container. The copy
+                # is renamed, as the node writes its own service_cert.pem there.
+                node_previous_service_identity_file = os.path.join(
+                    common_dir, f"{local_node_id}.previous_service_identity.pem"
+                )
+                shutil.copyfile(
+                    previous_service_identity_file,
+                    node_previous_service_identity_file,
+                )
+                data_files += [node_previous_service_identity_file]
+                kwargs["previous_service_identity_file"] = os.path.basename(
+                    node_previous_service_identity_file
+                )
+
             # Older binaries ship their own template with only the shared limit.
             legacy_max_message_size = kwargs.get("max_msg_size_bytes") or "64MB"
             ledger_read_size = (
