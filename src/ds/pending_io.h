@@ -46,7 +46,7 @@ struct PendingIO
   PendingIO<T>& operator=(PendingIO&& that) noexcept
   {
     req = std::move(that.req);
-    len = std::move(that.len);
+    len = that.len;
     free_cb = std::move(that.free_cb);
     that.req = nullptr;
     return *this;

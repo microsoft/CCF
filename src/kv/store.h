@@ -667,7 +667,7 @@ namespace ccf::kv
 
           for (auto r = d.start_map(); r.has_value(); r = d.start_map())
           {
-            const auto map_name = r.value();
+            const auto& map_name = r.value();
 
             std::shared_ptr<ccf::kv::untyped::Map> map = nullptr;
 
@@ -1089,7 +1089,7 @@ namespace ccf::kv
 
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
-        const auto map_name = r.value();
+        const auto& map_name = r.value();
 
         auto map = get_map_internal(v, map_name);
         if (map == nullptr)
