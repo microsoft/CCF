@@ -3556,6 +3556,90 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(resp.success == aft::AppendEntriesResponseType::FAIL);
     DOCTEST_REQUIRE(resp.last_log_idx == 3);
   }
+
+  DOCTEST_SUBCASE(
+    "Forgets peers added only after rollback point while keeping peers "
+    "awaiting retirement confirmation")
+  {
+    FollowerFixture fx;
+    const ccf::NodeId added_id = ccf::kv::test::ThirdBackupNodeId;
+
+    // Start with three nodes so third_id can be retired and remain awaiting
+    // retirement confirmation when a later batch fails and rolls back.
+    aft::Configuration::Nodes with_added = fx.two_node_config;
+    with_added[added_id] = {};
+
+    DOCTEST_REQUIRE(fx.append_entry(1, 100, fx.three_node_config) == 1);
+    DOCTEST_REQUIRE(fx.append_signature() == 2);
+    DOCTEST_REQUIRE(fx.append_entry(3, 300, fx.two_node_config) == 3);
+    DOCTEST_REQUIRE(fx.append_signature() == 4);
+    DOCTEST_REQUIRE(fx.append_entry(5, 500, with_added) == 5);
+    DOCTEST_REQUIRE(fx.append_entry(6, 600, aft::Configuration::Nodes{}) == 6);
+
+    // Commit adding third_id, then commit retiring third_id (without
+    // retired_committed confirmation).
+    fx.deliver(0, 2, 0, 2);
+    fx.deliver(2, 4, 1, 4);
+    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 4);
+    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 4);
+    {
+      const auto pre_details = fx.follower.get_details();
+      DOCTEST_REQUIRE(pre_details.configs.size() == 1);
+      DOCTEST_REQUIRE(pre_details.configs[0].idx == 3);
+      DOCTEST_REQUIRE(pre_details.configs[0].nodes == fx.two_node_config);
+      DOCTEST_REQUIRE(pre_details.acks.contains(fx.primary_id));
+      DOCTEST_REQUIRE(pre_details.acks.contains(fx.third_id));
+      DOCTEST_REQUIRE_FALSE(pre_details.acks.contains(added_id));
+    }
+    fx.follower_channels->messages.clear();
+
+    // Deliver a batch that adds added_id at index 5 and then fails on an empty
+    // configuration at index 6.
+    fx.deliver(4, 6, 1, 4);
+
+    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 4);
+    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 4);
+    DOCTEST_REQUIRE(fx.follower_store->current_version() == 4);
+    DOCTEST_REQUIRE_FALSE(fx.read_value(5).has_value());
+    DOCTEST_REQUIRE_FALSE(fx.read_value(6).has_value());
+    DOCTEST_REQUIRE(fx.follower.ledger->ledger.size() == 4);
+
+    const auto follower_details = fx.follower.get_details();
+    DOCTEST_REQUIRE(follower_details.configs.size() == 1);
+    DOCTEST_REQUIRE(follower_details.configs[0].idx == 3);
+    DOCTEST_REQUIRE(follower_details.configs[0].nodes == fx.two_node_config);
+    DOCTEST_REQUIRE(follower_details.acks.contains(fx.primary_id));
+    DOCTEST_REQUIRE(follower_details.acks.contains(fx.third_id));
+    DOCTEST_REQUIRE_FALSE(follower_details.acks.contains(added_id));
+
+    const auto resp = fx.pop_response();
+    DOCTEST_REQUIRE(resp.success == aft::AppendEntriesResponseType::FAIL);
+    DOCTEST_REQUIRE(resp.last_log_idx == 4);
+
+    // If this follower later becomes primary, it still communicates with
+    // active and retired-unconfirmed peers, but neither sends entries to nor
+    // nominates the discarded peer.
+    fx.follower_channels->messages.clear();
+    fx.follower.become_aware_of_new_term(fx.follower.get_view() + 1);
+    fx.follower.force_become_primary();
+    fx.follower_channels->messages.clear();
+    fx.follower.periodic(request_timeout);
+    DOCTEST_REQUIRE(
+      fx.follower_channels->pop_first(aft::append_entries, fx.primary_id)
+        .has_value());
+    DOCTEST_REQUIRE(
+      fx.follower_channels->pop_first(aft::append_entries, fx.third_id)
+        .has_value());
+    DOCTEST_REQUIRE_FALSE(
+      fx.follower_channels->pop_first(aft::append_entries, added_id)
+        .has_value());
+
+    fx.follower_channels->messages.clear();
+    fx.follower.nominate_successor();
+    DOCTEST_REQUIRE_FALSE(
+      fx.follower_channels->pop_first(aft::propose_request_vote, added_id)
+        .has_value());
+  }
 }
 
 int main(int argc, char** argv)
