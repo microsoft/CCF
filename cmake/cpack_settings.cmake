@@ -36,7 +36,7 @@ set(
 # + runtime dependencies
 set(
   CCF_RPM_DEPENDENCIES
-  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, curl-devel >= ${CURL_MINIMAL_VERSION}"
+  "${CCF_RPM_DEPENDENCIES}, libuv-devel >= ${LIBUV_MINIMAL_VERSION}, libcurl-devel >= ${CURL_MINIMAL_VERSION}"
 )
 if(CCF_STACKTRACE_BACKEND_RESOLVED STREQUAL "LIBBACKTRACE")
   string(
