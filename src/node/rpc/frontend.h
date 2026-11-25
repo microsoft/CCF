@@ -53,10 +53,10 @@ namespace ccf
     // Looked up on first use. Requests are processed on several worker
     // threads, so the pointer is cached in an atomic. The node context owns
     // the subsystem for the lifetime of the node.
-    std::atomic<NodeConfigurationInterface*> node_configuration_subsystem{
-      nullptr};
+    mutable std::atomic<NodeConfigurationInterface*>
+      node_configuration_subsystem{nullptr};
 
-    NodeConfigurationInterface* get_node_configuration_subsystem()
+    NodeConfigurationInterface* get_node_configuration_subsystem() const
     {
       auto* subsystem =
         node_configuration_subsystem.load(std::memory_order_acquire);
@@ -64,8 +64,11 @@ namespace ccf
       {
         subsystem =
           node_context.get_subsystem<NodeConfigurationInterface>().get();
-        node_configuration_subsystem.store(
-          subsystem, std::memory_order_release);
+        if (subsystem != nullptr)
+        {
+          node_configuration_subsystem.store(
+            subsystem, std::memory_order_release);
+        }
       }
       return subsystem;
     }
@@ -181,8 +184,7 @@ namespace ccf
           bool ok = false;
           for (const auto& re : rit->second)
           {
-            std::smatch m;
-            if (std::regex_match(endpoint->full_uri_path, m, re))
+            if (std::regex_match(endpoint->full_uri_path, re))
             {
               ok = true;
               break;
@@ -196,7 +198,8 @@ namespace ccf
         }
         else
         {
-          auto icfg = ncs.node_config.network.rpc_interfaces.at(*interface_id);
+          const auto& icfg =
+            ncs.node_config.network.rpc_interfaces.at(*interface_id);
           if (
             icfg.endorsement.has_value() &&
             icfg.endorsement->authority == Authority::UNSECURED)
@@ -529,8 +532,7 @@ namespace ccf
       auto r = std::chrono::milliseconds(3'000);
 
       auto interface_id = ctx->get_session_context()->interface_id;
-      auto* node_configuration =
-        node_configuration_subsystem.load(std::memory_order_acquire);
+      auto* node_configuration = get_node_configuration_subsystem();
       if (interface_id.has_value() && node_configuration != nullptr)
       {
         const auto& ncs = node_configuration->get();
