@@ -8,6 +8,8 @@
 #include "ccf/tx_status.h"
 #include "node/gov/api_version.h"
 
+#include <format>
+
 namespace ccf::gov::endpoints
 {
   namespace api
@@ -57,7 +59,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidQueryParameterValue,
-              fmt::format(
+              std::format(
                 "The value '{}' passed as parameter 'transactionId' could not "
                 "be converted to a valid Transaction ID.",
                 tx_id_str));
@@ -74,7 +76,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format(
+              std::format(
                 "get_status_for_txid_v1 returned error: {}",
                 ccf::api_result_to_str(result)));
             return;
@@ -115,7 +117,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format(
+              std::format(
                 "get_last_committed_txid_v1 returned error: {}",
                 ccf::api_result_to_str(result)));
             return;
@@ -130,7 +132,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format(
+              std::format(
                 "get_status_for_txid_v1 returned error: {}",
                 ccf::api_result_to_str(result)));
             return;

@@ -5,6 +5,8 @@
 #include "host/ledger.h"
 #include "kv/serialised_entry_format.h"
 
+#include <format>
+
 #define PICOBENCH_IMPLEMENT
 #include <picobench/picobench.hpp>
 
@@ -78,7 +80,7 @@ namespace
     void (*prepare)(LedgerFile&))
   {
     const auto directory = fs::path(
-      fmt::format("ledger_rename_bench_{}_{}", fixture_name, CloseAndReopen));
+      std::format("ledger_rename_bench_{}_{}", fixture_name, CloseAndReopen));
     fs::remove_all(directory);
     fs::create_directory(directory);
     RemoveDirectory remove_directory{directory};
@@ -155,7 +157,7 @@ namespace
     picobench::state& state, const std::string& fixture_name)
   {
     const auto directory = fs::path(
-      fmt::format("ledger_read_bench_{}_{}", fixture_name, MaterializePrefix));
+      std::format("ledger_read_bench_{}_{}", fixture_name, MaterializePrefix));
     fs::remove_all(directory);
     fs::create_directory(directory);
     RemoveDirectory remove_directory{directory};

@@ -7,6 +7,7 @@
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <array>
+#include <format>
 #include <span>
 #include <type_traits>
 
@@ -38,7 +39,7 @@ namespace ccf::pal
     {
       if (data.size() != size())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot initialise AttestationMeasurement with data of size {}, "
           "expected {}",
           data.size(),
@@ -75,7 +76,7 @@ namespace ccf::pal
     }
     else
     {
-      throw ccf::JsonParseError(fmt::format(
+      throw ccf::JsonParseError(std::format(
         "Attestation measurement should be hex-encoded string: {}", j.dump()));
     }
   }
@@ -92,7 +93,7 @@ namespace ccf::pal
     // https://swagger.io/docs/specification/data-models/data-types/#format
     schema["format"] = "hex";
     schema["pattern"] =
-      fmt::format("^[a-f0-9]{}$", AttestationMeasurement<N, Tag>::size() * 2);
+      std::format("^[a-f0-9]{}$", AttestationMeasurement<N, Tag>::size() * 2);
   }
 
   // Virtual

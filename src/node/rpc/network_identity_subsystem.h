@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <format>
 
 namespace ccf
 {
@@ -112,7 +113,7 @@ namespace ccf
     get_cose_endorsements_chain(ccf::SeqNo seqno) const override
     {
       check_fetched(
-        fmt::format("COSE endorsements chain requested for seqno {}", seqno));
+        std::format("COSE endorsements chain requested for seqno {}", seqno));
       // Settled, so unchanged since the check
       const auto status = fetch_status.load();
 
@@ -159,10 +160,10 @@ namespace ccf
     [[nodiscard]] ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const override
     {
-      check_fetched(fmt::format("Trusted key requested for seqno {}", seqno));
+      check_fetched(std::format("Trusted key requested for seqno {}", seqno));
       if (trusted_keys.empty())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "No trusted keys fetched when requested one for seqno {}", seqno));
       }
       auto it = trusted_keys.upper_bound(seqno);
@@ -174,7 +175,7 @@ namespace ccf
       const auto& [key_seqno, key_ptr] = *(--it);
       if (key_seqno > seqno)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Resolved trusted key for {} with wrong starting seqno {}",
           seqno,
           key_seqno));
@@ -191,7 +192,7 @@ namespace ccf
     [[nodiscard]] std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain_pq(ccf::SeqNo seqno) const override
     {
-      check_fetched(fmt::format(
+      check_fetched(std::format(
         "PQ COSE endorsements chain requested for seqno {}", seqno));
 
       if (!current_pq_key_der.has_value() || !current_service_from.has_value())
@@ -225,7 +226,7 @@ namespace ccf
       ccf::SeqNo seqno) const override
     {
       check_fetched(
-        fmt::format("Trusted PQ key requested for seqno {}", seqno));
+        std::format("Trusted PQ key requested for seqno {}", seqno));
 
       auto it = pq_trusted_keys.upper_bound(seqno);
       if (it == pq_trusted_keys.begin())
@@ -247,7 +248,7 @@ namespace ccf
       const auto status = fetch_status.load();
       if (status != FetchStatus::Done && status != FetchStatus::Partial)
       {
-        throw IdentityHistoryNotFetched(fmt::format(
+        throw IdentityHistoryNotFetched(std::format(
           "{} but identity history fetching has not been completed yet",
           request));
       }
@@ -341,7 +342,7 @@ namespace ccf
 
     [[noreturn]] void fail_pq_fetching(const std::string& err)
     {
-      fail_fetching(fmt::format("PQ endorsements chain: {}", err));
+      fail_fetching(std::format("PQ endorsements chain: {}", err));
     }
 
     // Starts the PQ chain when the current service has a PQ identity. The
@@ -374,7 +375,7 @@ namespace ccf
         current.pq_endorsement.has_value() &&
         current.pq_endorsement->endorsing_key != current_pq_key)
       {
-        fail_pq_fetching(fmt::format(
+        fail_pq_fetching(std::format(
           "the PQ endorsement written when the current service opened is "
           "signed by public key {}, which is not the current PQ service "
           "public key {}",
@@ -404,13 +405,13 @@ namespace ccf
       {
         if (pq_endorsement.has_value())
         {
-          fail_pq_fetching(fmt::format(
+          fail_pq_fetching(std::format(
             "a PQ endorsement was written with the classical endorsement for "
             "{} - {}, {}",
             classical.endorsement_epoch_begin.to_str(),
             format_epoch(classical.endorsement_epoch_end),
             pq_self_endorsement.has_value() ?
-              fmt::format(
+              std::format(
                 "which is older than the PQ self-endorsement at {}",
                 pq_self_endorsement->endorsement_epoch_begin.to_str()) :
               "but the current service has no PQ identity"));
@@ -420,7 +421,7 @@ namespace ccf
 
       if (!pq_endorsement.has_value())
       {
-        fail_pq_fetching(fmt::format(
+        fail_pq_fetching(std::format(
           "no PQ endorsement was written with the classical endorsement for "
           "{} - {}",
           classical.endorsement_epoch_begin.to_str(),
@@ -453,7 +454,7 @@ namespace ccf
           pq_endorsements.begin()->first;
         if (from != oldest_from)
         {
-          fail_pq_fetching(fmt::format(
+          fail_pq_fetching(std::format(
             "fetched self-endorsement at {} which has not been seen",
             endorsement.endorsement_epoch_begin.to_str()));
         }
@@ -469,7 +470,7 @@ namespace ccf
         endorsement.endorsement_epoch_end != classical.endorsement_epoch_end ||
         endorsement.previous_version != classical.previous_version)
       {
-        fail_pq_fetching(fmt::format(
+        fail_pq_fetching(std::format(
           "endorsement for {} - {} with previous version {} does not match "
           "the classical endorsement for {} - {} with previous version {} "
           "written with it",
@@ -497,7 +498,7 @@ namespace ccf
       }
       if (previous_root != classical_previous_root)
       {
-        fail_pq_fetching(fmt::format(
+        fail_pq_fetching(std::format(
           "endorsement for {} - {} is signed over another previous ledger "
           "root than the classical endorsement written with it",
           endorsement.endorsement_epoch_begin.to_str(),
@@ -600,7 +601,7 @@ namespace ccf
       {
         if (service_from.seqno != endorsement->endorsement_epoch_begin.seqno)
         {
-          fail_fetching(fmt::format(
+          fail_fetching(std::format(
             "The first fetched endorsement is a self-endorsement at {} "
             "which is different from current_service_create_txid {}",
             endorsement->endorsement_epoch_begin.to_str(),
@@ -641,7 +642,7 @@ namespace ccf
           fetch_next_at(endorsement.previous_version.value());
           return;
         }
-        fail_fetching(fmt::format(
+        fail_fetching(std::format(
           "Found an ill-formed endorsement for {} - {} which has no "
           "predecessor",
           endorsement.endorsement_epoch_begin.to_str(),
@@ -654,7 +655,7 @@ namespace ccf
       {
         if (!endorsements.contains(from))
         {
-          fail_fetching(fmt::format(
+          fail_fetching(std::format(
             "Fetched self-endorsement at {} which has not been seen",
             from_str));
         }
@@ -666,7 +667,7 @@ namespace ccf
 
       if (from >= earliest_endorsed_seq)
       {
-        fail_fetching(fmt::format(
+        fail_fetching(std::format(
           "Fetched service endorsement at {} which is greater than the "
           "earliest known seqno in the chain {}",
           from_str,
@@ -676,13 +677,13 @@ namespace ccf
       if (!endorsement.endorsement_epoch_end.has_value())
       {
         fail_fetching(
-          fmt::format("Fetched endorsement at {} has no epoch end", from_str));
+          std::format("Fetched endorsement at {} has no epoch end", from_str));
       }
 
       earliest_endorsed_seq = from;
       if (endorsements.contains(from))
       {
-        fail_fetching(fmt::format(
+        fail_fetching(std::format(
           "Fetched service endorsement at {} which already exists", from_str));
       }
 
@@ -713,7 +714,7 @@ namespace ccf
     // their SHA-256
     static std::string key_digest(std::span<const uint8_t> key_der)
     {
-      return fmt::format(
+      return std::format(
         "sha256:{}",
         ccf::crypto::Sha256Hash(key_der.data(), key_der.size()).hex_str());
     }
@@ -774,7 +775,7 @@ namespace ccf
         }
         catch (const std::logic_error&)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "COSE endorsement chain integrity is violated, endorsement from "
             "{} to {} failed signature verification",
             endorsement.endorsement_epoch_begin.to_str(),
@@ -803,7 +804,7 @@ namespace ccf
             endorsed_key.begin(),
             endorsed_key.end()))
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Endorsement from {} to {} over public key {} doesn't chain with "
             "the previous endorsement with key {}",
             endorsement.endorsement_epoch_begin.to_str(),
@@ -823,7 +824,7 @@ namespace ccf
           current_pkey.begin(),
           current_pkey.end()))
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Current service identity public key {} does not match the last "
           "endorsing key {}",
           key_for_error(identity_type, current_pkey),

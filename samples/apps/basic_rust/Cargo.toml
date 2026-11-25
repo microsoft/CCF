@@ -3,6 +3,9 @@ name = "ccf-basic-rust"
 version = "0.1.0"
 edition = "2024"
 
+[lints.rust]
+warnings = "deny"
+
 [lib]
 name = "ccf_basic_rust_app"
 crate-type = ["staticlib"]

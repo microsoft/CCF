@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
-#include <fmt/format.h>
 #include <map>
 #include <openssl/crypto.h>
 #include <optional>

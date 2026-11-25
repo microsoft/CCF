@@ -11,7 +11,7 @@
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
-#include <fmt/format.h>
+#include <format>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -70,7 +70,7 @@ namespace ccf
       endorsements->get_version_of_previous_write(ccf::IdentityType::PQ);
     if (pq_version.has_value() && pq_version != classical_version)
     {
-      const auto err = fmt::format(
+      const auto err = std::format(
         "The PQ previous service identity endorsement was written at {}, and "
         "the CLASSICAL one at {}",
         pq_version.value(),
@@ -140,7 +140,7 @@ namespace ccf
       }
       if (!state->store)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Historical state with seqno {} is loaded but its store is "
           "missing",
           seq));
@@ -153,7 +153,7 @@ namespace ccf
       auto endorsement = endorsements->get(ccf::IdentityType::CLASSICAL);
       if (!endorsement.has_value())
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "COSE endorsement entry for seqno {} is missing from its "
           "historical state",
           seq));

@@ -17,7 +17,7 @@ namespace ccf::logger
   {
     // A single insertion keeps concurrent diagnostics on separate lines, since
     // std::cerr is synchronised with stdio and each write takes its lock.
-    std::cerr << fmt::format("Fatal error: {}\n", message) << std::flush;
+    std::cerr << std::format("Fatal error: {}\n", message) << std::flush;
   }
 
 #define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "")

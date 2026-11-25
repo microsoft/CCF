@@ -1020,7 +1020,7 @@ TEST_CASE("Decode CCF COSE receipt")
         {
           REQUIRE_THROWS_WITH_AS(
             ccf::cose::decode_ccf_receipt(edited, recompute_root),
-            fmt::format("Unsupported vds value ({}) in protected header", vds)
+            std::format("Unsupported vds value ({}) in protected header", vds)
               .c_str(),
             ccf::cose::COSEDecodeError);
         }

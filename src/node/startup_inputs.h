@@ -31,7 +31,7 @@ namespace ccf
     if (ec || !f)
     {
       throw std::logic_error(
-        fmt::format("Could not read {} from {}", description, path));
+        std::format("Could not read {} from {}", description, path));
     }
 
     std::vector<uint8_t> contents(size);
@@ -41,7 +41,7 @@ namespace ccf
     if (!f)
     {
       throw std::logic_error(
-        fmt::format("Could not read {} from {}", description, path));
+        std::format("Could not read {} from {}", description, path));
     }
     return contents;
   }
@@ -63,7 +63,7 @@ namespace ccf
     }
     catch (const nlohmann::json::parse_error& e)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Could not parse {} from {}: {}", description, path, e.what()));
     }
   }

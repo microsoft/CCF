@@ -15,11 +15,13 @@
 #include <climits>
 #include <crypto/cbor_tags.h>
 #include <crypto/cose.h>
+#include <format>
 #include <openssl/opensslv.h>
 #include <openssl/sha.h>
 #include <optional>
 #include <stdexcept>
 #include <tav/cbor.hpp>
+#include <utility>
 
 #if OPENSSL_VERSION_PREREQ(3, 5)
 #  include "crypto/openssl/mldsa.h"
@@ -53,8 +55,8 @@ namespace
       case CurveID::X25519:
       default:
       {
-        throw std::logic_error(
-          fmt::format("Unsupported COSE ECDSA curve {}", curve));
+        throw std::logic_error(std::format(
+          "Unsupported COSE ECDSA curve {}", std::to_underlying(curve)));
       }
     }
   }
@@ -133,7 +135,7 @@ namespace
       default:
       {
         throw std::runtime_error(
-          fmt::format("Unsupported COSE signature algorithm {}", alg));
+          std::format("Unsupported COSE signature algorithm {}", alg));
       }
     }
   }
@@ -234,7 +236,7 @@ namespace
     if (parsed == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("Failed to parse public key: {}", OpenSSL::first_error()));
+        std::format("Failed to parse public key: {}", OpenSSL::first_error()));
     }
     OpenSSL::Unique_PKEY key(parsed, EVP_PKEY_free);
     return cose_key_from_pkey(std::move(key));
@@ -266,7 +268,7 @@ namespace
     if (cert == nullptr)
     {
       throw std::invalid_argument(
-        fmt::format("Failed to parse certificate: {}", OpenSSL::first_error()));
+        std::format("Failed to parse certificate: {}", OpenSSL::first_error()));
     }
     return OpenSSL::cose_key_from_x509(cert);
   }
@@ -284,7 +286,7 @@ namespace ccf::crypto
     EVP_PKEY* public_key = X509_PUBKEY_get(X509_get_X509_PUBKEY(cert));
     if (public_key == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Failed to get certificate public key: {}", OpenSSL::first_error()));
     }
     OpenSSL::Unique_PKEY key(public_key, EVP_PKEY_free);
@@ -314,7 +316,7 @@ namespace ccf::crypto
     if (parsed == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("Failed to parse public key: {}", OpenSSL::first_error()));
+        std::format("Failed to parse public key: {}", OpenSSL::first_error()));
     }
     OpenSSL::Unique_PKEY key(parsed, EVP_PKEY_free);
     if (cursor != der.data() + der.size())
@@ -438,7 +440,7 @@ namespace ccf::crypto
       const auto required_alg = verify_key.alg();
       if (required_alg.has_value() && alg != required_alg.value())
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "COSE algorithm {} is not the key's algorithm {}",
           alg,
           required_alg.value()));
@@ -446,7 +448,7 @@ namespace ccf::crypto
       if (!cose_algorithm_matches_key(alg, verify_key))
       {
         throw std::runtime_error(
-          fmt::format("COSE algorithm {} does not match the key", alg));
+          std::format("COSE algorithm {} does not match the key", alg));
       }
       const auto parameters = algorithm_parameters(alg);
       const auto tbs = cose::make_cose_sign1_tbs(phdr, payload);
@@ -478,7 +480,7 @@ namespace ccf::crypto
         const auto signature_size = expected_signature_size(parameters.curve);
         if (sig.size() != signature_size)
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "Expected {} byte COSE ECDSA signature, got {}",
             signature_size,
             sig.size()));

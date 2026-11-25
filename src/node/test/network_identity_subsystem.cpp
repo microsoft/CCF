@@ -17,6 +17,8 @@
 #include "node/snapshot_serdes.h"
 #include "service/tables/signing_identities.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
 #include <deque>
@@ -166,7 +168,7 @@ namespace
         // to nullopt, which means "state not yet loaded"). Reaching
         // here from a test is a test-author bug -- surface it loudly
         // rather than silently dropping the subsystem into Retry.
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "MockHistoricalStateAccessor: no entry for seqno {}", seq));
       }
       std::optional<ccf::CoseEndorsement> pq = std::nullopt;
@@ -1765,7 +1767,7 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
     auto& endorsement = f.historical->pq_entries.at(middle_version);
     const auto classical_version = endorsement.previous_version.value();
     endorsement.previous_version = classical_version + 1;
-    expected_error = fmt::format(
+    expected_error = std::format(
       "PQ endorsements chain: endorsement for 2.1 - 4.200 with previous "
       "version {} does not match the classical endorsement for 2.1 - 4.200 "
       "with previous version {} written with it",

@@ -10,7 +10,7 @@
 #include "ccf/service/tables/jsengine.h"
 #include "node/cose_common.h"
 
-#include <fmt/format.h>
+#include <format>
 #include <optional>
 #include <string>
 
@@ -159,7 +159,7 @@ namespace ccf::policy
     }
     catch (const std::exception& e)
     {
-      return fmt::format("Invalid code update policy module: {}", e.what());
+      return std::format("Invalid code update policy module: {}", e.what());
     }
 
     // Build JS array of transparent statements, each with phdr + receipts
@@ -194,7 +194,7 @@ namespace ccf::policy
     if (result.is_exception())
     {
       auto [reason, trace] = interpreter.error_message();
-      return fmt::format(
+      return std::format(
         "Code update policy threw: {}\n{}",
         reason,
         trace.value_or("<no trace>"));
@@ -212,7 +212,7 @@ namespace ccf::policy
       return std::nullopt;
     }
 
-    return fmt::format(
+    return std::format(
       "Unexpected return value from code update policy: {}",
       interpreter.to_str(result).value_or("<unknown>"));
   }

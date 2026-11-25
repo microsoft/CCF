@@ -6,6 +6,7 @@
 #include "node/runtime_control.h"
 #include "uv/proxy.h"
 
+#include <format>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -56,7 +57,7 @@ namespace asynchost
       if (rc != 0)
       {
         throw std::logic_error(
-          fmt::format("uv_async_init failed: {}", uv_strerror(rc)));
+          std::format("uv_async_init failed: {}", uv_strerror(rc)));
       }
       uv_handle.data = this;
     }

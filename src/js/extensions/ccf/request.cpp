@@ -13,6 +13,7 @@
 #include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
 
+#include <format>
 #include <quickjs/quickjs.h>
 
 namespace ccf::js::extensions
@@ -262,7 +263,7 @@ namespace ccf::js::extensions
       if (result == ccf::ApiResult::InternalError)
       {
         throw std::logic_error(
-          fmt::format("Failed to get data for caller {}", id));
+          std::format("Failed to get data for caller {}", id));
       }
 
       ccf::crypto::Pem cert;
@@ -278,7 +279,7 @@ namespace ccf::js::extensions
       if (result == ccf::ApiResult::InternalError)
       {
         throw std::logic_error(
-          fmt::format("Failed to get certificate for caller {}", id));
+          std::format("Failed to get certificate for caller {}", id));
       }
 
       CCF_JS_CHECK_OR_THROW(caller.set("policy", ctx.new_string(policy_name)));
@@ -354,7 +355,7 @@ namespace ccf::js::extensions
     auto request_url = request_path;
     if (!request_query.empty())
     {
-      request_url = fmt::format("{}?{}", request_url, request_query);
+      request_url = std::format("{}?{}", request_url, request_query);
     }
     auto url_str = ctx.new_string(request_url);
     CCF_JS_CHECK_OR_THROW(request.set("url", std::move(url_str)));
