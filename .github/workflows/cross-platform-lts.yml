@@ -96,20 +96,20 @@ jobs:
           echo "to_ref=$to_ref" >> "$GITHUB_OUTPUT"
 
   build-install:
-    name: "Build on ${{ matrix.name }}"
+    name: "Build ${{ matrix.name }}"
     needs: configure
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Azure Linux 3
+          - name: previous LTS
             artifact: al3
             ccf_version: ${{ needs.configure.outputs.from_version }}
             ref: ccf-${{ needs.configure.outputs.from_version }}
             pool: *azl3_pool
             image: *azl3_image
-          - name: Azure Linux 4
+          - name: current
             artifact: al4
             ccf_version: ${{ needs.configure.outputs.to_version }}
             ref: ${{ needs.configure.outputs.to_ref }}
@@ -176,7 +176,7 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade from Azure Linux 3 to Azure Linux 4"
+    name: "Upgrade previous LTS to current"
     needs: [configure, build-install]
     timeout-minutes: ${{ inputs.long && 120 || 60 }}
     runs-on: [*azl3_pool]
