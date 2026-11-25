@@ -52,13 +52,20 @@ namespace serialized
     return *(T*)data;
   }
 
+  // Keep the diagnostic out of line so Clang can inline fixed-size reads.
+  [[noreturn, gnu::noinline, gnu::cold]] inline void
+  throw_insufficient_read_space(size_t size, size_t required)
+  {
+    throw InsufficientSpaceException(
+      std::format("Insufficient space (read<T>: {} < {})", size, required));
+  }
+
   template <class T>
   T read(const uint8_t*& data, size_t& size)
   {
     if (size < sizeof(T))
     {
-      throw InsufficientSpaceException(
-        std::format("Insufficient space (read<T>: {} < {})", size, sizeof(T)));
+      throw_insufficient_read_space(size, sizeof(T));
     }
 
     T v;

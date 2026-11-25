@@ -282,7 +282,7 @@ namespace ccf::logger
   namespace detail
   {
     template <typename T>
-    constexpr const T& format_pattern(const T& pattern)
+    constexpr auto format_pattern(const T& pattern)
     {
       return pattern;
     }
