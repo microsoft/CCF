@@ -766,6 +766,42 @@ TEST_CASE("Add a node to an opening service")
     }
   }
 
+  const NodeId tls_peer{std::string(64, '1')};
+  const std::map<NodeId, std::string> expected_tls_addresses{
+    {tls_peer, "tls-peer.example:8082"}};
+  {
+    auto peers_tx = network.tables->create_tx();
+    auto* peers = peers_tx.rw(network.nodes);
+    const auto add_peer = [peers, &node_public_encryption_key](
+                            const NodeId& id,
+                            NodeStatus status,
+                            const std::optional<std::string>& tls_address) {
+      NodeInfo info;
+      info.encryption_pub_key = node_public_encryption_key;
+      info.status = status;
+      info.node_to_node_interface.published_address =
+        fmt::format("{}.example:8081", id.value());
+      if (tls_address.has_value())
+      {
+        info.node_to_node_tls_interface = NodeInfoNetwork::NodeToNodeInterface{
+          "localhost:8082", tls_address.value()};
+      }
+      peers->put(id, info);
+    };
+    add_peer(
+      tls_peer, NodeStatus::TRUSTED, expected_tls_addresses.at(tls_peer));
+    add_peer(NodeId{std::string(64, '2')}, NodeStatus::TRUSTED, std::nullopt);
+    add_peer(
+      NodeId{std::string(64, '3')},
+      NodeStatus::PENDING,
+      "pending-peer.example:8082");
+    add_peer(
+      NodeId{std::string(64, '4')},
+      NodeStatus::RETIRED,
+      "retired-peer.example:8082");
+    REQUIRE(peers_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
   INFO("Add first node which should be trusted straight away");
   {
     JoinNetworkNodeToNode::In join_input;
@@ -785,6 +821,9 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.network_info.has_value());
     CHECK(response.network_info->identity == *network.identity.get());
     CHECK(response.network_info->public_only == false);
+    CHECK(
+      response.network_info->node_to_node_tls_addresses ==
+      expected_tls_addresses);
     // No endorsed certificate since no CSR was passed in
     CHECK(response.network_info->endorsed_certificate == std::nullopt);
 
@@ -819,7 +858,7 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(
       response, "cannot be identified in the requested format");
     auto verify_tx = network.tables->create_tx();
-    CHECK(verify_tx.ro(network.nodes)->size() == 1);
+    CHECK(verify_tx.ro(network.nodes)->size() == 5);
   }
 
   INFO("Adding the same node should return the same result");
@@ -849,6 +888,9 @@ TEST_CASE("Add a node to an opening service")
       response.network_info->ledger_secrets,
       network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
     CHECK(response.network_info->identity == *network.identity.get());
+    CHECK(
+      response.network_info->node_to_node_tls_addresses ==
+      expected_tls_addresses);
   }
 
   INFO(

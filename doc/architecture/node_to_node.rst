@@ -20,6 +20,7 @@ The existing ``network.node_to_node_interface`` remains required in this bridge 
 See :doc:`/operations/configuration` for configuration and :doc:`/releases/migration_7_x_to_8_x` for upgrade preparation.
 
 TLS authenticates existing service-endorsed node certificates, binds the peer node ID to the certificate's public key, and deliberately ignores certificate expiry as legacy channels do.
+Peers may use either SHA-256 or ``did:key`` node IDs in the same TLS network.
 Certificate renewal with unchanged keys updates future handshakes without reconnecting established streams.
 Consensus receives authenticated, normalized headers and ledger payloads only after TLS admission.
 Ledger encryption and integrity checks remain independent and unchanged.

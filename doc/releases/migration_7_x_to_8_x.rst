@@ -19,7 +19,8 @@ Node-to-Node TLS
 
 The 7.x bridge supports opt-in TLS alongside legacy channels.
 TLS-only configuration and removal of the legacy endpoint are deferred to 8.0.
-First upgrade every node to a release which preserves ``node_to_node_tls_interface`` metadata when accepting joins.
+First upgrade every node to a TLS-capable bridge release.
+Only TLS-capable nodes should advertise TLS endpoints: do not configure ``node_to_node_tls_interface`` on pre-bridge releases, which preserve the field but do not open a TLS listener.
 Then replace nodes with the TLS-capable bridge release, explicitly configuring both endpoints and permitting network access to both.
 TLS is exercised between dual-enabled nodes while pairs involving legacy-only nodes continue using legacy channels.
 

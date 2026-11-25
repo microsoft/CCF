@@ -1566,14 +1566,9 @@ namespace ccf::tls
       owner_stop(std::move(config.on_stop)),
       on_unconnected(std::move(config.on_unconnected))
     {
-      if (
-        traffic_key_policy &&
-        (traffic_key_policy->record_budget < 2 ||
-         traffic_key_policy->record_budget >
-           TrafficKeyPolicy::MAX_RECORD_BUDGET))
+      if (traffic_key_policy)
       {
-        throw std::invalid_argument(
-          "TLS sending-key record budget must be between 2 and 2^24");
+        traffic_key_policy->validate();
       }
     }
 

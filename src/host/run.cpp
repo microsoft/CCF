@@ -404,7 +404,9 @@ namespace ccf
         config.get_node_to_node_max_message_size(),
         std::chrono::milliseconds(config.consensus.election_timeout) * 4,
         config.client_connection_timeout,
-        config.node_client_interface.value_or(""));
+        config.node_client_interface.value_or(""),
+        ccf::tls::TrafficKeyPolicy{
+          .record_budget = config.node_to_node_message_limit});
       interface.bind_address =
         ccf::make_net_address(host, std::to_string(node_tls->port()));
       if (interface.published_address.empty())
@@ -770,6 +772,12 @@ namespace ccf
     try
     {
       validate_ledger_transaction_size(config);
+      if (config.network.node_to_node_tls_interface)
+      {
+        ccf::tls::TrafficKeyPolicy{
+          .record_budget = config.node_to_node_message_limit}
+          .validate();
+      }
       for (const auto& endpoint : config.observability.fluentd)
       {
         ccf::tracing::FluentdSink::validate(

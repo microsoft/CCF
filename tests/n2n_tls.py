@@ -88,9 +88,17 @@ def run(args):
         exercise_traffic(network, 300)
 
         replacement = network.create_node(args.nodes[0])
-        network.join_node(replacement, args.package, args, from_snapshot=False)
+        network.join_node(
+            replacement,
+            args.package,
+            args,
+            from_snapshot=False,
+            node_id_format="did:key",
+        )
+        assert replacement.node_id.startswith("did:key:")
         network.trust_node(replacement, args)
         exercise_traffic(network, 400)
+        assert_tls_streams(network)
         network.retire_node(primary, primary)
         primary.stop()
         network.wait_for_new_primary(primary)
@@ -134,5 +142,6 @@ if __name__ == "__main__":
         run,
         nodes=hosts,
         snapshot_tx_interval=100,
+        node_to_node_message_limit=8,
     )
     runner.run()

@@ -72,6 +72,8 @@ TLS is selected only when both the local node and the recorded peer endpoint sup
 Omitting the TLS interface disables incoming and outgoing N2N TLS on that node.
 When port zero is requested, ``output_files.node_to_node_address_file`` includes the resolved TLS address alongside the legacy address.
 The existing ``node_to_node.max_message_size`` bounds both transports' frames.
+``node_to_node_message_limit`` limits key usage for both transports, counting messages for legacy channels and outgoing encrypted records for TLS.
+The default is 23,726,566; with TLS enabled, values must be between 2 and 23,726,566.
 See :doc:`/architecture/node_to_node` for authentication, connection lifetime, and resource limits.
 
 Identity ID Format

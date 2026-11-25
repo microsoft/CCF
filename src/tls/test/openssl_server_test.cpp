@@ -1085,6 +1085,24 @@ namespace
     CHECK(pair.server_key_updates == 1);
   }
 
+  TEST_CASE("Sending-key policy validates the record budget")
+  {
+    for (const uint64_t budget : {uint64_t{2}, uint64_t{23'726'566}})
+    {
+      CHECK_NOTHROW(OpenSSLConnectionEngine(
+        {.traffic_key_policy = TrafficKeyPolicy{.record_budget = budget}}, {}));
+    }
+    for (const uint64_t budget :
+         {uint64_t{0}, uint64_t{1}, uint64_t{23'726'567}})
+    {
+      CHECK_THROWS_AS(
+        OpenSSLConnectionEngine(
+          {.traffic_key_policy = TrafficKeyPolicy{.record_budget = budget}},
+          {}),
+        std::invalid_argument);
+    }
+  }
+
   TEST_CASE(
     "Sending-key policy excludes inherited post-handshake authentication")
   {

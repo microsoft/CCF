@@ -97,7 +97,8 @@ OpenSSL already implements KeyUpdate, but ordinary TLS connections do not automa
 The policy counts outgoing encrypted records, not application messages or write calls, and reserves one old-key record for KeyUpdate itself.
 Application writes are capped at the negotiated record size so that retries cannot construct additional records without another budget check.
 Post-handshake authentication is disabled because its response flight can produce multiple records without an intervening budget check.
-Its internal ``record_budget`` defaults to 2^20 and accepts 2 through 2^24, below the AES-GCM bound in RFC 8446 section 5.5.
+Its internal ``record_budget`` defaults to 2^20 and accepts 2 through 23,726,566, the rounded-down AES-GCM bound of 2^24.5 full records in RFC 8446 section 5.5.
+N2N supplies ``node_to_node_message_limit`` as this budget; see :doc:`/operations/configuration`.
 Peer key-usage policy is not enforced; incoming KeyUpdates remain OpenSSL's responsibility.
 
 An update is attempted between completed application writes, only when the socket reports writable.

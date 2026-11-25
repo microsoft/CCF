@@ -27,6 +27,7 @@ namespace ccf
     {
       bool outgoing = false;
       std::optional<NodeId> peer;
+      std::optional<NodeId> peer_key_id;
       NodeMsgType purpose = consensus_msg;
       std::vector<uint8_t> pending;
       std::vector<std::function<void(::tcp::ConnID)>> pending_sends;
@@ -51,6 +52,16 @@ namespace ccf
     static std::string_view alpn(NodeMsgType purpose)
     {
       return purpose == forwarded_msg ? FORWARDING_ALPN : CONSENSUS_ALPN;
+    }
+
+    static NodeId sha256_node_id(const NodeId& peer)
+    {
+      if (peer.value().starts_with("did:key:"))
+      {
+        return compute_node_id_from_pubk_der(
+          crypto::public_key_der_from_did_key(peer.value()));
+      }
+      return peer;
     }
 
     static int select_alpn(
@@ -174,12 +185,19 @@ namespace ccf
       if (
         (protocol != CONSENSUS_ALPN && protocol != FORWARDING_ALPN) ||
         (is_outgoing &&
-         (connection.peer != peer || protocol != alpn(connection.purpose))))
+         (!connection.peer.has_value() ||
+          sha256_node_id(connection.peer.value()) != peer ||
+          protocol != alpn(connection.purpose))))
       {
         LOG_FAIL_FMT("N2N TLS {}: peer identity or ALPN mismatch", id);
         return false;
       }
-      connection.peer = peer;
+      // Keep the routing ID separate from the authenticated key's SHA256 ID.
+      connection.peer_key_id = peer;
+      if (!is_outgoing)
+      {
+        connection.peer = peer;
+      }
       connection.purpose =
         protocol == FORWARDING_ALPN ? forwarded_msg : consensus_msg;
       if (!is_outgoing)
@@ -188,7 +206,7 @@ namespace ccf
         {
           if (
             other_id != id && !other.outgoing && other.authenticated &&
-            other.peer == peer && other.purpose == connection.purpose)
+            other.peer_key_id == peer && other.purpose == connection.purpose)
           {
             // A peer repairing a failed link replaces its previous stream.
             close_connection(other_id, other);
@@ -201,7 +219,11 @@ namespace ccf
         send(id);
       }
       connection.pending_sends.clear();
-      LOG_INFO_FMT("N2N TLS {} authenticated {} ({})", id, peer, protocol);
+      LOG_INFO_FMT(
+        "N2N TLS {} authenticated {} ({})",
+        id,
+        connection.peer.value(),
+        protocol);
       return true;
     }
 
@@ -255,10 +277,17 @@ namespace ccf
           size = frame_size;
           const auto purpose = serialized::read<NodeMsgType>(data, size);
           const NodeId from(serialized::read<NodeId::Value>(data, size));
-          if (purpose != connection.purpose || from != connection.peer)
+          if (
+            purpose != connection.purpose ||
+            (from != connection.peer &&
+             sha256_node_id(from) != connection.peer_key_id))
           {
             throw std::logic_error(
               "N2N TLS frame identity or purpose mismatch");
+          }
+          if (!connection.outgoing)
+          {
+            connection.peer = from;
           }
           if (handler != nullptr)
           {
@@ -395,9 +424,10 @@ namespace ccf
     void close(const NodeId& peer)
     {
       std::lock_guard guard(mutex);
+      const auto peer_key_id = sha256_node_id(peer);
       for (auto& [id, connection] : connections)
       {
-        if (connection.peer == peer)
+        if (connection.peer == peer || connection.peer_key_id == peer_key_id)
         {
           close_connection(id, connection);
         }
@@ -461,6 +491,7 @@ namespace ccf
           Connection{
             .outgoing = true,
             .peer = peer,
+            .peer_key_id = std::nullopt,
             .purpose = purpose,
             .pending = {},
             .pending_sends = {}});

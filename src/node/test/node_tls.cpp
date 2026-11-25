@@ -54,9 +54,10 @@ namespace
     ccf::crypto::ECKeyPairPtr key = ccf::crypto::make_ec_key_pair();
     ccf::crypto::Pem cert;
 
-    ccf::NodeId id() const
+    ccf::NodeId id(
+      ccf::IdentityIdFormat format = ccf::IdentityIdFormat::SHA256) const
     {
-      return ccf::compute_node_id_from_kp(key);
+      return ccf::compute_node_id_from_kp(key, format);
     }
   };
 
@@ -379,7 +380,24 @@ namespace
 
 TEST_CASE("NodeTLS accepts endorsed identities on separate purpose streams")
 {
+  auto alice_format = ccf::IdentityIdFormat::SHA256;
+  auto bob_format = ccf::IdentityIdFormat::SHA256;
+  SUBCASE("SHA256 identities") {}
+  SUBCASE("DID-key sender")
+  {
+    alice_format = ccf::IdentityIdFormat::DIDKey;
+  }
+  SUBCASE("DID-key receiver")
+  {
+    bob_format = ccf::IdentityIdFormat::DIDKey;
+  }
+  SUBCASE("DID-key identities")
+  {
+    alice_format = bob_format = ccf::IdentityIdFormat::DIDKey;
+  }
   Fixture f;
+  const auto alice_id = f.alice.id(alice_format);
+  const auto bob_id = f.bob.id(bob_format);
   ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
   sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
   const auto address = fmt::format("127.0.0.1:{}", f.node.port());
@@ -389,21 +407,21 @@ TEST_CASE("NodeTLS accepts endorsed identities on separate purpose streams")
   send_frame(
     sender,
     address,
-    f.bob.id(),
+    bob_id,
     ccf::consensus_msg,
-    frame(f.alice.id(), ccf::consensus_msg, consensus));
+    frame(alice_id, ccf::consensus_msg, consensus));
   send_frame(
     sender,
     address,
-    f.bob.id(),
+    bob_id,
     ccf::forwarded_msg,
-    frame(f.alice.id(), ccf::forwarded_msg, forwarding));
+    frame(alice_id, ccf::forwarded_msg, forwarding));
   REQUIRE(f.received->wait(2));
   const auto messages = f.received->snapshot();
   REQUIRE(messages.size() == 2);
   for (const auto& message : messages)
   {
-    CHECK(message.from == f.alice.id());
+    CHECK(message.from == alice_id);
     CHECK(
       message.payload ==
       (message.purpose == ccf::consensus_msg ? consensus : forwarding));
@@ -660,6 +678,18 @@ TEST_CASE("NodeTLS rejects invalid frames without delivering their payload")
   {
     invalid = frame(f.bob.id(), ccf::consensus_msg, consensus_payload());
   }
+  SUBCASE("claimed DID-key identity differs from authenticated key")
+  {
+    invalid = frame(
+      f.bob.id(ccf::IdentityIdFormat::DIDKey),
+      ccf::consensus_msg,
+      consensus_payload());
+  }
+  SUBCASE("malformed DID-key identity")
+  {
+    invalid = frame(
+      ccf::NodeId{"did:key:invalid"}, ccf::consensus_msg, consensus_payload());
+  }
   SUBCASE("purpose differs from ALPN")
   {
     invalid = frame(f.alice.id(), ccf::forwarded_msg, forwarding_payload());
@@ -700,7 +730,12 @@ TEST_CASE("NodeTLS authenticates the expected outgoing peer identity")
   Fixture f;
   ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
   sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
-  const ccf::NodeId wrong_peer{std::string(64, '0')};
+  ccf::NodeId wrong_peer{std::string(64, '0')};
+  SUBCASE("wrong SHA256 peer") {}
+  SUBCASE("wrong DID-key peer")
+  {
+    wrong_peer = f.alice.id(ccf::IdentityIdFormat::DIDKey);
+  }
   const auto address = fmt::format("127.0.0.1:{}", f.node.port());
   LoopRunner loop;
   send_frame(
@@ -722,15 +757,21 @@ TEST_CASE("NodeTLS authenticates the expected outgoing peer identity")
 
 TEST_CASE("NodeTLS accepts expired endorsements and preserves renewed streams")
 {
+  auto format = ccf::IdentityIdFormat::SHA256;
+  SUBCASE("SHA256 identity") {}
+  SUBCASE("DID-key identity")
+  {
+    format = ccf::IdentityIdFormat::DIDKey;
+  }
   Fixture f;
+  const auto alice_id = f.alice.id(format);
   f.service.endorse(f.alice, true);
   f.service.endorse(f.bob, true);
   f.node.set_identity(f.service.cert, f.bob.key, f.bob.cert);
   LoopRunner loop;
   Peer peer(f.node.port(), f.service, &f.alice);
   REQUIRE(peer.connect());
-  const auto message =
-    frame(f.alice.id(), ccf::consensus_msg, consensus_payload());
+  const auto message = frame(alice_id, ccf::consensus_msg, consensus_payload());
   peer.send(message);
   REQUIRE(f.received->wait(1));
   const auto old_id = f.bob.id();
@@ -741,7 +782,7 @@ TEST_CASE("NodeTLS accepts expired endorsements and preserves renewed streams")
   f.node.set_identity(f.service.cert, f.bob.key, f.bob.cert);
   peer.send(message);
   REQUIRE(f.received->wait(2));
-  f.node.close(f.alice.id());
+  f.node.close(alice_id);
   CHECK(peer.closed());
   Peer replacement(f.node.port(), f.service, &f.alice);
   REQUIRE(replacement.connect());
@@ -752,18 +793,25 @@ TEST_CASE("NodeTLS accepts expired endorsements and preserves renewed streams")
 
 TEST_CASE("NodeTLS replaces only the incoming stream with the same purpose")
 {
+  auto format = ccf::IdentityIdFormat::SHA256;
+  SUBCASE("SHA256 identity") {}
+  SUBCASE("DID-key identity")
+  {
+    format = ccf::IdentityIdFormat::DIDKey;
+  }
   Fixture f;
+  const auto alice_id = f.alice.id(format);
   LoopRunner loop;
   Peer old(f.node.port(), f.service, &f.alice);
   REQUIRE(old.connect());
   const auto consensus =
-    frame(f.alice.id(), ccf::consensus_msg, consensus_payload());
+    frame(alice_id, ccf::consensus_msg, consensus_payload());
   old.send(consensus);
   REQUIRE(f.received->wait(1));
   Peer forwarding(f.node.port(), f.service, &f.alice, "ccf-forwarding/1");
   REQUIRE(forwarding.connect());
   const auto forwarded =
-    frame(f.alice.id(), ccf::forwarded_msg, forwarding_payload());
+    frame(alice_id, ccf::forwarded_msg, forwarding_payload());
   forwarding.send(forwarded);
   REQUIRE(f.received->wait(2));
   Peer replacement(f.node.port(), f.service, &f.alice);
@@ -785,13 +833,25 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
 {
   uint64_t record_budget = 2;
   bool remote_close = false;
-  SUBCASE("budget 2 and local close") {}
-  SUBCASE("budget 3 and remote close")
+  auto format = ccf::IdentityIdFormat::SHA256;
+  SUBCASE("SHA256 peer, budget 2 and local close") {}
+  SUBCASE("SHA256 peer, budget 3 and remote close")
   {
     record_budget = 3;
     remote_close = true;
   }
+  SUBCASE("DID-key peer, budget 2 and local close")
+  {
+    format = ccf::IdentityIdFormat::DIDKey;
+  }
+  SUBCASE("DID-key peer, budget 3 and remote close")
+  {
+    format = ccf::IdentityIdFormat::DIDKey;
+    record_budget = 3;
+    remote_close = true;
+  }
   Fixture f;
+  const auto peer_id = f.bob.id(format);
   std::mutex mutex;
   std::condition_variable cv;
   std::vector<uint8_t> received;
@@ -868,7 +928,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
       payload.push_back(sequence);
       const auto message = frame(f.alice.id(), ccf::consensus_msg, payload);
       initial.insert(initial.end(), message.begin(), message.end());
-      send_frame(sender, address, f.bob.id(), ccf::consensus_msg, message);
+      send_frame(sender, address, peer_id, ccf::consensus_msg, message);
       std::unique_lock lock(mutex);
       REQUIRE(cv.wait_for(
         lock, 3s, [&]() { return received.size() == initial.size(); }));
@@ -876,8 +936,8 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
       REQUIRE(received == initial);
     }
     CHECK(key_updates >= 3);
-    REQUIRE(sender.send(
-      f.bob.id(), ccf::consensus_msg, address, [&](::tcp::ConnID id) {
+    REQUIRE(
+      sender.send(peer_id, ccf::consensus_msg, address, [&](::tcp::ConnID id) {
         old_outgoing_id = id;
       }));
     REQUIRE(old_outgoing_id != 0);
@@ -889,14 +949,14 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
   abandoned_payload.push_back(0xaa);
   const auto abandoned =
     frame(f.alice.id(), ccf::consensus_msg, abandoned_payload);
-  send_frame(sender, address, f.bob.id(), ccf::consensus_msg, abandoned);
+  send_frame(sender, address, peer_id, ccf::consensus_msg, abandoned);
   if (remote_close)
   {
     observer.close_connection(incoming_id);
   }
   else
   {
-    sender.close(f.bob.id());
+    sender.close(peer_id);
   }
   {
     LoopRunner loop;
@@ -916,7 +976,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
     auto next_payload = consensus_payload();
     next_payload.push_back(0xbb);
     const auto next = frame(f.alice.id(), ccf::consensus_msg, next_payload);
-    send_frame(sender, address, f.bob.id(), ccf::consensus_msg, next);
+    send_frame(sender, address, peer_id, ccf::consensus_msg, next);
     std::unique_lock lock(mutex);
     REQUIRE(cv.wait_for(lock, 3s, [&]() {
       return received.size() >= before_reconnect.size() + next.size();
