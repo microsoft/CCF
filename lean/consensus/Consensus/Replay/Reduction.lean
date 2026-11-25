@@ -96,7 +96,8 @@ private def emitAction (event : Event) (rule : String) (step : Step) : Reduction
   appendInstruction (.action step (event.origin rule))
 
 private def emitObserve (event : Event) (rule : String) : Reduction Unit :=
-  appendInstruction (.observeNodeState event.node event.state (event.origin rule))
+  appendInstruction
+    (.observeNodeState event.node event.state (event.origin rule) event.stateId)
 
 private def emitObserveSends (event : Event) (sends : List NativeSend) : Reduction Unit :=
   appendInstruction (.observeSends sends (event.origin "sends"))
@@ -403,18 +404,20 @@ private def ruleInitAsBackup : Reduction Unit := do
   emitAction init "init-as-backup" (.initAsBackup head.node index view)
 
 def ruleStep : Reduction Unit := do
-  -- Recv rules
-  attempt ruleRecvAppendEntries
-  <|> attempt ruleRecvAppendEntriesResponse
-  <|> attempt ruleRecvRequestVote
-  <|> attempt ruleRecvProposeRequestVote
-  <|> attempt ruleRecvRequestVoteResponse
-  -- Async rules
-  <|> attempt ruleBootstrap
-  <|> attempt ruleInitAsBackup
-  <|> attempt ruleAppend
-  <|> attempt ruleTick
-  <|> attempt ruleNomination
-  <|> attempt ruleDrop
+  let head ← peek
+  match head.function with
+  | "tick" => attempt ruleTick
+  | "recv_append_entries" => attempt ruleRecvAppendEntries
+  | "recv_append_entries_response" => attempt ruleRecvAppendEntriesResponse
+  | "recv_request_vote" => attempt ruleRecvRequestVote
+  | "recv_propose_request_vote" => attempt ruleRecvProposeRequestVote
+  | "recv_request_vote_response" => attempt ruleRecvRequestVoteResponse
+  | "replicate" => attempt ruleAppend
+  | "nomination" => attempt ruleNomination
+  | "drop_pending_to" => attempt ruleDrop
+  | "become_leader" => attempt ruleBootstrap
+  | "init_as_backup" | "add_configuration" | "retired_committed_tx" =>
+      attempt ruleInitAsBackup
+  | other => failure s!"{head.record.location}: unexpected event {other}"
 
 end Consensus.Replay.Reducer

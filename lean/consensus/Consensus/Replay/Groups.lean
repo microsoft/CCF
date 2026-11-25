@@ -72,7 +72,7 @@ If `lenient`, a node's groups end before its first event that no rule consumes.
 -/
 def reduce (streams : Array (Array Event)) (declared : List String) (lenient := false)
     : Except String Reduced := do
-  let header : Header := { bootstrap := ∅, declared }
+  let header : Header := Header.withIndex { bootstrap := ∅, declared }
   let mut bootstrap := none
   let mut queues := #[]
   let mut counts := #[]

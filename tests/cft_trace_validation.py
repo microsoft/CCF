@@ -49,10 +49,19 @@ def main(replayer, *directories):
         for path in pathlib.Path(directory).rglob("*_trace/*.ndjson")
         if has_cft_events(path)
     )
+    # Schedule largest captures first so long traces overlap with smaller ones.
+    by_size = sorted(paths, key=lambda path: path.stat().st_size, reverse=True)
     with concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as pool:
-        results = list(pool.map(functools.partial(replay, replayer), paths))
+        results = dict(
+            zip(
+                by_size,
+                pool.map(functools.partial(replay, replayer), by_size),
+                strict=True,
+            )
+        )
     rejected = 0
-    for path, (accepted, output) in zip(paths, results, strict=True):
+    for path in paths:
+        accepted, output = results[path]
         rejected += not accepted
         print(f"{'OK  ' if accepted else 'FAIL'} {path}: {output}")
     print(f"{len(paths) - rejected} accepted, {rejected} rejected")
