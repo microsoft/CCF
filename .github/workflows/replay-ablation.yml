@@ -1,0 +1,65 @@
+# Temporary: ablation timing of the consensus replayer optimisations. Remove before merge.
+name: Replay ablation (temporary)
+
+on:
+  push:
+    branches:
+      - cjen1-msft-crispy-system
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  ablation:
+    name: "Consensus replay ablation"
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install Lean
+        uses: ./.github/actions/install-lean
+
+      - name: Build variants
+        run: |
+          set -euo pipefail
+          nproc
+          python3 .github/replay-ablation/mkvariants.py . f799bc5eb "$RUNNER_TEMP/patches"
+          git show f6d7d21c0:tests/cft_trace_validation.py > "$RUNNER_TEMP/old_validation.py"
+          python3 .github/replay-ablation/ablation.py build \
+            "$RUNNER_TEMP/patches" lean/consensus "$RUNNER_TEMP/bin"
+
+      - name: Download e2e logs of a fixed run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: logs-azurelinux-virtual-*
+          path: ${{ runner.temp }}/e2e-logs
+          run-id: 45581973686
+          github-token: ${{ github.token }}
+
+      - name: Time variants
+        run: |
+          set -euo pipefail
+          python3 .github/replay-ablation/ablation.py time "$RUNNER_TEMP/bin" \
+            tests/cft_trace_validation.py "$RUNNER_TEMP/old_validation.py" \
+            "$RUNNER_TEMP/e2e-logs" 5 "$RUNNER_TEMP/ablation.csv"
+
+      - name: Report
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          cat "$RUNNER_TEMP/ablation.csv"
+          python3 .github/replay-ablation/ablation.py report "$RUNNER_TEMP/ablation.csv" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: replay-ablation
+          path: ${{ runner.temp }}/ablation.csv
