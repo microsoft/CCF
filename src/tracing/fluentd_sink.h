@@ -139,7 +139,7 @@ namespace ccf::tracing
         if (rc != 0)
         {
           throw std::invalid_argument(
-            fmt::format("Cannot resolve Fluentd host: {}", gai_strerror(rc)));
+            std::format("Cannot resolve Fluentd host: {}", gai_strerror(rc)));
         }
         std::memcpy(&address, addresses->ai_addr, addresses->ai_addrlen);
         address_size = addresses->ai_addrlen;

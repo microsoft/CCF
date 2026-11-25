@@ -40,6 +40,8 @@
 #include "node/signature_cache_subsystem.h"
 #include "tasks/worker.h"
 
+#include <utility>
+
 namespace ccf
 {
   class Enclave

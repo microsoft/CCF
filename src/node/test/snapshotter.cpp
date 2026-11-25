@@ -18,6 +18,8 @@
 #include "node/snapshot_serdes.h"
 #include "snapshots/filenames.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <chrono>
 #include <doctest/doctest.h>
@@ -47,7 +49,7 @@ struct ScopedSnapshotDir
 
   ScopedSnapshotDir()
   {
-    const auto unique_name = fmt::format(
+    const auto unique_name = std::format(
       "ccf-snapshotter-test-{}-{}",
       ::getpid(),
       std::chrono::steady_clock::now().time_since_epoch().count());
@@ -459,7 +461,7 @@ TEST_CASE("Recovery snapshot ledger scan filters directory contents")
     fixture.ledger_config.directory = path.string();
     REQUIRE_THROWS_WITH_AS(
       ccf::find_recovery_snapshot_ledger_files(fixture.ledger_config),
-      fmt::format(
+      std::format(
         "Unable to iterate ledger directory {}: {}",
         path.string(),
         std::make_error_code(std::errc::not_a_directory).message())
@@ -474,7 +476,7 @@ TEST_CASE("Recovery snapshot ledger scan filters directory contents")
     fixture.ledger_config.directory = path.string();
     REQUIRE_THROWS_WITH_AS(
       ccf::find_recovery_snapshot_ledger_files(fixture.ledger_config),
-      fmt::format(
+      std::format(
         "Unable to inspect ledger directory {}: {}",
         path.string(),
         std::make_error_code(std::errc::too_many_symbolic_link_levels)
@@ -499,7 +501,7 @@ TEST_CASE("Recovery snapshot ledger scan validates chunk headers")
     REQUIRE(fs::remove(current_path));
     REQUIRE_THROWS_WITH_AS(
       ccf::open_recovery_snapshot_ledger_file(files.front()),
-      fmt::format("Unable to open ledger file {}", current_path.string())
+      std::format("Unable to open ledger file {}", current_path.string())
         .c_str(),
       std::logic_error);
   }
@@ -512,7 +514,7 @@ TEST_CASE("Recovery snapshot ledger scan validates chunk headers")
       fs::resize_file(current_path, size);
       REQUIRE_THROWS_WITH_AS(
         fixture.scan(),
-        fmt::format("Ledger file {} is too small", current_path.string())
+        std::format("Ledger file {} is too small", current_path.string())
           .c_str(),
         std::logic_error);
     }
@@ -525,7 +527,7 @@ TEST_CASE("Recovery snapshot ledger scan validates chunk headers")
     fs::rename(current_path, committed_path);
     REQUIRE_THROWS_WITH_AS(
       fixture.scan(),
-      fmt::format(
+      std::format(
         "Committed ledger file {} has no positions table",
         committed_path.string())
         .c_str(),
@@ -549,7 +551,7 @@ TEST_CASE("Recovery snapshot ledger scan validates chunk headers")
       }
       REQUIRE_THROWS_WITH_AS(
         fixture.scan(),
-        fmt::format(
+        std::format(
           "Ledger file {} has invalid positions table offset {}",
           committed_path.string(),
           offset)
@@ -588,7 +590,7 @@ TEST_CASE("Recovery snapshot ledger reader reports truncation after opening")
   REQUIRE(reader.file);
   REQUIRE_THROWS_WITH_AS(
     ccf::read_recovery_snapshot_ledger_entry(reader, ledger_file),
-    fmt::format("Unable to read {} from ledger file {}", error, path.string())
+    std::format("Unable to read {} from ledger file {}", error, path.string())
       .c_str(),
     std::logic_error);
 }
@@ -646,7 +648,7 @@ TEST_CASE("Recovery snapshot ledger scan distinguishes incomplete chunk tails")
     write_ledger_file(committed_path, {first, tail}, true);
     REQUIRE_THROWS_WITH_AS(
       fixture.scan(),
-      fmt::format("Committed ledger file {} {}", committed_path.string(), error)
+      std::format("Committed ledger file {} {}", committed_path.string(), error)
         .c_str(),
       std::logic_error);
   }
@@ -688,7 +690,7 @@ TEST_CASE("Recovery snapshot ledger scan validates version ranges")
     write_ledger_file(path, {first, second});
     REQUIRE_THROWS_WITH_AS(
       fixture.scan(),
-      fmt::format(
+      std::format(
         "Ledger file {} does not start at its declared seqno 2", path.string())
         .c_str(),
       std::logic_error);
@@ -700,7 +702,7 @@ TEST_CASE("Recovery snapshot ledger scan validates version ranges")
     write_ledger_file(path, {first, second}, true);
     REQUIRE_THROWS_WITH_AS(
       fixture.scan(),
-      fmt::format(
+      std::format(
         "Ledger file {} does not end at its declared seqno 3", path.string())
         .c_str(),
       std::logic_error);
@@ -712,7 +714,7 @@ TEST_CASE("Recovery snapshot ledger scan validates version ranges")
     write_ledger_file(path, {}, true);
     REQUIRE_THROWS_WITH_AS(
       fixture.scan(),
-      fmt::format(
+      std::format(
         "Ledger file {} does not end at its declared seqno 1", path.string())
         .c_str(),
       std::logic_error);
@@ -726,7 +728,7 @@ TEST_CASE("Recovery snapshot ledger scan validates version ranges")
       write_ledger_file(path, {first, fixture.entry(next)});
       REQUIRE_THROWS_WITH_AS(
         fixture.scan(),
-        fmt::format(
+        std::format(
           "Ledger file {} contains non-contiguous versions 1 and {}",
           path.string(),
           next)
@@ -762,7 +764,7 @@ TEST_CASE("Recovery snapshot ledger scan rejects seqno overflow")
   SUBCASE("The last scanned entry must have a successor")
   {
     write_ledger_file(
-      fixture.ledger_dir.path / fmt::format("ledger_{}", max_seqno),
+      fixture.ledger_dir.path / std::format("ledger_{}", max_seqno),
       {fixture.entry(max_seqno)});
     REQUIRE_THROWS_WITH_AS(
       fixture.scan(max_seqno - 1),
@@ -882,7 +884,7 @@ TEST_CASE("Recovery snapshot ledger scan bounds individual endorsement sizes")
       {
         REQUIRE_THROWS_WITH_AS(
           fixture.scan(),
-          fmt::format(
+          std::format(
             "Ledger endorsement at 1 is too large ({} bytes; maximum {} bytes)",
             limit + extra,
             limit)
@@ -925,7 +927,7 @@ TEST_CASE("Recovery snapshot ledger scan bounds individual endorsement sizes")
       {
         REQUIRE_THROWS_WITH_AS(
           fixture.scan(),
-          fmt::format(
+          std::format(
             "Serialised previous service identity endorsement is too large "
             "({} bytes; maximum {} bytes)",
             limit + 4 * extra,
@@ -1551,7 +1553,7 @@ TEST_CASE("Snapshot receipt")
     }
     else
     {
-      tree.append(ccf::crypto::Sha256Hash(fmt::format("tx {}", seqno)));
+      tree.append(ccf::crypto::Sha256Hash(std::format("tx {}", seqno)));
     }
   }
   const auto root = tree.get_root();

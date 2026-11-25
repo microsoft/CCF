@@ -1064,11 +1064,11 @@ TEST_CASE(
       auto tx = store.create_tx();
       for (size_t i = 0; i < 100; ++i)
       {
-        tx.rw(string_map)->put(fmt::format("pub{}", i), std::string(i, 'p'));
+        tx.rw(string_map)->put(std::format("pub{}", i), std::string(i, 'p'));
         if (can_encrypt)
         {
           tx.rw(private_map)
-            ->put(fmt::format("priv{}", i), std::string(i, 's'));
+            ->put(std::format("priv{}", i), std::string(i, 's'));
         }
       }
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);

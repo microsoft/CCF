@@ -5,6 +5,7 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 
+#include <format>
 #include <string>
 
 namespace ccf::gov::endpoints
@@ -57,7 +58,7 @@ namespace ccf::gov::endpoints
       }
       else
       {
-        accepted_versions_suffix += fmt::format(", {}", p.second);
+        accepted_versions_suffix += std::format(", {}", p.second);
       }
     }
 
@@ -75,7 +76,7 @@ namespace ccf::gov::endpoints
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::MissingApiVersionParameter,
-        fmt::format(
+        std::format(
           "The api-version query parameter (?{}=) is required for this "
           "request. {}",
           param_name,
@@ -91,7 +92,7 @@ namespace ccf::gov::endpoints
       it == std::end(api_version_strings) ||
       !is_api_version_accepted(it->first, min_accepted))
     {
-      auto message = fmt::format(
+      auto message = std::format(
         "Unsupported api-version '{}'. {}",
         qit->second,
         accepted_versions_suffix);

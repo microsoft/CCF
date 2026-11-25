@@ -12,6 +12,7 @@
 #  include "crypto/openssl/mldsa_public_key.h"
 #  include "ds/internal_logger.h"
 
+#  include <format>
 #  include <openssl/core_names.h>
 #  include <openssl/params.h>
 #  include <openssl/pem.h>
@@ -50,7 +51,7 @@ namespace ccf::crypto
       imported == nullptr)
     {
       throw std::invalid_argument(
-        fmt::format("Malformed ML-DSA public key: {}", OpenSSL::first_error()));
+        std::format("Malformed ML-DSA public key: {}", OpenSSL::first_error()));
     }
     OpenSSL::Unique_PKEY key(imported, EVP_PKEY_free);
     return std::make_shared<MLDSAPublicKey_OpenSSL>(std::move(key));
@@ -63,7 +64,7 @@ namespace ccf::crypto
     auto* decoded = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
     if (decoded == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Malformed ML-DSA public key PEM: {}", OpenSSL::first_error()));
     }
     key.reset(decoded);
@@ -78,7 +79,7 @@ namespace ccf::crypto
     auto* decoded = d2i_PUBKEY(nullptr, &cursor, static_cast<long>(der.size()));
     if (decoded == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Malformed ML-DSA public key DER: {}", OpenSSL::first_error()));
     }
     key.reset(decoded);
@@ -163,7 +164,7 @@ namespace ccf::crypto
       LOG_TRACE_FMT("ML-DSA signature verification failed: {}", error);
       return false;
     }
-    throw std::runtime_error(fmt::format(
+    throw std::runtime_error(std::format(
       "ML-DSA provider failed verification (rc={}): {}",
       rc,
       OpenSSL::first_error()));

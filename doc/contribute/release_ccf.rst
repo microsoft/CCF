@@ -102,8 +102,8 @@ To keep track of which changes should be merged to LTS branches and then confirm
 #. A PR targeting ``main`` which contains changes that should also reach the N.x LTS should be labelled in GitHub with ``N.x-todo``
 #. Where possible ``N.x-todo`` PRs should contain the minimal set of changes with no dependencies on earlier PRs, so they can be more easily cherry-picked
 #. A PR targeting an LTS branch (``release/N.x``) should be labelled in GitHub with ``N.x-backport``, so it can be easily found with a filter
-#. A PR targeting an LTS branch which is constructed primarily of a cherry-pick from ``main`` should be named consistently as ``[release/N.x] Cherry pick: <original title> (#<PR_ID>)``, so it can be easily correlated with the corresponding ``N.x-todo`` PR.
-   If an LTS PR contains commits from multiple PRs to ``main``, each should be mentioned in the PR title, eg ``[release/N.x] Cherry pick: <foo> (#PR1_ID, #PR2_ID, ...)``
+#. A PR targeting an LTS branch which is constructed primarily of a cherry-pick from ``main`` should be named consistently as ``[N.x] (#<PR_ID>) <original title>``, so it can be easily correlated with the corresponding ``N.x-todo`` PR.
+   If an LTS PR contains commits from multiple PRs to ``main``, each should be mentioned in the PR title, eg ``[N.x] (#PR1_ID, #PR2_ID, ...) <foo>``
 #. Structure a backport PR so reviewers do not have to re-review changes already reviewed on ``main``: prefer putting unchanged ``git cherry-pick -x`` commits of the squash-merged commits on ``main`` (since the LTS branch was created) first in merge order, followed by any fixup commits needed for the LTS branch.
    Fixup commits may come earlier when needed so a later commit cherry-picks cleanly
 #. Prefer rebasing a backport PR onto the LTS branch locally so the commit list stays easy to review

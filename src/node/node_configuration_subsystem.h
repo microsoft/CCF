@@ -5,6 +5,7 @@
 #include "ccf/node/node_configuration_interface.h"
 #include "node/rpc/node_interface.h"
 
+#include <format>
 #include <regex>
 #include <stdexcept>
 
@@ -70,7 +71,7 @@ namespace ccf
             }
             catch (const std::regex_error& e)
             {
-              throw std::invalid_argument(fmt::format(
+              throw std::invalid_argument(std::format(
                 "Invalid accepted_endpoints pattern '{}' for RPC interface "
                 "'{}': {}",
                 re,

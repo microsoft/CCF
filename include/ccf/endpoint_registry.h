@@ -11,6 +11,7 @@
 
 #include <atomic>
 #include <charconv>
+#include <format>
 #include <functional>
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
@@ -82,7 +83,7 @@ namespace ccf::endpoints
     const auto it = params.find(param_name);
     if (it == params.end())
     {
-      error = fmt::format("No parameter named '{}' in path", param_name);
+      error = std::format("No parameter named '{}' in path", param_name);
       return false;
     }
 
@@ -91,7 +92,7 @@ namespace ccf::endpoints
       std::from_chars(param_s.data(), param_s.data() + param_s.size(), value);
     if (ec != std::errc())
     {
-      error = fmt::format(
+      error = std::format(
         "Unable to parse path parameter '{}' as a {}", param_s, param_name);
       return false;
     }
@@ -109,7 +110,7 @@ namespace ccf::endpoints
     const auto it = params.find(param_name);
     if (it == params.end())
     {
-      error = fmt::format("No parameter named '{}' in path", param_name);
+      error = std::format("No parameter named '{}' in path", param_name);
       return false;
     }
 
