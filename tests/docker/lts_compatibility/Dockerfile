@@ -10,7 +10,6 @@ RUN . /etc/os-release && \
           curl \
           libstdc++ \
           libuv \
-          nghttp2 \
           openssl && \
         tdnf clean all \
         ;; \
