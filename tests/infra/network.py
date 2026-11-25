@@ -659,6 +659,7 @@ class Network:
             self.share_script,
             gov_api_version=args.gov_api_version,
         )
+        member_id_format = kwargs.pop("member_id_format", "sha256")
 
         for i in range(mc):
             member_data = None
@@ -684,6 +685,7 @@ class Network:
                     curve=args.participants_curve,
                     recovery_role=recovery_role,
                     member_data=member_data,
+                    id_format=member_id_format,
                 )
             )
 
@@ -701,9 +703,6 @@ class Network:
 
     def open(self, args):
         def get_target_node(args, primary):
-            # HTTP/2 does not currently support forwarding
-            if args.http2:
-                return primary
             return self.find_random_node()
 
         primary, _ = self.find_primary()
@@ -794,31 +793,44 @@ class Network:
                     self.share_script,
                     gov_api_version=args.gov_api_version,
                 )
+                r = c.get("/gov/service/members")
+                assert r.status_code == http.HTTPStatus.OK, r
+                members = {
+                    member["memberId"]: member for member in r.body.json()["value"]
+                }
                 for f in os.listdir(self.common_dir):
-                    if re.search("member(.*)_cert.pem", f) is not None:
-                        local_id = f.split("_")[0]
-                        recovery_role = (
-                            infra.member.RecoveryRole.Participant
-                            if os.path.isfile(
-                                os.path.join(
-                                    self.common_dir, f"{local_id}_enc_privk.pem"
-                                )
+                    match = re.fullmatch(r"(member[^_]*)_privk\.pem", f)
+                    if match is not None:
+                        local_id = match.group(1)
+                        cert_path = os.path.join(
+                            self.common_dir, f"{local_id}_cert.pem"
+                        )
+                        id_format = "sha256"
+                        service_id = (
+                            infra.crypto.compute_cert_der_hash_hex_from_pem(
+                                slurp_file(cert_path)
                             )
-                            else infra.member.RecoveryRole.NonParticipant
+                            if os.path.isfile(cert_path)
+                            else None
                         )
-
+                        if service_id not in members:
+                            id_format = "did:key"
+                            service_id = infra.crypto.did_key_from_private_key(
+                                slurp_file(os.path.join(self.common_dir, f))
+                            )
+                        if service_id not in members:
+                            raise ValueError(
+                                f"Member {local_id} is not enrolled in the recovered service"
+                            )
+                        member_info = members[service_id]
+                        recovery_role = infra.member.RecoveryRole(
+                            member_info["recoveryRole"]
+                        )
                         new_member = self.consortium.generate_existing_member(
-                            local_id, recovery_role
+                            local_id, recovery_role, id_format=id_format
                         )
 
-                        r = c.get(f"/gov/service/members/{new_member.service_id}")
-                        assert r.status_code == 200
-                        member_info = r.body.json()
                         assert member_info["memberId"] == new_member.service_id
-                        assert (
-                            infra.member.RecoveryRole(member_info["recoveryRole"])
-                            == new_member.recovery_role
-                        )
                         new_member.member_data = member_info["memberData"]
                         if (
                             infra.member.MemberStatus(member_info["status"])
@@ -1641,7 +1653,7 @@ class Network:
         with open(cert_path, "w", encoding="utf-8") as f:
             f.write(cert_pem)
 
-        # node_id = hex(sha256(DER pubkey)); same hash report_data must carry.
+        # Attestation always binds SHA-256(DER pubkey), independently of ID format.
         pubkey_hash_hex = infra.crypto.compute_public_key_der_hash_hex_from_pem(
             cert_pem
         )
@@ -1780,21 +1792,30 @@ class Network:
             statistics["old_node_removal_committed"] = datetime.now(UTC).isoformat()
         self.nodes.remove(node_to_retire)
 
-    def create_user(self, local_user_id, curve, record=True):
+    def create_user(self, local_user_id, curve, record=True, id_format="sha256"):
+        identity_args = ["--public-key-only"] if id_format == "did:key" else []
         infra.proc.ccall(
             self.key_generator,
             "--name",
             local_user_id,
             "--curve",
             f"{curve.name}",
+            *identity_args,
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
 
         cert_path = os.path.join(self.common_dir, f"{local_user_id}_cert.pem")
-        with open(cert_path, encoding="utf-8") as c:
-            service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
         key_path = os.path.join(self.common_dir, f"{local_user_id}_privk.pem")
+        if id_format == "did:key":
+            service_user_id = infra.crypto.did_key_from_private_key(
+                slurp_file(key_path)
+            )
+        else:
+            with open(cert_path, encoding="utf-8") as c:
+                service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(
+                    c.read()
+                )
         new_user = UserInfo(local_user_id, service_user_id, cert_path, key_path)
         if record:
             self.users.append(new_user)
@@ -1879,12 +1900,13 @@ class Network:
         end_time = time.time() + timeout
         logs = []
         while time.time() < end_time:
-            # As an operator, query a well-known /app endpoint to find out
-            # if the app has been opened to users
+            # /node/ready/app reports whether this node's application frontend
+            # is open, including for applications that don't install the
+            # built-in /app endpoints
             with node.client() as c:
                 logs = []
-                r = c.get("/app/commit", log_capture=logs)
-                if r.status_code != http.HTTPStatus.NOT_FOUND.value:
+                r = c.get("/node/ready/app", log_capture=logs)
+                if r.status_code == http.HTTPStatus.NO_CONTENT.value:
                     flush_info(logs, None)
                     return
                 time.sleep(0.1)

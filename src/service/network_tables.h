@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/endpoint.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
@@ -56,6 +55,7 @@ namespace ccf
     // Member tables
     //
     const MemberCerts member_certs = {Tables::MEMBER_CERTS};
+    const MemberPublicKeys member_public_keys = {Tables::MEMBER_PUBLIC_KEYS};
     const MemberPublicEncryptionKeys member_encryption_public_keys = {
       Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS};
     const MemberInfo member_info = {Tables::MEMBER_INFO};
@@ -65,6 +65,7 @@ namespace ccf
     // User tables
     //
     const UserCerts user_certs = {Tables::USER_CERTS};
+    const UserPublicKeys user_public_keys = {Tables::USER_PUBLIC_KEYS};
     const UserInfo user_info = {Tables::USER_INFO};
 
     //
@@ -108,7 +109,6 @@ namespace ccf
       Tables::MODULES_QUICKJS_VERSION};
     const InterpreterFlush interpreter_flush = {Tables::INTERPRETER_FLUSH};
     const JSEngine js_engine = {Tables::JSENGINE};
-    const endpoints::EndpointsMap js_endpoints = {endpoints::Tables::ENDPOINTS};
 
     //
     // JWT tables

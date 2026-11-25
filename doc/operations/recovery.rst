@@ -51,6 +51,10 @@ See :ref:`architecture/consensus/index:Retirement details` for the normal live-s
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.
 
+Recovery checks each candidate snapshot's header and authenticates its receipt against the configured previous service identity, directly or through COSE endorsements in the ledger, before reading its body.
+Only after receipt authentication succeeds is the body read, hashed against the receipt's claims digest, and checked against the sequence number in the file name.
+An invalid candidate is skipped in favour of an older snapshot; if none can be validated, recovery replays the public ledger without a snapshot.
+
 The state machine for the ``recover`` node is as follows:
 
 .. mermaid::
@@ -222,23 +226,10 @@ This failover path is illustrated below.
 
 If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
 
-Trace viewer
-^^^^^^^^^^^^
+Trace validation
+^^^^^^^^^^^^^^^^
 
-The `trace viewer <../trace-viewer/index.html>`__ steps through recovery decision protocol traces as the protocol's Lean model replays them.
-For each step, it shows the nodes' records beside the model state that they lead to, and, when the model does not explain a trace, the step that fails and why.
-The published viewer shows the replayer's fixtures: recorded traces, and invalid traces that the replayer must reject.
-
-Nodes trace the protocol when started with the ``CCF_RECOVERY_TRACE`` environment variable set, for example to ``1``, and log each step as an ``RDP_TRACE`` record.
-To view other traces, put each node's log in a directory as a ``.out`` file, with a ``scenario.json`` like those of the replayer's :ccf_repo:`fixtures </lean/disaster-recovery/replayer/fixtures>`.
-Then build the replayer with ``lake``, which `elan <https://lean-lang.org/install/>`__ installs, and serve the viewer at ``http://localhost:8000/``:
-
-.. code-block:: bash
-
-    cd lean/disaster-recovery
-    lake build disaster-recovery-replay
-    python3 replayer/viewer/build.py --logs DIR
-    python3 -m http.server --bind 127.0.0.1 8000 --directory replayer/viewer
+The :ccf_repo:`disaster-recovery-replay command <lean/disaster-recovery/replayer/README.md>` checks recorded recovery decision protocol runs against the Lean model.
 
 Local Sealing
 ~~~~~~~~~~~~~

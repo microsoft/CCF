@@ -368,6 +368,42 @@ class VerifyVendoredDependencyTest(unittest.TestCase):
         self.assertEqual(artifact_url, "https://example.com/dependency-1.0.0-2.tar.xz")
         self.assertEqual((source / "dependency-1.0.0/VERSION").read_text(), "1.0.0\n")
 
+    def test_versioned_archive_without_tag_uses_pinned_git_commit(self) -> None:
+        repository, commit = self.create_repository(
+            "bellard/quickjs",
+            {"VERSION": b"1.0.0\n", "src/dependency.h": b"dependency\n"},
+        )
+        component = VERIFIER.GitComponent(repository.as_uri(), commit)
+        override = VERIFIER.VersionedArchive(
+            "https://example.com/dependency-{tag}.tar.xz",
+            "VERSION",
+            VERIFIER.re.compile(r"(?P<version>\d+\.\d+\.\d+)"),
+        )
+        work = self.root / "git-work"
+        with mock.patch.dict(
+            VERIFIER.RELEASE_SOURCES, {component.identity: override}
+        ), mock.patch.object(VERIFIER, "download") as download:
+            source, source_name = VERIFIER.materialize_source(component, work)
+
+        download.assert_not_called()
+        self.assertEqual(source_name, component.repository_url)
+        self.assertEqual((source / "src/dependency.h").read_bytes(), b"dependency\n")
+        vendored = self.create_tree("vendored-git", {"dependency.h": b"modified\n"})
+        with self.assertRaisesRegex(VERIFIER.VerificationError, "different contents"):
+            VERIFIER.verify_tree(vendored, source)
+
+    def test_github_asset_without_tag_is_rejected(self) -> None:
+        component = VERIFIER.GitComponent(
+            "https://github.com/owner/dependency", "0" * 40
+        )
+        with mock.patch.dict(
+            VERIFIER.RELEASE_SOURCES,
+            {component.identity: VERIFIER.GitHubAsset("dependency.h")},
+        ), self.assertRaisesRegex(
+            VERIFIER.VerificationError, "Release source requires a manifest tag"
+        ):
+            VERIFIER.materialize_source(component, self.root / "asset-work")
+
     def test_archive_rejects_unsafe_paths(self) -> None:
         archive_buffer = io.BytesIO()
         with tarfile.open(fileobj=archive_buffer, mode="w:xz") as archive:

@@ -6,11 +6,14 @@
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/rsa_public_key.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/jwt.h"
 #include "ds/lru.h"
 #include "http/http_jwt.h"
+
+#include <format>
 
 namespace
 {
@@ -42,7 +45,7 @@ namespace ccf
     LOG_DEBUG_FMT(
       "Verify token.iss {} and token.tid {} against published key issuer {}",
       iss,
-      tid,
+      tid.value_or("<missing>"),
       constraint);
 
     const auto issuer_url = ::http::parse_url_full(constraint);
@@ -118,7 +121,7 @@ namespace ccf
       const auto& key = it->second;
       if (std::holds_alternative<ccf::crypto::RSAPublicKeyPtr>(key))
       {
-        LOG_DEBUG_FMT("Verify der: {} as RSA key", der);
+        LOG_DEBUG_FMT("Verify der: [{}] as RSA key", ccf::ds::join(der, ", "));
         // Obsolete PKCS1 padding is chosen for JWT, as explained in details in
         // https://github.com/microsoft/CCF/issues/6601#issuecomment-2512059875.
         return std::get<ccf::crypto::RSAPublicKeyPtr>(key)->verify(
@@ -132,7 +135,7 @@ namespace ccf
 
       if (std::holds_alternative<ccf::crypto::ECPublicKeyPtr>(key))
       {
-        LOG_DEBUG_FMT("Verify der: {} as EC key", der);
+        LOG_DEBUG_FMT("Verify der: [{}] as EC key", ccf::ds::join(der, ", "));
 
         const auto sig_der =
           ccf::crypto::ecdsa_sig_p1363_to_der({signature, signature_size});
@@ -144,7 +147,7 @@ namespace ccf
           ccf::crypto::MDType::SHA256);
       }
 
-      LOG_DEBUG_FMT("Key not found for der: {}", der);
+      LOG_DEBUG_FMT("Key not found for der: [{}]", ccf::ds::join(der, ", "));
       return false;
     }
   };
@@ -179,7 +182,7 @@ namespace ccf
     if (!token_keys || token_keys->empty())
     {
       error_reason =
-        fmt::format("JWT signing key not found for kid {}", key_id);
+        std::format("JWT signing key not found for kid {}", key_id);
       return nullptr;
     }
 
@@ -203,16 +206,16 @@ namespace ccf
           .count();
       if (token.payload_typed.nbf && time_now < *token.payload_typed.nbf)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Current time {} is before token's Not Before (nbf) claim {}",
           time_now,
-          token.payload_typed.nbf);
+          token.payload_typed.nbf.value());
         continue;
       }
 
       if (time_now > token.payload_typed.exp)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Current time {} is after token's Expiration Time (exp) claim {}",
           time_now,
           token.payload_typed.exp);
@@ -227,7 +230,7 @@ namespace ccf
           token.payload_typed.tid,
           *metadata.constraint))
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Kid {} failed issuer constraint validation {}",
           key_id,
           *metadata.constraint);

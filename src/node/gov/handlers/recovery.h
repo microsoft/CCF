@@ -8,6 +8,8 @@
 #include "node/gov/handlers/helpers.h"
 #include "node/share_manager.h"
 
+#include <format>
+
 namespace ccf::gov::endpoints
 {
   namespace api
@@ -75,13 +77,13 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx,
                 HTTP_STATUS_NOT_FOUND,
                 ccf::errors::ResourceNotFound,
-                fmt::format(
+                std::format(
                   "Recovery share not found for member {}.", member_id));
               return;
             }
 
             const api::EncryptedRecoveryShare response_body{
-              member_id, ccf::crypto::b64_from_raw(encrypted_share.value())};
+              member_id, ccf::ds::b64_from_raw(encrypted_share.value())};
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
@@ -155,7 +157,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidAuthenticationInfo,
-              fmt::format(
+              std::format(
                 "Member ID from path parameter ({}) does not match "
                 "member ID from body signature ({}).",
                 member_id,
@@ -163,8 +165,8 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          auto raw_recovery_share = ccf::crypto::raw_from_b64(
-            params["share"].template get<std::string>());
+          auto raw_recovery_share =
+            ccf::ds::raw_from_b64(params["share"].template get<std::string>());
 
           size_t submitted_shares_count = 0;
           bool full_key_submitted = false;
@@ -206,7 +208,7 @@ namespace ccf::gov::endpoints
           {
             // Same format of message, whether this is sufficient to trigger
             // recovery or not
-            message = fmt::format(
+            message = std::format(
               "{}/{} recovery shares successfully submitted",
               submitted_shares_count,
               threshold);

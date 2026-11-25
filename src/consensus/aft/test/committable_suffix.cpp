@@ -3,6 +3,8 @@
 
 #include "test_common.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <algorithm>
 #include <doctest/doctest.h>
@@ -651,7 +653,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
   const size_t num_terms = rand() % 30 + 5;
   if constexpr (is_worst_case)
   {
-    std::cout << fmt::format("Worst case construction with {} terms", num_terms)
+    std::cout << std::format("Worst case construction with {} terms", num_terms)
               << std::endl;
 
     // Worst-case is tiny, perfectly interleaved terms
@@ -662,7 +664,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
   }
   else
   {
-    std::cout << fmt::format(
+    std::cout << std::format(
                    "Randomized case construction with {} terms", num_terms)
               << std::endl;
 
@@ -914,7 +916,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       }
 
       std::cout
-        << fmt::format(
+        << std::format(
              "Discovered agreement point after {} round-trips, with {} terms",
              discovery_round_trips_completed,
              term_length)
@@ -1026,7 +1028,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       }
 
       std::cout
-        << fmt::format(
+        << std::format(
              "Brought node in-sync after {} attempts, with {} entries in log",
              catchup_sync_attempts_completed,
              log_length)

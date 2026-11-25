@@ -1,13 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ccf/crypto/base64.h"
+#include "ccf/ds/base64.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/json_schema.h"
 
-#define FMT_HEADER_ONLY
 #include <cstdint>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
+#include <format>
 #include <sstream>
 
 namespace ccf
@@ -33,14 +32,15 @@ namespace ccf
 
     [[nodiscard]] std::string pointer() const
     {
-      return fmt::format(
+      return std::format(
         "#/{}",
-        fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
+        ccf::ds::join(
+          pointer_elements.crbegin(), pointer_elements.crend(), "/"));
     }
 
     [[nodiscard]] std::string describe() const
     {
-      return fmt::format("At {}: {}", pointer(), what());
+      return std::format("At {}: {}", pointer(), what());
     }
   };
 
@@ -50,7 +50,7 @@ namespace ccf
   {
   public:
     explicit JsonTooDeep(size_t max_depth) :
-      ccf::JsonParseError(fmt::format(
+      ccf::JsonParseError(std::format(
         "JSON object/array nesting exceeds maximum depth of {}", max_depth))
     {}
   };
@@ -120,7 +120,7 @@ namespace std
   {
     if constexpr (std::is_same_v<T, uint8_t>)
     {
-      j = ccf::crypto::b64_from_raw(t);
+      j = ccf::ds::b64_from_raw(t);
     }
     else
     {
@@ -141,12 +141,12 @@ namespace std
       {
         try
         {
-          t = ccf::crypto::raw_from_b64(j.get<std::string>());
+          t = ccf::ds::raw_from_b64(j.get<std::string>());
           return;
         }
         catch (const std::exception& e)
         {
-          throw ccf::JsonParseError(fmt::format(
+          throw ccf::JsonParseError(std::format(
             "Vector of bytes object \"{}\" is not valid base64", j.dump()));
         }
       }
@@ -159,7 +159,7 @@ namespace std
     if (!j.is_array())
     {
       throw ccf::JsonParseError(
-        fmt::format("Vector object \"{}\" is not an array", j.dump()));
+        std::format("Vector object \"{}\" is not an array", j.dump()));
     }
 
     for (size_t i = 0; i < j.size(); ++i)
@@ -925,7 +925,7 @@ namespace std
       }); \
     if (it == std::end(m)) \
     { \
-      throw ccf::JsonParseError(fmt::format( \
+      throw ccf::JsonParseError(std::format( \
         "Value {} in enum " #TYPE " has no specified JSON conversion", \
         (size_t)e)); \
     } \
@@ -945,7 +945,7 @@ namespace std
     if (it == std::end(m)) \
     { \
       throw ccf::JsonParseError( \
-        fmt::format("{} is not convertible to " #TYPE, j.dump())); \
+        std::format("{} is not convertible to " #TYPE, j.dump())); \
     } \
     e = it->first; \
   } \

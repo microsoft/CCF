@@ -2,21 +2,26 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/service/tables/uvm_endorsements.h"
+#include "ccf/ds/json.h"
+#include "ccf/pal/measurement.h"
+
+#include <format>
+#include <string>
+#include <vector>
 
 namespace ccf::pal
 {
   struct UVMEndorsements
   {
-    DID did;
-    Feed feed;
+    std::string did;
+    std::string feed;
     std::string svn;
 
     bool operator==(const UVMEndorsements&) const = default;
 
     std::string to_str()
     {
-      return fmt::format("did: {}, feed: {}, svn: {}", did, feed, svn);
+      return std::format("did: {}, feed: {}, svn: {}", did, feed, svn);
     }
   };
 

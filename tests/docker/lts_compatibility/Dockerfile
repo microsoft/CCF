@@ -10,16 +10,14 @@ RUN . /etc/os-release && \
           curl \
           libstdc++ \
           libuv \
-          nghttp2 \
           openssl && \
         tdnf clean all \
         ;; \
       4.0) \
         dnf -y update && \
-        dnf -y install \
+        dnf -y install --allowerasing \
           ca-certificates \
-          libcurl \
-          libnghttp2 \
+          libcurl-minimal \
           libstdc++ \
           libuv \
           openssl && \

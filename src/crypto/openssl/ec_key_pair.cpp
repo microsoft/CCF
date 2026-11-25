@@ -5,14 +5,14 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "ccf/ds/join.h"
 #include "crypto/openssl/bignum.h"
 #include "crypto/openssl/csr.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
 
-#define FMT_HEADER_ONLY
 #include <climits>
-#include <fmt/format.h>
+#include <format>
 #include <openssl/asn1.h>
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
@@ -56,7 +56,7 @@ namespace ccf::crypto
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
-    auto d_raw = raw_from_b64url(jwk.d);
+    auto d_raw = ccf::ds::raw_from_b64url(jwk.d);
     Unique_BIGNUM d = bn_from_bytes(d_raw);
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     // Note: d_raw is big endian while OSSL_PARAM_construct_BN expects native
@@ -314,9 +314,9 @@ namespace ccf::crypto
     auto rc = BN_bn2binpad(d, bytes.data(), size);
     if (rc != size)
     {
-      throw std::runtime_error(fmt::format("BN_bn2binpad failed: {}", rc));
+      throw std::runtime_error(std::format("BN_bn2binpad failed: {}", rc));
     }
-    jwk.d = b64url_from_raw(bytes, false /* with_padding */);
+    jwk.d = ccf::ds::b64url_from_raw(bytes, false /* with_padding */);
 
     return jwk;
   }

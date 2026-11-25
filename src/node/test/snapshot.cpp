@@ -8,12 +8,85 @@
 #include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
+#include "node/snapshot_serdes.h"
 #include "service/tables/signatures.h"
+
+#include <format>
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
+#include <sstream>
 #include <string>
+
+struct CountingSnapshotBuffer : std::stringbuf
+{
+  size_t bytes_read = 0;
+
+  CountingSnapshotBuffer(const std::string& data) :
+    std::stringbuf(data, std::ios::in)
+  {}
+
+  std::streamsize xsgetn(char* data, std::streamsize size) override
+  {
+    const auto count = std::stringbuf::xsgetn(data, size);
+    bytes_read += count;
+    return count;
+  }
+};
+
+TEST_CASE("Reading a snapshot receipt skips the body")
+{
+  ccf::kv::SerialisedEntryHeader header;
+  header.set_size(1024 * 1024);
+  std::string snapshot(sizeof(header), '\0');
+  std::memcpy(snapshot.data(), &header, sizeof(header));
+  snapshot.append(header.size, 'b');
+  const std::string receipt = "test receipt";
+  snapshot += receipt;
+
+  CountingSnapshotBuffer buffer(snapshot);
+  std::istream input(&buffer);
+  const auto receipt_bytes = ccf::read_snapshot_receipt(input);
+  CHECK(buffer.bytes_read == sizeof(header) + receipt.size());
+  CHECK(std::string(receipt_bytes.begin(), receipt_bytes.end()) == receipt);
+}
+
+TEST_CASE("Recovery rejects malformed snapshot framing before authentication")
+{
+  ccf::kv::SerialisedEntryHeader header;
+  std::string suffix;
+  SUBCASE("Truncated header")
+  {
+    suffix = "x";
+  }
+  SUBCASE("Empty body")
+  {
+    suffix = "receipt";
+  }
+  SUBCASE("Missing receipt")
+  {
+    header.set_size(1);
+    suffix = "b";
+  }
+  SUBCASE("Body size exceeds file size")
+  {
+    header.set_size(
+      ccf::kv::SerialisedEntryHeader::max_serialised_entry_body_size);
+    suffix = "b";
+  }
+  std::string snapshot(sizeof(header), '\0');
+  std::memcpy(snapshot.data(), &header, sizeof(header));
+  snapshot += suffix;
+  if (suffix == "x")
+  {
+    snapshot.resize(sizeof(header) - 1);
+  }
+  std::istringstream input(snapshot);
+  CHECK_THROWS(ccf::read_snapshot_receipt(input));
+  CHECK_THROWS(ccf::separate_segments(
+    std::vector<uint8_t>(snapshot.begin(), snapshot.end())));
+}
 
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {
@@ -48,7 +121,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     {
       auto tx = source_store.create_tx();
       auto map = tx.rw(string_map);
-      map->put(fmt::format("key#{}", i), "value");
+      map->put(std::format("key#{}", i), "value");
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   }

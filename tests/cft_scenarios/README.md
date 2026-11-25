@@ -88,6 +88,9 @@ A reconfiguration is also followed by the nodes it removes and adds, such as `âš
 
 ## Bindings
 
-`lake` compiles the scenarios to a static library, which defines `main`.
+`lake` compiles the scenarios to a static library, which defines `main` in [`Main.lean`](Main.lean).
 `cft_driver` links it with [`driver.cpp`](../../src/consensus/aft/test/driver.cpp), which implements each command declared in `CftDriver.lean` by calling `CftDriver` in [`driver.h`](../../src/consensus/aft/test/driver.h), and with the Lean runtime.
 A trace records each command as a `cmd` record, naming the command and its arguments.
+
+Another program can import `Scenarios`, define its own `main`, and link another implementation of the commands.
+The [consensus model driver](../cft_model/README.md) does, to run the scenarios on the Lean model of the protocol, without `driver.cpp`.

@@ -26,7 +26,10 @@ jobs:
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Unit tests, e2e (bucket_a)
     runs-on: [gha-vmss-d16av7-ci]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -34,9 +37,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git tar zstd
+          dnf -y update
+          dnf -y install ca-certificates git tar zstd
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,7 +51,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/setup-dev.sh
+          ./scripts/setup-dev-al4.sh
 
       - name: "Run Checks and Build Debug with clang-tidy"
         run: |
@@ -58,7 +60,8 @@ jobs:
           ./scripts/ci-checks.sh
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON -DTEST_MLDSA=ON ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
 
@@ -77,12 +80,14 @@ jobs:
           uv pip install -q -e python
           cd python
           python ../tests/infra/test_reporting.py pytest
+        shell: bash
 
       - name: "Run Unit tests"
         run: |
           set -ex
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+        shell: bash
 
       - name: "Run e2e tests (bucket_a)"
         shell: bash
@@ -110,16 +115,18 @@ jobs:
     name: "VMSS Virtual B" # End-to-end tests (bucket_b)
     runs-on: [gha-vmss-d16av7-ci-b]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
       - name: "Checkout dependencies"
         shell: bash
         run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          dnf -y update
+          dnf -y install ca-certificates git
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -146,6 +153,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja bucket_b
         shell: bash
 
@@ -178,7 +186,10 @@ jobs:
     name: "VMSS Virtual C" # End-to-end tests (bucket_c)
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      # The image declares no PATH, so without this GITHUB_PATH entries replace PATH instead of extending it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -186,9 +197,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          dnf -y update
+          dnf -y install ca-certificates git
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -201,6 +211,13 @@ jobs:
       - name: "Install Lean"
         uses: ./.github/actions/install-lean
 
+      - name: "Build Lean consistency trace replayer"
+        run: |
+          set -euo pipefail
+          cd lean/consistency
+          lake build consistency-replay
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -208,6 +225,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja bucket_c partitions
         shell: bash
 
@@ -225,7 +243,9 @@ jobs:
         run: |
           set -ex
           cd build
+          export CCF_LEAN_CONSISTENCY_REPLAYER="$GITHUB_WORKSPACE/lean/consistency/.lake/build/bin/consistency-replay"
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+        shell: bash
 
       - name: "Upload logs for virtual C"
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -239,6 +259,7 @@ jobs:
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
+            build/workspace/*_consistency_trace.ndjson
           if-no-files-found: ignore
         if: success() || failure()
 

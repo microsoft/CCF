@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <limits>
 #include <new>
 #include <span>
@@ -395,7 +396,7 @@ namespace ccf::kv
     {
       if (additional > target.size() - used)
       {
-        throw std::length_error(fmt::format(
+        throw std::length_error(std::format(
           "SpanWriter capacity {} exceeded: {} used, {} more requested",
           target.size(),
           used,
@@ -439,7 +440,7 @@ namespace ccf::kv
     {
       if (required > span_.size())
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Expected {} bytes for {}, found only {}",
           required,
           description,
@@ -506,7 +507,7 @@ namespace ccf::kv
         const auto entry_size = entry_span.size();
         if (entry_size % sizeof(Element) != 0)
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "Size-prefixed entry of {} bytes is not divisible by element size "
             "{}",
             entry_size,
@@ -517,7 +518,7 @@ namespace ccf::kv
         const auto element_count = entry_size / sizeof(Element);
         if (element_count > ret.max_size())
         {
-          throw std::length_error(fmt::format(
+          throw std::length_error(std::format(
             "Size-prefixed entry contains too many elements ({})",
             element_count));
         }
@@ -551,7 +552,7 @@ namespace ccf::kv
         if (entry_type > static_cast<uint8_t>(ccf::kv::EntryType::MAX))
         {
           throw std::logic_error(
-            fmt::format("Invalid EntryType: {}", entry_type));
+            std::format("Invalid EntryType: {}", entry_type));
         }
 
         return ccf::kv::EntryType(entry_type);

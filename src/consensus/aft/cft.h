@@ -20,11 +20,13 @@
 #include "tasks/periodic_task_owner.h"
 
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <list>
 #include <map>
 #include <random>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef VERBOSE_CFT_LOGGING
@@ -565,9 +567,8 @@ namespace aft
       // a final state, and node identities never being re-used.
       if (
         !configurations.empty() &&
-        configurations.back().nodes.find(state->node_id) !=
-          configurations.back().nodes.end() &&
-        conf.find(state->node_id) == conf.end())
+        configurations.back().nodes.contains(state->node_id) &&
+        !conf.contains(state->node_id))
       {
         become_retired(idx, ccf::kv::RetirementPhase::Ordered);
       }
@@ -1469,7 +1470,10 @@ namespace aft
         // The end of this append entries (r.idx) was not a signature, but may
         // be in a new term. If it's a new term, this term started immediately
         // after the previous signature we saw (lci, last committable index).
-        if (r.idx > lci)
+        // If we already know the term of r.idx, there is nothing to record.
+        // We may then still hold entries of a later term after r.idx, which
+        // the sender has yet to replace, and that term starts after lci + 1.
+        if (r.idx > lci && get_term_internal(r.idx) != r.term_of_idx)
         {
           state->view_history.update(lci + 1, r.term_of_idx);
         }
@@ -2241,7 +2245,7 @@ namespace aft
     {
       CFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
-        phase,
+        std::to_underlying(phase),
         state->leadership_state.load(),
         state->node_id,
         state->current_view,
@@ -2296,7 +2300,7 @@ namespace aft
       for (auto const& conf : configurations)
       {
         auto const& nodes = conf.nodes;
-        if (nodes.find(from) == nodes.end())
+        if (!nodes.contains(from))
         {
           // from node is no longer in any active configuration.
           continue;
@@ -2513,7 +2517,7 @@ namespace aft
     {
       if (idx > state->last_idx)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Tried to commit {} but last_idx is {}", idx, state->last_idx));
       }
 
@@ -2602,7 +2606,7 @@ namespace aft
       if (!configurations.empty())
       {
         auto current_nodes = configurations.back().nodes;
-        present = current_nodes.find(state->node_id) != current_nodes.end();
+        present = current_nodes.contains(state->node_id);
       }
       return present;
     }

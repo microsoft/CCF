@@ -5,7 +5,6 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/map.h"

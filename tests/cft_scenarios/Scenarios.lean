@@ -13,10 +13,12 @@ import Scenarios.commit_stepwise_through_reconfiguration
 import Scenarios.delayed_vote_requests
 import Scenarios.election
 import Scenarios.election_while_reconfiguration
+import Scenarios.escaped_node_name
 import Scenarios.fancy_election_1
 import Scenarios.fancy_election_2
 import Scenarios.follower_overcommit_partial_verified
 import Scenarios.follower_rollback_match_index
+import Scenarios.heartbeat_before_stale_suffix
 import Scenarios.indirect_commit_stale_leader
 import Scenarios.large_entry_batching
 import Scenarios.late_nomination
@@ -42,6 +44,7 @@ import Scenarios.reconfiguration
 import Scenarios.reconnect
 import Scenarios.reelection
 import Scenarios.replicate
+import Scenarios.replicate_empty
 import Scenarios.replicate_on_latest_leader
 import Scenarios.retire_backup
 import Scenarios.retire_backup_pre_vote
@@ -60,6 +63,7 @@ import Scenarios.suffix_collision_2
 import Scenarios.suffix_collision_3
 import Scenarios.swap_single_node
 
-/-- Run one of the imported scenarios, named by the first argument. -/
-def main (args : List String) : IO Unit :=
-  CftDriver.run args
+/-!
+Every scenario. Importing this module registers them, for `Main` and for other programs
+which run scenarios.
+-/

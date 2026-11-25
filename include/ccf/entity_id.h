@@ -5,6 +5,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
+#include <format>
 #include <string>
 
 namespace ccf
@@ -13,8 +14,8 @@ namespace ccf
   struct EntityId
   {
   public:
-    static constexpr size_t LENGTH = 64; // hex-encoded SHA-256 hash
-    using Value = std::string; // < hex-encoded hash
+    static constexpr size_t LENGTH = 64; // Legacy hex-encoded SHA-256 hash
+    using Value = std::string;
 
   private:
     Value id;
@@ -103,8 +104,8 @@ namespace ccf
     }
     else
     {
-      throw ccf::JsonParseError(fmt::format(
-        "{} should be hex-encoded string: {}",
+      throw ccf::JsonParseError(std::format(
+        "{} should be an identity string: {}",
         FmtExtender::ID_LABEL,
         j.dump()));
     }
@@ -124,19 +125,15 @@ namespace ccf
   {
     schema["type"] = "string";
 
-    // According to the spec, "format is an open value, so you can use any
-    // formats, even not those defined by the OpenAPI Specification"
-    // https://swagger.io/docs/specification/data-models/data-types/#format
-    schema["format"] = "hex";
-    schema["pattern"] =
-      fmt::format("^[a-f0-9]{{{}}}$", EntityId<FmtExtender>::LENGTH);
+    schema["pattern"] = "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$";
+    schema["maxLength"] = 104;
   }
 
   struct MemberIdFormatter
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("m[{}]", core);
+      return std::format("m[{}]", core);
     }
 
     static constexpr auto ID_LABEL = "MemberId";
@@ -148,7 +145,7 @@ namespace ccf
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("u[{}]", core);
+      return std::format("u[{}]", core);
     }
 
     static constexpr auto ID_LABEL = "UserId";
@@ -160,7 +157,7 @@ namespace ccf
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("n[{}]", core);
+      return std::format("n[{}]", core);
     }
 
     static constexpr auto ID_LABEL = "NodeId";
@@ -199,10 +196,9 @@ namespace std
 
 // NOLINTEND(cert-dcl58-cpp)
 
-FMT_BEGIN_NAMESPACE
-
 template <typename FmtExtender>
-struct formatter<ccf::EntityId<FmtExtender>>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on a CCF type.
+struct std::formatter<ccf::EntityId<FmtExtender>>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -215,11 +211,9 @@ struct formatter<ccf::EntityId<FmtExtender>>
   {
     std::stringstream ss;
     ss << v;
-    return format_to(ctx.out(), "{}", ss.str());
+    return std::format_to(ctx.out(), "{}", ss.str());
   }
 };
-
-FMT_END_NAMESPACE
 
 namespace ccf::kv::serialisers
 {

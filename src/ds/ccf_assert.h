@@ -4,11 +4,13 @@
 
 #include "ds/internal_logger.h"
 
+#include <format>
+
 #define CCF_ASSERT_FMT_FAIL(...) \
-  CCF_ASSERT(false, fmt::format(__VA_ARGS__).c_str())
+  CCF_ASSERT(false, std::format(__VA_ARGS__).c_str())
 
 #define CCF_ASSERT_FMT(expr, ...) \
-  CCF_ASSERT(expr, fmt::format(__VA_ARGS__).c_str())
+  CCF_ASSERT(expr, std::format(__VA_ARGS__).c_str())
 
 #ifndef NDEBUG
 #  define CCF_ASSERT(expr, msg) \

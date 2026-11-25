@@ -14,6 +14,8 @@
 #include "tasks/task_system.h"
 
 #include <curl/curl.h>
+#include <format>
+#include <utility>
 
 namespace ccf
 {
@@ -116,7 +118,7 @@ namespace ccf
       for (const auto& it : params)
       {
         formatted_query +=
-          fmt::format("{}{}={}", (first ? '?' : '&'), it.first, it.second);
+          std::format("{}{}={}", (first ? '?' : '&'), it.first, it.second);
         first = false;
       }
       return formatted_query;
@@ -168,7 +170,7 @@ namespace ccf
         LOG_DEBUG_FMT(
           "Error fetching endorsements for attestation report: {} ({}) {}",
           curl_easy_strerror(curl_response),
-          curl_response,
+          std::to_underlying(curl_response),
           status_code);
         if (curl_response == CURLE_PEER_FAILED_VERIFICATION)
         {
@@ -276,7 +278,7 @@ namespace ccf
       // If the server does not completely response within this time timeout
       curl_handle.set_opt(CURLOPT_TIMEOUT, server_response_timeout_s);
 
-      auto url = fmt::format(
+      auto url = std::format(
         "{}://{}:{}{}{}",
         endpoint.tls ? "https" : "http",
         endpoint.host,

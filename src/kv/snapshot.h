@@ -91,7 +91,7 @@ namespace ccf::kv
         serialiser.get_public_domain_size() != public_size ||
         serialiser.get_private_domain_size() != private_size)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Snapshot at {} serialised to {}/{} bytes, but measured {}/{}",
           version,
           serialiser.get_public_domain_size(),

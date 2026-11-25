@@ -280,6 +280,83 @@ TEST_CASE("Adding a member does not populate an ACK")
     tx.ro<ccf::MemberAcks>(Tables::MEMBER_ACKS)->get(member_id).has_value());
 }
 
+TEST_CASE(
+  "DID and legacy enrollments of the same key are independent identities")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const auto replacement = identity.key->self_sign(
+    "CN=replacement", "20200101000000Z", "20201231235959Z");
+  const auto did =
+    ccf::crypto::did_key_from_public_key_der(identity.key->public_key_der());
+  const auto legacy_id_of = [](const ccf::crypto::Pem& cert) {
+    return ccf::crypto::Sha256Hash(ccf::crypto::make_verifier(cert)->cert_der())
+      .hex_str();
+  };
+  const auto legacy_id = legacy_id_of(identity.cert);
+  REQUIRE(did.starts_with("did:key:z"));
+  auto tx = store.create_tx();
+
+  NewMember member;
+  member.did_key = did;
+  REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
+  REQUIRE(InternalTablesAccess::activate_member(tx, did));
+  // Re-adding an existing DID member has no effect
+  REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
+  REQUIRE(
+    tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
+    MemberStatus::ACTIVE);
+  REQUIRE_FALSE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(did));
+
+  REQUIRE(
+    InternalTablesAccess::add_member(tx, {identity.cert}).value() == legacy_id);
+  REQUIRE(
+    InternalTablesAccess::add_member(tx, {replacement}).value() ==
+    legacy_id_of(replacement));
+  REQUIRE(tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->has(did));
+  REQUIRE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(legacy_id));
+  REQUIRE(
+    tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(legacy_id)->status ==
+    MemberStatus::ACCEPTED);
+  REQUIRE(
+    tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
+    MemberStatus::ACTIVE);
+  CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+TEST_CASE("DID enrollment rejects certificates and malformed keys")
+{
+  ccf::kv::Store store;
+  auto tx = store.create_tx();
+  const auto key = ccf::crypto::make_ec_key_pair();
+  const auto did =
+    ccf::crypto::did_key_from_public_key_der(key->public_key_der());
+  NewMember member;
+  member.did_key = did;
+  member.cert = key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
+  CHECK_THROWS_AS(
+    InternalTablesAccess::add_member(tx, member), std::logic_error);
+  member.cert = {};
+  member.did_key = did + "#fragment";
+  CHECK_THROWS(InternalTablesAccess::add_member(tx, member));
+  CHECK_FALSE(tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->has(did));
+  CHECK_FALSE(tx.ro<MemberInfo>(Tables::MEMBER_INFO)->has(did));
+}
+
+TEST_CASE("Enrollment inputs accept a certificate or a did:key")
+{
+  const TestIdentity identity;
+  const nlohmann::json member = NewMember{identity.cert};
+  CHECK(member.get<NewMember>().cert == identity.cert);
+  const auto did =
+    ccf::crypto::did_key_from_public_key_der(identity.key->public_key_der());
+  const nlohmann::json input = {{"did_key", did}};
+  const auto did_member = input.get<NewMember>();
+  CHECK(did_member.cert.empty());
+  CHECK(did_member.did_key == did);
+}
+
 TEST_CASE("Member admission and activation preserve recovery roles")
 {
   ccf::kv::Store store;
@@ -367,7 +444,7 @@ TEST_CASE("Inconsistent member recovery roles are rejected before writing")
     ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(identity.cert))
       .hex_str();
   NewMember member{identity.cert};
-  auto expected_error = fmt::format(
+  auto expected_error = std::format(
     "Member {} cannot be added as recovery_role has a value set but no "
     "encryption public key is specified",
     member_id.value());
@@ -384,10 +461,10 @@ TEST_CASE("Inconsistent member recovery roles are rejected before writing")
     member.recovery_role = MemberRecoveryRole::NonParticipant;
     member.encryption_pub_key =
       ccf::crypto::make_rsa_key_pair()->public_key_pem();
-    expected_error = fmt::format(
+    expected_error = std::format(
       "Recovery member {} cannot be added as with recovery role value of {}",
       member_id.value(),
-      MemberRecoveryRole::NonParticipant);
+      std::to_underlying(MemberRecoveryRole::NonParticipant));
   }
 
   const auto before = store.current_txid();
@@ -506,7 +583,7 @@ TEST_CASE("User admission rejects duplicates and removal preserves other users")
     REQUIRE_THROWS_WITH_AS(
       InternalTablesAccess::add_user(
         tx, {identity.cert, {{"role", "replacement"}}}),
-      fmt::format("Certificate already exists for user {}", expected_id.value())
+      std::format("Certificate already exists for user {}", expected_id.value())
         .c_str(),
       std::logic_error);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
@@ -563,7 +640,7 @@ TEST_CASE("Rejected user data conflicts do not commit a certificate")
     REQUIRE_THROWS_WITH_AS(
       InternalTablesAccess::add_user(
         tx, {identity.cert, {{"role", "replacement"}}}),
-      fmt::format("User data already exists for user {}", user_id.value())
+      std::format("User data already exists for user {}", user_id.value())
         .c_str(),
       std::logic_error);
   }

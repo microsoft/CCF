@@ -5,11 +5,13 @@
 
 #include "kv/store.h"
 
+#include <format>
+
 namespace ccf::indexing::strategies
 {
   VisitEachEntryInMap::VisitEachEntryInMap(
     const std::string& map_name_, const std::string& strategy_prefix) :
-    Strategy(fmt::format("{} {}", strategy_prefix, map_name_)),
+    Strategy(std::format("{} {}", strategy_prefix, map_name_)),
     map_name(map_name_)
   {}
 

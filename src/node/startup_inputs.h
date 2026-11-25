@@ -31,7 +31,7 @@ namespace ccf
     if (ec || !f)
     {
       throw std::logic_error(
-        fmt::format("Could not read {} from {}", description, path));
+        std::format("Could not read {} from {}", description, path));
     }
 
     std::vector<uint8_t> contents(size);
@@ -41,7 +41,7 @@ namespace ccf
     if (!f)
     {
       throw std::logic_error(
-        fmt::format("Could not read {} from {}", description, path));
+        std::format("Could not read {} from {}", description, path));
     }
     return contents;
   }
@@ -63,7 +63,7 @@ namespace ccf
     }
     catch (const nlohmann::json::parse_error& e)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Could not parse {} from {}: {}", description, path, e.what()));
     }
   }
@@ -97,12 +97,20 @@ namespace ccf
           false /* allow_empty */);
       }
 
+      if (member.did_key.has_value() && !member.certificate_file.empty())
+      {
+        throw std::logic_error(
+          "did_key member must not specify certificate_file");
+      }
       genesis.members.emplace_back(
-        ccf::crypto::Pem(
-          read_startup_file(member.certificate_file, "member certificate")),
+        member.did_key.has_value() ?
+          ccf::crypto::Pem{} :
+          ccf::crypto::Pem(
+            read_startup_file(member.certificate_file, "member certificate")),
         public_encryption_key,
         member_data,
         recovery_role);
+      genesis.members.back().did_key = member.did_key;
     }
 
     for (const auto& path : start.constitution_files)

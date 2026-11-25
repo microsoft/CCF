@@ -9,12 +9,10 @@
 #include "crypto/cbor_tags.h"
 #include "crypto/cose.h"
 
+#include <format>
 #include <stdexcept>
 #include <tav/cbor.hpp>
 #include <vector>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace ccf::cose
 {
@@ -555,7 +553,7 @@ namespace ccf::cose::edit
     {
       throw tav::Exception(
         tav::ErrorCode::CBOR_TYPE_MISMATCH,
-        fmt::format(
+        std::format(
           "COSE_Sign1 must be an array of {} elements, found {}",
           cose_sign1_size,
           envelope_size));

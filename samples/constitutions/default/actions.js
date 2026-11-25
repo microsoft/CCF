@@ -200,6 +200,15 @@ function checkNone(args) {
 
 function checkEntityId(value, field) {
   checkType(value, "string", field);
+  if (value.startsWith("did:key:")) {
+    // An ID which looks up an identity is only checked for syntax. The key it
+    // contains is validated when the identity is enrolled.
+    const re = new RegExp("^did:key:z[1-9A-HJ-NP-Za-km-z]+$");
+    if (value.length > 104 || !re.test(value)) {
+      throw new Error(`${field} must be a base58-btc did:key`);
+    }
+    return;
+  }
   // This should be the hex-encoding of a SHA256 digest. This is 32 bytes long, so
   // produces 64 hex characters.
   const digestLength = 64;
@@ -210,6 +219,22 @@ function checkEntityId(value, field) {
   if (!re.test(value)) {
     throw new Error(`${field} contains non-hexadecimal character`);
   }
+}
+
+function checkIdentityEnrollment(args) {
+  if (args.did_key !== undefined) {
+    checkType(args.did_key, "string", "did_key");
+    if (args.cert !== undefined) {
+      throw new Error("did_key enrollment must not include cert");
+    }
+    ccf.publicKeyFromDidKey(args.did_key);
+  } else {
+    checkX509CertBundle(args.cert, "cert");
+  }
+}
+
+function identityIdFromArgs(args) {
+  return args.did_key !== undefined ? args.did_key : ccf.pemToId(args.cert);
 }
 
 function getSingletonKvKey() {
@@ -624,7 +649,7 @@ const actions = new Map([
     "set_member",
     new Action(
       function (args) {
-        checkX509CertBundle(args.cert, "cert");
+        checkIdentityEnrollment(args);
         checkType(args.member_data, "object?", "member_data");
         const recovery_role = args.recovery_role;
         if (recovery_role !== undefined) {
@@ -654,15 +679,16 @@ const actions = new Map([
           );
         }
 
+        const rawMemberId = ccf.strToBuf(identityIdFromArgs(args));
         checkRecoveryMemberChange(
-          ccf.strToBuf(ccf.pemToId(args.cert)),
+          rawMemberId,
           args.encryption_pub_key !== null &&
             args.encryption_pub_key !== undefined,
         );
       },
 
       function (args) {
-        const memberId = ccf.pemToId(args.cert);
+        const memberId = identityIdFromArgs(args);
         const rawMemberId = ccf.strToBuf(memberId);
         checkRecoveryMemberChange(
           rawMemberId,
@@ -670,10 +696,17 @@ const actions = new Map([
             args.encryption_pub_key !== undefined,
         );
 
-        ccf.kv["public:ccf.gov.members.certs"].set(
-          rawMemberId,
-          ccf.strToBuf(args.cert),
-        );
+        if (args.did_key !== undefined) {
+          ccf.kv["public:ccf.gov.members.public_keys"].set(
+            rawMemberId,
+            ccf.publicKeyFromDidKey(args.did_key),
+          );
+        } else {
+          ccf.kv["public:ccf.gov.members.certs"].set(
+            rawMemberId,
+            ccf.strToBuf(args.cert),
+          );
+        }
 
         if (args.encryption_pub_key == null) {
           ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
@@ -749,6 +782,7 @@ const actions = new Map([
           rawMemberId,
         );
         ccf.kv["public:ccf.gov.members.certs"].delete(rawMemberId);
+        ccf.kv["public:ccf.gov.members.public_keys"].delete(rawMemberId);
         ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
         ccf.kv["public:ccf.gov.history"].delete(rawMemberId);
 
@@ -786,17 +820,24 @@ const actions = new Map([
     "set_user",
     new Action(
       function (args) {
-        checkX509CertBundle(args.cert, "cert");
+        checkIdentityEnrollment(args);
         checkType(args.user_data, "object?", "user_data");
       },
       function (args) {
-        let userId = ccf.pemToId(args.cert);
+        let userId = identityIdFromArgs(args);
         let rawUserId = ccf.strToBuf(userId);
 
-        ccf.kv["public:ccf.gov.users.certs"].set(
-          rawUserId,
-          ccf.strToBuf(args.cert),
-        );
+        if (args.did_key !== undefined) {
+          ccf.kv["public:ccf.gov.users.public_keys"].set(
+            rawUserId,
+            ccf.publicKeyFromDidKey(args.did_key),
+          );
+        } else {
+          ccf.kv["public:ccf.gov.users.certs"].set(
+            rawUserId,
+            ccf.strToBuf(args.cert),
+          );
+        }
 
         if (args.user_data !== null && args.user_data !== undefined) {
           let userInfo = {};
@@ -820,6 +861,7 @@ const actions = new Map([
       function (args) {
         const user_id = ccf.strToBuf(args.user_id);
         ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
+        ccf.kv["public:ccf.gov.users.public_keys"].delete(user_id);
         ccf.kv["public:ccf.gov.users.info"].delete(user_id);
       },
     ),

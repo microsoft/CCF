@@ -4,20 +4,19 @@
 
 // CCF
 #include "ccf/app_interface.h"
-#include "ccf/endpoint.h"
+#include "ccf/endpoints/endpoint.h"
 #include "ccf/js/audit_format.h"
 #include "ccf/js/bundle.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ccf/js/namespace_restrictions.h"
-#include "ccf/tx.h"
+#include "ccf/kv/tx.h"
 #include "ccf/tx_id.h"
 
 #include <charconv>
+#include <format>
 #include <set>
 #include <string>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace ccf::js
 {
@@ -199,9 +198,9 @@ namespace ccf::js
       ccf::AbstractNodeContext& context,
       const std::string& kv_prefix = default_js_registry_kv_prefix) :
       BaseDynamicJSEndpointRegistry(context, kv_prefix),
-      recent_actions_map(fmt::format("{}.recent_actions", kv_prefix)),
-      audit_input_map(fmt::format("{}.audit.input", kv_prefix)),
-      audit_info_map(fmt::format("{}.audit.info", kv_prefix))
+      recent_actions_map(std::format("{}.recent_actions", kv_prefix)),
+      audit_input_map(std::format("{}.audit.input", kv_prefix)),
+      audit_info_map(std::format("{}.audit.info", kv_prefix))
     {}
 
     /**

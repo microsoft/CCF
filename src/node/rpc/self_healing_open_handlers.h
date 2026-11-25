@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/common_auth_policies.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/odata_error.h"
@@ -15,7 +15,9 @@
 #include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_frontend_utils.h"
 
+#include <format>
 #include <type_traits>
+#include <utility>
 
 namespace ccf::node
 {
@@ -72,7 +74,7 @@ namespace ccf::node
           "Recovery-decision-protocol message from {} has an invalid quote: {} "
           "({})",
           info.location.name,
-          code,
+          std::to_underlying(code),
           message);
         return make_error(code, ccf::errors::InvalidQuote, message);
       }
@@ -96,7 +98,7 @@ namespace ccf::node
         // If we have seen this node before, check that the cert is the same
         if (existing_node_info->node_cert_der != cert_der)
         {
-          auto message = fmt::format(
+          auto message = std::format(
             "Recovery-decision-protocol message from location {} is "
             "invalid: "
             "certificate public key has changed",
@@ -139,7 +141,7 @@ namespace ccf::node
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to advance recovery-decision-protocol state: {}",
             e.what()));
       }
@@ -191,7 +193,7 @@ namespace ccf::node
         return ErrorDetails{
           .status = HTTP_STATUS_INTERNAL_SERVER_ERROR,
           .code = ccf::errors::InternalError,
-          .msg = fmt::format(
+          .msg = std::format(
             "This node has already voted for {}",
             chosen_replica->get().value())};
       }
@@ -271,7 +273,7 @@ namespace ccf::node
           node_operation->recovery_decision_protocol().get_iamopen_request(
             args.tx);
 
-        auto myid = fmt::format(
+        auto myid = std::format(
           "{}:{} previously {}@{}",
           self_iamopen_request.info.location.name,
           recovery_decision_protocol::service_fingerprint_from_pem(
@@ -279,7 +281,7 @@ namespace ccf::node
               self_iamopen_request.info.service_cert_der)),
           self_iamopen_request.prev_service_fingerprint,
           self_iamopen_request.txid.to_str());
-        auto inid = fmt::format(
+        auto inid = std::format(
           "{}:{} previously {}@{}",
           in.info.location.name,
           recovery_decision_protocol::service_fingerprint_from_pem(
@@ -387,7 +389,7 @@ namespace ccf::node
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to advance recovery-decision-protocol state: {}",
             e.what()));
       }

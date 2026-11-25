@@ -4,7 +4,9 @@
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 
 #include "ccf/ds/hex.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
+#include "ccf/node_context.h"
 #include "ds/internal_logger.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"
@@ -12,6 +14,7 @@
 #include "kv/kv_types.h"
 
 #include <algorithm>
+#include <format>
 
 namespace ccf::indexing::strategies
 {
@@ -154,7 +157,7 @@ namespace ccf::indexing::strategies
     LFSKey get_blob_name(const BucketKey& bk)
     {
       const auto hex_key = ds::to_hex(bk.first.begin(), bk.first.end());
-      return fmt::format(
+      return std::format(
         "{}: {} -> {} for {}",
         name,
         bk.second.first,
@@ -165,7 +168,7 @@ namespace ccf::indexing::strategies
     LFSKey get_page_name(const PageKey& pk)
     {
       const auto hex_key = ds::to_hex(pk.first.begin(), pk.first.end());
-      return fmt::format(
+      return std::format(
         "{}: manifest {} ({} seqnos per bucket) for {}",
         name,
         pk.second,
@@ -358,7 +361,7 @@ namespace ccf::indexing::strategies
       if (to < from)
       {
         throw std::logic_error(
-          fmt::format("Range goes backwards: {} -> {}", from, to));
+          std::format("Range goes backwards: {} -> {}", from, to));
       }
 
       {
@@ -383,7 +386,7 @@ namespace ccf::indexing::strategies
 
       if (to - from > max_requestable_range())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Requesting transactions from {} to {} exceeds the maximum "
           "requestable {}",
           from,
@@ -551,7 +554,7 @@ namespace ccf::indexing::strategies
       ccf::kv::get_security_domain(map_name_) !=
       ccf::kv::SecurityDomain::PUBLIC)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "This Strategy ({}) is currently only implemented for public tables, "
         "so cannot be used for '{}'",
         get_name(),

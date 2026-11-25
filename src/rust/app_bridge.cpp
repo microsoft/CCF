@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/app_interface.h"
-#include "ccf/common_auth_policies.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/http_status.h"
 #include "ccf/kv/map.h"
 #include "ccf/odata_error.h"
@@ -342,7 +342,7 @@ namespace
       rpc->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
-        fmt::format("Rust endpoint bridge failed: {}", e.what()));
+        std::format("Rust endpoint bridge failed: {}", e.what()));
     }
     catch (...)
     {

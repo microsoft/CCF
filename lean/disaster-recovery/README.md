@@ -132,7 +132,7 @@ The [Lean workflow](../../.github/workflows/lean.yml) checks `consensus`, `commo
 Each invocation has its own checkout and writable build directories, including `common/.lake`, because the packages reference `../common` without copying it.
 Kernel and axiom checking precedes import/architecture checking, formatting, linting, and package-specific fixtures.
 Common receives its own kernel, import, and lint checks; the disaster-recovery formatting selector also covers common and tracked Lean files outside `lean/`.
-Recovery schema validation, positive/negative replay fixtures, and viewer dump generation run in the disaster-recovery job.
+Recovery schema validation and positive/negative replay fixtures run in the disaster-recovery job.
 
 Native CCF consensus and KV captures run independently of package checking.
 The [CCF consensus replay job](../consensus/replay/README.md#ci-captures-and-replay) and the KV replay job each wait only for their corresponding native captures and build their own replay executable without depending on the package matrix.

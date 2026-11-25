@@ -6,15 +6,13 @@
 
 // CCF
 #include "ccf/app_interface.h"
-#include "ccf/common_auth_policies.h"
 #include "ccf/ds/hash.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
 
 #include <charconv>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 using namespace std;
 using namespace nlohmann;
