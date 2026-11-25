@@ -533,6 +533,7 @@ namespace ccf
       {
         return;
       }
+      const auto idle_timeout = idle_connection_timeout.value();
 
       const auto now = std::chrono::steady_clock::now();
       if (now - udp->last_idle_sweep < udp_idle_sweep_interval)
@@ -544,7 +545,7 @@ namespace ccf
       for (auto it = udp->sessions_by_peer.begin();
            it != udp->sessions_by_peer.end();)
       {
-        if (now - it->second.last_active <= *idle_connection_timeout)
+        if (now - it->second.last_active <= idle_timeout)
         {
           ++it;
           continue;

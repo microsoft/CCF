@@ -2325,7 +2325,7 @@ namespace ccf
       auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
       {
-        auto s = ls.value();
+        const auto& s = ls.value();
         sig_seqno = s.seqno;
         index = s.seqno;
         view = s.view;
@@ -2336,7 +2336,7 @@ namespace ccf
         tx.ro(network.cose_signatures)->get(ccf::IdentityType::CLASSICAL);
       if (lcs.has_value())
       {
-        CoseSignature cs = lcs.value();
+        const CoseSignature& cs = lcs.value();
         LOG_INFO_FMT("COSE signature found after recovery");
 
         auto as_receipt =

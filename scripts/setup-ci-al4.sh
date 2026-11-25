@@ -99,6 +99,8 @@ install_test_dependencies() {
         # protocoltest
         bind-utils
         strace
+        # partitions test
+        iptables-nft
     )
     dnf -y install "${packages[@]}" &&
     gem install cddl
