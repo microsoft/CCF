@@ -4,8 +4,18 @@
 
 set -euo pipefail
 
+# With --check-ledger-compatibility, the test also recovers the ledger and
+# snapshots of each supported LTS release in turn, up to TO_INSTALL_TAR. It
+# downloads those releases, and runs each in a container built from the base
+# image of the distribution it was built for.
+CHECK_LEDGER_COMPATIBILITY=false
+if [[ "${1:-}" == "--check-ledger-compatibility" ]]; then
+  CHECK_LEDGER_COMPATIBILITY=true
+  shift
+fi
+
 if (( $# != 5 )); then
-  echo "Usage: $0 FROM_INSTALL_TAR FROM_BASE_IMAGE TO_INSTALL_TAR TO_BASE_IMAGE WORKSPACE" >&2
+  echo "Usage: $0 [--check-ledger-compatibility] FROM_INSTALL_TAR FROM_BASE_IMAGE TO_INSTALL_TAR TO_BASE_IMAGE WORKSPACE" >&2
   exit 1
 fi
 
@@ -22,7 +32,19 @@ for archive in "$FROM_INSTALL_TAR" "$TO_INSTALL_TAR"; do
   fi
 done
 
-for command in docker python3 tar; do
+REQUIRED_COMMANDS=(docker python3 tar)
+EXTRA_TEST_ARGS=()
+if [[ "$CHECK_LEDGER_COMPATIBILITY" == true ]]; then
+  # Release packages are unpacked on the host
+  REQUIRED_COMMANDS+=(rpm2cpio cpio)
+  EXTRA_TEST_ARGS+=(
+    --check-ledger-compatibility
+    --azure-linux-3-base-image "$FROM_BASE_IMAGE"
+    --azure-linux-4-base-image "$TO_BASE_IMAGE"
+  )
+fi
+
+for command in "${REQUIRED_COMMANDS[@]}"; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Required command not found: $command" >&2
     exit 1
@@ -79,4 +101,5 @@ python3 tests/lts_compatibility.py \
   --constitution "$REPO_ROOT/samples/constitutions/virtual/virtual_attestation_actions.js" \
   --workspace "$WORKSPACE" \
   --label cross_platform_lts \
-  --compatibility-report-file "$WORKSPACE/compatibility_report.json"
+  --compatibility-report-file "$WORKSPACE/compatibility_report.json" \
+  "${EXTRA_TEST_ARGS[@]}"

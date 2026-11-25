@@ -43,7 +43,7 @@ For changes affecting older releases, configure the intended build directory wit
 ./tests.sh -R '^lts_compatibility$' --no-tests=error
 ```
 
-`LONG_TESTS` enables additional ledger compatibility coverage. This test is not registered with `SAN=ON`; use a suitable separate build rather than silently skipping it. It also needs access to older releases; report unavailable downloads as blockers.
+`LONG_TESTS` enables additional ledger compatibility coverage. Releases before 8.0 are only built for Azure Linux 3, so on Azure Linux 4 the test skips them with a warning; `tests/docker/run_lts_compatibility.sh --check-ledger-compatibility` covers them by running each release in a container, as the Long Test workflow does. This test is not registered with `SAN=ON`; use a suitable separate build rather than silently skipping it. It also needs access to older releases; report unavailable downloads as blockers.
 
 ### Python SDK
 

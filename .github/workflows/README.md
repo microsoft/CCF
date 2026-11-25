@@ -69,6 +69,7 @@ Each Azure Linux 4 job sets `PATH` on its container, because the image does not 
 The `lts_compatibility` test only upgrades from releases built for the distribution it runs on, so on Azure Linux 4 it starts from the latest 8.x release.
 On development branches, where no final release of the version under development exists yet, that is its latest published pre-release.
 Upgrades from 7.x, which is only built for Azure Linux 3, are covered by [Cross-platform LTS](#cross-platform-lts).
+For the same reason, a `LONG_TESTS` build only recovers the ledger and snapshots of earlier releases where it can run all of them, and otherwise leaves that to the `long` runs of the same workflow.
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 
@@ -107,6 +108,11 @@ Separate runtime images install only the required shared-library packages and co
 Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking.
 Runs on PRs, merge queue runs, weekly and manually.
 
+With the `long` input, it also recovers the ledger and snapshots of each supported LTS release in turn, from the end-of-life service files up to the commit under test.
+The test downloads those releases, as it does when it runs nodes directly, and builds a runtime image for each from the base image of the distribution it was built for.
+[Long Tests](#long-tests) calls this workflow with `long` set, and it can also be set on a manual run.
+The concurrency group is named explicitly rather than after `github.workflow`, which is the name of the caller when the workflow is called and would make the run cancel its caller.
+
 Because the upgrade job runs directly on the runner rather than in a container, it first restores ownership of the workspace with `sudo chown`. VMSS runners are reused across jobs, and `--user root` container jobs, including the Azure Linux 3 build in the same run, can leave root-owned files in the shared workspace that would otherwise make `actions/checkout` fail with permission errors.
 
 Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
@@ -132,6 +138,7 @@ Secondary continuous integration job. Runs more expensive, longer tests, such as
 - Runs daily on week days.
 - Can be manually run on a PR by setting `run-long-test` label, or via workflow dispatch.
 - VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
+- The `Long LTS` job calls [Cross-platform LTS](#cross-platform-lts) with `long` set, so that each release runs on the distribution it was built for.
 
 File: `long-test.yml`
 3rd party dependencies: elan
