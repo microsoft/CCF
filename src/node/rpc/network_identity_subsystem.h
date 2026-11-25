@@ -350,12 +350,6 @@ namespace ccf
     // and the PQ one was written with it.
     void start_pq_chain(const CurrentServiceIdentity& current)
     {
-      // A build without ML-DSA never holds a PQ identity
-      if (!ccf::crypto::mldsa_supported())
-      {
-        return;
-      }
-
       const auto pq_key = network_identity->get_pq_key_pair();
       if (pq_key == nullptr)
       {
@@ -395,12 +389,6 @@ namespace ccf
       const std::optional<CoseEndorsement>& pq_endorsement,
       const CoseEndorsement& classical)
     {
-      // A build without ML-DSA reads no PQ endorsement
-      if (!ccf::crypto::mldsa_supported())
-      {
-        return;
-      }
-
       if (!pq_fetching)
       {
         if (pq_endorsement.has_value())
