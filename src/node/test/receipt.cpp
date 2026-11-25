@@ -10,6 +10,7 @@
 #include "crypto/openssl/hash.h"
 
 #include <doctest/doctest.h>
+#include <format>
 #include <iostream>
 #include <random>
 
@@ -74,7 +75,7 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
     auto service_kp = ccf::crypto::make_ec_key_pair();
     auto service_cert =
       service_kp->self_sign("CN=service", valid_from, valid_to);
-    const auto csr = node_kp->create_csr(fmt::format("CN=Test{}", i));
+    const auto csr = node_kp->create_csr(std::format("CN=Test{}", i));
     const auto endorsement =
       service_kp->sign_csr(service_cert, csr, valid_from, valid_to);
     receipt->service_endorsements.push_back(endorsement);
@@ -248,7 +249,7 @@ TEST_CASE("Invalid JSON" * doctest::test_suite("receipt"))
       invalid.erase(field);
       CHECK_THROWS_WITH_AS(
         invalid.get<ccf::ReceiptPtr>(),
-        doctest::Contains(fmt::format("Missing required field '{}'", field)),
+        doctest::Contains(std::format("Missing required field '{}'", field)),
         ccf::JsonParseError);
     }
 
@@ -270,7 +271,7 @@ TEST_CASE("Invalid JSON" * doctest::test_suite("receipt"))
       invalid.erase(field);
       CHECK_THROWS_WITH_AS(
         invalid.get<ccf::ProofReceipt::Components>(),
-        doctest::Contains(fmt::format("Missing required field '{}'", field)),
+        doctest::Contains(std::format("Missing required field '{}'", field)),
         ccf::JsonParseError);
     }
   }
@@ -355,7 +356,7 @@ TEST_CASE("JSON parse error locations" * doctest::test_suite("receipt"))
     {
       auto invalid = receipt;
       invalid["leaf_components"][field] = "not a digest";
-      check_pointer(invalid, fmt::format("#/leaf_components/{}", field));
+      check_pointer(invalid, std::format("#/leaf_components/{}", field));
     }
 
     auto invalid = receipt;
@@ -375,7 +376,7 @@ TEST_CASE("JSON parse error locations" * doctest::test_suite("receipt"))
   {
     auto invalid = valid;
     invalid[field] = nullptr;
-    check_pointer(invalid, fmt::format("#/{}", field));
+    check_pointer(invalid, std::format("#/{}", field));
   }
 
   auto invalid = valid;

@@ -477,8 +477,8 @@ TEST_CASE(
   CHECK(Bytes{0x80} < Bytes{0xff});
   CHECK(Bytes{1} < Bytes{1, 0});
   CHECK(Bytes{} < Bytes{0});
-  CHECK(fmt::format("{}", Bytes{'a', 'b'}) == "<uint8[2]: ascii=ab>");
-  CHECK(fmt::format("{}", Bytes{0, 128, 255}) == "<uint8[3]: hex=00 80 ff>");
+  CHECK(std::format("{}", Bytes{'a', 'b'}) == "<uint8[2]: ascii=ab>");
+  CHECK(std::format("{}", Bytes{0, 128, 255}) == "<uint8[3]: hex=00 80 ff>");
 
   static constexpr ccf::siphash::SipKey key{
     0x7720796f726c694b, 0x2165726568207361};

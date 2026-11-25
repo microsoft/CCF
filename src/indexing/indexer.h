@@ -11,6 +11,7 @@
 #include "node/commit_point_interface.h"
 #include "tasks/periodic_task_owner.h"
 
+#include <format>
 #include <memory>
 #include <optional>
 #include <string>
@@ -44,7 +45,7 @@ namespace ccf::indexing
     {
       if (tx_id_less(tx_id, committed))
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Committing out-of-order. Committed to {}, trying to commit {}",
           committed.to_str(),
           tx_id.to_str()));

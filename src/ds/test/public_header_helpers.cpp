@@ -2,15 +2,20 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/byte_vector.h"
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/san.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/locking.h"
 #include "ccf/http_status.h"
+#include "ccf/node_startup_state.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/tables/proposals.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
+
+#include <format>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <array>
@@ -19,6 +24,34 @@
 #include <limits>
 #include <span>
 #include <thread>
+
+TEST_CASE("Standard custom formatters preserve diagnostic output")
+{
+  const ccf::ByteVector empty;
+  const ccf::ByteVector printable{'a', 'b', 'c'};
+  const ccf::ByteVector binary{0, 127, 128, 255};
+  CHECK(std::format("{}", empty) == "<uint8[0]: ascii=>");
+  CHECK(std::format("{}", printable) == "<uint8[3]: ascii=abc>");
+  CHECK(std::format("{}", binary) == "<uint8[4]: hex=00 7f 80 ff>");
+
+  ccf::crypto::Sha256Hash hash;
+  hash.h[0] = 0xab;
+  hash.h.back() = 0xff;
+  CHECK(
+    std::format("{}", hash) ==
+    "<sha256 "
+    "ab000000000000000000000000000000000000000000000000000000000000ff>");
+  CHECK(std::format("{}", ccf::NodeStartupState::readingPrivateLedger) == "6");
+  CHECK(std::format("{}", ccf::NodeId{"abc"}) == "n[abc]");
+  CHECK(std::format("{}", ccf::MemberId{"abc"}) == "m[abc]");
+  CHECK(std::format("{}", ccf::UserId{"abc"}) == "u[abc]");
+
+  const std::vector<ccf::crypto::SubjectAltName> names{
+    {"127.0.0.1", true}, {"example.com", false}};
+  CHECK(
+    std::format("{}", ccf::ds::join(names, ", ")) ==
+    "IP:127.0.0.1, DNS:example.com");
+}
 
 TEST_CASE("API result strings")
 {
@@ -138,10 +171,10 @@ TEST_CASE("Proposal state formatting")
     std::pair{ccf::ProposalState::DROPPED, "dropped"}};
   for (const auto& [state, expected] : proposal_states)
   {
-    CHECK(fmt::format("{}", state) == expected);
+    CHECK(std::format("{}", state) == expected);
   }
   CHECK_THROWS_AS(
-    []() { return fmt::format("{}", static_cast<ccf::ProposalState>(255)); }(),
+    []() { return std::format("{}", static_cast<ccf::ProposalState>(255)); }(),
     std::logic_error);
 }
 
@@ -246,8 +279,8 @@ TEST_CASE("Subject alternative names")
   CHECK_THROWS_AS(
     ccf::crypto::san_from_string("email:test@example.com"), std::logic_error);
 
-  CHECK(fmt::format("{}", expected_ip) == "IP:127.0.0.1");
-  CHECK(fmt::format("{}", expected_dns) == "DNS:example.com");
+  CHECK(std::format("{}", expected_ip) == "IP:127.0.0.1");
+  CHECK(std::format("{}", expected_dns) == "DNS:example.com");
 
   nlohmann::json json = expected_dns;
   CHECK(json.get<ccf::crypto::SubjectAltName>() == expected_dns);

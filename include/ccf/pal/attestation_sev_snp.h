@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/enum_formatter.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
@@ -14,6 +14,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <format>
 #include <map>
 #include <memory>
 #include <optional>
@@ -22,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <tav/snp.h>
+#include <utility>
 #include <vector>
 
 namespace ccf::pal::snp
@@ -158,7 +160,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       if (!valid)
       {
         throw std::logic_error(
-          fmt::format("Invalid TCB version policy for Milan or Genoa"));
+          std::format("Invalid TCB version policy for Milan or Genoa"));
       }
       // NOLINTBEGIN(bugprone-unchecked-optional-access)
       return TcbVersionMilanGenoa{
@@ -181,7 +183,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       if (!valid)
       {
         throw std::logic_error(
-          fmt::format("Invalid TCB version policy for Turin"));
+          std::format("Invalid TCB version policy for Turin"));
       }
       // NOLINTBEGIN(bugprone-unchecked-optional-access)
       return TcbVersionTurin{
@@ -239,7 +241,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       if (data.size() != snp_tcb_version_size)
       {
         throw std::logic_error(
-          fmt::format("Invalid TCB version raw data size: {}", data.size()));
+          std::format("Invalid TCB version raw data size: {}", data.size()));
       }
       std::memcpy(underlying_data, data.data(), snp_tcb_version_size);
     }
@@ -265,7 +267,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       if (data.size() != snp_tcb_version_size)
       {
         throw std::logic_error(
-          fmt::format("Invalid TCB version data size: {}", data.size()));
+          std::format("Invalid TCB version data size: {}", data.size()));
       }
       // reverse to match endianness
       std::reverse(data.begin(), data.end());
@@ -307,8 +309,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         default:
         {
-          throw std::logic_error(fmt::format(
-            "Unsupported SEV-SNP product for TCB version policy: {}", product));
+          throw std::logic_error(std::format(
+            "Unsupported SEV-SNP product for TCB version policy: {}",
+            std::to_underlying(product)));
         }
       }
     }
@@ -339,7 +342,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     if (!j.is_string())
     {
       throw std::logic_error(
-        fmt::format("Invalid TCB version raw data: {}", j.dump()));
+        std::format("Invalid TCB version raw data: {}", j.dump()));
     }
     tcb_version_raw = TcbVersionRaw::from_hex(j.get<std::string>());
   }
@@ -480,8 +483,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       {
         return {chip_id, 8};
       }
-      throw std::logic_error(
-        fmt::format("Unsupported SEV-SNP product: {}", product));
+      throw std::logic_error(std::format(
+        "Unsupported SEV-SNP product: {}", std::to_underlying(product)));
     }
   };
 
@@ -523,8 +526,8 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     {
       return chip_id.first(8);
     }
-    throw std::logic_error(
-      fmt::format("Unsupported SEV-SNP product: {}", product));
+    throw std::logic_error(std::format(
+      "Unsupported SEV-SNP product: {}", std::to_underlying(product)));
   }
 
   [[nodiscard]] AttestationReport parse_attestation_report_unverified(
@@ -560,7 +563,7 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
       tav_snp_attestation_report_version(quote.get()) <
       minimum_attestation_version)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "SEV-SNP: attestation version {} is not supported. Minimum "
         "supported version is {}",
         tav_snp_attestation_report_version(quote.get()),
@@ -570,16 +573,16 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     EndorsementEndpointsConfiguration config;
 
     auto chip_id_hex =
-      fmt::format("{:02x}", fmt::join(get_chip_id_for_vcek(quote), ""));
+      std::format("{:02x}", ccf::ds::join(get_chip_id_for_vcek(quote), ""));
     const uint8_t* reported_tcb_data = nullptr;
     size_t reported_tcb_size = 0;
     tav_snp_attestation_report_reported_tcb(
       quote.get(), &reported_tcb_data, &reported_tcb_size);
     const auto reported_tcb_raw =
       std::span<const uint8_t>{reported_tcb_data, reported_tcb_size};
-    auto reported_tcb = fmt::format(
+    auto reported_tcb = std::format(
       "{:02x}",
-      fmt::join(reported_tcb_raw.rbegin(), reported_tcb_raw.rend(), ""));
+      ccf::ds::join(reported_tcb_raw.rbegin(), reported_tcb_raw.rend(), ""));
 
     constexpr size_t default_max_retries_count = 10;
     static const ds::SizeString default_max_client_response_size =
@@ -637,27 +640,28 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
               auto tcb = TcbVersionRaw(reported_tcb_raw)
                            .to_policy(product)
                            .to_milan_genoa();
-              boot_loader = fmt::format("{}", tcb.boot_loader);
-              tee = fmt::format("{}", tcb.tee);
-              snp = fmt::format("{}", tcb.snp);
-              microcode = fmt::format("{}", tcb.microcode);
+              boot_loader = std::format("{}", tcb.boot_loader);
+              tee = std::format("{}", tcb.tee);
+              snp = std::format("{}", tcb.snp);
+              microcode = std::format("{}", tcb.microcode);
               break;
             }
             case ProductName::Turin:
             {
               auto tcb =
                 TcbVersionRaw(reported_tcb_raw).to_policy(product).to_turin();
-              boot_loader = fmt::format("{}", tcb.boot_loader);
-              tee = fmt::format("{}", tcb.tee);
-              snp = fmt::format("{}", tcb.snp);
-              microcode = fmt::format("{}", tcb.microcode);
-              fmc = fmt::format("{}", tcb.fmc);
+              boot_loader = std::format("{}", tcb.boot_loader);
+              tee = std::format("{}", tcb.tee);
+              snp = std::format("{}", tcb.snp);
+              microcode = std::format("{}", tcb.microcode);
+              fmc = std::format("{}", tcb.fmc);
               break;
             }
             default:
             {
-              throw std::logic_error(
-                fmt::format("Unsupported SEV-SNP product: {}", product));
+              throw std::logic_error(std::format(
+                "Unsupported SEV-SNP product: {}",
+                std::to_underlying(product)));
             }
           }
 
@@ -690,8 +694,9 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
         }
         default:
         {
-          throw std::logic_error(fmt::format(
-            "Unsupported endorsements server type: {}", server.type));
+          throw std::logic_error(std::format(
+            "Unsupported endorsements server type: {}",
+            std::to_underlying(server.type)));
         }
       }
     }

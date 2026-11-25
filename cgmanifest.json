@@ -45,16 +45,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "208219daff58f2a7438f6931cc2ddc358acf33ef",
-          "tag": "12.2.1"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/bellard/quickjs",
           "commitHash": "e585640ffa2cf88ce7c2d587583c6fe15928ec2f"
         }

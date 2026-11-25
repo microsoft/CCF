@@ -36,6 +36,7 @@
 #include <charconv>
 #include <chrono>
 #include <cstring>
+#include <format>
 #include <functional>
 #include <map>
 #include <memory>
@@ -276,7 +277,7 @@ namespace ccf
       const auto [read_to, ec] = std::from_chars(port.data(), end, parsed);
       if (ec != std::errc() || read_to != end)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Invalid port '{}' for interface '{}' - expected a number in "
           "[0, 65535]",
           port,
@@ -446,7 +447,7 @@ namespace ccf
       {
         return cpss->create_session(li->app_protocol, conn_id, writer);
       }
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Unknown application protocol '{}' and custom protocol subsystem "
         "missing",
         li->app_protocol));
@@ -718,7 +719,7 @@ namespace ccf
       if (it == interfaces.end())
       {
         throw std::logic_error(
-          fmt::format("Cannot listen on unconfigured interface '{}'", name));
+          std::format("Cannot listen on unconfigured interface '{}'", name));
       }
       auto* li = it->second.get();
 
@@ -784,7 +785,7 @@ namespace ccf
       auto li_it = interfaces.find(name);
       if (li_it == interfaces.end())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot listen on unconfigured UDP interface '{}'", name));
       }
       auto* li = li_it->second.get();

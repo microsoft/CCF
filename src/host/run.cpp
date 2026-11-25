@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/ds/unit_strings.h"
@@ -44,6 +45,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <format>
 #include <iostream>
 #include <latch>
 #include <map>
@@ -55,9 +57,6 @@
 #include <unistd.h>
 #include <utility>
 #include <uv.h>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace fs = std::filesystem;
 
@@ -94,7 +93,7 @@ namespace ccf
       config.ledger.max_transaction_size.count_bytes();
     if (max_read_size == 0 || max_transaction_size > max_read_size)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "ledger.max_read_size ({}) must be nonzero and at least "
         "ledger.max_transaction_size ({}) so a single ledger entry fits in a "
         "ledger range read",
@@ -174,7 +173,7 @@ namespace ccf
       {
         if (recovery_threshold > 1)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Recovery threshold ({}) cannot be greater than 1 when all "
             "initial consortium members ({}) are of type recovery owner "
             "(specified via --member-info options)",
@@ -184,7 +183,7 @@ namespace ccf
       }
       else if (recovery_threshold > recovery_participants_count)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Recovery threshold ({}) cannot be greater than total number ({})"
           "of initial consortium members with a public encryption "
           "key (specified via --member-info options)",
@@ -399,7 +398,7 @@ namespace ccf
     if (const auto curl_rc = curl_global_init(CURL_GLOBAL_DEFAULT);
         curl_rc != CURLE_OK)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Failed to initialise libcurl: {}", curl_easy_strerror(curl_rc)));
     }
     std::optional<http_client::CurlmLibuvContextSingleton> curl_libuv_context(
@@ -427,7 +426,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        const auto message = fmt::format(
+        const auto message = std::format(
           "Invalid address for RPC interface {}: {}. Exiting.", name, e.what());
         LOG_FATAL_FMT("{}", message);
         ccf::logger::write_fatal_diagnostic(message);
@@ -447,7 +446,7 @@ namespace ccf
         files::exists(config.ledger.directory) &&
         !fs::is_empty(config.ledger.directory))
       {
-        const auto message = fmt::format(
+        const auto message = std::format(
           "On start, ledger directory should not exist or be empty ({})",
           config.ledger.directory);
         LOG_FATAL_FMT("{}", message);
@@ -462,7 +461,7 @@ namespace ccf
           files::exists(readonly_ledger_directory) &&
           !fs::is_empty(readonly_ledger_directory))
         {
-          const auto message = fmt::format(
+          const auto message = std::format(
             "On start, read-only ledger directories should not exist or be "
             "empty ({})",
             readonly_ledger_directory);
@@ -668,7 +667,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        config_parsing_error = fmt::format(
+        config_parsing_error = std::format(
           "Error parsing configuration file {}: {}",
           config_file_path,
           e.what());
@@ -686,7 +685,7 @@ namespace ccf
     auto schema_error_msg = json::validate_json(config_json, schema_json);
     if (schema_error_msg.has_value())
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Error validating JSON schema for configuration file {}: {}",
         config_file_path,
         schema_error_msg.value()));
@@ -727,7 +726,7 @@ namespace ccf
 
     LOG_INFO_FMT(
       "CLI args: \"{}\"",
-      fmt::join(
+      ccf::ds::join(
         argv,
         argv + argc, // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         "\" \""));
@@ -831,12 +830,12 @@ namespace ccf
       LOG_FATAL_FMT(
         "PID file {} already exists. Exiting.", pid_file_path.string());
       ccf::logger::write_fatal_diagnostic(
-        fmt::format("PID file {} already exists", pid_file_path.string()));
+        std::format("PID file {} already exists", pid_file_path.string()));
       return static_cast<int>(CLI::ExitCodes::FileError);
     }
 
     // Write PID to disk
-    files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
+    files::dump(std::format("{}", ::getpid()), config.output_files.pid_file);
 
     // set the host log level
     ccf::logger::config::level() = log_level;
@@ -879,7 +878,7 @@ namespace ccf
     {
       LOG_FAIL_FMT(
         "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
-      ccf::logger::write_fatal_diagnostic(fmt::format(
+      ccf::logger::write_fatal_diagnostic(std::format(
         "Failed to close the host event loop: {}", uv_err_name(loop_close_rc)));
       // walk loop to diagnose unclosed handles
       auto cb = [](uv_handle_t* handle, void* arg) {
@@ -887,7 +886,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Leaked handle: type={}, ptr={}",
           uv_handle_type_name(handle->type),
-          fmt::ptr(handle));
+          static_cast<const void*>(handle));
       };
       uv_walk(uv_default_loop(), cb, nullptr);
     }
@@ -906,7 +905,7 @@ namespace ccf
     {
       LOG_FAIL_FMT("Unhandled exception in ccf::run: {}", e.what());
       ccf::logger::write_fatal_diagnostic(
-        fmt::format("Unhandled exception in CCF node: {}", e.what()));
+        std::format("Unhandled exception in CCF node: {}", e.what()));
       return CreateNodeStatus::InternalError;
     }
     catch (...)

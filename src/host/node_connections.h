@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 
 namespace asynchost
@@ -180,7 +181,7 @@ namespace asynchost
             "node in: from node {}, size {}, type {}",
             node.value(),
             total_msg_size,
-            msg_type);
+            std::to_underlying(msg_type));
 
           parent.deliver_inbound(
             msg_type, from, std::vector<uint8_t>(data, data + payload_size));

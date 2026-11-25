@@ -4,6 +4,7 @@
 #include "ccf/endpoints/authentication/cert_auth.h"
 
 #include "ccf/crypto/did_key.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/rpc_context.h"
@@ -12,6 +13,8 @@
 #include "ccf/service/tables/users.h"
 #include "ds/internal_logger.h"
 #include "ds/lru.h"
+
+#include <format>
 
 namespace ccf
 {
@@ -46,7 +49,7 @@ namespace ccf
         LOG_TRACE_FMT("No did:key derivable for {} caller: {}", role, e.what());
       }
       error_reason =
-        fmt::format("Could not find matching {} certificate", role);
+        std::format("Could not find matching {} certificate", role);
       return std::nullopt;
     }
   }
@@ -114,7 +117,7 @@ namespace ccf
 
       if (time_now < valid_from_unix_time)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Current time {} is before certificate's Not Before validity period "
           "{}",
           time_now,
@@ -124,7 +127,7 @@ namespace ccf
 
       if (time_now > valid_to_unix_time)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Current time {} is after certificate's Not After validity period {}",
           time_now,
           valid_to_unix_time);
@@ -259,7 +262,7 @@ namespace ccf
       "Could not find matching node certificate for node {}; we have "
       "certificates for the following node ids: {}",
       node_caller_id,
-      fmt::join(known_nids, ", "));
+      ccf::ds::join(known_nids, ", "));
 
     error_reason = "Could not find matching node certificate";
     return nullptr;

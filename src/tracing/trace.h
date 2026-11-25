@@ -34,7 +34,7 @@ namespace ccf::tracing
 
   inline const std::string& process_identity()
   {
-    static const auto id = fmt::format(
+    static const auto id = std::format(
       "{}-{}",
       getpid(),
       std::chrono::system_clock::now().time_since_epoch().count());

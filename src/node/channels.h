@@ -17,9 +17,11 @@
 #include "node/node_transport.h"
 #include "node/node_types.h"
 
+#include <format>
 #include <iostream>
 #include <map>
 #include <openssl/crypto.h>
+#include <utility>
 
 // -Wpedantic flags token pasting of __VA_ARGS__
 #pragma clang diagnostic push
@@ -46,10 +48,8 @@ namespace ccf
   };
 }
 
-FMT_BEGIN_NAMESPACE
-
 template <>
-struct formatter<ccf::ChannelStatus>
+struct std::formatter<ccf::ChannelStatus>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -85,11 +85,9 @@ struct formatter<ccf::ChannelStatus>
       }
     }
 
-    return format_to(ctx.out(), "{}", s);
+    return std::format_to(ctx.out(), "{}", s);
   }
 };
-
-FMT_END_NAMESPACE
 
 namespace ccf
 {
@@ -231,7 +229,7 @@ namespace ccf
       {
         CHANNEL_RECV_TRACE(
           "Reached message limit ({}+{} >= {}), triggering new key exchange",
-          send_nonce,
+          send_nonce.load(),
           local_recv_nonce,
           lower_limit);
         reset_key_exchange();
@@ -241,7 +239,7 @@ namespace ccf
       {
         CHANNEL_RECV_TRACE(
           "Reached hard message limit ({}+{} >= {}), dropping previous keys",
-          send_nonce,
+          send_nonce.load(),
           local_recv_nonce,
           message_limit);
 
@@ -960,7 +958,7 @@ namespace ccf
       node_cert(node_cert_),
       transport(std::move(transport_)),
       peer_id(std::move(peer_id_)),
-      status(fmt::format("Channel to {}", peer_id), INACTIVE),
+      status(std::format("Channel to {}", peer_id), INACTIVE),
       message_limit(message_limit_)
     {
       auto e = ccf::crypto::get_entropy();
@@ -1130,10 +1128,10 @@ namespace ccf
 
           default:
           {
-            throw std::runtime_error(fmt::format(
+            throw std::runtime_error(std::format(
               "Received message with initial bytes {} from {} - not recognised "
               "as a key exchange message",
-              chmsg,
+              std::to_underlying(chmsg),
               peer_id));
           }
         }

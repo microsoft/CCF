@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
 #include "ccf/endpoint_registry.h"
 #include "ccf/http_status.h"
@@ -23,11 +24,9 @@
 #include "node/rpc/rpc_handler.h"
 #include "tasks/periodic_task_owner.h"
 
-#define FMT_HEADER_ONLY
-
 #include <atomic>
 #include <cstdint>
-#include <fmt/format.h>
+#include <format>
 #include <utility>
 #include <vector>
 
@@ -66,7 +65,7 @@ namespace ccf
           ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
-            fmt::format("Unknown path: {}.", ctx->get_method()));
+            std::format("Unknown path: {}.", ctx->get_method()));
         }
         else
         {
@@ -77,7 +76,7 @@ namespace ccf
             allowed_verb_strs.push_back(verb.c_str());
           }
           const std::string allow_header_value =
-            fmt::format("{}", fmt::join(allowed_verb_strs, ", "));
+            std::format("{}", ccf::ds::join(allowed_verb_strs, ", "));
           // List allowed methods in 2 places:
           // - ALLOW header for standards compliance + machine parsing
           // - Body for visiblity + human readability (unless this was an
@@ -92,7 +91,7 @@ namespace ccf
             ctx->set_error(
               HTTP_STATUS_METHOD_NOT_ALLOWED,
               ccf::errors::UnsupportedHttpVerb,
-              fmt::format(
+              std::format(
                 "Allowed methods for '{}' are: {}.",
                 ctx->get_method(),
                 allow_header_value));
@@ -132,7 +131,7 @@ namespace ccf
           auto interface_it = interfaces.find(*interface_id);
           if (interface_it == interfaces.end())
           {
-            throw std::runtime_error(fmt::format(
+            throw std::runtime_error(std::format(
               "Could not find RPC interface named '{}' in startup config",
               *interface_id));
           }
@@ -148,13 +147,13 @@ namespace ccf
                 "enabled on interface {} where this request was received - "
                 "returning error",
                 endpoint->full_uri_path,
-                required_feature,
+                std::to_underlying(required_feature),
                 *interface_id);
               // Respond as find_endpoint() does for an unknown path
               ctx->set_error(
                 HTTP_STATUS_NOT_FOUND,
                 ccf::errors::ResourceNotFound,
-                fmt::format("Unknown path: {}.", ctx->get_method()));
+                std::format("Unknown path: {}.", ctx->get_method()));
               return false;
             }
           }
@@ -337,7 +336,7 @@ namespace ccf
             {
               ctx->set_response_header(
                 http::headers::LOCATION,
-                fmt::format(
+                std::format(
                   "https://{}{}", location.value(), ctx->get_request_url()));
               ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
               return true;
@@ -372,7 +371,7 @@ namespace ccf
             {
               ctx->set_response_header(
                 http::headers::LOCATION,
-                fmt::format(
+                std::format(
                   "https://{}{}", location.value(), ctx->get_request_url()));
               ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
               return true;
@@ -391,7 +390,8 @@ namespace ccf
 
         default:
         {
-          LOG_FAIL_FMT("Unhandled redirection strategy: {}", rs);
+          LOG_FAIL_FMT(
+            "Unhandled redirection strategy: {}", std::to_underlying(rs));
           return false;
         }
       }
@@ -441,7 +441,7 @@ namespace ccf
         // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
         else if (current_view != *session_ctx->active_view)
         {
-          auto msg = fmt::format(
+          auto msg = std::format(
             "Potential loss of session consistency on session {}. Started "
             "in view {}, now in view {}. Closing session.",
             session_ctx->client_session_id,
@@ -850,7 +850,7 @@ namespace ccf
               ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                fmt::format(
+                std::format(
                   "Failed to execute local commit handler func: {}", e.what()));
             }
             catch (...)
@@ -1105,7 +1105,7 @@ namespace ccf
       ctx->set_error(
         HTTP_STATUS_SERVICE_UNAVAILABLE,
         ccf::errors::TransactionCommitAttemptsExceedLimit,
-        fmt::format(
+        std::format(
           "Transaction continued to conflict after {} attempts. Retry "
           "later.",
           max_attempts));

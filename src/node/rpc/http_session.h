@@ -12,6 +12,8 @@
 #include "node/rpc/rpc_map.h"
 #include "node/rpc/session.h"
 
+#include <format>
+
 namespace http
 {
   class HTTPServerSession : public ccf::PlaintextSession,
@@ -116,7 +118,7 @@ namespace http
 
         // NB: Avoid formatting input data a string, as it may contain null
         // bytes. Instead insert it at the end of this message, verbatim
-        auto body_s = fmt::format(
+        auto body_s = std::format(
           "Unable to parse data as a HTTP request. Error message is: {}\n"
           "Error occurred while parsing fragment:\n",
           e.what());
@@ -167,7 +169,7 @@ namespace http
           send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("Error constructing RpcContext: {}", e.what())});
+            std::format("Error constructing RpcContext: {}", e.what())});
           close_session();
           return;
         }
@@ -259,7 +261,7 @@ namespace http
         send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())});
+          std::format("Exception: {}", e.what())});
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
