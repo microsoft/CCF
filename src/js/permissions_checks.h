@@ -9,6 +9,8 @@
 #include "kv/internal_table_names.h"
 #include "kv/kv_types.h"
 
+#include <format>
+
 namespace ccf::js
 {
   static KVAccessPermissions check_kv_map_access(
@@ -102,7 +104,7 @@ namespace ccf::js
 
       case (ccf::kv::SecurityDomain::SECURITY_DOMAIN_MAX):
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unexpected security domain (max) for table {}", table_name));
       }
     }
@@ -136,7 +138,7 @@ namespace ccf::js
       }
       default:
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unexpected KV access permission: {}",
           std::to_underlying(permission)));
       }
@@ -176,7 +178,7 @@ namespace ccf::js
       "https://microsoft.github.io/CCF/main/audit/"
       "read_write_restrictions.html";
 
-    return fmt::format(
+    return std::format(
       "This table is {} in current ({}) execution context. See {} for more "
       "detail.",
       table_kind,

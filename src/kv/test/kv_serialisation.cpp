@@ -10,6 +10,7 @@
 #include "node/encryptor.h"
 
 #include <doctest/doctest.h>
+#include <format>
 #undef FAIL
 #include <algorithm>
 #include <array>
@@ -1183,7 +1184,7 @@ struct CustomVerboseDumbSerialiser
 
   static Bytes to_serialised(const CustomClass& c)
   {
-    const auto verbose = fmt::format("{}\ns={}\nn={}", T::prefix, c.s, c.n);
+    const auto verbose = std::format("{}\ns={}\nn={}", T::prefix, c.s, c.n);
     return Bytes(verbose.begin(), verbose.end());
   }
 

@@ -424,7 +424,7 @@ TEST_CASE("Startup inputs are read from files")
     CHECK(
       logic_error_message([&]() { resolve_genesis_info(empty_member_data); })
         .starts_with(
-          fmt::format("Could not parse member data from {}:", empty_file)));
+          std::format("Could not parse member data from {}:", empty_file)));
   }
 
   {
@@ -432,7 +432,7 @@ TEST_CASE("Startup inputs are read from files")
     const auto malformed_file = write_test_file(dir, "malformed.json", "{");
     CHECK(logic_error_message(
             [&]() { read_startup_json(malformed_file, "node data", true); })
-            .starts_with(fmt::format(
+            .starts_with(std::format(
               "Could not parse node data from {}:", malformed_file)));
   }
 
@@ -442,17 +442,17 @@ TEST_CASE("Startup inputs are read from files")
     CHECK(
       logic_error_message(
         [&]() { read_startup_file(missing_file, "service certificate"); }) ==
-      fmt::format("Could not read service certificate from {}", missing_file));
+      std::format("Could not read service certificate from {}", missing_file));
     CHECK(
       logic_error_message(
         [&]() { read_startup_file(dir.path.string(), "constitution"); }) ==
-      fmt::format("Could not read constitution from {}", dir.path.string()));
+      std::format("Could not read constitution from {}", dir.path.string()));
     auto missing_constitution = start;
     missing_constitution.constitution_files.push_back(missing_file);
     CHECK(
       logic_error_message([&]() {
         resolve_genesis_info(missing_constitution);
-      }) == fmt::format("Could not read constitution from {}", missing_file));
+      }) == std::format("Could not read constitution from {}", missing_file));
   }
 }
 
@@ -535,7 +535,7 @@ TEST_CASE("Startup inputs are resolved by start type")
     CHECK(
       logic_error_message(
         [&]() { resolve_startup_inputs(no_service_cert, StartType::Join); }) ==
-      fmt::format("Could not read service certificate from {}", missing_file));
+      std::format("Could not read service certificate from {}", missing_file));
 
     auto no_service_data = config;
     no_service_data.service_data_json_file = missing_file;
@@ -544,7 +544,7 @@ TEST_CASE("Startup inputs are resolved by start type")
       CHECK(
         logic_error_message([&]() {
           resolve_startup_inputs(no_service_data, type);
-        }) == fmt::format("Could not read service data from {}", missing_file));
+        }) == std::format("Could not read service data from {}", missing_file));
     }
 
     auto no_node_data = config;
@@ -555,7 +555,7 @@ TEST_CASE("Startup inputs are resolved by start type")
       CHECK(
         logic_error_message([&]() {
           resolve_startup_inputs(no_node_data, type);
-        }) == fmt::format("Could not read node data from {}", missing_file));
+        }) == std::format("Could not read node data from {}", missing_file));
     }
   }
 }
@@ -1282,7 +1282,7 @@ TEST_CASE("File range parsing preserves half-open bounds")
     {"bytes=99-99", 100, 99, 100},
     {"bytes=0-100", 100, 0, 100},
     {"bytes=10-100", 100, 10, 100},
-    {fmt::format("bytes=0-{}", max), 100, 0, 100},
+    {std::format("bytes=0-{}", max), 100, 0, 100},
     {"bytes=0-", 100, 0, 100},
     {"bytes=10-", 100, 10, 100},
     {"bytes=99-", 100, 99, 100},
@@ -1290,7 +1290,7 @@ TEST_CASE("File range parsing preserves half-open bounds")
     {"bytes=-20", 100, 80, 100},
     {"bytes=-100", 100, 0, 100},
     {"bytes=-101", 100, 0, 100},
-    {fmt::format("bytes=-{}", max), 100, 0, 100},
+    {std::format("bytes=-{}", max), 100, 0, 100},
     {"bytes=010-019", 100, 10, 20},
     {"bytes=10x-19y", 100, 10, 20},
     {"bytes=10 -19 ", 100, 10, 20},
@@ -1304,12 +1304,12 @@ TEST_CASE("File range parsing preserves half-open bounds")
     {"bytes=100-100", 100, 100, 100},
     {"bytes=0-0", 1, 0, 1},
     {"bytes=-1", 1, 0, 1},
-    {fmt::format("bytes=0-{}", max), max, 0, max},
-    {fmt::format("bytes={}-{}", max - 1, max), max, max - 1, max},
-    {fmt::format("bytes={}-", max - 1), max, max - 1, max},
-    {fmt::format("bytes=-{}", max), max, 0, max},
-    {fmt::format("bytes={}-", max), max, max, max},
-    {fmt::format("bytes={}-{}", max, max), max, max, max}};
+    {std::format("bytes=0-{}", max), max, 0, max},
+    {std::format("bytes={}-{}", max - 1, max), max, max - 1, max},
+    {std::format("bytes={}-", max - 1), max, max - 1, max},
+    {std::format("bytes=-{}", max), max, 0, max},
+    {std::format("bytes={}-", max), max, max, max},
+    {std::format("bytes={}-{}", max, max), max, max, max}};
 
   for (const auto& test : cases)
   {
@@ -1364,18 +1364,18 @@ TEST_CASE("File range parsing preserves exact errors")
     {"bytes=101-foo", "Start of range 101 is larger than total file size 100"},
     {"bytes=50-48", "Invalid range: Start (50) and end (49) out of order"},
     {"bytes=99-0", "Invalid range: Start (99) and end (1) out of order"},
-    {fmt::format("bytes={}-", overflow),
-     fmt::format(
+    {std::format("bytes={}-", overflow),
+     std::format(
        "Unable to parse start of range value {} in bytes={}-",
        overflow,
        overflow)},
-    {fmt::format("bytes=0-{}", overflow),
-     fmt::format(
+    {std::format("bytes=0-{}", overflow),
+     std::format(
        "Unable to parse end of range value {} in bytes=0-{}",
        overflow,
        overflow)},
-    {fmt::format("bytes=-{}", overflow),
-     fmt::format(
+    {std::format("bytes=-{}", overflow),
+     std::format(
        "Unable to parse end of range offset value {} in bytes=-{}",
        overflow,
        overflow)}};
@@ -1415,7 +1415,7 @@ TEST_CASE("File range responses preserve GET and HEAD metadata")
     {"bytes=10-", 10, 100},
     {"bytes=-20", 80, 100},
     {"bytes=-101", 0, 100},
-    {fmt::format("bytes=0-{}", std::numeric_limits<size_t>::max()), 0, 100},
+    {std::format("bytes=0-{}", std::numeric_limits<size_t>::max()), 0, 100},
     {"bytes=10junk-19junk", 10, 20}};
 
   for (const auto& test : cases)
@@ -1454,7 +1454,7 @@ TEST_CASE("File range responses preserve GET and HEAD metadata")
         {
           CHECK(
             headers.at(ccf::http::headers::CONTENT_RANGE) ==
-            fmt::format("bytes {}-{}/100", test.start, test.end - 1));
+            std::format("bytes {}-{}/100", test.start, test.end - 1));
         }
         else
         {
@@ -1464,7 +1464,7 @@ TEST_CASE("File range responses preserve GET and HEAD metadata")
           bytes.begin() + test.start, bytes.begin() + test.end);
         CHECK(
           headers.at(ccf::http::headers::ETAG) ==
-          fmt::format(
+          std::format(
             "\"{}\"",
             ccf::node::format_repr_digest(
               "sha-256",
@@ -1609,11 +1609,11 @@ TEST_CASE(
     const std::vector<std::string> matches = {
       "*",
       etag,
-      fmt::format(
+      std::format(
         "\"{}\"",
         ccf::node::format_repr_digest(
           "sha-384", ccf::crypto::MDType::SHA384, body.data(), body.size())),
-      fmt::format(
+      std::format(
         "\"{}\"",
         ccf::node::format_repr_digest(
           "sha-512", ccf::crypto::MDType::SHA512, body.data(), body.size()))};
@@ -1665,7 +1665,7 @@ TEST_CASE(
           etag);
 
         for (const auto& invalid_match :
-             std::vector<std::string>{"not etags", fmt::format("W/{}", etag)})
+             std::vector<std::string>{"not etags", std::format("W/{}", etag)})
         {
           headers[ccf::http::headers::IF_NONE_MATCH] = invalid_match;
           const auto invalid_response =

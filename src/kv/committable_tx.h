@@ -549,7 +549,7 @@ namespace ccf::kv
       {
         if (!is_signature_table(map_name))
         {
-          const auto message = fmt::format(
+          const auto message = std::format(
             "Reserved transaction cannot write to map '{}'", map_name);
           LOG_FAIL_FMT("{}", message);
           throw MapAccessDenied(message);
@@ -559,7 +559,7 @@ namespace ccf::kv
           changes.changeset->read_version.has_value() ||
           !changes.changeset->reads.empty())
         {
-          const auto message = fmt::format(
+          const auto message = std::format(
             "Reserved transaction cannot depend on reads from map '{}'",
             map_name);
           LOG_FAIL_FMT("{}", message);

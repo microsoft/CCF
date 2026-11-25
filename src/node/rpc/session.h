@@ -8,6 +8,7 @@
 #include "tasks/task_system.h"
 #include "tcp/msg_types.h"
 
+#include <format>
 #include <span>
 #include <string>
 
@@ -96,7 +97,7 @@ namespace ccf
     {
       task_scheduler = ccf::tasks::OrderedTasks::create(
         ccf::tasks::get_main_job_board(),
-        fmt::format("Session {}", session_id));
+        std::format("Session {}", session_id));
     }
 
     ~ThreadedSession() override

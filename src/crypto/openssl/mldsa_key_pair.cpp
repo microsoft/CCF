@@ -36,7 +36,7 @@ namespace ccf::crypto
     auto* decoded = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
     if (decoded == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Malformed ML-DSA private key PEM: {}", OpenSSL::first_error()));
     }
     key.reset(decoded);
@@ -55,7 +55,7 @@ namespace ccf::crypto
       d2i_PKCS8_PRIV_KEY_INFO(nullptr, &cursor, static_cast<long>(der.size()));
     if (decoded == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Malformed ML-DSA private key DER: {}", OpenSSL::first_error()));
     }
     const OpenSSL::Unique_PKCS8_PRIV_KEY_INFO info(decoded);
@@ -66,7 +66,7 @@ namespace ccf::crypto
     auto* converted = EVP_PKCS82PKEY(info);
     if (converted == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "ML-DSA provider rejected the key material: {}",
         OpenSSL::first_error()));
     }

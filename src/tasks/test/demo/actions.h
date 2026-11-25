@@ -9,10 +9,9 @@
 
 #include <atomic>
 #include <charconv>
+#include <format>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 #include <memory>
 #include <random>
 #include <string>
@@ -54,7 +53,7 @@ struct OrderedAction : public IAction
 
   SerialisedAction serialise() const override
   {
-    return fmt::format("{}|", id);
+    return std::format("{}|", id);
   }
 
   void verify_serialised_response(SerialisedResponse& response) const override
@@ -68,7 +67,7 @@ struct OrderedAction : public IAction
 
   SerialisedResponse do_action() const override
   {
-    return fmt::format("{}|", id);
+    return std::format("{}|", id);
   }
 };
 
@@ -99,7 +98,7 @@ struct SignAction : public OrderedAction
 
   SerialisedAction serialise() const override
   {
-    return fmt::format(
+    return std::format(
       "{}SIGN|{}", OrderedAction::serialise(), ccf::ds::to_hex(tbs));
   }
 
@@ -134,14 +133,14 @@ struct SignAction : public OrderedAction
     // Randomly fail some small fraction of requests
     if (rand() % 50 == 0)
     {
-      return fmt::format(
+      return std::format(
         "{}FAILED|Randomly unlucky", OrderedAction::do_action());
     }
     else
     {
       auto key_pair = ccf::crypto::make_ec_key_pair();
       auto signature = key_pair->sign(tbs);
-      return fmt::format(
+      return std::format(
         "{}{}|{}",
         OrderedAction::do_action(),
         key_pair->public_key_pem().str(),
@@ -167,5 +166,5 @@ ActionPtr deserialise_action(const SerialisedAction& ser)
     }
   }
 
-  throw std::logic_error(fmt::format("Unknown action: {}", ser));
+  throw std::logic_error(std::format("Unknown action: {}", ser));
 }

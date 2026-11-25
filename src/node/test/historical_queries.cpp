@@ -8,6 +8,7 @@
 #include "node/historical_queries.h"
 
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
 #include "ccf/receipt.h"
 #include "consensus/test/ledger_stub.h"
@@ -22,7 +23,9 @@
 #include "node/signature_cache_subsystem.h"
 
 #include <algorithm>
+#include <format>
 #include <fstream>
+#include <iostream>
 #include <random>
 #include <tav/cbor.hpp>
 #include <unistd.h>
@@ -2222,13 +2225,13 @@ TEST_CASE("StateCache point queries")
     cache.drop_cached_states(low_handle);
     cache.drop_cached_states(high_handle);
 
-    INFO(fmt::format(
+    INFO(std::format(
       "Signature transactions can be requested between {} and {}",
       low_signature_transaction,
       high_signature_transaction));
     for (const auto i : {low_signature_transaction, high_signature_transaction})
     {
-      INFO(fmt::format("Requesting signature at {}", i));
+      INFO(std::format("Requesting signature at {}", i));
       auto state_at_seqno = cache.get_state_at(default_handle, i);
 
       REQUIRE(state_at_seqno == nullptr);
@@ -2237,7 +2240,7 @@ TEST_CASE("StateCache point queries")
 
       state_at_seqno = cache.get_state_at(default_handle, i);
       REQUIRE(state_at_seqno != nullptr);
-      INFO(fmt::format("Receipt for transaction at {}", i));
+      INFO(std::format("Receipt for transaction at {}", i));
       REQUIRE(state_at_seqno->receipt.get() != nullptr);
     }
 
@@ -3242,13 +3245,13 @@ namespace
     size_t i,
     const std::vector<std::string>& previously_requested)
   {
-    std::cout << fmt::format(
+    std::cout << std::format(
                    "Thread <{}>, i [{}]: {} - still no answer!",
                    handle,
                    i,
                    previously_requested.back())
               << std::endl;
-    std::cout << fmt::format(
+    std::cout << std::format(
                    "I've previously used handle {} to request:", handle)
               << std::endl;
     for (const auto& s : previously_requested)
@@ -3399,7 +3402,7 @@ namespace
             // Fetch a single point
             const auto target_seqno = random_seqno();
             previously_requested.push_back(
-              fmt::format("Point {} [{}]", target_seqno, ss));
+              std::format("Point {} [{}]", target_seqno, ss));
             if (store_or_state)
             {
               query_random_point_store(target_seqno, handle, error_printer);
@@ -3420,7 +3423,7 @@ namespace
               std::swap(range_start, range_end);
             }
             previously_requested.push_back(
-              fmt::format("Range {}->{} [{}]", range_start, range_end, ss));
+              std::format("Range {}->{} [{}]", range_start, range_end, ss));
             if (store_or_state)
             {
               query_random_range_stores(
@@ -3457,11 +3460,11 @@ namespace
             for (const auto& [from, additional] : seqnos.get_ranges())
             {
               range_descriptions.push_back(
-                fmt::format("{}->{}", from, from + additional));
+                std::format("{}->{}", from, from + additional));
             }
 
-            previously_requested.push_back(fmt::format(
-              "Ranges {} [{}]", fmt::join(range_descriptions, ", "), ss));
+            previously_requested.push_back(std::format(
+              "Ranges {} [{}]", ccf::ds::join(range_descriptions, ", "), ss));
 
             if (store_or_state)
             {
@@ -3636,17 +3639,17 @@ TEST_CASE("StateCache concurrent access")
       }
     };
     {
-      messages.push_back(fmt::format(
+      messages.push_back(std::format(
         "Handle {} requested stores (no sigs) from 3 to 8", handle_a));
       queries.query_random_range_stores(3, 8, handle_a, error_printer);
     }
     {
-      messages.push_back(fmt::format(
+      messages.push_back(std::format(
         "Handle {} requested states (with sigs) from 5 to 8", handle_b));
       queries.query_random_range_states(5, 8, handle_b, error_printer);
     }
     {
-      messages.push_back(fmt::format(
+      messages.push_back(std::format(
         "Handle {} requested states (with sigs) from 3 to 8", handle_b));
       queries.query_random_range_states(3, 8, handle_b, error_printer);
     }
@@ -4237,7 +4240,7 @@ TEST_CASE("StateCache tick scaling benchmark" * doctest::skip())
     constexpr size_t pending = 8;
     constexpr size_t ticks_per_sample = 200;
     constexpr size_t sample_count = 7;
-    fmt::print(
+    std::cout << std::format(
       "retained_requests,retained_stores,pending_fetches,tick_ns,"
       "tick_and_mutations_ns,pending_visited,released_checked\n");
     for (size_t retained : {0, 7300, 14600, 29200})
@@ -4297,7 +4300,7 @@ TEST_CASE("StateCache tick scaling benchmark" * doctest::skip())
       REQUIRE(cache.store_slot_count() == 3 * retained + pending + 6);
 
       const auto work = cache.tick_work();
-      fmt::print(
+      std::cout << std::format(
         "{},{},{},{:.0f},{:.0f},{},{}\n",
         retained,
         3 * retained,
@@ -4314,7 +4317,8 @@ TEST_CASE("StateCache tick scaling benchmark" * doctest::skip())
     constexpr size_t retained = 7300;
     constexpr size_t ticks_per_sample = 200;
     constexpr size_t sample_count = 7;
-    fmt::print("retained_requests,pending_fetches,tick_ns,pending_visited\n");
+    std::cout << std::format(
+      "retained_requests,pending_fetches,tick_ns,pending_visited\n");
     for (size_t pending : {1, 10, 100, 1000})
     {
       auto reader = std::make_shared<consensus::test::StubLedgerReader>();
@@ -4339,7 +4343,7 @@ TEST_CASE("StateCache tick scaling benchmark" * doctest::skip())
         reader->writes.clear();
         REQUIRE(cache.tick_work().pending_fetches_visited == pending);
       }
-      fmt::print(
+      std::cout << std::format(
         "{},{},{:.0f},{}\n",
         retained,
         pending,
@@ -4351,7 +4355,8 @@ TEST_CASE("StateCache tick scaling benchmark" * doctest::skip())
   SUBCASE("Expiring many requests at once")
   {
     constexpr size_t retained = 7300;
-    fmt::print("retained_requests,due_requests,tick_ns,expired,released\n");
+    std::cout << std::format(
+      "retained_requests,due_requests,tick_ns,expired,released\n");
     for (size_t due : {1, 100, 1000})
     {
       auto reader = std::make_shared<consensus::test::StubLedgerReader>();
@@ -4375,7 +4380,7 @@ TEST_CASE("StateCache tick scaling benchmark" * doctest::skip())
       REQUIRE(cache.request_count() == retained);
       REQUIRE(cache.store_slot_count() == 3 * retained);
       cache.check_no_expired_slots();
-      fmt::print(
+      std::cout << std::format(
         "{},{},{:.0f},{},{}\n",
         retained,
         due,
@@ -4466,7 +4471,7 @@ TEST_CASE("StateCache reply routing scaling benchmark" * doctest::skip())
   SUBCASE("Fixed receipt consumers against growing retention")
   {
     constexpr size_t consumers = 4;
-    fmt::print(
+    std::cout << std::format(
       "retained,consumers,reply_ns,signature_reply_ns,new_get_ns,"
       "renew_get_ns,range_mutation_ns,index_buckets,index_handles,"
       "index_value_bytes,rss_kb,cache_rss_delta_kb,visited\n");
@@ -4509,7 +4514,7 @@ TEST_CASE("StateCache reply routing scaling benchmark" * doctest::skip())
       REQUIRE(cache.drop_cached_states(mutation_handle));
       cache.tick(0ms);
       cache.check_invariants();
-      fmt::print(
+      std::cout << std::format(
         "{},{},{:.0f},{:.0f},{:.0f},{:.0f},{:.0f},{},{},{},{},{},{}\n",
         retained,
         consumers,
@@ -4530,7 +4535,7 @@ TEST_CASE("StateCache reply routing scaling benchmark" * doctest::skip())
   SUBCASE("Growing real receipt fan-out")
   {
     constexpr size_t retained = 7300;
-    fmt::print(
+    std::cout << std::format(
       "retained,consumers,reply_ns,signature_reply_ns,new_get_ns,visited\n");
     for (size_t consumers : {1, 10, 100, 1000})
     {
@@ -4539,7 +4544,7 @@ TEST_CASE("StateCache reply routing scaling benchmark" * doctest::skip())
       add_retained(cache, retained);
       const auto [reply_ns, signature_ns, get_ns] =
         measure_replies(cache, retained, consumers);
-      fmt::print(
+      std::cout << std::format(
         "{},{},{:.0f},{:.0f},{:.0f},{}\n",
         retained,
         consumers,
@@ -4564,7 +4569,8 @@ TEST_CASE("StateCache reply routing scaling benchmark" * doctest::skip())
     ccf::LedgerSecretsMap secrets;
     secrets.emplace(state.ledger_secrets->get_latest(tx));
     recovered.ledger_secrets->restore_historical(std::move(secrets));
-    fmt::print("retained,secret_consumers,secret_reply_ns,visited\n");
+    std::cout << std::format(
+      "retained,secret_consumers,secret_reply_ns,visited\n");
     auto measure_secret = [&](size_t retained, size_t consumers) {
       auto reader = std::make_shared<consensus::test::StubLedgerReader>();
       BenchmarkCache cache(
@@ -4584,7 +4590,7 @@ TEST_CASE("StateCache reply routing scaling benchmark" * doctest::skip())
       REQUIRE(cache.secret_waiter_count(second_rekey) == 0);
       REQUIRE(cache.secret_waiter_count(first_rekey) == consumers);
       cache.check_invariants();
-      fmt::print(
+      std::cout << std::format(
         "{},{},{:.0f},{}\n",
         retained,
         consumers,

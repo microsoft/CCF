@@ -5,6 +5,7 @@
 
 #include "js/global_class_ids.h"
 
+#include <format>
 #include <vector>
 
 namespace ccf::js::core
@@ -37,7 +38,7 @@ namespace ccf::js::core
       auto ret = JS_NewClass(rt, class_id, class_def);
       if (ret != 0)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Failed to register JS class definition {}", class_def->class_name));
       }
     }

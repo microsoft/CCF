@@ -96,7 +96,7 @@ namespace aft
       // truncation (serialized::InsufficientSpaceException).
       if (size < sizeof(size_t))
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot read ledger entry size: buffer contains {} bytes, but {} "
           "are required",
           size,
@@ -107,7 +107,7 @@ namespace aft
       const auto available_size = size - sizeof(size_t);
       if (entry_size > available_size)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot read ledger entry of size {} bytes from buffer containing "
           "{} bytes after the size prefix",
           entry_size,

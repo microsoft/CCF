@@ -10,6 +10,8 @@
 #include "node/internal_tables_access.h"
 #include "node/share_manager.h"
 
+#include <format>
+
 namespace ccf::gov::endpoints
 {
   namespace api
@@ -64,7 +66,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
-              fmt::format("No ACK record exists for member {}.", member_id));
+              std::format("No ACK record exists for member {}.", member_id));
             return;
           }
 
@@ -112,7 +114,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidAuthenticationInfo,
-              fmt::format(
+              std::format(
                 "Member ID from path parameter ({}) does not match "
                 "member ID from body signature ({}).",
                 member_id,
@@ -198,7 +200,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidAuthenticationInfo,
-              fmt::format(
+              std::format(
                 "Member ID from path parameter ({}) does not match "
                 "member ID from body signature ({}).",
                 member_id,
@@ -216,7 +218,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
-              fmt::format("No ACK record exists for member {}.", member_id));
+              std::format("No ACK record exists for member {}.", member_id));
             return;
           }
 
@@ -244,7 +246,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::StateDigestMismatch,
-              fmt::format(
+              std::format(
                 "Submitted state digest is not valid.\n"
                 "Expected\n"
                 " {}\n"
@@ -301,7 +303,7 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                fmt::format("Error activating member: {}", e.what()));
+                std::format("Error activating member: {}", e.what()));
               return;
             }
 
@@ -336,7 +338,7 @@ namespace ccf::gov::endpoints
                     ctx.rpc_ctx,
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
-                    fmt::format(
+                    std::format(
                       "Error issuing new recovery shares: {}", e.what()));
                   return;
                 }

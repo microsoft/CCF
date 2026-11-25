@@ -5,6 +5,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/pal/measurement.h"
 
+#include <format>
 #include <string>
 #include <vector>
 
@@ -20,7 +21,7 @@ namespace ccf::pal
 
     std::string to_str()
     {
-      return fmt::format("did: {}, feed: {}, svn: {}", did, feed, svn);
+      return std::format("did: {}, feed: {}, svn: {}", did, feed, svn);
     }
   };
 
