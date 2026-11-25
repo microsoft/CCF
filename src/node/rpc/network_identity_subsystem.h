@@ -591,27 +591,26 @@ namespace ccf
         fail_fetching(e.what());
       }
 
-      current_service_from = current.create_txid;
+      const auto service_from = current.create_txid.value();
+      current_service_from = service_from;
       start_pq_chain(current);
       process_pq_endorsement(current.pq_endorsement, endorsement.value());
 
       if (is_self_endorsement(endorsement.value()))
       {
-        if (
-          current_service_from->seqno !=
-          endorsement->endorsement_epoch_begin.seqno)
+        if (service_from.seqno != endorsement->endorsement_epoch_begin.seqno)
         {
           fail_fetching(fmt::format(
             "The first fetched endorsement is a self-endorsement at {} "
             "which is different from current_service_create_txid {}",
             endorsement->endorsement_epoch_begin.to_str(),
-            current_service_from->to_str()));
+            service_from.to_str()));
         }
 
         LOG_INFO_FMT(
           "The very first service endorsement is self-signed at {}, no "
           "endorsement chain will be preloaded",
-          current_service_from->seqno);
+          service_from.seqno);
 
         has_predecessors = false;
         self_endorsement = endorsement;
@@ -620,7 +619,7 @@ namespace ccf
       }
 
       has_predecessors = true;
-      earliest_endorsed_seq = current_service_from->seqno;
+      earliest_endorsed_seq = service_from.seqno;
       process_endorsement(endorsement.value());
     }
 
