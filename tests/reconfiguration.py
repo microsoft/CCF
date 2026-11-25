@@ -1500,11 +1500,31 @@ def run_remove_last_node(const_args):
         assert primary.remote.check_done(timeout=10), "The node is still running"
 
         out_path, _ = primary.get_logs()
-        refusal = "Refusing configuration at"
+        refusal_re = re.compile(r"Refusing configuration at (\d+): it has no nodes")
+        refused_seqno = None
         with open(out_path, encoding="utf-8") as out:
-            assert any(
-                refusal in line for line in out
-            ), f"Expected '{refusal}' in {out_path}"
+            for line in out:
+                if match := refusal_re.search(line):
+                    refused_seqno = int(match.group(1))
+                    break
+        assert (
+            refused_seqno is not None
+        ), f"Expected configuration refusal log in {out_path}"
+
+        ledger_paths = primary.remote.ledger_paths()
+        assert ledger_paths, "Expected persisted ledger directory"
+        ledger = ccf.ledger.Ledger(
+            ledger_paths,
+            committed_only=False,
+            verification_level=ccf.ledger.VerificationLevel.OFFSETS,
+        )
+        seqnos = [
+            tx.get_public_domain().get_seqno() for chunk in ledger for tx in chunk
+        ]
+        assert seqnos, "Expected persisted ledger entries before refusal"
+        assert (
+            max(seqnos) < refused_seqno
+        ), f"Persisted ledger contains seqno {max(seqnos)} >= refused {refused_seqno}"
 
 
 def _assert_ipv6_available():
