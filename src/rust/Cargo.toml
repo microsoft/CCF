@@ -7,8 +7,14 @@ edition = "2024"
 crate-type = ["staticlib"]
 
 [dependencies]
+ccf-shamir = { path = "shamir" }
 tav-ffi = { package = "tee-attestation-verification-ffi", path = "../../3rdparty/internal/tee-attestation-verification/ffi", default-features = false, features = ["crypto_openssl"] }
 
 [profile.release]
 lto = true
 codegen-units = 1
+
+# The Lean proofs show the Shamir core cannot overflow. Keep the checks in
+# release builds so a violated assumption aborts instead of wrapping silently.
+[profile.release.package.ccf-shamir]
+overflow-checks = true
