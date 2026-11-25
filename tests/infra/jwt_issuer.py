@@ -210,16 +210,14 @@ class NodeTrustStore(AbstractContextManager):
 class JwtIssuer:
     TEST_JWT_ISSUER_NAME = "https://example.issuer"
     TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
-    # Older release lines require a governance-managed CA bundle for
-    # auto-refresh. CCF 8 and local builds use the node's trust store.
-    FIRST_MAJOR_WITH_NODE_TRUST_STORE = 8
+    # Releases up to and including 8.0.0-dev0 require a governance-managed CA
+    # bundle for auto-refresh. Later builds use the node's trust store.
+    LAST_RELEASE_WITH_GOVERNED_CA_BUNDLES = "ccf-8.0.0-dev0"
 
     @classmethod
     def uses_node_trust_store(cls, version):
-        return (
-            version is None
-            or CCFVersion(version).parsed_version.major
-            >= cls.FIRST_MAJOR_WITH_NODE_TRUST_STORE
+        return CCFVersion(version) > CCFVersion(
+            cls.LAST_RELEASE_WITH_GOVERNED_CA_BUNDLES
         )
 
     def _generate_auth_data(self, cn=None):
