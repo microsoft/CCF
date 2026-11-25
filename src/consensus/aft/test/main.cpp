@@ -57,6 +57,50 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(calls.size() == 3);
 }
 
+DOCTEST_TEST_CASE(
+  "Retirement nomination excludes every peer confirmed in the batch" *
+  doctest::test_suite("retirement"))
+{
+  for (const auto self_id : {"1", "3"})
+  {
+    const ccf::NodeId self{self_id};
+    DOCTEST_INFO("Primary ID: ", self);
+    const ccf::NodeId survivor{"0"};
+    const ccf::NodeId retiring_peer{"2"};
+    auto kv_store = std::make_shared<Store>(self);
+    auto state = std::make_shared<aft::State>(self);
+    TCft cft(
+      cft_settings,
+      std::make_unique<Adaptor>(kv_store),
+      std::make_unique<aft::LedgerStubProxy>(self),
+      std::make_shared<aft::ChannelStubProxy>(),
+      state,
+      nullptr);
+    aft::Configuration::Nodes config;
+    config[self] = {};
+    config[survivor] = {};
+    config[retiring_peer] = {};
+    cft.add_configuration(0, config);
+    cft.force_become_primary();
+    state->membership_state = ccf::kv::MembershipState::Retired;
+    state->retirement_phase = ccf::kv::RetirementPhase::Completed;
+    auto channels = channel_stub_proxy(cft);
+    channels->messages.clear();
+
+    std::vector<ccf::kv::NodeId> confirmed = {self, retiring_peer};
+    std::sort(confirmed.begin(), confirmed.end());
+    cft.set_retired_committed(5, confirmed);
+
+    DOCTEST_REQUIRE(channels->messages.size() == 1);
+    DOCTEST_CHECK(channels->messages.front().first == survivor);
+    DOCTEST_CHECK(
+      channels->count_messages_with_type(aft::propose_request_vote) == 1);
+    DOCTEST_CHECK(state->retired_committed_idx == 5);
+    DOCTEST_CHECK(cft.is_retired_committed());
+    DOCTEST_CHECK_FALSE(cft.is_primary());
+  }
+}
+
 DOCTEST_TEST_CASE("cft owns its periodic timer" * doctest::test_suite("single"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;
