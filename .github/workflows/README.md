@@ -29,6 +29,8 @@ Results are stored as artifacts and summarized in the workflow run against an EW
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
+The Virtual job runs in an Azure Linux 4 container, while the SNP job runs directly on the `gha-aci-genoa` pool image, which is built from `tests/ci/ccf_caci_ci`.
+Azure Linux 4 does not package the GitHub CLI used to restore previous perf artifacts, so the Virtual job installs a pinned, checksum-verified release with `scripts/install_gh.sh`.
 
 The Basic JS workload disables JavaScript execution metrics logging in its deployed benchmark bundle; other applications retain the enabled default.
 
@@ -37,7 +39,7 @@ Its throughput, latency, and node memory are charted alongside the other benchma
 Received-event counts, exporter drops, and drop rate are logged and saved as `*_fluentd.json` in the network's common directory under `workspace`, then uploaded for validation, not charted.
 
 File: `bencher.yml`
-3rd party dependencies: None
+3rd party dependencies: GitHub CLI
 
 ## Bencher A/B
 
@@ -45,11 +47,12 @@ Builds and runs CCF performance tests on the PR branch, then renders radar chart
 Two nested shaded blue bands show the EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs, using the same seven-run half-life as [Bencher](#bencher) for all benchmarks and metrics.
 Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run.
 Triggered on PRs that have the label `bench-ab`.
+Runs in the same Azure Linux 4 container as the [Bencher](#bencher) Virtual job, so that branch and `main` results are comparable.
 
 Includes the same `FluentD` workload as [Bencher](#bencher), with validation counts uploaded as `fluentd-counts`.
 
 File: `bencher-ab.yml`
-3rd party dependencies: None
+3rd party dependencies: GitHub CLI
 
 ## Copilot Setup Steps
 
