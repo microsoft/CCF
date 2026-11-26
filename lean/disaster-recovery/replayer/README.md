@@ -43,6 +43,7 @@ Every record has `node`, `sequence`, a per-node counter from 0, and `kind`:
 Handler records hold the phase and timeout phase that `advance()` read and wrote (`pre`, `pre_timeout`, `post`, `post_timeout`), and any `chosen` node, `open_kind` or `restart` it read, wrote or requested.
 An IAmOpen's `pre` and `chosen` are its own Joining writes, which `advance()` then reads.
 Only executions whose transaction committed are logged, with the seqno of the TxID that CCF reported as their `version`: the version the transaction committed at if it wrote, and the version it read at otherwise.
+A restart is requested by the same function, after its record is logged, so an execution that did not commit requests none.
 A vote or IAmOpen always writes, and any other write that the replay can observe changes a phase, so the replayer treats an execution that changes neither phase as a read.
 
 Receives name their sender in `source`.
