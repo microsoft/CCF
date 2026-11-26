@@ -732,10 +732,10 @@ if(BUILD_TESTS)
       add_test(
         NAME kv_trace_validation
         COMMAND
-          python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py
-          --binary $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER}
-          --output ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --seeds
-          ${CCF_KV_FUZZ_SEEDS} --seed-start ${CCF_KV_FUZZ_SEED_START} --timeout
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py --binary
+          $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER} --output
+          ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --seeds ${CCF_KV_FUZZ_SEEDS}
+          --seed-start ${CCF_KV_FUZZ_SEED_START} --timeout
           ${CCF_KV_TRACE_TIMEOUT}
       )
       # The Lean checker is built outside CMake and passed in by path.

@@ -17,7 +17,6 @@ def run(args):
 
     uncommitted_ledger_dir, committed_ledger_dirs = list(primary.get_ledger())
     cmd = [
-        "python",
         args.ledger_tutorial,
         *committed_ledger_dirs,
         uncommitted_ledger_dir,

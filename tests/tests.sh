@@ -5,7 +5,7 @@
 set -eo pipefail
 
 if [[ "${GITHUB_ACTIONS:-}" == "true" && -z "${CCF_TEST_REPORT_DIR:-}" ]]; then
-    exec python3 ../tests/infra/test_reporting.py ctest "$0" "$@"
+    exec ../tests/infra/test_reporting.py ctest "$0" "$@"
 fi
 
 echo "Setting up Python environment..."
