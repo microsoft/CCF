@@ -16,6 +16,7 @@ from shutil import copy, rmtree
 import ccf.ledger
 import ccf.signatures
 import infra.clients
+import infra.commit
 import infra.crypto
 import infra.e2e_args
 import infra.logging_app as app
@@ -23,6 +24,7 @@ import infra.net
 import infra.network
 import infra.platform_detection
 import infra.proc
+import infra.proposal
 import infra.utils
 import suite.test_requirements as reqs
 from governance_history import check_signatures
@@ -1484,10 +1486,43 @@ def run_remove_last_node(const_args):
         primary, backups = network.find_nodes()
         assert not backups, backups
 
+        proposal_body, careful_vote = network.consortium.make_proposal(
+            "remove_node",
+            node_id=primary.node_id,
+        )
+        active_members = network.consortium.get_active_members()
+        majority_count = len(active_members) // 2 + 1
+        proposal = active_members[0].propose(primary, proposal_body)
+        assert (
+            proposal.state == infra.proposal.ProposalState.OPEN
+        ), f"Expected open proposal before votes, got {proposal.state}"
+        last_view, last_seqno = proposal.view, proposal.seqno
+
+        for member in active_members[: majority_count - 1]:
+            response = member.vote(primary, proposal, careful_vote)
+            assert response.status_code == http.HTTPStatus.OK.value, response
+            body = response.body.json()
+            proposal_state = infra.proposal.ProposalState(
+                body.get("state", body.get("proposalState"))
+            )
+            assert (
+                proposal_state == infra.proposal.ProposalState.OPEN
+            ), f"Expected open proposal before deciding vote, got {proposal_state}"
+            last_view, last_seqno = response.view, response.seqno
+
+        # Wait for the proposal and non-deciding votes to commit and be
+        # flushed to disk via their covering signature before the deciding
+        # vote aborts the process. Otherwise buffered non-committable entries
+        # may be left truncated on disk after abort().
+        with primary.client() as c:
+            infra.commit.wait_for_commit(c, last_seqno, last_view)
+        primary.get_receipt(last_view, last_seqno, timeout=10)
+
         # The node reports a fatal error as it stops
+        deciding_voter = active_members[majority_count - 1]
         network.ignore_errors_on_shutdown()
         try:
-            network.consortium.retire_node(primary, primary)
+            deciding_voter.vote(primary, proposal, careful_vote)
         except (
             infra.clients.CCFConnectionException,
             infra.clients.CCFIOException,
