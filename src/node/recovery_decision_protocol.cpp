@@ -16,10 +16,12 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <format>
 #include <source_location>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
+#include <utility>
 
 namespace ccf
 {
@@ -391,7 +393,7 @@ namespace ccf
                              ->get(chosen_replica.value());
         if (!node_config.has_value())
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Recovery-decision-protocol chosen node {} not found",
             chosen_replica.value()));
         }
@@ -425,7 +427,7 @@ namespace ccf
       }
       default:
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unknown recovery-decision-protocol state: {}",
           static_cast<int>(sm_state)));
       }
@@ -531,7 +533,7 @@ namespace ccf
               node_info_handle->get(chosen_replica_handle->get().value());
             if (!chosen_node_info.has_value())
             {
-              throw std::logic_error(fmt::format(
+              throw std::logic_error(std::format(
                 "Recovery-decision-protocol chosen node {} not found",
                 chosen_replica_handle->get().value()));
             }
@@ -553,7 +555,7 @@ namespace ccf
           }
           default:
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Unknown recovery-decision-protocol state: {}",
               static_cast<int>(sm_state)));
           }
@@ -626,7 +628,7 @@ namespace ccf
           CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
         curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
-        auto url = fmt::format(
+        auto url = std::format(
           "https://{}/{}/recovery_decision_protocol/timeout",
           location.address,
           get_actor_prefix(ActorsType::nodes));
@@ -693,7 +695,7 @@ namespace ccf
       CURLOPT_SSLKEY_BLOB, privkey_pem.data(), privkey_pem.size());
     curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
-    auto url = fmt::format(
+    auto url = std::format(
       "https://{}/{}/recovery_decision_protocol/{}",
       target.address,
       get_actor_prefix(ActorsType::nodes),
@@ -714,7 +716,7 @@ namespace ccf
           request->get_method().c_str(),
           request->get_url(),
           curl_easy_strerror(curl_code),
-          curl_code,
+          std::to_underlying(curl_code),
           status_code);
       };
 
@@ -750,7 +752,7 @@ namespace ccf
     auto node_info_opt = nodes_handle->get(node_state->get_node_id());
     if (!node_info_opt.has_value())
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Node {} not found in nodes table", node_state->get_node_id()));
     }
     {
@@ -837,16 +839,12 @@ namespace ccf
 
     auto& node_info = get_node_info(tx);
 
-    {
-      std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
-      iamopen_request_cache = recovery_decision_protocol::IAmOpenRequest{};
-      iamopen_request_cache->info = node_info;
-      iamopen_request_cache->prev_service_fingerprint =
-        previous_service_identity_fingerprint;
-      iamopen_request_cache->txid = get_last_recovered_signed_txid();
-    }
-
-    return iamopen_request_cache.value();
+    std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
+    auto& request = iamopen_request_cache.emplace();
+    request.info = node_info;
+    request.prev_service_fingerprint = previous_service_identity_fingerprint;
+    request.txid = get_last_recovered_signed_txid();
+    return request;
   }
 
   void RecoveryDecisionProtocolSubsystem::send_iamopen_unsafe(
@@ -911,7 +909,7 @@ namespace ccf
     // history (too old or too new)
     if (recovery_view == ccf::VIEW_UNKNOWN)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Could not find view for last recovered signed seqno {}",
         recovery_seqno));
     }

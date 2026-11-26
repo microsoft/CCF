@@ -9,6 +9,7 @@
 #include "ds/internal_logger.h"
 
 #include <climits>
+#include <format>
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
 #include <openssl/err.h>
@@ -20,6 +21,7 @@
 #include <openssl/x509v3.h>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace ccf::crypto
 {
@@ -146,7 +148,7 @@ namespace ccf::crypto
       }
       default:
       {
-        throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+        throw std::runtime_error(std::format("Unknown OpenSSL curve {}", nid));
       }
     }
     return CurveID::NONE;
@@ -175,7 +177,7 @@ namespace ccf::crypto
       return NID_secp521r1;
     }
 
-    throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
+    throw std::runtime_error(std::format("Unknown OpenSSL group {}", gname));
   }
 
   int ECPublicKey_OpenSSL::get_openssl_group_id(CurveID gid)
@@ -201,8 +203,8 @@ namespace ccf::crypto
       case CurveID::CURVE25519:
       case CurveID::X25519:
       {
-        throw std::logic_error(
-          fmt::format("unsupported OpenSSL CurveID {}", gid));
+        throw std::logic_error(std::format(
+          "unsupported OpenSSL CurveID {}", std::to_underlying(gid)));
       }
     }
     return NID_undef;
@@ -316,7 +318,7 @@ namespace ccf::crypto
 
     if (pkey == nullptr)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Error loading public key. Curve: {}, err: {}",
         curve_name,
         OpenSSL::first_error()));

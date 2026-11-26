@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/ds/enum_formatter.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
 

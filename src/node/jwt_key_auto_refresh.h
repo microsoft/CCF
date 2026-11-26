@@ -16,13 +16,13 @@
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
-#define FMT_HEADER_ONLY
 #include <algorithm>
 #include <curl/curl.h>
-#include <fmt/format.h>
+#include <format>
 #include <map>
 #include <memory>
 #include <optional>
+#include <utility>
 
 namespace ccf
 {
@@ -302,7 +302,7 @@ namespace ccf
     template <typename T>
     bool send_refresh_jwt_keys(T msg)
     {
-      ::http::Request request(fmt::format(
+      ::http::Request request(std::format(
         "/{}/{}",
         ccf::get_actor_prefix(ccf::ActorsType::nodes),
         "jwt_keys/refresh"));
@@ -345,11 +345,11 @@ namespace ccf
       {
         LOG_INFO_FMT(
           "JWT key auto-refresh: Error while requesting JWKS: {} {}{}",
-          status,
+          std::to_underlying(status),
           ccf::http_status_str(status),
           data.empty() ?
             "" :
-            fmt::format("  '{}'", std::string(data.begin(), data.end())));
+            std::format("  '{}'", std::string(data.begin(), data.end())));
         send_refresh_jwt_keys_error(issuer);
         return;
       }
@@ -409,11 +409,11 @@ namespace ccf
         LOG_INFO_FMT(
           "JWT key auto-refresh: Error while requesting OpenID metadata: {} "
           "{}{}",
-          status,
+          std::to_underlying(status),
           ccf::http_status_str(status),
           data.empty() ?
             "" :
-            fmt::format("  '{}'", std::string(data.begin(), data.end())));
+            std::format("  '{}'", std::string(data.begin(), data.end())));
         send_refresh_jwt_keys_error(issuer);
         return;
       }
@@ -511,7 +511,7 @@ namespace ccf
                   "{} ({})",
                   issuer,
                   curl_easy_strerror(curl_response),
-                  curl_response);
+                  std::to_underlying(curl_response));
                 self_sp->send_refresh_jwt_keys_error(issuer);
                 return;
               }
@@ -574,7 +574,7 @@ namespace ccf
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting OpenID metadata at {}", metadata_url);
 
-      auto ca_bundle_pem = ca_cert_bundle_pem.value();
+      const auto& ca_bundle_pem = ca_cert_bundle_pem.value();
 
       const auto self = weak_from_this();
       auto response_callback =
@@ -607,7 +607,7 @@ namespace ccf
                   "issuer '{}': {} ({})",
                   issuer,
                   curl_easy_strerror(curl_response),
-                  curl_response);
+                  std::to_underlying(curl_response));
                 self_sp->send_refresh_jwt_keys_error(issuer);
                 return;
               }
@@ -669,7 +669,7 @@ namespace ccf
       std::optional<JwtIssuerMetadata> metadata;
       ccf::CACertBundlePEMs::ReadOnlyHandle* ca_cert_bundles = nullptr;
       if (!ccf::retry_on_compacted_version_conflict(
-            fmt::format("JWT key auto-refresh: Lookup of issuer '{}'", issuer),
+            std::format("JWT key auto-refresh: Lookup of issuer '{}'", issuer),
             [&] {
               tx = network.tables->create_read_only_tx_ptr();
               metadata = tx->ro(network.jwt_issuers)->get(issuer);

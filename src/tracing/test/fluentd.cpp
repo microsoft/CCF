@@ -20,6 +20,32 @@ namespace request_trace
   {
     probe.encoded = true;
   }
+
+  struct ReentrantProbe
+  {
+    int value;
+  };
+
+  inline void write_msgpack(
+    std::vector<uint8_t>& out, const ReentrantProbe& probe)
+  {
+    ccf::tracing::emit("ccf.request", "nested_direct", 99);
+    LOG_INFO_FMT("Nested log during msgpack encoding");
+    ccf::tracing::emit("ccf.filtered", "ignored", true);
+    ccf::msgpack::write_int(out, probe.value);
+  }
+
+  struct ThrowingProbe
+  {
+    size_t grow_bytes = 0;
+  };
+
+  inline void write_msgpack(
+    std::vector<uint8_t>& out, const ThrowingProbe& probe)
+  {
+    out.insert(out.end(), probe.grow_bytes, uint8_t{'a'});
+    throw std::runtime_error("encoding failed");
+  }
 }
 
 template <typename... Args>
@@ -39,6 +65,10 @@ namespace
   std::atomic<bool> stalled = false;
   std::atomic<size_t> calls = 0;
   std::atomic<size_t> fail_at = 0;
+  std::atomic<size_t> fail_connects = 0;
+  std::atomic<size_t> fail_sends_remaining = 0;
+  std::atomic<size_t> fail_after_sends_per_connection = 0;
+  std::atomic<size_t> send_calls_on_connection = 0;
   std::atomic<size_t> close_calls = 0;
   std::atomic<bool> fail_next_close = false;
   std::atomic<bool> wrong_thread = false;
@@ -77,6 +107,7 @@ namespace
 }
 
 extern "C" ssize_t __real_send(int, const void*, size_t, int);
+extern "C" int __real_connect(int, const sockaddr*, socklen_t);
 extern "C" int __real_close(int);
 extern "C" void* __real__Znwm(size_t);
 
@@ -88,11 +119,30 @@ extern "C" void* __wrap__Znwm(size_t size)
   return __real__Znwm(size);
 }
 
+extern "C" int __wrap_connect(int fd, const sockaddr* addr, socklen_t len)
+{
+  if (fail_connects > 0)
+  {
+    --fail_connects;
+    errno = ECONNREFUSED;
+    return -1;
+  }
+  send_calls_on_connection = 0;
+  return __real_connect(fd, addr, len);
+}
+
 extern "C" ssize_t __wrap_send(int fd, const void* data, size_t size, int flags)
 {
   const auto call = ++calls;
+  const auto conn_call = ++send_calls_on_connection;
   if (call == fail_at)
   {
+    errno = EPIPE;
+    return -1;
+  }
+  if (fail_sends_remaining > 0 && conn_call > fail_after_sends_per_connection)
+  {
+    --fail_sends_remaining;
     errno = EPIPE;
     return -1;
   }
@@ -587,7 +637,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     CHECK(event[2]["msg"]["h_ts"].get<std::string>().ends_with("Z"));
     const nlohmann::json expected = {
       {"h_ts", event[2]["msg"]["h_ts"]},
-      {"thread_id", fmt::format("{}", line.thread_id)},
+      {"thread_id", std::format("{}", line.thread_id)},
       {"level", ccf::logger::to_string(level)},
       {"tag", "app"},
       {"file", "file.cpp"},
@@ -667,6 +717,43 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     nlohmann::json::from_msgpack(unbound_bytes[1])[2]["msg"]["unbound"] ==
     true);
 
+  const auto drops_before_reentrant = Sink::dropped_count();
+  check_event(
+    [] { request_trace::single(request_trace::ReentrantProbe{42}); },
+    {{"function", "single"}, {"value", 42}});
+  CHECK(Sink::dropped_count() == drops_before_reentrant + 2);
+  CHECK_THROWS_AS(
+    request_trace::single(request_trace::ThrowingProbe{
+      ccf::tracing::MAX_RETAINED_EVENT_BUFFER_CAPACITY + 1024}),
+    std::runtime_error);
+  CHECK(ccf::tracing::event_buffer().capacity() == 0);
+  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  CHECK(
+    ccf::tracing::event_buffer().capacity() >=
+    ccf::tracing::INITIAL_EVENT_BUFFER_CAPACITY);
+
+  const std::string large_valid_value(
+    ccf::tracing::MAX_RETAINED_EVENT_BUFFER_CAPACITY + 1024, 'v');
+  request_trace::single(large_valid_value);
+  CHECK(ccf::tracing::event_buffer().capacity() == 0);
+  {
+    std::vector<uint8_t> large_bytes;
+    std::array<uint8_t, 4096> large_chunk;
+    nlohmann::json large_frame;
+    while (large_frame.is_null())
+    {
+      const auto n = recv(peer, large_chunk.data(), large_chunk.size(), 0);
+      REQUIRE(n > 0);
+      large_bytes.insert(
+        large_bytes.end(), large_chunk.begin(), large_chunk.begin() + n);
+      auto decoded = nlohmann::json::from_msgpack(large_bytes, true, false);
+      if (!decoded.is_discarded())
+        large_frame = std::move(decoded);
+    }
+    CHECK(large_frame[2]["msg"]["value"] == large_valid_value);
+  }
+  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+
   const std::string large_value(
     ccf::tracing::event_buffer().capacity() + 1, 'x');
   const auto before_encoding_failure = Sink::dropped_count();
@@ -675,6 +762,12 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   allocation_failure = 0;
   CHECK(Sink::dropped_count() == before_encoding_failure + 1);
   check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+
+  const auto* stable_data = ccf::tracing::event_buffer().data();
+  const auto stable_capacity = ccf::tracing::event_buffer().capacity();
+  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  CHECK(ccf::tracing::event_buffer().data() == stable_data);
+  CHECK(ccf::tracing::event_buffer().capacity() == stable_capacity);
 
   std::thread second([&] {
     Sink::bind_producer(1);
@@ -705,6 +798,81 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
       static_cast<ssize_t>(received.size()));
     CHECK(received == bytes);
     CHECK(Sink::dropped_count() == drops_before_disconnect);
+    check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  }
+
+  // Repeated connect() failures during an outage do not consume the pending
+  // record's send-retry budget, and transient send failures below the limit
+  // still deliver the record.
+  {
+    const auto drops_before_outage = Sink::dropped_count();
+    fail_after_sends_per_connection = 0;
+    fail_sends_remaining = Sink::MAX_PENDING_SEND_FAILURES - 1;
+    fail_connects = Sink::MAX_PENDING_SEND_FAILURES + 1;
+    REQUIRE(Sink::enqueue("ccf.request", bytes));
+    for (size_t attempt = 0; attempt < Sink::MAX_PENDING_SEND_FAILURES - 1;
+         ++attempt)
+    {
+      if (attempt > 0)
+      {
+        peer = accept(listener, nullptr, nullptr);
+        REQUIRE(peer >= 0);
+      }
+      CHECK(recv(peer, chunk.data(), chunk.size(), 0) == 0);
+      close(peer);
+    }
+    peer = accept(listener, nullptr, nullptr);
+    REQUIRE(peer >= 0);
+    REQUIRE(
+      recv(peer, received.data(), received.size(), MSG_WAITALL) ==
+      static_cast<ssize_t>(received.size()));
+    CHECK(received == bytes);
+    CHECK(fail_connects == 0);
+    CHECK(fail_sends_remaining == 0);
+    CHECK(Sink::dropped_count() == drops_before_outage);
+    check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  }
+
+  // Repeated post-connect send failures on the same record (both immediate
+  // and after a partial send) drop that record and unblock queued records.
+  const std::vector<uint8_t> follow_up = {
+    'f', 'o', 'l', 'l', 'o', 'w', '-', 'u', 'p'};
+  for (size_t partial_sends : {size_t{0}, size_t{1}})
+  {
+    const auto drops_before_poison = Sink::dropped_count();
+    send_calls_on_connection = 0;
+    fail_after_sends_per_connection = partial_sends;
+    fail_sends_remaining = Sink::MAX_PENDING_SEND_FAILURES;
+    REQUIRE(Sink::enqueue("ccf.request", bytes));
+    REQUIRE(Sink::enqueue("ccf.request", follow_up));
+    for (size_t attempt = 0; attempt < Sink::MAX_PENDING_SEND_FAILURES;
+         ++attempt)
+    {
+      if (attempt > 0)
+      {
+        peer = accept(listener, nullptr, nullptr);
+        REQUIRE(peer >= 0);
+      }
+      if (partial_sends > 0)
+      {
+        REQUIRE(recv(peer, chunk.data(), 7, MSG_WAITALL) == 7);
+      }
+      CHECK(recv(peer, chunk.data(), chunk.size(), 0) == 0);
+      close(peer);
+    }
+    fail_after_sends_per_connection = 0;
+    peer = accept(listener, nullptr, nullptr);
+    REQUIRE(peer >= 0);
+    std::vector<uint8_t> received_follow_up(follow_up.size());
+    REQUIRE(
+      recv(
+        peer,
+        received_follow_up.data(),
+        received_follow_up.size(),
+        MSG_WAITALL) == static_cast<ssize_t>(received_follow_up.size()));
+    CHECK(received_follow_up == follow_up);
+    CHECK(fail_sends_remaining == 0);
+    CHECK(Sink::dropped_count() == drops_before_poison + 1);
     check_event([] { request_trace::empty(); }, {{"function", "empty"}});
   }
 
@@ -821,7 +989,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(logs->shutdown_reports == 2);
   CHECK(
     logs->shutdown_messages[0] ==
-    fmt::format(
+    std::format(
       "Fluentd exporter shutdown: {} dropped events",
       drops_before_shutdown + 8));
   CHECK(

@@ -342,7 +342,7 @@ namespace
       rpc->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
-        fmt::format("Rust endpoint bridge failed: {}", e.what()));
+        std::format("Rust endpoint bridge failed: {}", e.what()));
     }
     catch (...)
     {

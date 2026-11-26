@@ -129,7 +129,7 @@ The byte limit is soft: a record of any size is accepted while fewer bytes than 
 Unbound producers share one additional queue with the same limits.
 A queue that has reached either limit drops new records under either policy, without formatting or encoding them; larger limits use more memory.
 
-Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
+Both policies retain one in-flight record for bounded send retries after disconnect, dropping it if repeated sends after reconnecting fail so subsequent records are not blocked; delivery is not guaranteed and retries can produce duplicates.
 Shutdown attempts to drain all collectors for up to two seconds, then drops remaining records; blocked console output can delay shutdown.
 
 

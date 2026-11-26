@@ -36,6 +36,7 @@
 #include <charconv>
 #include <chrono>
 #include <cstring>
+#include <format>
 #include <functional>
 #include <map>
 #include <memory>
@@ -276,7 +277,7 @@ namespace ccf
       const auto [read_to, ec] = std::from_chars(port.data(), end, parsed);
       if (ec != std::errc() || read_to != end)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Invalid port '{}' for interface '{}' - expected a number in "
           "[0, 65535]",
           port,
@@ -446,7 +447,7 @@ namespace ccf
       {
         return cpss->create_session(li->app_protocol, conn_id, writer);
       }
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Unknown application protocol '{}' and custom protocol subsystem "
         "missing",
         li->app_protocol));
@@ -533,6 +534,7 @@ namespace ccf
       {
         return;
       }
+      const auto idle_timeout = idle_connection_timeout.value();
 
       const auto now = std::chrono::steady_clock::now();
       if (now - udp->last_idle_sweep < udp_idle_sweep_interval)
@@ -544,7 +546,7 @@ namespace ccf
       for (auto it = udp->sessions_by_peer.begin();
            it != udp->sessions_by_peer.end();)
       {
-        if (now - it->second.last_active <= *idle_connection_timeout)
+        if (now - it->second.last_active <= idle_timeout)
         {
           ++it;
           continue;
@@ -717,7 +719,7 @@ namespace ccf
       if (it == interfaces.end())
       {
         throw std::logic_error(
-          fmt::format("Cannot listen on unconfigured interface '{}'", name));
+          std::format("Cannot listen on unconfigured interface '{}'", name));
       }
       auto* li = it->second.get();
 
@@ -783,7 +785,7 @@ namespace ccf
       auto li_it = interfaces.find(name);
       if (li_it == interfaces.end())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot listen on unconfigured UDP interface '{}'", name));
       }
       auto* li = li_it->second.get();

@@ -10,9 +10,6 @@
 #include <stdlib.h>
 #include <string>
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
-
 TEST_CASE("split" * doctest::test_suite("nonstd"))
 {
   {

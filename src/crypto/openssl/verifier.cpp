@@ -11,6 +11,7 @@
 #include "x509_time.h"
 
 #include <algorithm>
+#include <format>
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
 #include <openssl/ossl_typ.h>
@@ -48,7 +49,7 @@ namespace
     if (cert == nullptr)
     {
       throw std::invalid_argument(
-        fmt::format("OpenSSL error: {}", OpenSSL::first_error()));
+        std::format("OpenSSL error: {}", OpenSSL::first_error()));
     }
     return cert;
   }
@@ -122,7 +123,7 @@ namespace ccf::crypto
     EVP_PKEY* pk = X509_get_pubkey(cert);
     if (pk == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "OpenSSL error loading certificate public key: {}",
         OpenSSL::first_error()));
     }

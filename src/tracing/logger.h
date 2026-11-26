@@ -29,7 +29,7 @@ namespace ccf::tracing
           "h_ts",
           ccf::logger::get_timestamp(host_tm, host_ts),
           "thread_id",
-          fmt::format("{}", line.thread_id),
+          std::format("{}", line.thread_id),
           "level",
           ccf::logger::to_string(line.log_level),
           "tag",
@@ -37,7 +37,7 @@ namespace ccf::tracing
           "file",
           line.file_name,
           "number",
-          fmt::format("{}", line.line_number),
+          std::format("{}", line.line_number),
           "msg",
           line.msg);
       });

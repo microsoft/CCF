@@ -2,8 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -40,7 +39,7 @@ namespace json
         {
           error_ctx += c;
         }
-        validation_error_msg += fmt::format(
+        validation_error_msg += std::format(
           "\nError #{}:\n  context: {}\n  message: {}",
           error_num,
           error_ctx,

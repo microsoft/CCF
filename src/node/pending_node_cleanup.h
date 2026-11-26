@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <format>
 #include <memory>
 
 namespace ccf
@@ -27,7 +28,7 @@ namespace ccf
     void send_cleanup_request()
     {
       ::http::Request request(
-        fmt::format(
+        std::format(
           "/{}/{}",
           ccf::get_actor_prefix(ccf::ActorsType::nodes),
           "network/nodes/remove_expired_pending"),

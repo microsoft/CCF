@@ -3,13 +3,11 @@
 #define PICOBENCH_IMPLEMENT
 #include "../history.h"
 
-#define FMT_HEADER_ONLY
-
 #include <algorithm>
 #include <charconv>
 #include <cstdint>
 #include <cstdlib>
-#include <fmt/format.h>
+#include <format>
 #include <iostream>
 #include <picobench/picobench.hpp>
 #include <random>
@@ -199,7 +197,7 @@ static void serialised_size(picobench::state& s)
   auto buf = t.serialise();
   s.stop_timer();
   auto bph = ((float)buf.size()) / s.iterations();
-  std::cout << fmt::format(
+  std::cout << std::format(
                  "mt_serialize n={} : {} bytes, {} bytes/hash, {}% overhead",
                  s.iterations(),
                  buf.size(),
@@ -239,7 +237,7 @@ int main(int argc, char* argv[])
     const auto [ptr, ec] = std::from_chars(seed_str.data(), seed_end, rng_seed);
     if (ec != std::errc() || ptr != seed_end)
     {
-      std::cerr << fmt::format(
+      std::cerr << std::format(
                      "RNG_SEED must be an unsigned 32-bit integer, not '{}'",
                      seed_str)
                 << std::endl;
@@ -250,7 +248,7 @@ int main(int argc, char* argv[])
   {
     rng_seed = std::random_device{}();
   }
-  std::cerr << fmt::format("RNG seed: {} (set RNG_SEED to reproduce)", rng_seed)
+  std::cerr << std::format("RNG seed: {} (set RNG_SEED to reproduce)", rng_seed)
             << std::endl;
 
   picobench::runner runner;

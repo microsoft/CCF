@@ -2,12 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "consensus/aft/cft.h"
 #include "consensus/aft/cft_types.h"
 #include "ds/internal_logger.h"
 #include "logging_stub.h"
 
 #include <chrono>
+#include <format>
 #include <random>
 #include <set>
 #include <sstream>
@@ -17,12 +19,12 @@
 #include <utility>
 
 #define CFT_DRIVER_PRINT(...) \
-  std::cout << "<CftDriver>  " << fmt::format(__VA_ARGS__) << std::endl;
+  std::cout << "<CftDriver>  " << std::format(__VA_ARGS__) << std::endl;
 
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
   auto size = std::min(v.size(), max_size);
-  return fmt::format(
+  return std::format(
     "[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
 }
 
@@ -162,17 +164,17 @@ private:
     {
       if (!to.contains(id))
       {
-        changes.push_back(fmt::format("-{}", id));
+        changes.push_back(std::format("-{}", id));
       }
     }
     for (const auto& [id, info] : to)
     {
       if (!from.contains(id))
       {
-        changes.push_back(fmt::format("+{}", id));
+        changes.push_back(std::format("+{}", id));
       }
     }
-    return fmt::format("({})", fmt::join(changes, ","));
+    return std::format("({})", ccf::ds::join(changes, ","));
   }
 
   ccf::kv::BatchVector::value_type make_entry(
@@ -189,7 +191,7 @@ private:
     std::string kind = committable ? "signature" : "raw";
     if (configuration.has_value())
     {
-      kind = fmt::format(
+      kind = std::format(
         "reconfiguration {}",
         configuration_delta(
           _nodes.at(node_id).cft->get_latest_configuration(),
@@ -269,7 +271,7 @@ private:
 
     if (_nodes.find(node_id) != _nodes.end())
     {
-      throw std::logic_error(fmt::format("Node {} already exists", node_id));
+      throw std::logic_error(std::format("Node {} already exists", node_id));
     }
 
     _nodes.emplace(node_id, NodeDriver{kv, cft});
@@ -329,7 +331,7 @@ public:
     if (_nodes.find(node_id) == _nodes.end())
     {
       throw std::runtime_error(
-        fmt::format("Attempted to nominate unknown node {}", node_id));
+        std::format("Attempted to nominate unknown node {}", node_id));
     }
 
     CFT_DRIVER_PRINT(
@@ -347,7 +349,7 @@ public:
       if (_nodes.find(id) == _nodes.end())
       {
         throw std::runtime_error(
-          fmt::format("Attempted to clean up unknown node {}", id));
+          std::format("Attempted to clean up unknown node {}", id));
       }
       retired_committed.try_emplace(id);
     }
@@ -466,7 +468,7 @@ public:
     aft::RequestPreVote rv,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} for term {}, at tx {}.{}",
       rv.msg,
       rv.term,
@@ -481,7 +483,7 @@ public:
     aft::RequestVote rv,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} for term {}, at tx {}.{}",
       rv.msg,
       rv.term,
@@ -496,7 +498,7 @@ public:
     aft::RequestPreVoteResponse rv,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} for term {} = {}", rv.msg, rv.term, (rv.vote_granted ? "Y" : "N"));
     rlog(node_id, tgt_node_id, s, dropped);
   }
@@ -507,7 +509,7 @@ public:
     aft::RequestVoteResponse rv,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} for term {} = {}", rv.msg, rv.term, (rv.vote_granted ? "Y" : "N"));
     rlog(node_id, tgt_node_id, s, dropped);
   }
@@ -518,7 +520,7 @@ public:
     aft::AppendEntries ae,
     bool dropped)
   {
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} ({}.{}, {}.{}] (term {}, commit {})",
       ae.msg,
       ae.prev_term,
@@ -550,7 +552,7 @@ public:
         break;
       }
     }
-    const auto s = fmt::format(
+    const auto s = std::format(
       "{} {} for {}.{}", aer.msg, success, aer.term, aer.last_log_idx);
     rlog(node_id, tgt_node_id, s, dropped);
   }
@@ -561,30 +563,16 @@ public:
     aft::ProposeRequestVote prv,
     bool dropped)
   {
-    const auto s = fmt::format("{} for term {}", prv.msg, prv.term);
+    const auto s = std::format("{} for term {}", prv.msg, prv.term);
     log(node_id, tgt_node_id, s, dropped);
   }
 
-  void log_msg_details(
-    ccf::NodeId node_id,
-    ccf::NodeId tgt_node_id,
-    const std::vector<uint8_t>& contents,
-    bool dropped = false)
+  // Calls f with the packet at the start of a queued message
+  template <typename F>
+  void visit_packet(const std::vector<uint8_t>& contents, F&& f)
   {
     const uint8_t* data = contents.data();
     size_t size = contents.size();
-
-    const auto log_packet = [&](const auto& packet) {
-      log_msg_details(node_id, tgt_node_id, packet, dropped);
-      if (dropped)
-      {
-        aft::trace::drop_pending_to(
-          _nodes.at(node_id).cft->get_state_for_trace(),
-          node_id.value(),
-          tgt_node_id.value(),
-          packet);
-      }
-    };
 
     const auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
     switch (msg_type)
@@ -592,37 +580,37 @@ public:
       case (aft::CftMsgType::request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        log_packet(rv);
+        f(rv);
         break;
       }
       case (aft::CftMsgType::request_pre_vote):
       {
         auto rpv = *(aft::RequestPreVote*)data;
-        log_packet(rpv);
+        f(rpv);
         break;
       }
       case (aft::CftMsgType::request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
-        log_packet(rvr);
+        f(rvr);
         break;
       }
       case (aft::CftMsgType::request_pre_vote_response):
       {
         auto rvr = *(aft::RequestPreVoteResponse*)data;
-        log_packet(rvr);
+        f(rvr);
         break;
       }
       case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        log_packet(ae);
+        f(ae);
         break;
       }
       case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        log_packet(aer);
+        f(aer);
         break;
       }
       case (aft::CftMsgType::append_entries_signed_response):
@@ -633,15 +621,45 @@ public:
       case (aft::CftMsgType::propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
-        log_packet(prv);
+        f(prv);
         break;
       }
       default:
       {
         throw std::runtime_error(
-          fmt::format("Unhandled CftMsgType: {}", msg_type));
+          std::format("Unhandled CftMsgType: {}", msg_type));
       }
     }
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    const std::vector<uint8_t>& contents,
+    bool dropped = false)
+  {
+    visit_packet(contents, [&](const auto& packet) {
+      log_msg_details(node_id, tgt_node_id, packet, dropped);
+      if (dropped)
+      {
+        aft::trace::drop_pending_to(
+          _nodes.at(node_id).cft->get_state_for_trace(),
+          node_id.value(),
+          tgt_node_id.value(),
+          packet);
+      }
+    });
+  }
+
+  // The packet of a queued message as JSON, with the fields which a trace
+  // records for it, in that order
+  std::string packet_json(const std::vector<uint8_t>& contents)
+  {
+    std::vector<uint8_t> encoded;
+    visit_packet(contents, [&encoded](const auto& packet) {
+      write_msgpack(encoded, packet);
+    });
+    return nlohmann::ordered_json::from_msgpack(encoded).dump();
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
@@ -674,14 +692,14 @@ public:
     for (ccf::kv::Version i = 1; i <= r.get_last_idx(); ++i)
     {
       const auto t = r.get_view(i);
-      auto s = fmt::format("{}.{}", t, i);
+      auto s = std::format("{}.{}", t, i);
       if (i == r.get_committed_seqno())
       {
-        s = fmt::format("[{}]", s);
+        s = std::format("[{}]", s);
       }
       entries.push_back(s);
     }
-    return fmt::format("{}", fmt::join(entries, ", "));
+    return std::format("{}", ccf::ds::join(entries, ", "));
   }
 
   void summarise_log(ccf::NodeId node_id)
@@ -719,7 +737,7 @@ public:
       case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        return fmt::format(
+        return std::format(
           "AE(t{}, ({}.{}, {}.{}])",
           ae.term,
           ae.prev_term,
@@ -730,7 +748,7 @@ public:
       case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        return fmt::format(
+        return std::format(
           "AER({}, t{}, i{})",
           aer.success == aft::AppendEntriesResponseType::OK ? "ACK" : "NACK",
           aer.term,
@@ -755,7 +773,7 @@ public:
       default:
       {
         throw std::runtime_error(
-          fmt::format("Unhandled CftMsgType: {}", msg_type));
+          std::format("Unhandled CftMsgType: {}", msg_type));
       }
     }
   }
@@ -778,7 +796,7 @@ public:
       src,
       message_reps.size(),
       dst,
-      fmt::join(message_reps, ", "));
+      ccf::ds::join(message_reps, ", "));
   }
 
   void state_one(ccf::NodeId node_id)
@@ -810,7 +828,7 @@ public:
       CFT_DRIVER_PRINT(
         "Note over {}: becomes {} in term {}",
         node_id,
-        role.first.has_value() ? fmt::format("{}", *role.first) : "None",
+        role.first.has_value() ? std::format("{}", *role.first) : "None",
         role.second);
     }
   }
@@ -995,6 +1013,22 @@ public:
     }
   }
 
+  // The undelivered messages sent by src to dst, oldest first, each as
+  // packet_json
+  std::vector<std::string> pending_messages(ccf::NodeId src, ccf::NodeId dst)
+  {
+    std::vector<std::string> packets;
+    for (const auto& [target, contents] :
+         channel_stub_proxy(*_nodes.at(src).cft)->messages)
+    {
+      if (target == dst)
+      {
+        packets.push_back(packet_json(contents));
+      }
+    }
+    return packets;
+  }
+
   std::vector<std::pair<aft::Term, ccf::NodeId>> find_primaries()
   {
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
@@ -1040,7 +1074,7 @@ public:
     }
 
     throw std::runtime_error(
-      fmt::format("Found no primary in term {}", term_s));
+      std::format("Found no primary in term {}", term_s));
   }
 
   // Replicates the entries in one batch: "$" is a signature, anything else a
@@ -1175,7 +1209,7 @@ public:
 
       if (cft->get_view() != target_term)
       {
-        discrepancies[node_id].push_back(fmt::format(
+        discrepancies[node_id].push_back(std::format(
           "Term {} doesn't match term {} on {}",
           cft->get_view(),
           target_term,
@@ -1184,7 +1218,7 @@ public:
 
       if (cft->get_last_idx() != target_last_idx)
       {
-        discrepancies[node_id].push_back(fmt::format(
+        discrepancies[node_id].push_back(std::format(
           "Last index {} doesn't match last index {} on {}",
           cft->get_last_idx(),
           target_last_idx,
@@ -1199,7 +1233,7 @@ public:
           if (!target_entry.has_value())
           {
             discrepancies[node_id].push_back(
-              fmt::format("Missing ledger entry at {}", idx));
+              std::format("Missing ledger entry at {}", idx));
             break;
           }
           else
@@ -1208,12 +1242,12 @@ public:
             if (!entry.has_value())
             {
               discrepancies[node_id].push_back(
-                fmt::format("Missing ledger entry at {}", idx));
+                std::format("Missing ledger entry at {}", idx));
               break;
             }
             else if (entry != target_entry)
             {
-              discrepancies[node_id].push_back(fmt::format(
+              discrepancies[node_id].push_back(std::format(
                 "Entry at index {} doesn't match entry on {}: {} != {}",
                 idx,
                 target_id,
@@ -1227,7 +1261,7 @@ public:
 
       if (cft->get_committed_seqno() != target_commit_idx)
       {
-        discrepancies[node_id].push_back(fmt::format(
+        discrepancies[node_id].push_back(std::format(
           "Commit index {} doesn't match commit index {} on {}",
           cft->get_committed_seqno(),
           target_commit_idx,
@@ -1277,7 +1311,7 @@ public:
       {
         // If no primary exists, try to create one? No such scenario, so far
         throw std::runtime_error(
-          fmt::format("Can't currently loop until sync, no primary"));
+          std::format("Can't currently loop until sync, no primary"));
       }
     }
 
@@ -1326,7 +1360,7 @@ public:
       {
         print_discrepancies(discrepancies);
 
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Failed to reach state sync after {} loop iterations", iterations));
       }
     }
@@ -1390,7 +1424,7 @@ public:
             quorum,
             configuration.rid,
             configuration.idx);
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "Node ({}) at unsafe commit idx ({})", node_id, committed_seqno));
         }
       }
@@ -1419,7 +1453,7 @@ public:
     {
       CFT_DRIVER_PRINT(
         "Note over {}: Node is not at expected commit idx {}", node_id, idx);
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Node {} not at expected commit idx ({}) : {}",
         node_id,
         idx,
@@ -1449,7 +1483,7 @@ public:
       CFT_DRIVER_PRINT(
         "  Note over {}: Node does not have detail {}", node_id, detail);
       throw std::runtime_error(
-        fmt::format("Node {} does not have detail {}", node_id, detail));
+        std::format("Node {} does not have detail {}", node_id, detail));
     }
 
     std::string value = detail_to_string(d[detail]);
@@ -1463,7 +1497,7 @@ public:
         value,
         cmp,
         expected);
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Node {} detail {} is not as expected: {} {}= {}",
         node_id,
         detail,
@@ -1493,10 +1527,10 @@ public:
         if (expected_nodes != actual_nodes)
         {
           auto actual_str =
-            fmt::format("{{{}}}", fmt::join(actual_nodes, ", "));
+            std::format("{{{}}}", ccf::ds::join(actual_nodes, ", "));
           auto expected_str =
-            fmt::format("{{{}}}", fmt::join(expected_nodes, ", "));
-          throw std::runtime_error(fmt::format(
+            std::format("{{{}}}", ccf::ds::join(expected_nodes, ", "));
+          throw std::runtime_error(std::format(
             "Node {} configuration at idx {} ({}) does not match expected ({})",
             node_id,
             config_idx,
@@ -1506,7 +1540,7 @@ public:
         return;
       }
     }
-    throw std::runtime_error(fmt::format(
+    throw std::runtime_error(std::format(
       "Node {} does not have a configuration at idx {}", node_id, config_idx));
   }
 
@@ -1519,7 +1553,7 @@ public:
     {
       if (config.idx == config_idx)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Node {} has unexpected configuration at idx {}",
           node_id,
           config_idx));
@@ -1532,14 +1566,29 @@ public:
   {
     auto idx = _nodes.at(node_id).cft->get_last_idx();
     auto view = _nodes.at(node_id).cft->get_view(idx);
-    auto last_txid = fmt::format("{}.{}", view, idx);
+    auto last_txid = std::format("{}.{}", view, idx);
     if (last_txid != last_txid_s)
     {
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Node {} lastTxID is not as expected: {} != {}",
         node_id,
         last_txid,
         last_txid_s));
+    }
+  }
+
+  void assert_view(
+    const std::string& node_id, aft::Index idx, aft::Term expected_view)
+  {
+    auto actual_view = _nodes.at(node_id).cft->get_view(idx);
+    if (actual_view != expected_view)
+    {
+      throw std::runtime_error(std::format(
+        "Node {} view at idx {} is not as expected: {} != {}",
+        node_id,
+        idx,
+        actual_view,
+        expected_view));
     }
   }
 };

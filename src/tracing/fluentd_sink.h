@@ -31,14 +31,24 @@
 
 namespace ccf::tracing
 {
+  inline constexpr size_t INITIAL_EVENT_BUFFER_CAPACITY = 2048;
+  inline constexpr size_t MAX_RETAINED_EVENT_BUFFER_CAPACITY =
+    size_t{16} * 1024;
+
   inline std::vector<uint8_t>& event_buffer()
   {
     thread_local auto buffer = [] {
       std::vector<uint8_t> buffer;
-      buffer.reserve(2048);
+      buffer.reserve(INITIAL_EVENT_BUFFER_CAPACITY);
       return buffer;
     }();
     return buffer;
+  }
+
+  inline bool& emitting()
+  {
+    thread_local bool in_progress = false;
+    return in_progress;
   }
 
   // Configure before producers start; stop producers before shutdown.
@@ -49,6 +59,7 @@ namespace ccf::tracing
   public:
     using Endpoint = ccf::FluentdConfig;
     static constexpr uint64_t DROP_REPORT_INTERVAL = 65536;
+    static constexpr size_t MAX_PENDING_SEND_FAILURES = 3;
 
     static size_t validate(const Endpoint& endpoint, size_t producers = 1)
     {
@@ -132,6 +143,7 @@ namespace ccf::tracing
       int fd CCF_GUARDED_BY(mutex) = -1;
       std::unique_ptr<std::vector<uint8_t>> pending CCF_GUARDED_BY(mutex);
       size_t write_offset CCF_GUARDED_BY(mutex) = 0;
+      size_t pending_send_failures CCF_GUARDED_BY(mutex) = 0;
       QueueReader reader CCF_GUARDED_BY(mutex);
       bool finished CCF_GUARDED_BY(mutex) = false;
 
@@ -151,7 +163,7 @@ namespace ccf::tracing
         if (rc != 0)
         {
           throw std::invalid_argument(
-            fmt::format("Cannot resolve Fluentd host: {}", gai_strerror(rc)));
+            std::format("Cannot resolve Fluentd host: {}", gai_strerror(rc)));
         }
         std::memcpy(&address, addresses->ai_addr, addresses->ai_addrlen);
         address_size = addresses->ai_addrlen;
@@ -324,11 +336,14 @@ namespace ccf::tracing
             {
               break;
             }
+            pending_send_failures = 0;
             result.progress = true;
           }
           if (write_offset == pending->size())
           {
             pending.reset();
+            write_offset = 0;
+            pending_send_failures = 0;
             continue;
           }
           const auto sent = ::send(
@@ -344,6 +359,7 @@ namespace ccf::tracing
             {
               pending.reset();
               write_offset = 0;
+              pending_send_failures = 0;
             }
             continue;
           }
@@ -355,6 +371,15 @@ namespace ccf::tracing
           {
             result.blocked = true;
             break;
+          }
+          // Count only post-connect send failures so collector outages that
+          // fail connect() do not consume the record's retry budget.
+          ++pending_send_failures;
+          if (pending_send_failures >= MAX_PENDING_SEND_FAILURES)
+          {
+            pending.reset();
+            pending_send_failures = 0;
+            dropped.fetch_add(1, std::memory_order_relaxed);
           }
           disconnect();
           result.blocked = true;
@@ -394,6 +419,7 @@ namespace ccf::tracing
         {
           dropped.fetch_add(remaining, std::memory_order_relaxed);
           pending.reset();
+          pending_send_failures = 0;
           disconnect();
           finished = true;
         }
@@ -721,18 +747,13 @@ namespace ccf::tracing
       }
     }
 
-    static bool has_any_space(std::string_view tag, size_t slot, bool& allowed)
+    static bool has_any_space(std::string_view tag, size_t slot)
     {
-      allowed = false;
       for (const auto& t : worker()->transports)
       {
-        if (t->accepts(tag))
+        if (t->accepts(tag) && t->has_space(slot))
         {
-          allowed = true;
-          if (t->has_space(slot))
-          {
-            return true;
-          }
+          return true;
         }
       }
       return false;
@@ -801,18 +822,55 @@ namespace ccf::tracing
       requires std::invocable<F, std::vector<uint8_t>&>
     static bool submit(std::string_view tag, F&& serialise)
     {
+      if (!is_configured())
+      {
+        return false;
+      }
+      if (!accepts(tag))
+      {
+        return true;
+      }
+      auto& active = emitting();
+      if (active)
+      {
+        record_drop(tag);
+        return false;
+      }
+
+      struct Scope
+      {
+        bool& active;
+        std::vector<uint8_t>* buffer = nullptr;
+
+        ~Scope()
+        {
+          if (buffer && buffer->capacity() > MAX_RETAINED_EVENT_BUFFER_CAPACITY)
+          {
+            std::vector<uint8_t>().swap(*buffer);
+          }
+          active = false;
+        }
+      };
+
+      active = true;
+      Scope scope{active};
+
       return with_slot([&](size_t slot) {
-        bool allowed = false;
-        if (!has_any_space(tag, slot, allowed))
+        if (!has_any_space(tag, slot))
         {
           record_drop(tag);
-          return !allowed;
+          return false;
         }
         std::vector<uint8_t>* buffer = nullptr;
         try
         {
           buffer = &event_buffer();
+          scope.buffer = buffer;
           buffer->clear();
+          if (buffer->capacity() < INITIAL_EVENT_BUFFER_CAPACITY)
+          {
+            buffer->reserve(INITIAL_EVENT_BUFFER_CAPACITY);
+          }
           std::forward<F>(serialise)(*buffer);
         }
         catch (const std::bad_alloc&)

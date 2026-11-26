@@ -8,6 +8,7 @@
 #include "logging_stub.h"
 
 #include <chrono>
+#include <format>
 #include <string>
 
 using TCft = aft::Aft<aft::LedgerStubProxy>;
@@ -124,7 +125,7 @@ static size_t dispatch_all(NodeMap& nodes, const ccf::NodeId& from)
 static std::shared_ptr<std::vector<uint8_t>> make_ledger_entry(
   const aft::Term term, const aft::Index idx)
 {
-  const auto s = fmt::format("Ledger entry @{}.{}", term, idx);
+  const auto s = std::format("Ledger entry @{}.{}", term, idx);
   auto e = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
 
   // Each entry is so large that it produces a single AppendEntries, there are

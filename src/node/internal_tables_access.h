@@ -32,9 +32,11 @@
 #include "service/tables/signing_identities.h"
 
 #include <algorithm>
+#include <format>
 #include <ostream>
 #include <set>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace ccf
@@ -167,7 +169,7 @@ namespace ccf
           if (!info.has_value())
           {
             throw std::logic_error(
-              fmt::format("Recovery member {} has no member info", mid));
+              std::format("Recovery member {} has no member info", mid));
           }
 
           if (
@@ -199,7 +201,7 @@ namespace ccf
           if (!info.has_value())
           {
             throw std::logic_error(
-              fmt::format("Recovery member {} has no member info", mid));
+              std::format("Recovery member {} has no member info", mid));
           }
 
           if (
@@ -239,7 +241,7 @@ namespace ccf
         {
           if (member_recovery_role != ccf::MemberRecoveryRole::NonParticipant)
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Member {} cannot be added as recovery_role has a value set but "
               "no "
               "encryption public key is specified",
@@ -252,12 +254,12 @@ namespace ccf
             member_recovery_role != ccf::MemberRecoveryRole::Participant &&
             member_recovery_role != ccf::MemberRecoveryRole::Owner)
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Recovery member {} cannot be added as with recovery role value "
               "of "
               "{}",
               id.value(),
-              member_recovery_role));
+              std::to_underlying(member_recovery_role)));
           }
         }
       }
@@ -297,7 +299,7 @@ namespace ccf
       auto member = member_info->get(member_id);
       if (!member.has_value())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Member {} cannot be activated as they do not exist", member_id));
       }
 
@@ -321,7 +323,7 @@ namespace ccf
       if (user_cert.has_value())
       {
         throw std::logic_error(
-          fmt::format("Certificate already exists for user {}", id));
+          std::format("Certificate already exists for user {}", id));
       }
 
       user_certs->put(id, new_user.cert);
@@ -333,7 +335,7 @@ namespace ccf
         if (ui.has_value())
         {
           throw std::logic_error(
-            fmt::format("User data already exists for user {}", id));
+            std::format("User data already exists for user {}", id));
         }
 
         user_info->put(id, {new_user.user_data});
@@ -411,7 +413,9 @@ namespace ccf
       const auto signing_identity = signing_identity_from_key(service_key);
 
       // Builds with ML-DSA always hold a PQ identity, and a service which has
-      // one never loses it
+      // one never loses it. The analyzer treats the value as unread in builds
+      // where ML-DSA support is a compile-time constant.
+      // NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores)
       const bool prev_service_has_pq_cert =
         prev_service_info.has_value() && prev_service_info->pq_cert.has_value();
       const bool pq_identity_required = ccf::crypto::mldsa_supported() ||
@@ -616,7 +620,7 @@ namespace ccf
         !signing_identity.has_value() ||
         !is_same_key(signing_identity.value(), endorsement.endorsing_key))
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Endorsing key is not the {} service signing identity",
           identity_type));
       }
@@ -834,12 +838,12 @@ namespace ccf
 
       if (!node_info.has_value())
       {
-        throw std::logic_error(fmt::format("Node {} does not exist", node_id));
+        throw std::logic_error(std::format("Node {} does not exist", node_id));
       }
 
       if (node_info->status == NodeStatus::RETIRED)
       {
-        throw std::logic_error(fmt::format("Node {} is retired", node_id));
+        throw std::logic_error(std::format("Node {} is retired", node_id));
       }
 
       node_info->status = NodeStatus::TRUSTED;
@@ -889,8 +893,9 @@ namespace ccf
         }
         default:
         {
-          throw std::logic_error(fmt::format(
-            "Unexpected quote format {} when trusting node code id", platform));
+          throw std::logic_error(std::format(
+            "Unexpected quote format {} when trusting node code id",
+            std::to_underlying(platform)));
         }
       }
     }
@@ -1006,7 +1011,7 @@ namespace ccf
         tav_snp_attestation_report_version(attestation.get()) <
         pal::snp::minimum_attestation_version)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "SEV-SNP: attestation version {} is not supported. Minimum "
           "supported version is {}",
           tav_snp_attestation_report_version(attestation.get()),
@@ -1023,7 +1028,7 @@ namespace ccf
         cpuid.stepping !=
           tav_snp_attestation_report_cpuid_step(attestation.get()))
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
           "{})",
           cpuid.hex_str(),
