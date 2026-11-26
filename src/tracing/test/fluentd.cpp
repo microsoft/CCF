@@ -210,28 +210,65 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
   for (size_t failure = 1; failure <= 2; ++failure)
   {
     allocation_failure = allocations + failure;
-    const auto pushed = queue.push(payload);
+    CHECK_THROWS_AS(queue.push(payload), std::bad_alloc);
     allocation_failure = 0;
-    CHECK_FALSE(pushed);
     CHECK(queue.pop() == nullptr);
     REQUIRE(queue.push(payload));
     CHECK(queue.pop() != nullptr);
   }
-  std::vector<uint8_t> large(Queue::MAX_RECORD_SIZE + 1);
-  const auto before = allocations;
-  const auto oversized = queue.push(large);
-  const auto after = allocations;
-  CHECK_FALSE(oversized);
-  CHECK(before == after);
-  large.pop_back();
+  // Records have no size limit of their own.
+  std::vector<uint8_t> large(size_t{2} * 1024 * 1024);
   REQUIRE(queue.push(large));
   auto record = queue.pop();
   REQUIRE(record != nullptr);
-  CHECK(record->size() == Queue::MAX_RECORD_SIZE);
+  CHECK(record->size() == large.size());
   REQUIRE(queue.push({}));
   auto empty = queue.pop();
   REQUIRE(empty != nullptr);
   CHECK(empty->empty());
+}
+
+TEST_CASE("SPSC queue bounds queued bytes with one record of overshoot")
+{
+  using Queue = ccf::tracing::SPSCQueue;
+  CHECK_THROWS_AS(Queue(8, 0), std::invalid_argument);
+  Queue queue(8, 100);
+  std::vector<uint8_t> payload(60);
+  for (size_t round = 0; round < 16; ++round)
+  {
+    // Any free byte admits a record, whatever its size.
+    CHECK(queue.has_space());
+    REQUIRE(queue.push(payload));
+    CHECK(queue.has_space());
+    REQUIRE(queue.push(payload));
+    CHECK_FALSE(queue.has_space());
+    const auto before = allocations;
+    const auto full = queue.push({});
+    const auto after = allocations;
+    CHECK_FALSE(full);
+    CHECK(after == before);
+    CHECK(queue.size() == 2);
+    // 60 bytes remain queued, so the next record is admitted again.
+    REQUIRE(queue.pop() != nullptr);
+    CHECK(queue.has_space());
+    REQUIRE(queue.push(payload));
+    CHECK_FALSE(queue.push(payload));
+    for (size_t i = 0; i < 2; ++i)
+      REQUIRE(queue.pop() != nullptr);
+    CHECK(queue.pop() == nullptr);
+  }
+  // Rejected and failed pushes are not charged.
+  allocation_failure = allocations + 1;
+  CHECK_THROWS_AS(queue.push(payload), std::bad_alloc);
+  allocation_failure = 0;
+  std::vector<uint8_t> large(4096);
+  REQUIRE(queue.push(large));
+  CHECK_FALSE(queue.push({}));
+  REQUIRE(queue.pop() != nullptr);
+  // The record count still bounds records too small to reach the byte limit.
+  for (size_t i = 0; i < 8; ++i)
+    REQUIRE(queue.push({}));
+  CHECK_FALSE(queue.push({}));
 }
 
 TEST_CASE("Nested object encoding does not allocate into a reserved buffer")
@@ -254,6 +291,10 @@ TEST_CASE("Trace configuration has no arbitrary producer or capacity ceiling")
   CHECK_THROWS_AS(Sink::validate(endpoint, 0), std::invalid_argument);
   endpoint.queue_capacity = 0;
   CHECK_THROWS_AS(Sink::validate(endpoint), std::invalid_argument);
+  endpoint.queue_capacity = 1;
+  CHECK_NOTHROW(Sink::validate(endpoint));
+  endpoint.queue_capacity_bytes = 0;
+  CHECK_THROWS_AS(Sink::validate(endpoint), std::invalid_argument);
 }
 
 TEST_CASE("Fluentd settings round-trip through the operator configuration")
@@ -274,6 +315,9 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
   CHECK(config.observability.fluentd[0].port == "24224");
   CHECK(config.observability.fluentd[0].queue_capacity == 4096);
   CHECK(
+    config.observability.fluentd[0].queue_capacity_bytes ==
+    size_t{4} * 1024 * 1024);
+  CHECK(
     config.observability.fluentd[0].tag_prefix_allow_list ==
     std::vector<std::string>{"ccf.log"});
   CHECK(
@@ -284,12 +328,16 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
     ccf::FluentdConfig::Delivery::UNBUFFERED_NON_BLOCKING);
 
   config.observability.fluentd[0].queue_capacity = 17;
+  config.observability.fluentd[0].queue_capacity_bytes = 4242;
   config.observability.fluentd[0].tag_prefix_allow_list = {
     "ccf.cft", "ccf.sho"};
   config.observability.fluentd[1].tag_prefix_allow_list.clear();
   const nlohmann::json roundtrip = config;
   CHECK(
     roundtrip.at("observability").at("fluentd")[0].at("queue_capacity") == 17);
+  CHECK(
+    roundtrip.at("observability").at("fluentd")[0].at("queue_capacity_bytes") ==
+    4242);
   CHECK(
     roundtrip.at("observability")
       .at("fluentd")[0]
@@ -411,6 +459,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(getsockname(listener, (sockaddr*)&address, &size) == 0);
   Sink::Endpoint endpoint{"127.0.0.1", std::to_string(ntohs(address.sin_port))};
   endpoint.queue_capacity = 3;
+  endpoint.queue_capacity_bytes = 8192;
   endpoint.tag_prefix_allow_list = {
     "ccf.sho", "ccf.request", "ccf.request.child", "ccf.request", "ccf.log"};
   const int excluded_listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -427,9 +476,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   ccf::logger::config::loggers().emplace_back(
     std::make_unique<ccf::tracing::FluentdLogger>());
   ccf::logger::config::loggers().push_back(std::move(logger));
-  Sink::configure(std::vector{endpoint, excluded_endpoint}, 2);
+  Sink::configure(std::vector{endpoint, excluded_endpoint}, 3);
   Sink::bind_producer(0);
-  CHECK_THROWS_AS(Sink::bind_producer(2), std::out_of_range);
+  CHECK_THROWS_AS(Sink::bind_producer(3), std::out_of_range);
   const auto waiting = std::chrono::steady_clock::now();
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::milliseconds(150)));
   CHECK(std::chrono::steady_clock::now() - waiting < std::chrono::seconds(1));
@@ -464,6 +513,12 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE_FALSE(encoded);
   CHECK(Sink::dropped_count() == drops_before_filtering);
   CHECK(calls == 0);
+  // Each thread reports its first allocation failure straight to stderr.
+  std::array<int, 2> stderr_pipe = {};
+  REQUIRE(pipe(stderr_pipe.data()) == 0);
+  const int saved_stderr = dup(STDERR_FILENO);
+  REQUIRE(saved_stderr >= 0);
+  REQUIRE(dup2(stderr_pipe[1], STDERR_FILENO) >= 0);
   // Fail the first buffer reserve, then process identity initialization.
   for (size_t failure = 1; failure <= 2; ++failure)
   {
@@ -473,6 +528,17 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     allocation_failure = 0;
     CHECK(Sink::dropped_count() == before + 1);
   }
+  REQUIRE(dup2(saved_stderr, STDERR_FILENO) >= 0);
+  __real_close(saved_stderr);
+  __real_close(stderr_pipe[1]);
+  std::string reported(256, '\0');
+  const auto reported_size =
+    read(stderr_pipe[0], reported.data(), reported.size());
+  __real_close(stderr_pipe[0]);
+  REQUIRE(reported_size >= 0);
+  reported.resize(reported_size);
+  CHECK(
+    reported == "Fluentd exporter is dropping records: allocation failed\n");
   ccf::tracing::emit(
     "ccf.request", "path", "/app/log", "status", 200, "cached", false);
   const auto typed_frame =
@@ -499,7 +565,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(
     frame[2]["msg"] ==
     nlohmann::json{{"path", "/app/log"}, {"status", 200}, {"cached", false}});
-  CHECK(frame[2]["m_ts"] == 2);
+  CHECK(frame[2]["m_ts"] == 1);
   CHECK(frame[2]["pid"].is_string());
   CHECK_FALSE(wrong_thread);
 
@@ -697,13 +763,6 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(Sink::dropped_count() == before_encoding_failure + 1);
   check_event([] { request_trace::empty(); }, {{"function", "empty"}});
 
-  const std::string oversized_value(
-    ccf::tracing::SPSCQueue::MAX_RECORD_SIZE, 'x');
-  const auto before_oversized = Sink::dropped_count();
-  request_trace::single(oversized_value);
-  CHECK(Sink::dropped_count() == before_oversized + 1);
-  CHECK(ccf::tracing::event_buffer().capacity() == 0);
-  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
   const auto* stable_data = ccf::tracing::event_buffer().data();
   const auto stable_capacity = ccf::tracing::event_buffer().capacity();
   check_event([] { request_trace::empty(); }, {{"function", "empty"}});
@@ -854,13 +913,37 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   const auto drops_before_bound_log = Sink::dropped_count();
   LOG_INFO_FMT("Bound logs share their producer queue");
   CHECK(Sink::dropped_count() == drops_before_bound_log + 1);
-  std::vector<uint8_t> oversize(ccf::tracing::SPSCQueue::MAX_RECORD_SIZE + 1);
+  // Records for a full queue are dropped before they are formatted or encoded.
+  ccf::tracing::emit(
+    "ccf.request", "probe", request_trace::EncodingProbe{encoded});
+  CHECK_FALSE(encoded);
+  CHECK(Sink::dropped_count() == drops_before_bound_log + 2);
+  {
+    ccf::logger::LogLine line(ccf::LoggerLevel::INFO, "app", "file.cpp", 42);
+    line << "dropped";
+    line.finalize();
+    ccf::tracing::FluentdLogger fluentd;
+    const auto before = allocations;
+    fluentd.write(line);
+    const auto after = allocations;
+    CHECK(after == before);
+    CHECK(Sink::dropped_count() == drops_before_bound_log + 3);
+  }
+  // A queue with free slots is full once it holds its byte capacity.
+  std::thread third([&] {
+    Sink::bind_producer(2);
+    const std::vector<uint8_t> large(endpoint.queue_capacity_bytes);
+    CHECK(Sink::enqueue("ccf.request", large));
+    CHECK_FALSE(Sink::enqueue("ccf.request", {}));
+  });
+  third.join();
+  CHECK(Sink::dropped_count() == drops_before_bound_log + 4);
   forbid_allocation = true;
   bool allocation_failed = false;
   try
   {
     for (size_t i = 0; i < Sink::DROP_REPORT_INTERVAL * 2; ++i)
-      Sink::enqueue("ccf.request", oversize);
+      Sink::enqueue("ccf.request", payload);
     for (size_t i = 0; i < 32; ++i)
       Sink::enqueue("ccf.request", payload);
   }
@@ -902,13 +985,13 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(logs->close_errors == 1);
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 7);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 8);
   CHECK(logs->shutdown_reports == 2);
   CHECK(
     logs->shutdown_messages[0] ==
     std::format(
       "Fluentd exporter shutdown: {} dropped events",
-      drops_before_shutdown + 7));
+      drops_before_shutdown + 8));
   CHECK(
     logs->shutdown_messages[1] ==
     "Fluentd exporter shutdown: 0 dropped events");
@@ -922,7 +1005,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK_FALSE(shutdown_pushed);
   CHECK(
     allocations_after_shutdown_enqueue == allocations_before_shutdown_enqueue);
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 8);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 9);
   CHECK(logs->reports == 2);
   CHECK_FALSE(wrong_thread);
   close(peer);

@@ -16,26 +16,6 @@
 
 namespace ccf::tracing
 {
-  inline constexpr size_t INITIAL_EVENT_BUFFER_CAPACITY = 2048;
-  inline constexpr size_t MAX_RETAINED_EVENT_BUFFER_CAPACITY =
-    size_t{16} * 1024;
-
-  inline std::vector<uint8_t>& event_buffer()
-  {
-    thread_local auto buffer = [] {
-      std::vector<uint8_t> buffer;
-      buffer.reserve(INITIAL_EVENT_BUFFER_CAPACITY);
-      return buffer;
-    }();
-    return buffer;
-  }
-
-  inline bool& emitting()
-  {
-    thread_local bool in_progress = false;
-    return in_progress;
-  }
-
   inline uint64_t next_sequence()
   {
     static std::atomic<uint64_t> sequence = 0;
@@ -54,71 +34,38 @@ namespace ccf::tracing
   // Alternating string keys and borrowed values form the envelope's msg map.
   template <typename... Args>
     requires msgpack::map_arguments<Args...>
+  inline void encode(
+    std::vector<uint8_t>& buffer, std::string_view tag, const Args&... args)
+  {
+    const auto sequence = next_sequence();
+    buffer.clear();
+    msgpack::write_array_header(buffer, 3);
+    msgpack::write_str(buffer, tag);
+    msgpack::write_fluentd_event_time(
+      buffer,
+      msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
+    msgpack::write_map_header(buffer, 3);
+    msgpack::write_str(buffer, "pid");
+    msgpack::write_str(buffer, process_identity());
+    msgpack::write_str(buffer, "m_ts");
+    msgpack::write_uint(buffer, sequence);
+    msgpack::write_str(buffer, "msg");
+    msgpack::write_map_header(buffer, sizeof...(Args) / 2);
+    using msgpack::write_msgpack;
+    const auto refs = std::tie(args...);
+    [&]<size_t... I>(std::index_sequence<I...>) {
+      ((msgpack::write_str(buffer, std::get<2 * I>(refs)),
+        write_msgpack(buffer, std::get<2 * I + 1>(refs))),
+       ...);
+    }(std::make_index_sequence<sizeof...(Args) / 2>{});
+  }
+
+  template <typename... Args>
+    requires msgpack::map_arguments<Args...>
   inline void emit(std::string_view tag, const Args&... args)
   {
-    if (!FluentdSink::accepts(tag))
-    {
-      return;
-    }
-    auto& active = emitting();
-    if (active)
-    {
-      FluentdSink::record_drop(tag);
-      return;
-    }
-
-    struct Scope
-    {
-      bool& active;
-      std::vector<uint8_t>* buffer = nullptr;
-
-      ~Scope()
-      {
-        if (buffer && buffer->capacity() > MAX_RETAINED_EVENT_BUFFER_CAPACITY)
-        {
-          std::vector<uint8_t>().swap(*buffer);
-        }
-        active = false;
-      }
-    };
-
-    active = true;
-    Scope scope{active};
-    const auto sequence = next_sequence();
-    try
-    {
-      auto& buffer = event_buffer();
-      scope.buffer = &buffer;
-      buffer.clear();
-      if (buffer.capacity() < INITIAL_EVENT_BUFFER_CAPACITY)
-      {
-        buffer.reserve(INITIAL_EVENT_BUFFER_CAPACITY);
-      }
-      msgpack::write_array_header(buffer, 3);
-      msgpack::write_str(buffer, tag);
-      msgpack::write_fluentd_event_time(
-        buffer,
-        msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
-      msgpack::write_map_header(buffer, 3);
-      msgpack::write_str(buffer, "pid");
-      msgpack::write_str(buffer, process_identity());
-      msgpack::write_str(buffer, "m_ts");
-      msgpack::write_uint(buffer, sequence);
-      msgpack::write_str(buffer, "msg");
-      msgpack::write_map_header(buffer, sizeof...(Args) / 2);
-      using msgpack::write_msgpack;
-      const auto refs = std::tie(args...);
-      [&]<size_t... I>(std::index_sequence<I...>) {
-        ((msgpack::write_str(buffer, std::get<2 * I>(refs)),
-          write_msgpack(buffer, std::get<2 * I + 1>(refs))),
-         ...);
-      }(std::make_index_sequence<sizeof...(Args) / 2>{});
-      FluentdSink::enqueue(tag, buffer);
-    }
-    catch (const std::bad_alloc&)
-    {
-      FluentdSink::record_drop(tag);
-    }
+    FluentdSink::submit(
+      tag, [&](std::vector<uint8_t>& buffer) { encode(buffer, tag, args...); });
   }
 }
 

@@ -11,20 +11,20 @@ namespace ccf::tracing
   public:
     void write(const ccf::logger::LogLine& line) override
     {
-      if (!FluentdSink::is_running() || !FluentdSink::accepts("ccf.log"))
+      if (!FluentdSink::is_running())
       {
         return;
       }
-      ::timespec host_ts{};
-      if (::timespec_get(&host_ts, TIME_UTC) == 0)
-      {
-        throw std::runtime_error("timespec_get failed");
-      }
-      std::tm host_tm{};
-      ::gmtime_r(&host_ts.tv_sec, &host_tm);
-      try
-      {
-        ccf::tracing::emit(
+      FluentdSink::submit("ccf.log", [&line](std::vector<uint8_t>& buffer) {
+        ::timespec host_ts{};
+        if (::timespec_get(&host_ts, TIME_UTC) == 0)
+        {
+          throw std::runtime_error("timespec_get failed");
+        }
+        std::tm host_tm{};
+        ::gmtime_r(&host_ts.tv_sec, &host_tm);
+        ccf::tracing::encode(
+          buffer,
           "ccf.log",
           "h_ts",
           ccf::logger::get_timestamp(host_tm, host_ts),
@@ -40,11 +40,7 @@ namespace ccf::tracing
           std::format("{}", line.line_number),
           "msg",
           line.msg);
-      }
-      catch (const std::bad_alloc&)
-      {
-        FluentdSink::record_drop("ccf.log");
-      }
+      });
     }
   };
 }

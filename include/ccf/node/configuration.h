@@ -435,6 +435,8 @@ namespace ccf
     CCFConfig::Observability::Fluentd,
     queue_capacity,
     "queue_capacity",
+    queue_capacity_bytes,
+    "queue_capacity_bytes",
     delivery,
     "delivery",
     tag_prefix_allow_list,

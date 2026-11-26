@@ -23,6 +23,9 @@ namespace ccf
     size_t queue_capacity = 4096;
     Delivery delivery = Delivery::BUFFERED_BEST_EFFORT;
     std::vector<std::string> tag_prefix_allow_list = {"ccf.log"};
+    // Soft byte limit per producer thread; queue_capacity is the hard record
+    // limit.
+    size_t queue_capacity_bytes = size_t{4} * 1024 * 1024;
 
     bool operator==(const FluentdConfig&) const = default;
   };

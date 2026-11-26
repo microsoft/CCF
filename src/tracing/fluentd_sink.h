@@ -13,6 +13,8 @@
 #include <cerrno>
 #include <charconv>
 #include <chrono>
+#include <concepts>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -29,6 +31,26 @@
 
 namespace ccf::tracing
 {
+  inline constexpr size_t INITIAL_EVENT_BUFFER_CAPACITY = 2048;
+  inline constexpr size_t MAX_RETAINED_EVENT_BUFFER_CAPACITY =
+    size_t{16} * 1024;
+
+  inline std::vector<uint8_t>& event_buffer()
+  {
+    thread_local auto buffer = [] {
+      std::vector<uint8_t> buffer;
+      buffer.reserve(INITIAL_EVENT_BUFFER_CAPACITY);
+      return buffer;
+    }();
+    return buffer;
+  }
+
+  inline bool& emitting()
+  {
+    thread_local bool in_progress = false;
+    return in_progress;
+  }
+
   // Configure before producers start; stop producers before shutdown.
   class FluentdSink
   {
@@ -42,7 +64,7 @@ namespace ccf::tracing
     static size_t validate(const Endpoint& endpoint, size_t producers = 1)
     {
       const auto size = endpoint.queue_capacity;
-      if (producers == 0 || size == 0)
+      if (producers == 0 || size == 0 || endpoint.queue_capacity_bytes == 0)
       {
         throw std::invalid_argument(
           "Trace queue capacity and producer count must be greater than zero");
@@ -148,10 +170,12 @@ namespace ccf::tracing
         freeaddrinfo(addresses);
         for (size_t i = 0; i < producers; ++i)
         {
-          queues.push_back(std::make_unique<SPSCQueue>(size));
+          queues.push_back(
+            std::make_unique<SPSCQueue>(size, endpoint.queue_capacity_bytes));
         }
-        // Unbound producers share one queue, serialised before enqueueing.
-        queues.push_back(std::make_unique<SPSCQueue>(size));
+        // Unbound producers share one queue, under unbound_producer_mutex.
+        queues.push_back(
+          std::make_unique<SPSCQueue>(size, endpoint.queue_capacity_bytes));
       }
 
       [[nodiscard]] bool accepts(std::string_view tag) const
@@ -185,6 +209,14 @@ namespace ccf::tracing
         return std::any_of(queues.begin(), queues.end(), [](const auto& queue) {
           return queue->size() != 0;
         });
+      }
+
+      // Producer-only, for the producer that owns this slot.
+      [[nodiscard]] bool has_space(size_t slot) const
+      {
+        return slot < queues.size() &&
+          !stopping.load(std::memory_order_relaxed) &&
+          queues[slot]->has_space();
       }
 
       [[nodiscard]] bool expired() const CCF_REQUIRES(mutex)
@@ -692,7 +724,42 @@ namespace ccf::tracing
     }
 
   private:
-    static bool enqueue_at_slot(
+    static void record_drop(std::string_view tag)
+    {
+      for (const auto& t : worker()->transports)
+      {
+        if (t->accepts(tag))
+        {
+          t->dropped.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
+    }
+
+    static void report_allocation_failure()
+    {
+      // Logging here would allocate, and re-enter this exporter.
+      thread_local bool reported = false;
+      if (!reported)
+      {
+        reported = true;
+        static_cast<void>(std::fputs(
+          "Fluentd exporter is dropping records: allocation failed\n", stderr));
+      }
+    }
+
+    static bool has_any_space(std::string_view tag, size_t slot)
+    {
+      for (const auto& t : worker()->transports)
+      {
+        if (t->accepts(tag) && t->has_space(slot))
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    static bool push_at_slot(
       std::string_view tag, std::span<const uint8_t> bytes, size_t slot)
     {
       bool enqueued = true;
@@ -702,10 +769,16 @@ namespace ccf::tracing
         {
           continue;
         }
-        if (
-          slot >= t->queues.size() ||
-          t->stopping.load(std::memory_order_relaxed) ||
-          !t->queues[slot]->push(bytes))
+        bool pushed = false;
+        try
+        {
+          pushed = t->has_space(slot) && t->queues[slot]->push(bytes);
+        }
+        catch (const std::bad_alloc&)
+        {
+          report_allocation_failure();
+        }
+        if (!pushed)
         {
           t->dropped.fetch_add(1, std::memory_order_relaxed);
           enqueued = false;
@@ -721,9 +794,8 @@ namespace ccf::tracing
       return enqueued;
     }
 
-  public:
-    // False may mean partial acceptance: other sinks still receive the record.
-    static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
+    template <typename F>
+    static bool with_slot(F&& fn)
     {
       if (!is_configured())
       {
@@ -732,26 +804,89 @@ namespace ccf::tracing
       const auto slot = bound_slot();
       if (slot == std::numeric_limits<size_t>::max())
       {
+        // Held while serialising, so the space found is still there to use.
         ccf::ds::MutexGuard lock(worker()->unbound_producer_mutex);
-        return enqueue_at_slot(
-          tag, bytes, worker()->transports.front()->queues.size() - 1);
+        return std::forward<F>(fn)(
+          worker()->transports.front()->queues.size() - 1);
       }
-      return enqueue_at_slot(tag, bytes, slot);
+      return std::forward<F>(fn)(slot);
     }
 
-    static void record_drop(std::string_view tag)
+  public:
+    // Calls serialise(buffer) only if a sink that selects tag has space for
+    // the record; otherwise the record is counted as dropped without being
+    // built. Space is judged before the record's size is known, so the byte
+    // capacity is a soft limit.
+    // False may mean partial acceptance: other sinks still receive the record.
+    template <typename F>
+      requires std::invocable<F, std::vector<uint8_t>&>
+    static bool submit(std::string_view tag, F&& serialise)
     {
       if (!is_configured())
       {
-        return;
+        return false;
       }
-      for (const auto& t : worker()->transports)
+      if (!accepts(tag))
       {
-        if (t->accepts(tag))
-        {
-          t->dropped.fetch_add(1, std::memory_order_relaxed);
-        }
+        return true;
       }
+      auto& active = emitting();
+      if (active)
+      {
+        record_drop(tag);
+        return false;
+      }
+
+      struct Scope
+      {
+        bool& active;
+        std::vector<uint8_t>* buffer = nullptr;
+
+        ~Scope()
+        {
+          if (buffer && buffer->capacity() > MAX_RETAINED_EVENT_BUFFER_CAPACITY)
+          {
+            std::vector<uint8_t>().swap(*buffer);
+          }
+          active = false;
+        }
+      };
+
+      active = true;
+      Scope scope{active};
+
+      return with_slot([&](size_t slot) {
+        if (!has_any_space(tag, slot))
+        {
+          record_drop(tag);
+          return false;
+        }
+        std::vector<uint8_t>* buffer = nullptr;
+        try
+        {
+          buffer = &event_buffer();
+          scope.buffer = buffer;
+          buffer->clear();
+          if (buffer->capacity() < INITIAL_EVENT_BUFFER_CAPACITY)
+          {
+            buffer->reserve(INITIAL_EVENT_BUFFER_CAPACITY);
+          }
+          std::forward<F>(serialise)(*buffer);
+        }
+        catch (const std::bad_alloc&)
+        {
+          report_allocation_failure();
+          record_drop(tag);
+          return false;
+        }
+        return push_at_slot(tag, *buffer, slot);
+      });
+    }
+
+    static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
+    {
+      return with_slot(
+        [&](size_t slot) { return push_at_slot(tag, bytes, slot); });
     }
 
     static uint64_t dropped_count()
