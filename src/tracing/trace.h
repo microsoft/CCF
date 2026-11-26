@@ -17,7 +17,8 @@
 namespace ccf::tracing
 {
   inline constexpr size_t INITIAL_EVENT_BUFFER_CAPACITY = 2048;
-  inline constexpr size_t MAX_RETAINED_EVENT_BUFFER_CAPACITY = 16 * 1024;
+  inline constexpr size_t MAX_RETAINED_EVENT_BUFFER_CAPACITY =
+    size_t{16} * 1024;
 
   inline std::vector<uint8_t>& event_buffer()
   {
