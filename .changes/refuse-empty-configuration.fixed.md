@@ -1,2 +1,2 @@
 Nodes now refuse a consensus configuration with no trusted nodes before writing the transaction to the ledger or adopting it, where a service could previously record a configuration after which nothing could be committed.
-A primary asked to replicate such a transaction still stops with a fatal error; see [Removing an Existing Node](doc/governance/common_member_operations.rst#removing-an-existing-node).
+A primary asked to replicate such a transaction stops with a fatal error; see [Removing an Existing Node](doc/governance/common_member_operations.rst#removing-an-existing-node).
