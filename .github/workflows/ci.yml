@@ -107,7 +107,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
-            build/workspace/*_trace/*.ndjson
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -179,7 +179,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
-            build/workspace/*_trace/*.ndjson
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -260,7 +260,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
-            build/workspace/*_trace/*.ndjson
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
             build/workspace/*_consistency_trace.ndjson
           if-no-files-found: ignore
@@ -360,7 +360,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
-            build/workspace/*_trace/*.ndjson
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -406,8 +406,14 @@ jobs:
           pattern: logs-azurelinux-virtual-*
           path: ${{ runner.temp }}/e2e-logs
 
+      - name: Install msgpack
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-msgpack
+
       - name: Validate e2e consensus traces
         run: |
           set -euo pipefail
-          python3 tests/cft_trace_validation.py \
+          tests/cft_trace_validation.py \
             lean/consensus/.lake/build/bin/consensus-replay "$RUNNER_TEMP/e2e-logs"

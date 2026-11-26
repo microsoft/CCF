@@ -33,7 +33,7 @@ private def appendEntries (request : ReqID) : Envelope :=
 
 private def receive (network : List Envelope) : Except String ReplayState :=
   runInstruction header { state := { header.initial with network } }
-    (.action (.receive "0" "1" (messageJson (appendEntries 1).payload)) default)
+    (.action (.receive "0" "1" (Packet.ofMessage (appendEntries 1).payload)) default)
 
 /-- Checks delivery selection among queued envelopes whose rendered packets are equal. -/
 def run : IO Unit := do

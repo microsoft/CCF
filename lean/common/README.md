@@ -9,6 +9,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.MultiNodeTransitionSystem` | Local protocols composed into a message-passing network      |
 | `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
+| `CCF.Msgpack`                   | MessagePack readers, and structures declared with theirs     |
 | `CCF.Architecture`              | Checks of specification import layering                      |
 | `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
 | `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |

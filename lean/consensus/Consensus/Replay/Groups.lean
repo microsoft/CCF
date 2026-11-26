@@ -19,7 +19,10 @@ namespace Consensus.Replay
 
 open Reducer
 
-/-- One rule's instructions as a group; bootstrap, a drop or a snapshot hook emits none. -/
+/--
+One rule's instructions as a group; bootstrap, a drop, a snapshot hook or a tick with no
+action emits none.
+-/
 private def group : Reduction (Option Group) := do
   let some head ← CCF.Parsec.peek | CCF.Parsec.failure "unexpected end of input"
   let start ← CCF.Parsec.position

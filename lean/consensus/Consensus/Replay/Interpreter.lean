@@ -4,13 +4,13 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import Consensus.Model
-public import Lean.Data.Json
+public import Consensus.Replay.Trace
 
 public section
 
 namespace Consensus.Replay
 
-open Lean Model.Node
+open Model.Node
 open CCF (Finset)
 open CCF.MultiNodeTransitionSystem (nodeState removeOne)
 
@@ -46,7 +46,7 @@ def Header.initial (header : Header) : Model.State :=
 
 inductive Step where
   | local (node : String) (input : Input)
-  | receive (source destination : String) (packet : Json)
+  | receive (source destination : String) (packet : Packet)
   /-- Initialize from a node's committed prefix ending at `index` in term `view`. -/
   | initAsBackup (node : String) (index view : Nat)
 
@@ -66,13 +66,13 @@ structure ReplayState where
 /-- A traced native send, or the proposal a nomination implies. -/
 structure NativeSend where
   target : String
-  packet : Json
+  packet : Packet
   origin : Origin
 
 /-- Direct model actions and boundary snapshots; there is no replay wire schema. -/
 inductive Instruction where
   | action (step : Step) (origin : Origin)
-  | observeNodeState (node : String) (expected : Json) (origin : Origin)
+  | observeNodeState (node : String) (expected : StateSnapshot) (origin : Origin)
   /-- The envelopes queued since the last send observation must equal `sends`, as a multiset. -/
   | observeSends (sends : List NativeSend) (origin : Origin)
 
@@ -101,23 +101,13 @@ structure Group where
 def Group.label (group : Group) : String :=
   (group.instructions[0]?.map (·.origin.label)).getD ""
 
-private def checkValue {α : Type} [ToJson α] (actual : α) (expected : Json)
+/-- Compare a field of a snapshot, if it has it, with the model's. -/
+private def check {α : Type} [BEq α] [Repr α] (field : String) (observed : Option α)
+    (model : Unit → α)
     : Except String Unit := do
-  let actual := toJson actual
-  unless expected == actual do
-    throw s!"observed {expected.compress}, model {actual.compress}"
-
-private def checkFields (resolve : String → Option (Json → Except String Unit))
-    (expected : Json)
-    : Except String Unit := do
-  let fields ← expected.getObj?
-  if fields.isEmpty then
-    throw "observation must contain at least one field"
-  for (key, value) in fields.toList do
-    let path := s!"$[{(toJson key).compress}]"
-    let some check := resolve key
-    | throw s!"unsupported observation field '{path}'"
-    (check value).mapError (fun error => s!"{path}: {error}")
+  let some observed := observed | return
+  unless observed == model () do
+    throw s!"{field}: observed {repr observed}, model {repr (model ())}"
 
 private def lookup (header : Header) (replay : ReplayState) (node : String)
     : Except String NodeState := do
@@ -126,152 +116,111 @@ private def lookup (header : Header) (replay : ReplayState) (node : String)
   | throw s!"node '{node}' is not in the network"
   return state
 
-private def members (header : Header) (nodes : Finset NodeID) : List String :=
-  (header.declared.zipIdx).filterMap
-    fun (name, index) =>
-      if index ∈ nodes then some name else none
-
 /-- Compare an action-boundary snapshot with the current model node. -/
-def observeState (header : Header) (node : String) (expected : Json)
+def observeState (header : Header) (node : String) (expected : StateSnapshot)
     (replay : ReplayState)
     : Except String Unit := do
   let state ← lookup header replay node
   let self ← header.nodeId node
-  checkFields
-    (fun
-      | "node_id" => some (checkValue node)
-      | "leadership_state" =>
-          some
-            (checkValue
-              (match state.role with
-                | .none => "None"
-                | .follower => "Follower"
-                | .preVoteCandidate => "PreVoteCandidate"
-                | .candidate => "Candidate"
-                | .primary => "Leader"))
-      | "current_view" => some (checkValue state.currentTerm)
-      | "last_idx" => some (checkValue state.log.length)
-      | "commit_idx" => some (checkValue state.commitIndex)
-      | "committable_indices" =>
-          let indices :=
-            (state.log.zipIdx 1).filterMap
-              fun (entry, index) =>
-                if index > state.commitIndex && entry.content.isSignature then
-                  some index
-                else
-                  none
-          -- Native telemetry records only the first and last cache entries.
-          some
-            (checkValue
-              (match indices with
-                | [] => []
-                | first :: rest => first :: rest.getLast?.toList))
-      | "configurations" =>
-          some
-            fun value => do
-              let observed ←
-                (← value.getArr?).toList.mapM
-                  fun configuration => do
-                    let index ← configuration.getObjValAs? Nat "idx"
-                    let nodes ← configuration.getObjVal? "nodes" >>= Json.getObj?
-                    return (index, (nodes.toList.map Prod.fst).mergeSort)
-              let actual :=
-                (activeConfigurations state.log state.commitIndex).filterMap
-                  fun configuration =>
-                    if configuration.index == 0 then
-                      none
-                    else
-                      some (configuration.index, members header configuration.nodes)
-              checkValue actual (toJson observed)
-      | "membership_state" =>
-          some
-            (checkValue
-              (if (state.retirement self).phase == .noRetirementObserved then
-                  "Active"
-                else
-                  "Retired"))
-      | "retirement_phase" =>
-          some
-            (checkValue
-              (match (state.retirement self).phase with
-                | .noRetirementObserved => none
-                | .retirementOrdered => some "Ordered"
-                | .retirementSigned => some "Signed"
-                | .retirementCompleted => some "Completed"
-                | .retiredCommitted => some "RetiredCommitted"))
-      | "retirement_idx" => some (checkValue (state.retirement self).index)
-      | "retirement_committable_idx" =>
-          some (checkValue (state.retirement self).committableIndex)
-      | "retired_committed_idx" => some (checkValue state.retiredCommittedIndex)
-      | _ => none)
-    expected
+  check "node_id" (some expected.node_id) fun _ => node
+  check "leadership_state" expected.leadership_state
+    fun _ =>
+      match state.role with
+      | .none => "None"
+      | .follower => "Follower"
+      | .preVoteCandidate => "PreVoteCandidate"
+      | .candidate => "Candidate"
+      | .primary => "Leader"
+  check "current_view" expected.current_view fun _ => state.currentTerm
+  check "last_idx" expected.last_idx fun _ => state.log.length
+  check "commit_idx" expected.commit_idx fun _ => state.commitIndex
+  check "committable_indices" expected.committable_indices
+    fun _ =>
+      let indices :=
+        (state.log.zipIdx 1).filterMap
+          fun (entry, index) =>
+            if index > state.commitIndex && entry.content.isSignature then
+              some index
+            else
+              none
+      -- Native telemetry records only the first and last cache entries.
+      match indices with
+      | [] => []
+      | first :: rest => first :: rest.getLast?.toList
+  check "membership_state" expected.membership_state
+    fun _ =>
+      if (state.retirement self).phase == .noRetirementObserved then
+        "Active"
+      else
+        "Retired"
+  -- The trace has a retirement field only once the node retires.
+  check "retirement_phase" (expected.retirement_phase.map some)
+    fun _ =>
+      match (state.retirement self).phase with
+      | .noRetirementObserved => none
+      | .retirementOrdered => some "Ordered"
+      | .retirementSigned => some "Signed"
+      | .retirementCompleted => some "Completed"
+      | .retiredCommitted => some "RetiredCommitted"
+  check "retirement_idx" (expected.retirement_idx.map some)
+    fun _ => (state.retirement self).index
+  check "retirement_committable_idx" (expected.retirement_committable_idx.map some)
+    fun _ => (state.retirement self).committableIndex
+  check "retired_committed_idx" (expected.retired_committed_idx.map some)
+    fun _ => state.retiredCommittedIndex
 
 /-- Physical packet coordinates; lower-term NACK hints are not election terms. -/
-def messageJson (message : Model.Node.Message) : Json :=
-  let fields :=
-    match message with
-    | .appendEntriesRequest request =>
-        [
-          ("msg", toJson "append_entries"),
-          ("prev_idx", toJson request.prevLogIndex),
-          ("prev_term", toJson request.prevLogTerm),
-          ("idx", toJson (request.prevLogIndex + request.entries.length)),
-          ("leader_commit_idx", toJson request.primaryCommit),
-          (
-            "term_of_idx",
-            toJson (request.entries.getLast?.map Entry.term |>.getD request.prevLogTerm)
-          ),
-          ("contains_new_view", toJson false)
-        ]
-    | .appendEntriesResponse response =>
-        [
-          ("msg", toJson "append_entries_response"),
-          ("success", toJson (if response.success then "OK" else "FAIL")),
-          ("last_log_idx", toJson response.lastLogIndex)
-        ]
-    | .requestVoteRequest request =>
-        [
-          ("msg", toJson "request_vote"),
-          ("last_committable_idx", toJson request.lastCommittableIndex),
-          ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
-        ]
-    | .requestPreVoteRequest request =>
-        [
-          ("msg", toJson "request_pre_vote"),
-          ("last_committable_idx", toJson request.lastCommittableIndex),
-          ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
-        ]
-    | .requestVoteResponse response =>
-        [
-          ("msg", toJson "request_vote_response"),
-          ("vote_granted", toJson response.voteGranted)
-        ]
-    | .requestPreVoteResponse response =>
-        [
-          ("msg", toJson "request_pre_vote_response"),
-          ("vote_granted", toJson response.voteGranted)
-        ]
-    | .proposeRequestVoteRequest _ => [("msg", toJson "propose_request_vote")]
-  Json.mkObj (("term", toJson message.term) :: fields)
+def Packet.ofMessage : Model.Node.Message → Packet
+  | .appendEntriesRequest request =>
+      .appendEntries
+        {
+          term := request.term
+          prev_idx := request.prevLogIndex
+          prev_term := request.prevLogTerm
+          idx := request.prevLogIndex + request.entries.length
+          leader_commit_idx := request.primaryCommit
+          term_of_idx :=
+            request.entries.getLast?.map Entry.term |>.getD request.prevLogTerm
+          contains_new_view := false
+        }
+  | .appendEntriesResponse response =>
+      .appendEntriesResponse
+        {
+          term := response.term
+          last_log_idx := response.lastLogIndex
+          success := if response.success then "OK" else "FAIL"
+        }
+  | .requestVoteRequest request => .requestVote (vote request)
+  | .requestPreVoteRequest request => .requestPreVote (vote request)
+  | .requestVoteResponse response =>
+      .requestVoteResponse { term := response.term, vote_granted := response.voteGranted }
+  | .requestPreVoteResponse response =>
+      .requestPreVoteResponse
+        { term := response.term, vote_granted := response.voteGranted }
+  | .proposeRequestVoteRequest term => .proposeRequestVote { term }
+where
+  vote (request : RequestVoteRequest) : Packet.RequestVote :=
+    {
+      term := request.term
+      last_committable_idx := request.lastCommittableIndex
+      term_of_last_committable_idx := request.lastCommittableTerm
+    }
+
+/-- A packet, as diagnostics show it. -/
+private def render (packet : Packet) : String := (repr packet).pretty (width := 1000)
 
 /-- A native packet matches when it has exactly the fields the model renders, with equal values. -/
-private def checkPacket (packet : Json) (message : Model.Node.Message)
+private def checkPacket (packet : Packet) (message : Model.Node.Message)
     : Except String Unit := do
-  let actual := messageJson message
-  checkFields (fun key => (actual.getObjVal? key).toOption.map checkValue) packet
-  let missing :=
-    (← actual.getObj?).toList.map Prod.fst
-    |>.filter fun key => !(packet.getObjVal? key).isOk
-  unless missing.isEmpty do
-    throw s!"packet lacks fields {missing}"
+  let actual := Packet.ofMessage message
+  unless packet == actual do
+    throw s!"observed {render packet}, model {render actual}"
 
 /-- The first matching envelope, else the first with the same `msg`, to diagnose a mismatch. -/
-private def closest (packet : Json) (envelopes : List Envelope) : Option Envelope :=
+private def closest (packet : Packet) (envelopes : List Envelope) : Option Envelope :=
   envelopes.find? (fun envelope => (checkPacket packet envelope.payload).isOk)
   <|> envelopes.find?
-        fun envelope =>
-          ((messageJson envelope.payload).getObjVal? "msg").toOption
-          == (packet.getObjVal? "msg").toOption
+        fun envelope => (Packet.ofMessage envelope.payload).msg == packet.msg
 
 private def pendingBetween (replay : ReplayState) (source destination : NodeID)
     : List Envelope :=
@@ -280,11 +229,11 @@ private def pendingBetween (replay : ReplayState) (source destination : NodeID)
 
 /-- Why no queued envelope renders `packet`, diffing the closest in rendered order. -/
 private def missing (header : Header) (pending : List Envelope)
-    (source destination : NodeID) (packet : Json)
+    (source destination : NodeID) (packet : Packet)
     : String :=
   let name (node : NodeID) := header.declared[node]?.getD (toString node)
   let sorted :=
-    (pending.map fun envelope => ((messageJson envelope.payload).compress, envelope))
+    (pending.map fun envelope => (render (Packet.ofMessage envelope.payload), envelope))
     |>.mergeSort fun a b => a.1 ≤ b.1
   let pending := sorted.map Prod.snd
   match closest packet pending <|> pending.head? with
@@ -297,7 +246,7 @@ private def missing (header : Header) (pending : List Envelope)
 
 /-- Deliver any matching queued envelope; loss is non-delivery. -/
 private def selectPacket (replay : ReplayState) (source destination : NodeID)
-    (packet : Json)
+    (packet : Packet)
     : Except String Envelope := do
   let pending := pendingBetween replay source destination
   let some envelope := closest packet pending <|> pending.head?
@@ -347,13 +296,13 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
         let context := s!"{send.origin.label}: send to '{send.target}'"
         let target ← (header.nodeId send.target).mapError (s!"{context}: " ++ ·)
         let some envelope := closest send.packet (queued.filter (·.target == target))
-        | throw s!"{context}: not queued by the model: {send.packet.compress}"
+        | throw s!"{context}: not queued by the model: {render send.packet}"
         (checkPacket send.packet envelope.payload).mapError (s!"{context}: " ++ ·)
         queued := removeOne envelope queued
       if let some envelope := queued.head? then
         let target := header.declared[envelope.target]?.getD (toString envelope.target)
         throw
-          s!"model queued {(messageJson envelope.payload).compress} to '{target}' with no native send"
+          s!"model queued {render (Packet.ofMessage envelope.payload)} to '{target}' with no native send"
       return { replay with queued := [] }
   | .action (step@(.local node input)) _ =>
       let node ← header.nodeId node
@@ -430,7 +379,7 @@ structure Result where
 deriving Repr, BEq
 
 /-- Where a group natively sends `packet` to `destination`. -/
-private def Group.send? (group : Group) (destination : String) (packet : Json)
+private def Group.send? (group : Group) (destination : String) (packet : Packet)
     : Option Origin :=
   group.instructions.findSome?
     fun
@@ -488,7 +437,6 @@ def schedule (header : Header) (queues : Array (Array Group)) (lenient := false)
     unless node < header.declared.length do
       throw s!"undeclared model node {node}"
   let total := queues.foldl (· + ·.size) 0
-  if total == 0 then throw "replay groups must not be empty"
   let key (group : Group) := group.ts.getD group.m_ts
   let mut state : ReplayState := { state := header.initial }
   let mut next := Array.replicate queues.size 0

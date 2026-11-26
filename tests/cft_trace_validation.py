@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 """Replay the --capture-trace captures under the given directories against
@@ -20,6 +21,8 @@ import pathlib
 import subprocess
 import sys
 
+import msgpack
+
 WATERMARK = 0.9
 
 
@@ -38,15 +41,17 @@ def replay(replayer, path):
 
 
 def has_cft_events(path):
-    with open(path, encoding="utf-8") as capture:
-        return any(line.startswith('{"tag": "ccf.cft"') for line in capture)
+    with open(path, "rb") as capture:
+        # Log messages need not be valid UTF-8.
+        messages = msgpack.Unpacker(capture, raw=False, unicode_errors="replace")
+        return any(tag == "ccf.cft" for tag, _, _ in messages)
 
 
 def main(replayer, *directories):
     paths = sorted(
         path
         for directory in directories
-        for path in pathlib.Path(directory).rglob("*_trace/*.ndjson")
+        for path in pathlib.Path(directory).rglob("*_trace/*.msgpack")
         if has_cft_events(path)
     )
     with concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as pool:

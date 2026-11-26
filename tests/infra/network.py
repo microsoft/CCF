@@ -12,7 +12,6 @@ import pprint
 import random
 import re
 import shutil
-import struct
 import time
 from collections import deque
 from contextlib import ExitStack, contextmanager
@@ -401,23 +400,20 @@ class Network:
             self.trace = ExitStack()
             # Networks that share a label each get a capture.
             for index in itertools.count():
-                self.trace_path = os.path.join(folder, f"{index}.ndjson")
+                self.trace_path = os.path.join(folder, f"{index}.msgpack")
                 try:
                     output = self.trace.enter_context(
-                        open(self.trace_path, "x", encoding="utf-8")  # noqa: SIM115
+                        open(self.trace_path, "xb")  # noqa: SIM115
                     )
                     break
                 except FileExistsError:
                     pass
 
-            def write(tag, timestamp, record):
-                seconds, nanos = struct.unpack(">II", timestamp.data)
-                event = {"tag": tag, "ts": seconds * 10**9 + nanos, **record}
-                output.write(json.dumps(event) + "\n")
-
             # IPv6-only networks must not have IPv4 addresses in node configs.
             collector = infra.fluentd.Collector(
-                TRACE_MAX_NODES, write, "::1" if self.ipv6 else "127.0.0.1"
+                TRACE_MAX_NODES,
+                host="::1" if self.ipv6 else "127.0.0.1",
+                frame_callback=output.write,
             )
             self.trace_endpoint = self.trace.enter_context(collector).endpoint
         # Copied, as args are shared between nodes and networks.

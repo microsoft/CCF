@@ -11,8 +11,16 @@ From `lean/consensus`, build the validator and validate a saved trace:
 
 ```sh
 lake build --wfail consensus-replay
-./.lake/build/bin/consensus-replay path/to/trace.ndjson
+./.lake/build/bin/consensus-replay path/to/trace.msgpack
 ```
+
+To read a trace, [`dump-trace.py`](../../../scripts/dump-trace.py) dumps it as NDJSON, a record per line, which [`pack-trace.py`](../../../scripts/pack-trace.py) packs again:
+
+```sh
+../../scripts/dump-trace.py < path/to/trace.msgpack | grep -n ccf.cft
+```
+
+Replay names a record as `<trace>:<n>`, by its number among the records of every tag: it is line `n` of the dump, which `grep -n` prefixes.
 
 To generate captures, build the native driver and run the existing scenario test.
 The driver links the [scenarios](../../../tests/cft_scenarios/README.md), which are Lean programs, so CMake must find `lake`.
@@ -24,18 +32,21 @@ set -euo pipefail
 cmake -S ../.. -B /tmp/cft-build -GNinja
 cmake --build /tmp/cft-build --target cft_driver
 ctest --test-dir /tmp/cft-build -VV -R '^cft_scenario_test$' --no-tests=error
-for trace in /tmp/cft-build/consensus/raw/*.ndjson; do
+for trace in /tmp/cft-build/consensus/raw/*.msgpack; do
   ./.lake/build/bin/consensus-replay "$trace"
 done
 ```
 
-The scenario runner writes the raw records to `consensus/raw/`.
+The scenario runner writes the raw MessagePack records to `consensus/raw/`.
 The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `append_entries` and `request_vote`.
 
 ## Replay contract
 
-A trace is one NDJSON file of `{pid, m_ts, msg}` records from all nodes, in any line order, where `pid` identifies the process that emitted the record.
-A record may carry its Fluentd `tag`; replay ignores records whose `tag` is not `ccf.cft`, so a capture may hold events of other tags.
+A trace is a stream of Fluentd Forward MessagePack records `[tag, EventTime|nil, {pid, m_ts, msg}]` from all nodes, in any record order, where `pid` identifies the process that emitted the record.
+Replay skips records whose `tag` is not `ccf.cft` without UTF-8 decoding their payloads, so a capture may hold events of other tags such as `ccf.log`.
+It reads a `ccf.cft` record into the type of its `function`, as [`cft_trace_msgpack.h`](../../../src/consensus/aft/cft_trace_msgpack.h) writes it: `function` is the first key of `msg`, and `msg` the first key of a `packet`.
+Other keys may be in any order; an unknown key is skipped in an event, and rejected in a `state` or a `packet`.
+A record which does not read as its type fails the trace, with `--lenient` too.
 Replay orders each process's records by `m_ts`, a counter that must not repeat within the process and may have gaps because other tags share it.
 It then splits events into one stream per node; a process may trace several nodes, as `cft_driver` does, but each node's records must come from one process.
 Native code emits consensus events while holding the node's consensus lock, so a node's `m_ts` order is the order of its lock holds, whichever threads took them.
@@ -55,6 +66,8 @@ If groups remain but none may run, replay fails, listing first the groups that c
 `--lenient` accepts a trace that is incomplete, for example because a node was killed before it sent its last events: a node's groups end before its first event that no rule consumes, and replay ends once no group may run.
 The reported `watermark` is then the least fraction of a node's events that replay consumed; a group that the model disagrees with still fails the trace.
 After bootstrap, each group emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
+A tick with no action emits no group, so its snapshot is not compared: the node's next group compares the state it starts from.
+A trace may so have no group at all.
 
 A receive delivers any queued model envelope from its sender whose rendered packet has exactly the native packet's fields, with equal values.
 It delivers the queued **model payload**, not reconstructing unrecorded native bytes; if matching envelopes differ in payload, for example in AppendEntries entries, which packets omit, replay fails with an ambiguous delivery.
@@ -63,7 +76,8 @@ After each rule's actions, the envelopes they queued must equal the rule's nativ
 
 ## Source and checks
 
-- [`Input.lean`](../Consensus/Replay/Input.lean): decode events, order and split them into per-node streams and collect identities.
+- [`Trace.lean`](../Consensus/Replay/Trace.lean): the types of trace records, each declared with the reader of its MessagePack map.
+- [`Input.lean`](../Consensus/Replay/Input.lean): read events, order and split them into per-node streams and collect identities.
 - [`Reduction.lean`](../Consensus/Replay/Reduction.lean): named rules, each reducing one lock hold of a node, explicit boundaries and rule-tagged snapshot checks.
 - [`Groups.lean`](../Consensus/Replay/Groups.lean): runs the rules over each node's stream, taking each rule's instructions as a group.
 - [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, packet selection, send checks, group scheduling and model execution.
