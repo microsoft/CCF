@@ -6,7 +6,6 @@
 #include "ccf/ds/locking.h"
 #include "ccf/endpoint_registry.h"
 #include "ccf/http_status.h"
-#include "ccf/node/node_configuration_interface.h"
 #include "ccf/node_context.h"
 #include "ccf/rpc_exception.h"
 #include "ccf/service/node_info_network.h"
@@ -20,6 +19,7 @@
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
 #include "node/internal_tables_access.h"
+#include "node/node_configuration_state.h"
 #include "node/node_configuration_subsystem.h"
 #include "node/rpc/rpc_handler.h"
 #include "tasks/periodic_task_owner.h"
@@ -52,17 +52,17 @@ namespace ccf
     // Looked up on first use. Requests are processed on several worker
     // threads, so the pointer is cached in an atomic. The node context owns
     // the subsystem for the lifetime of the node.
-    mutable std::atomic<NodeConfigurationInterface*>
+    mutable std::atomic<NodeConfigurationStateInterface*>
       node_configuration_subsystem{nullptr};
 
-    NodeConfigurationInterface* get_node_configuration_subsystem() const
+    NodeConfigurationStateInterface* get_node_configuration_subsystem() const
     {
       auto* subsystem =
         node_configuration_subsystem.load(std::memory_order_acquire);
       if (subsystem == nullptr)
       {
         subsystem =
-          node_context.get_subsystem<NodeConfigurationInterface>().get();
+          node_context.get_subsystem<NodeConfigurationStateInterface>().get();
         if (subsystem != nullptr)
         {
           node_configuration_subsystem.store(

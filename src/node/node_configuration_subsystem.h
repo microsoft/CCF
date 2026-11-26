@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node/node_configuration_interface.h"
+#include "node/node_configuration_state.h"
 #include "node/rpc/node_interface.h"
 
 #include <format>
@@ -11,7 +11,7 @@
 
 namespace ccf
 {
-  class NodeConfigurationSubsystem : public NodeConfigurationInterface
+  class NodeConfigurationSubsystem : public NodeConfigurationStateInterface
   {
   public:
     using InterfaceRegexes =

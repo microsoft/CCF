@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node/configuration.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/serialised_entry_format.h"
 #include "ledger/filenames.h"
+#include "node/configuration.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "service/tables/previous_service_identity.h"
 

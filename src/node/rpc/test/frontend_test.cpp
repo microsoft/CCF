@@ -382,7 +382,7 @@ UserId user_id;
 MemberId member_id;
 MemberId invalid_member_id;
 
-class TestNodeConfiguration : public NodeConfigurationInterface
+class TestNodeConfiguration : public NodeConfigurationStateInterface
 {
 private:
   CCFConfig config;

@@ -7,9 +7,9 @@
 #include "ccf/ds/locking.h"
 #include "ccf/endpoints/endpoint_context.h"
 #include "ccf/kv/tx.h"
-#include "ccf/node/configuration.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx_id.h"
+#include "node/configuration.h"
 #include "tasks/task.h"
 
 #include <string_view>

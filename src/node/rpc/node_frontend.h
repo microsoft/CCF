@@ -10,7 +10,6 @@
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
-#include "ccf/node/node_configuration_interface.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
@@ -23,6 +22,7 @@
 #include "node/cose_common.h"
 #include "node/internal_tables_access.h"
 #include "node/network_state.h"
+#include "node/node_configuration_state.h"
 #include "node/rpc/file_serving_handlers.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp" // NOLINT(bugprone-suspicious-include)
@@ -283,7 +283,7 @@ namespace ccf
     std::optional<std::chrono::milliseconds> get_pending_node_timeout()
     {
       const auto node_configuration_subsystem =
-        this->context.get_subsystem<NodeConfigurationInterface>();
+        this->context.get_subsystem<NodeConfigurationStateInterface>();
       if (node_configuration_subsystem == nullptr)
       {
         return std::nullopt;

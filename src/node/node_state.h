@@ -13,7 +13,6 @@
 #include "ccf/entity_id.h"
 #include "ccf/js/core/context.h"
 #include "ccf/kv/tx.h"
-#include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/platform.h"
@@ -37,6 +36,7 @@
 #include "js/global_class_ids.h"
 #include "network_state.h"
 #include "node/commit_callback_subsystem.h"
+#include "node/configuration.h"
 #include "node/env.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
@@ -2047,7 +2047,8 @@ namespace ccf
               catch (const std::exception& e)
               {
                 LOG_FAIL_FMT(
-                  "An error occurred while parsing the join network response");
+                  "An error occurred while parsing the join network "
+                  "response");
 
                 LOG_DEBUG_FMT("Join network response error: {}", e.what());
                 LOG_DEBUG_FMT(
@@ -2773,7 +2774,8 @@ namespace ccf
       if (startup_snapshot_consumed)
       {
         throw std::logic_error(std::format(
-          "Startup snapshot at {} was consumed by an earlier private recovery "
+          "Startup snapshot at {} was consumed by an earlier private "
+          "recovery "
           "attempt. Restart the node to retry recovery.",
           startup_seqno));
       }
