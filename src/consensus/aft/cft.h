@@ -566,6 +566,16 @@ namespace aft
       CFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
+      // A configuration with no nodes has no quorum, so nothing could be
+      // committed once it is active. Refuse it on any node, before appending
+      // the entry or adopting it.
+      if (conf.empty())
+      {
+        CFT_FAIL_FMT("Refusing configuration at {}: it has no nodes", idx);
+        throw std::logic_error(
+          std::format("Configuration at {} has no nodes", idx));
+      }
+
       trace::add_configuration(*state, configurations, idx, conf, idx);
 
       // Detect when we are retired by observing a configuration
@@ -1377,6 +1387,7 @@ namespace aft
       const ccf::NodeId& from,
       const AppendEntries& r)
     {
+      const auto initial_last_idx = state->last_idx;
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
@@ -1395,9 +1406,26 @@ namespace aft
         }
         state->last_idx = i;
 
-        for (auto& hook : ds->get_hooks())
+        try
         {
-          hook->call(this);
+          for (auto& hook : ds->get_hooks())
+          {
+            hook->call(this);
+          }
+        }
+        catch (const std::exception& e)
+        {
+          CFT_FAIL_FMT("Failed to run consensus hooks at {}: {}", i, e.what());
+          rollback(std::max(initial_last_idx, last_committable_index()));
+          send_append_entries_response_nack(from);
+          return;
+        }
+        catch (...)
+        {
+          CFT_FAIL_FMT("Failed to run consensus hooks at {}: unknown error", i);
+          rollback(std::max(initial_last_idx, last_committable_index()));
+          send_append_entries_response_nack(from);
+          return;
         }
 
         bool globally_committable =
