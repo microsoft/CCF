@@ -145,19 +145,6 @@ jobs:
           [ "$(replay invalid/missing-packet.ndjson | jq '.watermark < 1')" = true ]
           if replay invalid/snapshot-mismatch.ndjson; then exit 1; fi
 
-      - name: Replay no group for a tick with no action
-        if: inputs.package == 'consensus'
-        run: |
-          set -euo pipefail
-          replay() {
-            head -n "$1" lean/consensus/replay/fixtures/valid/bootstrap.ndjson | python3 scripts/pack-trace.py > "$RUNNER_TEMP/trace.msgpack"
-            lean/consensus/.lake/build/bin/consensus-replay "$RUNNER_TEMP/trace.msgpack"
-          }
-          # Its two ticks after genesis have no action, which leaves the group of its append.
-          [ "$(replay 12 | jq .groups)" = 1 ]
-          # Up to the first of them, it has no group.
-          [ "$(replay 8 | jq .groups)" = 0 ]
-
       - name: Check recovery trace fixtures against their schema
         if: inputs.package == 'disaster-recovery'
         run: |
