@@ -42,7 +42,9 @@ namespace ccf::recovery_decision_protocol
   DECLARE_JSON_TYPE_WITH_BASE(IAmOpenRequest, TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(IAmOpenRequest, prev_service_fingerprint, txid);
 
-  // What one execution of advance() read, wrote and requested. Trace only.
+  // What one execution of advance() read, wrote and decided. Only join_target
+  // is acted on, once the execution's transaction commits, and only the rest
+  // is traced.
   struct AdvanceTrace
   {
     StateMachine pre = StateMachine::GOSSIPING;
@@ -52,6 +54,8 @@ namespace ccf::recovery_decision_protocol
     std::optional<sealing_recovery::Name> chosen = std::nullopt;
     std::optional<OpenKinds> open_kind = std::nullopt;
     bool restart = false;
+    // The node to restart and join, set together with restart
+    std::optional<NodeInfo> join_target = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(AdvanceTrace);
@@ -92,17 +96,17 @@ namespace ccf
     recovery_decision_protocol::IAmOpenRequest& get_iamopen_request(
       kv::ReadOnlyTx& tx);
 
-    // A handler execution is recorded here, and logged by trace_committed_step
-    // only if its transaction commits
-    void prepare_trace_step(
+    // A handler execution is recorded here, and on_step_committed traces it
+    // and requests the restart it decided on only if its transaction commits.
+    // An execution that conflicts is run again, so it must have no other effect
+    void prepare_step(
       ccf::RpcContext& rpc_ctx,
       const char* kind,
       std::string_view source,
       std::optional<ccf::TxID> txid,
-      const recovery_decision_protocol::AdvanceTrace& trace) noexcept;
-    void trace_committed_step(
-      ccf::endpoints::CommandEndpointContext& ctx,
-      const ccf::TxID& txid) noexcept;
+      const recovery_decision_protocol::AdvanceTrace& trace);
+    void on_step_committed(
+      ccf::endpoints::CommandEndpointContext& ctx, const ccf::TxID& txid);
 
   private:
     // Start path

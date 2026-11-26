@@ -78,6 +78,14 @@ namespace ccf
           caller.line());
       }
     }
+
+    // What a handler execution leaves for the commit of its transaction
+    struct PreparedStep
+    {
+      std::optional<recovery_decision_protocol::NodeInfo> join_target =
+        std::nullopt;
+      std::optional<nlohmann::json> trace_record = std::nullopt;
+    };
   }
 
   RecoveryDecisionProtocolSubsystem::RecoveryDecisionProtocolSubsystem(
@@ -114,43 +122,61 @@ namespace ccf
     });
   }
 
-  void RecoveryDecisionProtocolSubsystem::prepare_trace_step(
+  void RecoveryDecisionProtocolSubsystem::prepare_step(
     ccf::RpcContext& rpc_ctx,
     const char* kind,
     std::string_view source,
     std::optional<ccf::TxID> txid,
-    const recovery_decision_protocol::AdvanceTrace& trace) noexcept
+    const recovery_decision_protocol::AdvanceTrace& trace)
   {
+    auto step = std::make_shared<PreparedStep>();
+    step->join_target = trace.join_target;
     trace_safely([&]() {
-      rpc_ctx.set_user_data(nullptr);
-      auto record = std::make_shared<nlohmann::json>(trace);
-      (*record)["kind"] = kind;
+      nlohmann::json record = trace;
+      record["kind"] = kind;
       if (!source.empty())
       {
-        (*record)["source"] = source;
+        record["source"] = source;
       }
       if (txid.has_value())
       {
-        (*record)["txid"] = txid.value();
+        record["txid"] = txid.value();
       }
-      rpc_ctx.set_user_data(record);
+      step->trace_record = std::move(record);
     });
+    rpc_ctx.set_user_data(step);
   }
 
-  void RecoveryDecisionProtocolSubsystem::trace_committed_step(
-    ccf::endpoints::CommandEndpointContext& ctx, const ccf::TxID& txid) noexcept
+  void RecoveryDecisionProtocolSubsystem::on_step_committed(
+    ccf::endpoints::CommandEndpointContext& ctx, const ccf::TxID& txid)
   {
+    auto* step = static_cast<PreparedStep*>(ctx.rpc_ctx->get_user_data());
     trace_safely([&]() {
-      auto* record = static_cast<nlohmann::json*>(ctx.rpc_ctx->get_user_data());
-      if (record == nullptr)
+      if (step == nullptr || !step->trace_record.has_value())
       {
         throw std::logic_error("No execution was prepared for this commit");
       }
       // CCF reports the commit TxID of a transaction that wrote, and the TxID
       // it read at otherwise
-      (*record)["version"] = txid.seqno;
-      emit_trace(std::move(*record));
+      auto& record = step->trace_record.value();
+      record["version"] = txid.seqno;
+      emit_trace(std::move(record));
     });
+    if (step != nullptr && step->join_target.has_value())
+    {
+      // The decision to join is now committed. Requesting the restart while
+      // the handler ran would also restart a node whose execution conflicted
+      // and was run again, such as one that opened in the meantime
+      const auto& target = step->join_target.value();
+      auto service_cert = ccf::crypto::cert_der_to_pem(target.service_cert_der);
+      LOG_INFO_FMT(
+        "Recovery-decision-protocol joining {} at {} with fingerprint {}",
+        target.location.name,
+        target.location.address,
+        recovery_decision_protocol::service_fingerprint_from_pem(service_cert));
+      LOG_INFO_FMT("{}", service_cert.str());
+      node_state->request_restart();
+    }
   }
 
   void RecoveryDecisionProtocolSubsystem::reset_state(ccf::kv::Tx& tx)
@@ -398,19 +424,12 @@ namespace ccf
             chosen_replica.value()));
         }
 
-        LOG_INFO_FMT(
-          "Recovery-decision-protocol joining {} at {} with fingerprint {}",
-          node_config->location.name,
-          node_config->location.address,
-          recovery_decision_protocol::service_fingerprint_from_pem(
-            ccf::crypto::cert_der_to_pem(node_config->service_cert_der)));
-        auto service_cert =
-          ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
-        LOG_INFO_FMT("{}", service_cert.str());
-
+        // on_step_committed logs the join and requests the restart, once
+        // this transaction has committed
         trace.restart = true;
         trace.chosen = chosen_replica;
-        node_state->request_restart();
+        trace.join_target = node_config;
+        break;
       }
       case recovery_decision_protocol::StateMachine::OPENING:
       {
