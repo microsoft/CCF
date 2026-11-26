@@ -1452,6 +1452,14 @@ def assertLastTxid (node : Text) (txid : String) : IO Unit :=
     unless actual == txid do
       fail s!"Node {node.text} lastTxID is not as expected: {actual} != {txid}"
 
+@[export model_cft_assert_view]
+def assertView (node : Text) (idx : UInt64) (view : UInt64) : IO Unit :=
+  command (text "assert_view" [node.text, toString idx, toString view]) (reads := true) do
+    let state ← get (← nodeId node)
+    let actual := termAt state.log idx.toNat
+    unless actual == view.toNat do
+      fail s!"Node {node.text} view at idx {idx} is not as expected: {actual} != {view}"
+
 @[export model_cft_loop_until_sync]
 def loopUntilSyncCommand : IO Unit :=
   command "loop_until_sync" loopUntilSync

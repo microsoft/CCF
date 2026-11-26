@@ -1574,4 +1574,19 @@ public:
         last_txid_s));
     }
   }
+
+  void assert_view(
+    const std::string& node_id, aft::Index idx, aft::Term expected_view)
+  {
+    auto actual_view = _nodes.at(node_id).cft->get_view(idx);
+    if (actual_view != expected_view)
+    {
+      throw std::runtime_error(fmt::format(
+        "Node {} view at idx {} is not as expected: {} != {}",
+        node_id,
+        idx,
+        actual_view,
+        expected_view));
+    }
+  }
 };

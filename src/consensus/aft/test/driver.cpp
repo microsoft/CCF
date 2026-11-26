@@ -542,6 +542,15 @@ extern "C"
       Invariants::SKIP);
   }
 
+  lean_obj_res cft_assert_view(b_lean_obj_arg node, uint64_t idx, uint64_t view)
+  {
+    const auto id = text(node);
+    return step(
+      command("assert_view", id, idx, view),
+      [&]() { driver->assert_view(id, idx, view); },
+      Invariants::SKIP);
+  }
+
   lean_obj_res cft_loop_until_sync()
   {
     return step(

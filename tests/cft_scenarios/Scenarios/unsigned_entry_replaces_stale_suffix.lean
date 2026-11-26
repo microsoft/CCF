@@ -43,6 +43,7 @@ initialize scenario "unsigned_entry_replaces_stale_suffix" do
   periodicOne 1 10
   dispatchOne 1
   assertLastTxid 0 "3.5"
+  assertView 0 (idx := 4) (view := 2)
   dropPending 0
   replicate 3 ["z"]
   assertLastTxid 1 "3.6"
@@ -68,6 +69,8 @@ initialize scenario "unsigned_entry_replaces_stale_suffix" do
   periodicOne 0 10
   dispatchOne 0
   assertLastTxid 1 "4.6"
+  assertView 1 (idx := 4) (view := 2)
+  assertView 1 (idx := 5) (view := 3)
   assertPending 1 0 1
   dispatchOne 1
 

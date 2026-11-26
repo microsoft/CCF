@@ -216,6 +216,10 @@ opaque assertAbsentConfig (node : @& NodeId) (idx : UInt64) : IO Unit
 @[extern "cft_assert_last_txid"]
 opaque assertLastTxid (node : @& NodeId) (txid : @& String) : IO Unit
 
+/-- Assert that the entry at `idx` in the ledger of `node` is in `view` (or `0` if absent). -/
+@[extern "cft_assert_view"]
+opaque assertView (node : @& NodeId) (idx : UInt64) (view : UInt64) : IO Unit
+
 /-- Sign on the latest primary, reconnect the active nodes and run until they are in sync. -/
 @[extern "cft_loop_until_sync"]
 opaque loopUntilSync : IO Unit

@@ -44,6 +44,15 @@
     return model_##name(a, n); \
   }
 
+// A command which takes an object and two numbers
+#define COMMAND_1_N_N(name) \
+  lean_obj_res model_##name(lean_obj_arg, uint64_t, uint64_t); \
+  lean_obj_res name(b_lean_obj_arg a, uint64_t n, uint64_t m) \
+  { \
+    lean_inc(a); \
+    return model_##name(a, n, m); \
+  }
+
 // A command which takes two objects
 #define COMMAND_2(name) \
   lean_obj_res model_##name(lean_obj_arg, lean_obj_arg); \
@@ -116,6 +125,7 @@ COMMAND_3(cft_assert_not_detail)
 COMMAND_1_N_1(cft_assert_config)
 COMMAND_1_N(cft_assert_absent_config)
 COMMAND_2(cft_assert_last_txid)
+COMMAND_1_N_N(cft_assert_view)
 COMMAND(cft_loop_until_sync)
 COMMAND_1(cft_start)
 COMMAND(cft_finish)
