@@ -9,6 +9,7 @@
 #include "crypto/openssl/mldsa_support.h"
 #include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/internal_tables_access.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_chain_helpers.h"
@@ -60,13 +61,16 @@ namespace
 
   // Mocks -- in-memory canned responses. `unavailable` lets tests
   // simulate "ledger chunk is not yet loadable" by making
-  // get_endorsement_at(seq) return nullopt.
+  // get_endorsements_at(seq) return nullopt.
   class MockNodeStateAccessor : public ccf::INodeStateAccessor
   {
   public:
     bool part_of_network = true;
     std::optional<ccf::TxID> current_service_from;
     std::optional<ccf::CoseEndorsement> topmost;
+    std::optional<ccf::CoseEndorsement> pq_topmost;
+    // Thrown by get_current_service_identity when set
+    std::optional<std::string> identity_error;
 
     [[nodiscard]] bool is_part_of_network() const override
     {
@@ -75,7 +79,11 @@ namespace
 
     ccf::CurrentServiceIdentity get_current_service_identity() override
     {
-      return {current_service_from, topmost};
+      if (identity_error.has_value())
+      {
+        throw std::logic_error(identity_error.value());
+      }
+      return {current_service_from, topmost, pq_topmost};
     }
   };
 
@@ -112,13 +120,14 @@ namespace
       return ccf::read_current_service_identity(tx);
     }
 
-    // Commit a service record and, optionally, a new previous-identity
-    // endorsement in one transaction, as the transactions that create and
+    // Commit a service record and, optionally, new previous-identity
+    // endorsements in one transaction, as the transactions that create and
     // open a service do.
     void commit_service(
       ccf::ServiceStatus status,
       ccf::TxID create_txid,
-      const std::optional<ccf::CoseEndorsement>& endorsement = std::nullopt)
+      const std::optional<ccf::CoseEndorsement>& endorsement = std::nullopt,
+      const std::optional<ccf::CoseEndorsement>& pq_endorsement = std::nullopt)
     {
       auto tx = store->create_tx();
       ccf::ServiceInfo info;
@@ -132,6 +141,12 @@ namespace
             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
           ->put(ccf::IdentityType::CLASSICAL, endorsement.value());
       }
+      if (pq_endorsement.has_value())
+      {
+        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+          ->put(ccf::IdentityType::PQ, pq_endorsement.value());
+      }
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   };
@@ -140,9 +155,11 @@ namespace
   {
   public:
     std::map<ccf::SeqNo, ccf::CoseEndorsement> entries;
+    // PQ endorsements written with the CLASSICAL ones in entries
+    std::map<ccf::SeqNo, ccf::CoseEndorsement> pq_entries;
     std::set<ccf::SeqNo> unavailable;
 
-    std::optional<ccf::CoseEndorsement> get_endorsement_at(
+    std::optional<ccf::IdentityEndorsements> get_endorsements_at(
       ccf::SeqNo seq) override
     {
       if (unavailable.contains(seq))
@@ -160,7 +177,13 @@ namespace
         throw std::runtime_error(std::format(
           "MockHistoricalStateAccessor: no entry for seqno {}", seq));
       }
-      return it->second;
+      std::optional<ccf::CoseEndorsement> pq = std::nullopt;
+      const auto pq_it = pq_entries.find(seq);
+      if (pq_it != pq_entries.end())
+      {
+        pq = pq_it->second;
+      }
+      return ccf::IdentityEndorsements{.classical = it->second, .pq = pq};
     }
   };
 
@@ -228,7 +251,7 @@ namespace
   //     at which e_{i-1} was written.
   //   * In production, e_N (the current KV entry) is what
   //     `get_current_endorsement` returns. e_0..e_{N-1} are what
-  //     `get_endorsement_at(write_version)` returns. The current
+  //     `get_endorsements_at(write_version)` returns. The current
   //     service's public key (in DER) must match e_N's signing key.
   //
   // For Test purposes we ignore the "previous_root" semantics -- the
@@ -349,6 +372,69 @@ namespace
     }
   };
 
+  // PQ endorsements that services with a PQ identity write with the CLASSICAL
+  // entries of a ChainBuilder, from the service which wrote entry `first` on:
+  // a self-endorsement there, then back-endorsements over the epochs of the
+  // CLASSICAL entries, as endorse_previous_identity writes them.
+  struct PQChain
+  {
+    // PQ key of the service which wrote each entry, from `first` on
+    std::vector<ccf::crypto::MLDSAKeyPairPtr> keys;
+    // PQ endorsement written with each CLASSICAL entry, by entry index
+    std::map<size_t, ccf::CoseEndorsement> entries;
+
+    PQChain(const ChainBuilder& cb, size_t first)
+    {
+      constexpr int64_t iat = 1700000000;
+      for (size_t i = first; i < cb.entries.size(); ++i)
+      {
+        const auto& classical = cb.entries.at(i);
+        auto kp = ccf::crypto::make_mldsa_key_pair(
+          ccf::crypto::MLDSAParameterSet::ML_DSA_44);
+        ccf::CoseEndorsement e;
+        e.endorsing_key = kp->public_key_der();
+        if (i == first)
+        {
+          // Starts at the creation of the service which wrote entry i
+          e.endorsement_epoch_begin =
+            classical.endorsement_epoch_end.has_value() ?
+            ccf::TxID{
+              classical.endorsement_epoch_end->view + aft::starting_view_change,
+              classical.endorsement_epoch_end->seqno + 1} :
+            classical.endorsement_epoch_begin;
+          e.endorsement = ccf::cose::sign_endorsement(
+            *kp,
+            iat,
+            e.endorsement_epoch_begin.to_str(),
+            {},
+            {},
+            kp->public_key_der());
+        }
+        else
+        {
+          REQUIRE(classical.endorsement_epoch_end.has_value());
+          e.endorsement_epoch_begin = classical.endorsement_epoch_begin;
+          e.endorsement_epoch_end = classical.endorsement_epoch_end;
+          e.previous_version = classical.previous_version;
+          e.endorsement = ccf::cose::sign_endorsement(
+            *kp,
+            iat,
+            e.endorsement_epoch_begin.to_str(),
+            e.endorsement_epoch_end->to_str(),
+            std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
+            keys.back()->public_key_der());
+        }
+        keys.push_back(kp);
+        entries.emplace(i, e);
+      }
+    }
+
+    [[nodiscard]] std::vector<uint8_t> key_der(size_t i) const
+    {
+      return keys.at(i)->public_key_der();
+    }
+  };
+
   // Fixture that owns the mocks, scheduler, and identity so tests can
   // build a subsystem with one call.
   struct SubsystemFixture
@@ -369,6 +455,8 @@ namespace
         ccf::crypto::MLDSAParameterSet::ML_DSA_65,
         "20240101000000Z",
         365);
+      // Services have no PQ identity unless a test wires a PQ chain
+      use_pq_identity_key(nullptr);
     }
 
     // Replace the identity's key pair so its public key matches the chain
@@ -377,6 +465,19 @@ namespace
       const std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL>& kp)
     {
       identity->priv_key = kp->private_key_pem();
+    }
+
+    // As use_identity_key, for the ML-DSA key; nullptr for an identity
+    // without one.
+    void use_pq_identity_key(const ccf::crypto::MLDSAKeyPairPtr& kp)
+    {
+      if (kp == nullptr)
+      {
+        identity->pq_priv_key = std::nullopt;
+        identity->pq_cert = std::nullopt;
+        return;
+      }
+      identity->pq_priv_key = kp->private_key_pem();
     }
 
     // Small, deterministic retry budget so budget-exhaustion tests
@@ -412,6 +513,49 @@ namespace
       current_service_from.value_or(cb.synthesised_current_service_from());
     f.node_state->topmost = cb.topmost_entry();
     f.historical->entries = cb.historical_entries();
+  }
+
+  // Populate the mocks with the PQ endorsements of pq, written with the
+  // CLASSICAL entries of cb, and give the identity the newest PQ key.
+  void wire_pq_chain(
+    SubsystemFixture& f, const ChainBuilder& cb, const PQChain& pq)
+  {
+    const auto topmost_index = cb.entries.size() - 1;
+    f.node_state->pq_topmost = pq.entries.at(topmost_index);
+    f.historical->pq_entries.clear();
+    for (const auto& [i, endorsement] : pq.entries)
+    {
+      if (i != topmost_index)
+      {
+        f.historical->pq_entries.emplace(cb.write_versions.at(i), endorsement);
+      }
+    }
+    f.use_pq_identity_key(pq.keys.back());
+  }
+
+  using PQKeysDer = std::map<ccf::SeqNo, std::vector<uint8_t>>;
+
+  // Trusted PQ keys, as DER, to compare with the keys of a PQChain
+  PQKeysDer pq_keys_der(const ccf::NetworkIdentitySubsystemInterface& sub)
+  {
+    PQKeysDer keys;
+    for (const auto& [seqno, key] : sub.get_trusted_keys_pq())
+    {
+      keys.emplace(seqno, key->public_key_der());
+    }
+    return keys;
+  }
+
+  // Trusted PQ key for seqno, as DER, or nullopt if there is none
+  std::optional<std::vector<uint8_t>> pq_key_der_for(
+    const ccf::NetworkIdentitySubsystemInterface& sub, ccf::SeqNo seqno)
+  {
+    const auto key = sub.get_trusted_identity_for_pq(seqno);
+    if (key == nullptr)
+    {
+      return std::nullopt;
+    }
+    return key->public_key_der();
   }
 
   // Populate the mocks from a partially replayed chain. The live KV exposes
@@ -920,6 +1064,24 @@ TEST_CASE(
   REQUIRE(keys.size() == 2);
 }
 
+TEST_CASE("Failed: current service identity cannot be read")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  f.node_state->identity_error = "inconsistent endorsement versions";
+
+  auto sub = std::make_unique<ccf::NetworkIdentitySubsystem>(
+    f.node_state, f.historical, f.identity, f.scheduler);
+  REQUIRE_THROWS_WITH_AS(
+    sub->start_with_config(SubsystemFixture::default_config()),
+    "Failed fetching network identity: inconsistent endorsement versions",
+    std::runtime_error);
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Failed);
+}
+
 TEST_CASE("Failed: bad signature on topmost detected during bootstrap")
 {
   SubsystemFixture f;
@@ -948,12 +1110,36 @@ TEST_CASE(
 
   // Tamper a HISTORICAL entry's table-side epoch_end so it disagrees
   // with the signed COSE header range. validate_fetched_endorsement
-  // runs only on historically-fetched links (not the topmost) and
   // catches the mismatch.
   auto mid_wv = cb.write_versions.at(1);
   f.historical->entries.at(mid_wv).endorsement_epoch_end = ccf::TxID{99, 99999};
 
   REQUIRE_THROWS_AS({ auto sub = f.make_subsystem(); }, std::exception);
+}
+
+TEST_CASE(
+  "Failed: topmost endorsement COSE header range disagrees with table fields")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {6, 400});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+
+  // Signed by the current key over a shorter range than the table fields,
+  // which still connect to the current service
+  f.node_state->topmost->endorsement = ccf::cose::sign_endorsement(
+    *cb.current_key_pair(),
+    1700000000,
+    "6.201",
+    "6.399",
+    std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
+    cb.service_keys.at(1)->public_key_der());
+
+  REQUIRE_THROWS_WITH_AS(
+    { auto sub = f.make_subsystem(); },
+    doctest::Contains("COSE endorsement fetched but range is invalid"),
+    std::runtime_error);
 }
 
 TEST_CASE("Failed: chain link broken (wrong endorsing_key) during bootstrap")
@@ -988,6 +1174,80 @@ TEST_CASE(
   f.node_state->topmost = cb.topmost_entry();
 
   REQUIRE_THROWS_AS({ auto sub = f.make_subsystem(); }, std::exception);
+}
+
+TEST_CASE("Failed: tampered self-endorsement of the current service")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1});
+  f.use_identity_key(cb.current_key_pair());
+  f.node_state->current_service_from = ccf::TxID{2, 1};
+  f.node_state->topmost = cb.topmost_entry();
+  f.node_state->topmost->endorsement.back() ^= 0xFF;
+
+  REQUIRE_THROWS_WITH_AS(
+    { auto sub = f.make_subsystem(); },
+    doctest::Contains("Self-endorsement at 2.1 failed signature verification"),
+    std::runtime_error);
+}
+
+TEST_CASE("Failed: invalid self-endorsement at which fetching stops")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {8, 400});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  auto& self = f.historical->entries.at(cb.write_versions.at(0));
+  std::string expected_error;
+
+  SUBCASE("Tampered signature")
+  {
+    self.endorsement.back() ^= 0xFF;
+    expected_error = "Self-endorsement at 2.1 failed signature verification";
+  }
+  SUBCASE("Self-endorsement of a key which the chain does not endorse")
+  {
+    ChainBuilder stranger;
+    stranger.add_self({2, 1});
+    self = stranger.topmost_entry();
+    expected_error = "trusted from that epoch";
+  }
+  SUBCASE("Signed for another epoch than its entry")
+  {
+    const auto& key = cb.service_keys.at(0);
+    self.endorsement = ccf::cose::sign_endorsement(
+      *key, 1700000000, "2.2", {}, {}, key->public_key_der());
+    expected_error = "is signed for another epoch begin 2.2";
+  }
+  SUBCASE("Signed with an epoch end")
+  {
+    // A back-endorsement which endorses the key which signed it
+    const auto& key = cb.service_keys.at(0);
+    self.endorsement = ccf::cose::sign_endorsement(
+      *key,
+      1700000000,
+      "2.1",
+      "2.100",
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
+      key->public_key_der());
+    expected_error = "is signed with an epoch end 2.100";
+  }
+  SUBCASE("Back-endorsement passed off as a self-endorsement")
+  {
+    // Would stop fetching before the oldest endorsements are reached
+    auto& middle = f.historical->entries.at(cb.write_versions.at(1));
+    middle.previous_version = std::nullopt;
+    middle.endorsement_epoch_begin = ccf::TxID{6, 201};
+    middle.endorsement_epoch_end = std::nullopt;
+    expected_error = "which is not the key which signed it";
+  }
+
+  REQUIRE_THROWS_WITH_AS(
+    { auto sub = f.make_subsystem(); },
+    doctest::Contains(expected_error),
+    std::runtime_error);
 }
 
 TEST_CASE("Reader: empty chain for current-epoch seqno in Done")
@@ -1189,6 +1449,828 @@ TEST_CASE(
     // Settles in Failed (set by fail_fetching), not in the requested
     // target_status.
     REQUIRE(sub.endorsements_fetching_status() == ccf::FetchStatus::Failed);
+  }
+}
+
+// ------------------------------------------------------------------------
+// PQ endorsements chain, fetched with the CLASSICAL one.
+// ------------------------------------------------------------------------
+
+TEST_CASE("PQ chain starts at the first service with a PQ identity")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  // Services created at 2.1, 6.201 and, current, 10.401
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {8, 400});
+  // The second service is the first with a PQ identity
+  const PQChain pq(cb, 1);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+
+  auto sub = f.make_subsystem();
+  f.scheduler->run_to_completion();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+
+  const auto pq_chain = sub->get_cose_endorsements_chain_pq(300);
+  REQUIRE(pq_chain.has_value());
+  REQUIRE(
+    *pq_chain == ccf::CoseEndorsementsChain{pq.entries.at(2).endorsement});
+
+  // The first service had no PQ identity
+  REQUIRE_FALSE(sub->get_cose_endorsements_chain_pq(100).has_value());
+  REQUIRE(sub->get_trusted_identity_for_pq(200) == nullptr);
+
+  const auto current_chain = sub->get_cose_endorsements_chain_pq(500);
+  REQUIRE(current_chain.has_value());
+  REQUIRE(current_chain->empty());
+
+  REQUIRE(pq_key_der_for(*sub, 201) == pq.key_der(0));
+  REQUIRE(pq_key_der_for(*sub, 400) == pq.key_der(0));
+  REQUIRE(pq_key_der_for(*sub, 401) == pq.key_der(1));
+  REQUIRE(
+    pq_keys_der(*sub) == PQKeysDer{{201, pq.key_der(0)}, {401, pq.key_der(1)}});
+
+  // The classical chain covers every service
+  REQUIRE(sub->get_trusted_keys().size() == 3);
+  REQUIRE(sub->get_cose_endorsements_chain(100)->size() == 2);
+}
+
+TEST_CASE("PQ chain covers every service which has a PQ identity")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {8, 400});
+  const PQChain pq(cb, 0);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+
+  auto sub = f.make_subsystem();
+  f.scheduler->run_to_completion();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+
+  const auto pq_chain = sub->get_cose_endorsements_chain_pq(100);
+  REQUIRE(pq_chain.has_value());
+  REQUIRE(
+    *pq_chain ==
+    ccf::CoseEndorsementsChain{
+      pq.entries.at(2).endorsement, pq.entries.at(1).endorsement});
+  REQUIRE(pq_chain->size() == sub->get_cose_endorsements_chain(100)->size());
+
+  REQUIRE(pq_key_der_for(*sub, 1) == pq.key_der(0));
+  REQUIRE(pq_key_der_for(*sub, 201) == pq.key_der(1));
+  REQUIRE(pq_key_der_for(*sub, 1000) == pq.key_der(2));
+}
+
+TEST_CASE("PQ chain of the service which starts it is empty")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200});
+  // Only the current service, created at 6.201, has a PQ identity
+  const PQChain pq(cb, 1);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+
+  auto sub = f.make_subsystem();
+  f.scheduler->run_to_completion();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+
+  REQUIRE_FALSE(sub->get_cose_endorsements_chain_pq(100).has_value());
+  const auto current_chain = sub->get_cose_endorsements_chain_pq(201);
+  REQUIRE(current_chain.has_value());
+  REQUIRE(current_chain->empty());
+  REQUIRE(sub->get_trusted_identity_for_pq(200) == nullptr);
+  REQUIRE(pq_key_der_for(*sub, 201) == pq.key_der(0));
+  REQUIRE(sub->get_cose_endorsements_chain(100)->size() == 1);
+}
+
+TEST_CASE("No PQ chain for a service without a PQ identity")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {8, 400});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+
+  auto sub = f.make_subsystem();
+  f.scheduler->run_to_completion();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+
+  for (const ccf::SeqNo seqno : {100, 300, 500})
+  {
+    CAPTURE(seqno);
+    REQUIRE_FALSE(sub->get_cose_endorsements_chain_pq(seqno).has_value());
+    REQUIRE(sub->get_trusted_identity_for_pq(seqno) == nullptr);
+  }
+  REQUIRE(sub->get_trusted_keys_pq().empty());
+  REQUIRE(sub->get_cose_endorsements_chain(100)->size() == 2);
+}
+
+TEST_CASE("A PQ endorsement outside the PQ chain fails fetching")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  // Services created at 2.1, 6.201, 10.401 and, current, 14.601
+  cb.add_self({2, 1})
+    .add_next({2, 1}, {4, 200})
+    .add_next({6, 201}, {8, 400})
+    .add_next({10, 401}, {12, 600});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  // PQ endorsements of the first two services
+  const PQChain older_pq(cb, 0);
+  std::string expected_error;
+
+  SUBCASE("Written by the service before the PQ self-endorsement")
+  {
+    const PQChain pq(cb, 2);
+    wire_pq_chain(f, cb, pq);
+    f.historical->pq_entries.emplace(
+      cb.write_versions.at(1), older_pq.entries.at(1));
+    expected_error =
+      "PQ endorsements chain: a PQ endorsement was written with the classical "
+      "endorsement for 2.1 - 4.200, which is older than the PQ "
+      "self-endorsement at 10.401";
+  }
+  SUBCASE("Written by an older service than the PQ self-endorsement")
+  {
+    const PQChain pq(cb, 2);
+    wire_pq_chain(f, cb, pq);
+    f.historical->pq_entries.emplace(
+      cb.write_versions.at(0), older_pq.entries.at(0));
+    expected_error =
+      "PQ endorsements chain: a PQ endorsement was written with the classical "
+      "endorsement for 2.1 - null, which is older than the PQ "
+      "self-endorsement at 10.401";
+  }
+  SUBCASE("Written before a current service without a PQ identity")
+  {
+    f.historical->pq_entries.emplace(
+      cb.write_versions.at(2), older_pq.entries.at(2));
+    expected_error =
+      "PQ endorsements chain: a PQ endorsement was written with the classical "
+      "endorsement for 6.201 - 8.400, but the current service has no PQ "
+      "identity";
+  }
+
+  REQUIRE_THROWS_WITH_AS(
+    { auto sub = f.make_subsystem(); },
+    doctest::Contains(expected_error),
+    std::runtime_error);
+}
+
+TEST_CASE("Classical chain continues past the start of the PQ chain")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  // Services created at 2.1, 6.201, 10.401 and, current, 14.601
+  cb.add_self({2, 1})
+    .add_next({2, 1}, {4, 200})
+    .add_next({6, 201}, {8, 400})
+    .add_next({10, 401}, {12, 600});
+  // The third service is the first with a PQ identity, so the classical
+  // chain has two more endorsements to fetch once the PQ one stops
+  const PQChain pq(cb, 2);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+
+  auto sub = f.make_subsystem();
+  f.scheduler->run_to_completion();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+
+  const auto pq_chain = sub->get_cose_endorsements_chain_pq(500);
+  REQUIRE(pq_chain.has_value());
+  REQUIRE(
+    *pq_chain == ccf::CoseEndorsementsChain{pq.entries.at(3).endorsement});
+  for (const ccf::SeqNo seqno : {100, 300})
+  {
+    CAPTURE(seqno);
+    REQUIRE_FALSE(sub->get_cose_endorsements_chain_pq(seqno).has_value());
+    REQUIRE(sub->get_trusted_identity_for_pq(seqno) == nullptr);
+  }
+  REQUIRE(
+    pq_keys_der(*sub) == PQKeysDer{{401, pq.key_der(0)}, {601, pq.key_der(1)}});
+  REQUIRE(sub->get_cose_endorsements_chain(100)->size() == 3);
+}
+
+TEST_CASE("PQ chain is read once the live KV reaches the current service")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {6, 400});
+  const PQChain pq(cb, 0);
+  f.use_identity_key(cb.current_key_pair());
+
+  // A joiner holds the current PQ key from the join response, while its live
+  // KV still has the endorsements written when the previous service opened
+  wire_partially_replayed_chain(f, cb, 1);
+  f.node_state->pq_topmost = pq.entries.at(1);
+  f.use_pq_identity_key(pq.keys.back());
+
+  auto sub = f.make_subsystem();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+  REQUIRE(f.scheduler->pending_delayed_count() == 1);
+
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+  f.scheduler->fire_delayed_once();
+  f.scheduler->run_to_completion();
+
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+  REQUIRE(
+    pq_keys_der(*sub) ==
+    PQKeysDer{{1, pq.key_der(0)}, {201, pq.key_der(1)}, {401, pq.key_der(2)}});
+}
+
+TEST_CASE("An inconsistent PQ chain fails fetching")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200}).add_next({6, 201}, {8, 400});
+  const PQChain pq(cb, 0);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+  const auto middle_version = cb.write_versions.at(1);
+  std::string expected_error;
+
+  SUBCASE("Tampered PQ endorsement")
+  {
+    f.node_state->pq_topmost->endorsement.back() ^= 0xFF;
+    expected_error =
+      "PQ endorsements chain: COSE endorsement chain integrity is violated, "
+      "endorsement from 6.201 to 8.400 failed signature verification";
+  }
+  SUBCASE("PQ endorsement signed by another PQ key")
+  {
+    f.node_state->pq_topmost->endorsing_key = pq.key_der(1);
+    expected_error = "which is not the current PQ service public key";
+  }
+  SUBCASE("No PQ endorsement written when the current service opened")
+  {
+    f.node_state->pq_topmost = std::nullopt;
+    expected_error =
+      "no PQ endorsement was written with the classical endorsement for "
+      "6.201 - 8.400";
+  }
+  SUBCASE("PQ endorsement written when the current service opened, no PQ key")
+  {
+    f.use_pq_identity_key(nullptr);
+    expected_error = "the network identity of this node has no PQ key";
+  }
+  SUBCASE("Newest PQ endorsement whose entry disagrees with its signed epochs")
+  {
+    f.node_state->pq_topmost->endorsement_epoch_end = ccf::TxID{8, 399};
+    expected_error = "range is invalid";
+  }
+  SUBCASE("PQ endorsement whose entry disagrees with its signed epochs")
+  {
+    f.historical->pq_entries.at(middle_version).endorsement_epoch_end =
+      ccf::TxID{4, 199};
+    expected_error = "range is invalid";
+  }
+  SUBCASE("PQ endorsement over other epochs than the classical one")
+  {
+    auto& endorsement = f.historical->pq_entries.at(middle_version);
+    endorsement.endorsement_epoch_end = ccf::TxID{4, 199};
+    endorsement.endorsement = ccf::cose::sign_endorsement(
+      *pq.keys.at(1),
+      1700000000,
+      endorsement.endorsement_epoch_begin.to_str(),
+      endorsement.endorsement_epoch_end->to_str(),
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
+      pq.key_der(0));
+    expected_error = "does not match the classical endorsement";
+  }
+  SUBCASE("PQ endorsement with another previous version than the classical")
+  {
+    auto& endorsement = f.historical->pq_entries.at(middle_version);
+    const auto classical_version = endorsement.previous_version.value();
+    endorsement.previous_version = classical_version + 1;
+    expected_error = std::format(
+      "PQ endorsements chain: endorsement for 2.1 - 4.200 with previous "
+      "version {} does not match the classical endorsement for 2.1 - 4.200 "
+      "with previous version {} written with it",
+      classical_version + 1,
+      classical_version);
+  }
+  SUBCASE("PQ endorsement over another previous root than the classical")
+  {
+    auto& endorsement = f.historical->pq_entries.at(middle_version);
+    endorsement.endorsement = ccf::cose::sign_endorsement(
+      *pq.keys.at(1),
+      1700000000,
+      endorsement.endorsement_epoch_begin.to_str(),
+      endorsement.endorsement_epoch_end->to_str(),
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xde},
+      pq.key_der(0));
+    expected_error =
+      "PQ endorsements chain: endorsement for 2.1 - 4.200 is signed over "
+      "another previous ledger root";
+  }
+  SUBCASE("PQ and classical endorsements both without a previous root")
+  {
+    auto& endorsement = f.historical->pq_entries.at(middle_version);
+    endorsement.endorsement = ccf::cose::sign_endorsement(
+      *pq.keys.at(1),
+      1700000000,
+      endorsement.endorsement_epoch_begin.to_str(),
+      endorsement.endorsement_epoch_end->to_str(),
+      {},
+      pq.key_der(0));
+    auto& classical = f.historical->entries.at(middle_version);
+    classical.endorsement = ccf::cose::sign_endorsement(
+      *cb.service_keys.at(1),
+      1700000000,
+      classical.endorsement_epoch_begin.to_str(),
+      classical.endorsement_epoch_end->to_str(),
+      {},
+      cb.service_keys.at(0)->public_key_der());
+    expected_error =
+      "PQ endorsements chain: endorsement for 2.1 - 4.200 is not signed over "
+      "a previous ledger root";
+  }
+  SUBCASE("No PQ endorsement where the newer PQ endorsement points")
+  {
+    f.historical->pq_entries.erase(middle_version);
+    expected_error =
+      "no PQ endorsement was written with the classical endorsement for "
+      "2.1 - 4.200";
+  }
+  SUBCASE("PQ self-endorsement of an epoch which no PQ endorsement covers")
+  {
+    f.historical->pq_entries.at(cb.write_versions.at(0))
+      .endorsement_epoch_begin = ccf::TxID{2, 2};
+    expected_error =
+      "PQ endorsements chain: fetched self-endorsement at 2.2 which has not "
+      "been seen";
+  }
+  SUBCASE("Tampered PQ self-endorsement")
+  {
+    f.historical->pq_entries.at(cb.write_versions.at(0)).endorsement.back() ^=
+      0xFF;
+    expected_error =
+      "PQ endorsements chain: Self-endorsement at 2.1 failed signature "
+      "verification";
+  }
+  SUBCASE("PQ back-endorsement passed off as a self-endorsement")
+  {
+    // Would stop the PQ chain before its oldest endorsements are reached
+    auto& endorsement = f.historical->pq_entries.at(middle_version);
+    endorsement.previous_version = std::nullopt;
+    endorsement.endorsement_epoch_begin = ccf::TxID{6, 201};
+    endorsement.endorsement_epoch_end = std::nullopt;
+    f.historical->pq_entries.erase(cb.write_versions.at(0));
+    expected_error =
+      "PQ endorsements chain: Self-endorsement at 6.201 endorses public key "
+      "sha256:";
+  }
+  SUBCASE("PQ endorsement over a key which is not an ML-DSA key")
+  {
+    auto& endorsement = f.node_state->pq_topmost.value();
+    endorsement.endorsement = ccf::cose::sign_endorsement(
+      *pq.keys.at(2),
+      1700000000,
+      endorsement.endorsement_epoch_begin.to_str(),
+      endorsement.endorsement_epoch_end->to_str(),
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
+      cb.current_key_pair()->public_key_der());
+    expected_error = "PQ endorsements chain: Expected an ML-DSA key";
+  }
+  SUBCASE("PQ endorsement which endorses another key")
+  {
+    // Signed by the current PQ key, over a key which did not sign the PQ
+    // endorsement before it
+    auto& endorsement = f.node_state->pq_topmost.value();
+    endorsement.endorsement = ccf::cose::sign_endorsement(
+      *pq.keys.at(2),
+      1700000000,
+      endorsement.endorsement_epoch_begin.to_str(),
+      endorsement.endorsement_epoch_end->to_str(),
+      std::vector<uint8_t>{0xaa, 0xbb, 0xcc, 0xdd},
+      ccf::crypto::make_mldsa_key_pair(
+        ccf::crypto::MLDSAParameterSet::ML_DSA_44)
+        ->public_key_der());
+    expected_error = "doesn't chain with the previous endorsement";
+  }
+
+  auto sub = std::make_unique<ccf::NetworkIdentitySubsystem>(
+    f.node_state, f.historical, f.identity, f.scheduler);
+  REQUIRE_THROWS_WITH_AS(
+    sub->start_with_config(SubsystemFixture::default_config()),
+    doctest::Contains(expected_error),
+    std::runtime_error);
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Failed);
+  REQUIRE_THROWS_AS(
+    (void)sub->get_cose_endorsements_chain_pq(100),
+    ccf::IdentityHistoryNotFetched);
+  REQUIRE_THROWS_AS(
+    (void)sub->get_cose_endorsements_chain(100),
+    ccf::IdentityHistoryNotFetched);
+}
+
+TEST_CASE("An inconsistent PQ chain fails fetching in Partial")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1})
+    .add_next({2, 1}, {4, 200})
+    .add_next({6, 201}, {6, 400})
+    .add_next({8, 401}, {8, 600});
+  const PQChain pq(cb, 0);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+  f.historical->unavailable = {
+    cb.write_versions.at(0), cb.write_versions.at(1)};
+  f.node_state->pq_topmost->endorsement.back() ^= 0xFF;
+
+  auto sub = f.make_subsystem();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+  REQUIRE_THROWS_WITH_AS(
+    f.scheduler->run_to_completion(),
+    doctest::Contains("failed signature verification"),
+    std::runtime_error);
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Failed);
+}
+
+TEST_CASE("PQ chain which ends before the classical one settles as Partial")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  // Services created at 2.1, 6.201, 8.401 and, current, 10.601
+  cb.add_self({2, 1})
+    .add_next({2, 1}, {4, 200})
+    .add_next({6, 201}, {6, 400})
+    .add_next({8, 401}, {8, 600});
+  // The third service is the first with a PQ identity, so the PQ chain
+  // reaches its self-endorsement before the classical one misses an entry
+  const PQChain pq(cb, 2);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+  f.historical->unavailable = {cb.write_versions.at(1)};
+
+  SUBCASE("PQ self-endorsement is validated")
+  {
+    auto sub = f.make_subsystem();
+    while (f.scheduler->pending_delayed_count() > 0)
+    {
+      f.scheduler->fire_delayed_once();
+    }
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+    REQUIRE(
+      pq_keys_der(*sub) ==
+      PQKeysDer{{401, pq.key_der(0)}, {601, pq.key_der(1)}});
+  }
+
+  SUBCASE("Tampered PQ self-endorsement fails fetching")
+  {
+    f.historical->pq_entries.at(cb.write_versions.at(2)).endorsement.back() ^=
+      0xFF;
+
+    auto sub = f.make_subsystem();
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+    REQUIRE_THROWS_WITH_AS(
+      f.scheduler->run_to_completion(),
+      doctest::Contains(
+        "Self-endorsement at 8.401 failed signature verification"),
+      std::runtime_error);
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Failed);
+  }
+}
+
+TEST_CASE("PQ chain is the validated suffix in Partial")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1})
+    .add_next({2, 1}, {4, 200})
+    .add_next({6, 201}, {6, 400})
+    .add_next({8, 401}, {8, 600});
+  const PQChain pq(cb, 0);
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  wire_pq_chain(f, cb, pq);
+  f.historical->unavailable = {
+    cb.write_versions.at(0), cb.write_versions.at(1)};
+
+  auto sub = f.make_subsystem();
+  while (f.scheduler->pending_delayed_count() > 0)
+  {
+    f.scheduler->fire_delayed_once();
+  }
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Partial);
+
+  const auto pq_chain = sub->get_cose_endorsements_chain_pq(300);
+  REQUIRE(pq_chain.has_value());
+  REQUIRE(
+    *pq_chain ==
+    ccf::CoseEndorsementsChain{
+      pq.entries.at(3).endorsement, pq.entries.at(2).endorsement});
+  REQUIRE_FALSE(sub->get_cose_endorsements_chain_pq(100).has_value());
+  REQUIRE(pq_key_der_for(*sub, 201) == pq.key_der(1));
+  REQUIRE(sub->get_trusted_identity_for_pq(200) == nullptr);
+  REQUIRE(
+    pq_keys_der(*sub) ==
+    PQKeysDer{
+      {201, pq.key_der(1)}, {401, pq.key_der(2)}, {601, pq.key_der(3)}});
+}
+
+TEST_CASE("PQ readers wait for identity history fetching")
+{
+  SubsystemFixture f;
+  f.node_state->part_of_network = false;
+  auto sub = f.make_subsystem();
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+  REQUIRE_THROWS_AS(
+    (void)sub->get_cose_endorsements_chain_pq(1),
+    ccf::IdentityHistoryNotFetched);
+  REQUIRE_THROWS_AS(
+    (void)sub->get_trusted_identity_for_pq(1), ccf::IdentityHistoryNotFetched);
+  REQUIRE_THROWS_AS(
+    (void)sub->get_trusted_keys_pq(), ccf::IdentityHistoryNotFetched);
+}
+
+TEST_CASE(
+  "The current PQ endorsement is the one written with the CLASSICAL one")
+{
+  StoreNodeStateAccessor node_state;
+  const ccf::TxID first_create_txid{2, 1};
+  const ccf::TxID second_create_txid{4, 10};
+
+  ccf::CoseEndorsement classical;
+  classical.endorsement_epoch_begin = first_create_txid;
+  classical.endorsement = {1};
+  ccf::CoseEndorsement pq;
+  pq.endorsement_epoch_begin = first_create_txid;
+  pq.endorsement = {2};
+
+  INFO("A service with a PQ identity writes both when it opens");
+  node_state.commit_service(
+    ccf::ServiceStatus::OPEN, first_create_txid, classical, pq);
+  auto current = node_state.get_current_service_identity();
+  REQUIRE(current.endorsement.has_value());
+  REQUIRE(current.pq_endorsement.has_value());
+  REQUIRE(current.pq_endorsement->endorsement == pq.endorsement);
+
+  INFO("A later opening which writes CLASSICAL only is rejected");
+  classical.endorsement_epoch_begin = second_create_txid;
+  classical.endorsement = {3};
+  node_state.commit_service(
+    ccf::ServiceStatus::OPEN, second_create_txid, classical);
+  REQUIRE_THROWS_WITH_AS(
+    node_state.get_current_service_identity(),
+    doctest::Contains(
+      "The PQ previous service identity endorsement was written at"),
+    std::logic_error);
+}
+
+TEST_CASE("A service without a PQ identity has no current PQ endorsement")
+{
+  StoreNodeStateAccessor node_state;
+  const ccf::TxID create_txid{2, 1};
+  ccf::CoseEndorsement classical;
+  classical.endorsement_epoch_begin = create_txid;
+  classical.endorsement = {1};
+
+  node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid, classical);
+  const auto current = node_state.get_current_service_identity();
+  REQUIRE(current.endorsement.has_value());
+  REQUIRE_FALSE(current.pq_endorsement.has_value());
+}
+
+namespace
+{
+  // Consecutive services written by InternalTablesAccess, as a node creates
+  // and opens them, with the fetcher reading what each opening wrote
+  struct WrittenServices
+  {
+    struct Keys
+    {
+      std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> key =
+        std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(
+          ccf::crypto::CurveID::SECP384R1);
+      ccf::crypto::MLDSAKeyPairPtr pq_key = ccf::crypto::make_mldsa_key_pair(
+        ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+    };
+
+    SubsystemFixture f;
+    std::shared_ptr<StoreNodeStateAccessor> node_state =
+      std::make_shared<StoreNodeStateAccessor>();
+    ccf::MerkleTreeHistory tree;
+    size_t count = 0;
+
+    // A service with_pq = false has no PQ identity, as one created by a
+    // release without ML-DSA
+    void create(const Keys& keys, const ccf::TxID& create_txid, bool with_pq)
+    {
+      const std::string valid_from = "20240101000000Z";
+      const std::string valid_to = "20250101000000Z";
+      const auto cert = keys.key->self_sign("CN=test", valid_from, valid_to);
+      const auto pq_cert =
+        keys.pq_key->self_sign("CN=test", valid_from, valid_to);
+
+      auto tx = node_state->store->create_tx();
+      ccf::InternalTablesAccess::create_service(
+        tx,
+        cert,
+        pq_cert,
+        create_txid,
+        nullptr,
+        count != 0,
+        count != 0 ? std::make_optional(tree.get_root()) : std::nullopt);
+      if (!with_pq)
+      {
+        auto* service = tx.rw<ccf::Service>(ccf::Tables::SERVICE);
+        auto info = service->get().value();
+        info.pq_cert.reset();
+        service->put(info);
+        tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+          ->remove(ccf::IdentityType::PQ);
+      }
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      tree.append(ccf::crypto::Sha256Hash(cert.str()));
+      ++count;
+    }
+
+    // Opens the service created last, and gives its keys to the node
+    void open(const Keys& keys, bool with_pq)
+    {
+      {
+        auto tx = node_state->store->create_tx();
+        REQUIRE(ccf::InternalTablesAccess::endorse_previous_identity(
+          tx, *keys.key, with_pq ? keys.pq_key : nullptr));
+        auto* service = tx.rw<ccf::Service>(ccf::Tables::SERVICE);
+        auto info = service->get().value();
+        info.status = ccf::ServiceStatus::OPEN;
+        service->put(info);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      }
+
+      // The historical state at a version holds what that transaction wrote
+      auto tx = node_state->store->create_read_only_tx();
+      auto* endorsements = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
+        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+      const auto version =
+        endorsements
+          ->get_version_of_previous_write(ccf::IdentityType::CLASSICAL)
+          .value();
+      f.historical->entries.emplace(
+        version, endorsements->get(ccf::IdentityType::CLASSICAL).value());
+      if (
+        endorsements->get_version_of_previous_write(ccf::IdentityType::PQ) ==
+        version)
+      {
+        f.historical->pq_entries.emplace(
+          version, endorsements->get(ccf::IdentityType::PQ).value());
+      }
+
+      f.use_identity_key(keys.key);
+      f.use_pq_identity_key(with_pq ? keys.pq_key : nullptr);
+    }
+
+    void create_and_open(
+      const Keys& keys, const ccf::TxID& create_txid, bool with_pq = true)
+    {
+      create(keys, create_txid, with_pq);
+      open(keys, with_pq);
+    }
+
+    std::unique_ptr<ccf::NetworkIdentitySubsystem> fetch()
+    {
+      auto sub = std::make_unique<ccf::NetworkIdentitySubsystem>(
+        node_state, f.historical, f.identity, f.scheduler);
+      sub->start_with_config(SubsystemFixture::default_config());
+      f.scheduler->run_to_completion();
+      REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+      return sub;
+    }
+  };
+
+  using KeysDer = std::map<ccf::SeqNo, std::vector<uint8_t>>;
+
+  KeysDer keys_der(const ccf::NetworkIdentitySubsystemInterface& sub)
+  {
+    KeysDer keys;
+    for (const auto& [seqno, key] : sub.get_trusted_keys())
+    {
+      keys.emplace(seqno, key->public_key_der());
+    }
+    return keys;
+  }
+}
+
+TEST_CASE("Endorsements written by consecutive services are fetched")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  WrittenServices services;
+  const WrittenServices::Keys first;
+  const WrittenServices::Keys second;
+  const WrittenServices::Keys third;
+
+  SUBCASE("PQ identity from the first service")
+  {
+    services.create_and_open(first, {2, 1});
+    services.create_and_open(second, {4, 10});
+    services.create_and_open(third, {6, 20});
+    const auto sub = services.fetch();
+
+    REQUIRE(
+      keys_der(*sub) ==
+      KeysDer{
+        {1, first.key->public_key_der()},
+        {10, second.key->public_key_der()},
+        {20, third.key->public_key_der()}});
+    REQUIRE(
+      pq_keys_der(*sub) ==
+      PQKeysDer{
+        {1, first.pq_key->public_key_der()},
+        {10, second.pq_key->public_key_der()},
+        {20, third.pq_key->public_key_der()}});
+    REQUIRE(sub->get_cose_endorsements_chain(5)->size() == 2);
+    REQUIRE(sub->get_cose_endorsements_chain_pq(5)->size() == 2);
+  }
+
+  SUBCASE("PQ identity introduced by a recovery")
+  {
+    services.create_and_open(first, {2, 1}, false);
+    services.create_and_open(second, {4, 10});
+    services.create_and_open(third, {6, 20});
+    const auto sub = services.fetch();
+
+    REQUIRE(keys_der(*sub).size() == 3);
+    REQUIRE(
+      pq_keys_der(*sub) ==
+      PQKeysDer{
+        {10, second.pq_key->public_key_der()},
+        {20, third.pq_key->public_key_der()}});
+    REQUIRE(sub->get_cose_endorsements_chain(5)->size() == 2);
+    REQUIRE_FALSE(sub->get_cose_endorsements_chain_pq(5).has_value());
+    REQUIRE(sub->get_cose_endorsements_chain_pq(15)->size() == 1);
   }
 }
 

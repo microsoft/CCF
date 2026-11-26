@@ -1,0 +1,2 @@
+`ccf::NetworkIdentitySubsystemInterface` now serves the PQ endorsement chain and trusted ML-DSA service keys through `get_cose_endorsements_chain_pq(seqno)`, `get_trusted_identity_for_pq(seqno)` and `get_trusted_keys_pq()`; see the [C++ API reference](doc/build_apps/api.rst#network-identity).
+Identity history fetching now stops the node if the PQ chain is inconsistent with the classical one, or if the self-endorsement at which either chain ends is invalid.
