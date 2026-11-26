@@ -435,15 +435,6 @@ JavaScript endpoint definitions.
 .. doxygenenum:: ccf::endpoints::ForwardingRequired
    :project: CCF
 
-``tls.ca_cert_bundles``
-~~~~~~~~~~~~~~~~~~~~~~~
-
-CA cert bundle storage table, these bundles are used to authenticate connections to JWT issuers.
-
-**Key** Bundle name, represented as a string.
-
-**Value** Cert bundle, represented as a PEM-encoded string.
-
 ``jwt.issuers``
 ~~~~~~~~~~~~~~~
 

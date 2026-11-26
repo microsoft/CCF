@@ -525,6 +525,130 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
   }
 }
 
+namespace
+{
+  class ScopedEnvVar
+  {
+    std::string name;
+    std::optional<std::string> previous;
+
+  public:
+    ScopedEnvVar(std::string name_, const char* value) : name(std::move(name_))
+    {
+      // NOLINTNEXTLINE(concurrency-mt-unsafe)
+      if (const char* current = std::getenv(name.c_str()); current != nullptr)
+      {
+        previous = current;
+      }
+      if (value != nullptr)
+      {
+        // NOLINTNEXTLINE(concurrency-mt-unsafe)
+        REQUIRE(setenv(name.c_str(), value, 1) == 0);
+      }
+      else
+      {
+        // NOLINTNEXTLINE(concurrency-mt-unsafe)
+        REQUIRE(unsetenv(name.c_str()) == 0);
+      }
+    }
+
+    ScopedEnvVar(const ScopedEnvVar&) = delete;
+    ScopedEnvVar& operator=(const ScopedEnvVar&) = delete;
+
+    ~ScopedEnvVar()
+    {
+      if (previous.has_value())
+      {
+        // NOLINTNEXTLINE(concurrency-mt-unsafe)
+        setenv(name.c_str(), previous->c_str(), 1);
+      }
+      else
+      {
+        // NOLINTNEXTLINE(concurrency-mt-unsafe)
+        unsetenv(name.c_str());
+      }
+    }
+  };
+}
+
+TEST_CASE("use_system_trust_store honours SSL_CERT_FILE and SSL_CERT_DIR")
+{
+  // NOLINTNEXTLINE(concurrency-mt-unsafe)
+  const char* tls_addr_env = std::getenv("TLS_SERVER_ADDR");
+  // NOLINTNEXTLINE(concurrency-mt-unsafe)
+  const char* tls_san_env = std::getenv("TLS_SERVER_SAN");
+  // NOLINTNEXTLINE(concurrency-mt-unsafe)
+  const char* tls_ca_env = std::getenv("TLS_SERVER_CA");
+  // NOLINTNEXTLINE(concurrency-mt-unsafe)
+  const char* tls_ca_dir_env = std::getenv("TLS_SERVER_CA_DIR");
+  if (
+    tls_addr_env == nullptr || tls_san_env == nullptr ||
+    tls_ca_env == nullptr || tls_ca_dir_env == nullptr)
+  {
+    MESSAGE("Skipping: TLS_SERVER_* env not set (run via e2e_curl.py)");
+    return;
+  }
+
+  const std::string tls_addr = tls_addr_env;
+  const std::string tls_san = tls_san_env;
+  const auto colon = tls_addr.rfind(':');
+  REQUIRE(colon != std::string::npos);
+  const std::string tls_host = tls_addr.substr(0, colon);
+  const std::string tls_port = tls_addr.substr(colon + 1);
+
+  auto perform_get = [&]() {
+    auto curl_handle = ccf::http_client::UniqueCURL();
+    curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
+    curl_handle.use_system_trust_store();
+    curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_handle.set_opt(CURLOPT_TIMEOUT, 10L);
+
+    auto resolve = ccf::http_client::UniqueSlist();
+    resolve.append(
+      std::format("{}:{}:{}", tls_san, tls_port, tls_host).c_str());
+    curl_handle.set_opt(CURLOPT_RESOLVE, resolve.get());
+
+    CURLcode result = CURLE_FAILED_INIT;
+    auto callback =
+      [&result](
+        std::unique_ptr<ccf::http_client::CurlRequest>&& /*request*/,
+        CURLcode curl_response,
+        long /*status*/) { result = curl_response; };
+
+    ccf::http_client::CurlRequest::synchronous_perform(
+      std::make_unique<ccf::http_client::CurlRequest>(
+        std::move(curl_handle),
+        HTTP_GET,
+        std::format("https://{}:{}/", tls_san, tls_port),
+        ccf::http_client::UniqueSlist(),
+        nullptr,
+        std::make_unique<ccf::http_client::ResponseBody>(SIZE_MAX),
+        callback));
+    return result;
+  };
+
+  SUBCASE("Rejects untrusted self-signed certificate by default")
+  {
+    const ScopedEnvVar cert_file("SSL_CERT_FILE", nullptr);
+    const ScopedEnvVar cert_dir("SSL_CERT_DIR", nullptr);
+    REQUIRE(perform_get() == CURLE_PEER_FAILED_VERIFICATION);
+  }
+
+  SUBCASE("Accepts certificate trusted via SSL_CERT_FILE")
+  {
+    const ScopedEnvVar cert_file("SSL_CERT_FILE", tls_ca_env);
+    const ScopedEnvVar cert_dir("SSL_CERT_DIR", nullptr);
+    REQUIRE(perform_get() == CURLE_OK);
+  }
+
+  SUBCASE("Accepts certificate trusted via SSL_CERT_DIR")
+  {
+    const ScopedEnvVar cert_file("SSL_CERT_FILE", nullptr);
+    const ScopedEnvVar cert_dir("SSL_CERT_DIR", tls_ca_dir_env);
+    REQUIRE(perform_get() == CURLE_OK);
+  }
+}
+
 // Records the messages logged while it is in scope
 class LogCapture
 {

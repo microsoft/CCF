@@ -4,7 +4,9 @@ import asyncio
 import os
 import random
 import re
+import shutil
 import ssl
+import subprocess
 import sys
 import tempfile
 from datetime import UTC, datetime, timedelta
@@ -277,11 +279,19 @@ async def main():
             raise RuntimeError("Failed to start snapshot TLS server")
         snapshot_port = snapshot_sockets[0].getsockname()[1]
 
+        tls_ca_dir = os.path.join(tls_dir, "ca_dir")
+        os.mkdir(tls_ca_dir)
+        shutil.copy(cert_path, os.path.join(tls_ca_dir, "tls_cert.pem"))
+        await asyncio.to_thread(
+            subprocess.run, ["openssl", "rehash", tls_ca_dir], check=True
+        )
+
         env = os.environ.copy()
         env["ECHO_SERVER_ADDR"] = str(addr)
         env["TLS_SERVER_ADDR"] = str(tls_addr)
         env["TLS_SERVER_SAN"] = tls_san
         env["TLS_SERVER_CA"] = cert_path
+        env["TLS_SERVER_CA_DIR"] = tls_ca_dir
         env["SNAPSHOT_SERVER_ADDR"] = f"localhost:{snapshot_port}"
         env["SNAPSHOT_SERVER_CA"] = snapshot_cert_path
 

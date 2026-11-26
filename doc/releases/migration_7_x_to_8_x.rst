@@ -41,6 +41,27 @@ Removal of the entire ``memory`` section is planned for 8.0. Migrate to the new 
 This increases the effective read budget by 2048 bytes compared with previous releases at the same configured size.
 ``ledger.max_transaction_size`` must not exceed this budget. The independent node-to-node limit includes message headers but excludes the 4-byte length prefix.
 
+Outbound TLS Trust
+------------------
+
+CCF 8.x uses the node's system trust store for JWT key auto-refresh and verifies HTTPS connections to SEV-SNP endorsement servers using the same store.
+An 8.x node ignores governance-managed CA bundles even if the service still uses a 7.x constitution.
+If an issuer's private CA is trusted only through governance, refresh will fail when the first 8.x node becomes primary, and clients may lose access when the issuer rotates its signing keys.
+
+1. Before the rolling upgrade, identify the CAs needed by your auto-refreshing issuers and any private HTTPS endorsement servers.
+   Install them in every new node's trust store before starting the node, or use the ``SSL_CERT_FILE`` and ``SSL_CERT_DIR`` overrides described in :ref:`build_apps/auth/jwt:Setting up a token issuer with automatic key refresh`.
+   Check from the new node environment that TLS verification succeeds for issuer discovery, JWKS and any configured HTTPS endorsement endpoints.
+   On SEV-SNP, follow the :ref:`snp-outbound-tls-trust` guidance to restrict the overrides in the attested execution policy and protect the CA material from the untrusted host.
+2. Keep the existing CA bundles and issuer ``ca_cert_bundle_name`` values while any 7.x node can still become primary.
+   During the mixed-version rollout, continue to include the legacy bundle name when creating or updating auto-refreshing issuers.
+   During this window, :http:GET:`/gov/service/jwk` returns ``caCertBundleName`` and ``caCertBundles`` from 7.x nodes, while 8.x nodes omit ``caCertBundleName`` and return an empty ``caCertBundles`` object even while legacy entries remain in the KV.
+3. After retiring the 7.x nodes and confirming that an 8.x primary can refresh the issuers' keys, update the constitution and stop sending ``ca_cert_bundle_name`` in issuer proposals.
+   If you also want to clear legacy entries from ``public:ccf.gov.tls.ca_cert_bundles``, run ``remove_ca_cert_bundle`` after retiring the 7.x nodes and before updating the constitution.
+
+The same trust-store preparation applies to disaster recovery from a 7.x ledger or snapshot onto 8.x nodes: 8.x nodes ignore the recovered governance CA bundles even while the recovered 7.x constitution is still installed, so every recovering node must trust the required CAs at startup.
+
+The public C++ header ``ccf/service/tables/cert_bundles.h`` (``ccf::CACertBundlePEMs`` and ``ccf::Tables::CA_CERT_BUNDLE_PEMS``) has been removed.
+
 Public C++ Headers
 ------------------
 
