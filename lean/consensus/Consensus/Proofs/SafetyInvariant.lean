@@ -3570,7 +3570,7 @@ open Model.Node
 section Effects
 variable (self : NodeID)
 
-private theorem nominate_sends (state : NodeState)
+private theorem nominate_sends (state : NodeState) (excluded : Finset NodeID := ∅)
     : Sends
         (fun result sent =>
           result = state
@@ -3579,7 +3579,7 @@ private theorem nominate_sends (state : NodeState)
               e ∈ sent
               -> e.source = self
                   /\ e.payload = .proposeRequestVoteRequest state.currentTerm)
-        (nominateSuccessor (Capabilities.record self : Caps) state self) := by
+        (nominateSuccessor (Capabilities.record self : Caps) state self excluded) := by
   unfold nominateSuccessor
   refine Sends.bind' Sends.guard' fun _ _ ⟨leader, empty⟩ => ?_
   subst empty
@@ -3610,7 +3610,7 @@ private theorem advanceCommit_sends (middle : NodeState)
   refine Sends.ite'
     (fun _ => Sends.ite' (fun _ => ?_) fun _ => Sends.pure' ⟨advanced, by simp⟩)
     fun _ => Sends.pure' ⟨advanced, by simp⟩
-  exact Sends.bind' (nominate_sends self middle)
+  exact Sends.bind' (nominate_sends self middle _)
     fun _ sent nominated =>
       Sends.pure' ⟨advanced, by simpa using nominated.2.2⟩
 

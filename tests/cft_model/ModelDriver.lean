@@ -1125,13 +1125,18 @@ private def checkCommitSafety (node : NodeID) : IO Unit := do
       fail s!"Node ({nodeName node}) at unsafe commit idx ({state.commitIndex})"
 
 /--
-Sign on the primary in the highest term, connect the nodes which have not retired, and
-have that primary send until they are in sync.
+Sign on the primary in the highest term, connect the nodes which have not retired and which
+that primary knows, and have it send until they are in sync. It sends nothing to a node
+which it does not know.
 -/
 private def loopUntilSync : IO Unit := do
   let some (term, primary) ← latestPrimary
   | fail "Can't currently loop until sync, no primary"
-  let active ← (← nodeIds).filterM fun node => return isActive node (← get node)
+  let known := eligiblePeers (← get primary) primary
+  let active ←
+    (← nodeIds).filterM
+      fun node =>
+        return isActive node (← get node) && (node == primary || decide (node ∈ known))
   append (toString term : String) [signed]
   for node in active do
     for other in ← nodeIds do
@@ -1451,6 +1456,14 @@ def assertLastTxid (node : Text) (txid : String) : IO Unit :=
     let actual := s!"{termAt state.log state.log.length}.{state.log.length}"
     unless actual == txid do
       fail s!"Node {node.text} lastTxID is not as expected: {actual} != {txid}"
+
+@[export model_cft_assert_view]
+def assertView (node : Text) (idx : UInt64) (view : UInt64) : IO Unit :=
+  command (text "assert_view" [node.text, toString idx, toString view]) (reads := true) do
+    let state ← get (← nodeId node)
+    let actual := termAt state.log idx.toNat
+    unless actual == view.toNat do
+      fail s!"Node {node.text} view at idx {idx} is not as expected: {actual} != {view}"
 
 @[export model_cft_loop_until_sync]
 def loopUntilSyncCommand : IO Unit :=

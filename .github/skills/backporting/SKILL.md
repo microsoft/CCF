@@ -23,4 +23,4 @@ It verifies that every commit with a `(cherry picked from commit ...)` line is a
 - Prefer rebasing onto `release/N.x` when updating the branch locally so the commit list stays easy to review.
 - Label the original PR `N.x-todo` and the backport PR `N.x-backport`. CI does not check labels; the releaser scans for `N.x-todo`.
 - Title the PR as the release process describes, and link each original PR in the description.
-- Verify locally with `python3 scripts/backport.py --base origin/release/N.x` before pushing.
+- Verify locally with `scripts/backport.py --base origin/release/N.x` before pushing.

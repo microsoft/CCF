@@ -10,7 +10,7 @@ To preview the notes locally, fetch the release tags and run the following comma
 
 .. code-block:: bash
 
-    python3 scripts/extract-release-notes.py --from-changes --target-version 7.0.25
+    scripts/extract-release-notes.py --from-changes --target-version 7.0.25
 
 The collector reads the files from the target tag, not from the working tree.
 It selects descriptions whose adding commits belong to ``previous_tag..release_tag``, in category and filename order.
@@ -56,7 +56,7 @@ On the branch containing the releases, with clean consolidation inputs, supply e
 
 .. code-block:: bash
 
-    python3 scripts/consolidate-release-notes.py ccf-7.0.23..ccf-7.0.24 ccf-7.0.24..ccf-7.0.25
+    scripts/consolidate-release-notes.py ccf-7.0.23..ccf-7.0.24 ccf-7.0.24..ccf-7.0.25
 
 Use the same boundaries and any PR overrides used when generating the release notes.
 ``--pr FILENAME=NUMBER`` is supported for a single range.

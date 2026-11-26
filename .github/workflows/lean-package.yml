@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan python3-jsonschema
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan python3-jsonschema python3-msgpack
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -111,7 +111,8 @@ jobs:
           shopt -s failglob
           for trace in lean/consensus/replay/fixtures/valid/*.ndjson; do
             echo "::group::Validate $trace"
-            lean/consensus/.lake/build/bin/consensus-replay "$trace"
+            scripts/pack-trace.py < "$trace" > "$RUNNER_TEMP/trace.msgpack"
+            lean/consensus/.lake/build/bin/consensus-replay "$RUNNER_TEMP/trace.msgpack"
             echo "::endgroup::"
           done
 
@@ -122,8 +123,9 @@ jobs:
           shopt -s failglob
           for trace in lean/consensus/replay/fixtures/invalid/*.ndjson; do
             echo "::group::Reject $trace"
+            scripts/pack-trace.py < "$trace" > "$RUNNER_TEMP/trace.msgpack"
             status=0
-            lean/consensus/.lake/build/bin/consensus-replay "$trace" || status=$?
+            lean/consensus/.lake/build/bin/consensus-replay "$RUNNER_TEMP/trace.msgpack" || status=$?
             if [ "$status" -ne 1 ]; then
               echo "::error::$trace: expected rejection (exit 1), got exit $status"
               exit 1
@@ -131,11 +133,23 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Replay an incomplete CCF consensus trace
+        if: inputs.package == 'consensus'
+        run: |
+          set -euo pipefail
+          replay() {
+            scripts/pack-trace.py < "lean/consensus/replay/fixtures/$1" > "$RUNNER_TEMP/trace.msgpack"
+            lean/consensus/.lake/build/bin/consensus-replay --lenient "$RUNNER_TEMP/trace.msgpack"
+          }
+          [ "$(replay valid/replication.ndjson | jq .watermark)" = 1 ]
+          [ "$(replay invalid/missing-packet.ndjson | jq '.watermark < 1')" = true ]
+          if replay invalid/snapshot-mismatch.ndjson; then exit 1; fi
+
       - name: Check recovery trace fixtures against their schema
         if: inputs.package == 'disaster-recovery'
         run: |
           set -euo pipefail
-          python3 lean/disaster-recovery/replayer/check-schema.py \
+          lean/disaster-recovery/replayer/check-schema.py \
             lean/disaster-recovery/replayer/fixtures/*/*.out
 
       - name: Check disaster recovery replay

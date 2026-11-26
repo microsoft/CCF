@@ -125,7 +125,7 @@ Optional ``queue_capacity`` on each array entry defaults to 4096 records per pro
 Unbound producers share one additional queue of the same capacity.
 Full queues drop new records under either policy; larger queues use more memory.
 
-Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
+Both policies retain one in-flight record for bounded send retries after disconnect, dropping it if repeated sends after reconnecting fail so subsequent records are not blocked; delivery is not guaranteed and retries can produce duplicates.
 Shutdown attempts to drain all collectors for up to two seconds, then drops remaining records; blocked console output can delay shutdown.
 
 

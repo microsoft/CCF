@@ -732,10 +732,10 @@ if(BUILD_TESTS)
       add_test(
         NAME kv_trace_validation
         COMMAND
-          python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py
-          --binary $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER}
-          --output ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --seeds
-          ${CCF_KV_FUZZ_SEEDS} --seed-start ${CCF_KV_FUZZ_SEED_START} --timeout
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py --binary
+          $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER} --output
+          ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --seeds ${CCF_KV_FUZZ_SEEDS}
+          --seed-start ${CCF_KV_FUZZ_SEED_START} --timeout
           ${CCF_KV_TRACE_TIMEOUT}
       )
       # The Lean checker is built outside CMake and passed in by path.
@@ -851,7 +851,11 @@ if(BUILD_TESTS)
     )
     target_link_options(
       tracing_test
-      PRIVATE "LINKER:--wrap=send" "LINKER:--wrap=close" "LINKER:--wrap=_Znwm"
+      PRIVATE
+        "LINKER:--wrap=send"
+        "LINKER:--wrap=connect"
+        "LINKER:--wrap=close"
+        "LINKER:--wrap=_Znwm"
     )
     set_tests_properties(tracing_test PROPERTIES TIMEOUT 30)
 
@@ -1650,6 +1654,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/cft_trace_e2e.py
     BUCKET bucket_c
     BUILD_DEPENDS logging
+    # Tests exact sink configurations, including none
+    NO_TRACE_CAPTURE
     ADDITIONAL_ARGS --package samples/apps/logging/logging ${FLUENTD_TEST_ARGS}
   )
 
@@ -1795,6 +1801,8 @@ if(BUILD_TESTS)
       LABEL e2e
       BUCKET bucket_a
       BUILD_DEPENDS js_generic
+      # Released nodes do not support the trace capture sink
+      NO_TRACE_CAPTURE
       ADDITIONAL_ARGS
         ${LTS_TEST_ARGS}
         --constitution

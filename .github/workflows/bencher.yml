@@ -57,7 +57,7 @@ jobs:
       - name: "Confirm running on Virtual"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py virtual
+          tests/infra/platform_detection.py virtual
         shell: bash
 
       - name: "Restore previous perf results"
@@ -94,7 +94,7 @@ jobs:
           ./tests.sh -VV -L perf -C perf
           # Convert microbenchmark output to bencher json
           source env/bin/activate
-          PYTHONPATH=../tests python convert_pico_to_bencher.py
+          PYTHONPATH=../tests ./convert_pico_to_bencher.py
         shell: bash
 
       - name: "Collect perf results"
@@ -110,7 +110,7 @@ jobs:
       - name: "Summarise perf data files"
         run: &perf_summary |
           set -ex
-          python3 scripts/perf_summary.py perf >> "$GITHUB_STEP_SUMMARY"
+          scripts/perf_summary.py perf >> "$GITHUB_STEP_SUMMARY"
         shell: bash
         if: success() || failure()
 
@@ -158,7 +158,7 @@ jobs:
       - name: "Confirm running on SEV-SNP Genoa"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp genoa
+          tests/infra/platform_detection.py snp genoa
         shell: bash
 
       - name: "Restore previous perf results"
@@ -181,7 +181,7 @@ jobs:
           ./tests.sh -VV -L perf -C perf
           # Convert microbenchmark output to bencher json
           source env/bin/activate
-          PYTHONPATH=../tests python convert_pico_to_bencher.py
+          PYTHONPATH=../tests ./convert_pico_to_bencher.py
         shell: bash
 
       - name: "Collect perf results"

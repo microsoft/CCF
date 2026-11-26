@@ -11,7 +11,8 @@ public section
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
 Explicit native boundaries distinguish related events from subsequent actions.
-After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
+After bootstrap, each rule observes its native group's starting snapshot before emitting actions;
+a tick with no action emits nothing.
 Each rule that may send checks the native sends among its events against the envelopes its
 actions queued.
 Reduction never executes or repairs model state.
@@ -19,7 +20,7 @@ Reduction never executes or repairs model state.
 
 namespace Consensus.Replay.Reducer
 
-open Lean Model.Node
+open Model.Node
 open CCF (Finset)
 open CCF.Parsec (failure validated attempt many_ optional_)
 
@@ -37,10 +38,9 @@ private def liftExcept {α : Type} (event : Event) (result : Except String α)
   validated
     (result.mapError fun error => s!"{event.record.location}: {event.function}: {error}")
 
-private def readJson {α : Type} (event : Event) (value : Json)
-    (decode : Json → Except String α)
-    : Reduction α :=
-  liftExcept event (decode value)
+/-- Fail on an event whose fields are not those a rule reads. -/
+private def mismatch {α : Type} (event : Event) : Reduction α :=
+  liftExcept event (throw "unexpected fields")
 
 private def peek : Reduction Event := do
   let some event ← CCF.Parsec.peek | failure "unexpected end of input"
@@ -57,17 +57,12 @@ private def extractSends (start : Nat) : Reduction (List NativeSend) := do
     liftM (m := CCF.Parsec.Parser Event)
       ((fun input => .success input (input.events.extract start input.position))
         : CCF.Parsec.Parser Event (Array Event))
-  events.toList.filterMapM
-    fun event => do
-      let packet ←
-        if event.function.startsWith "send_" then
-          some <$> readJson event event.message (field · "packet")
-        else
-          pure none
-      packet.mapM
-        fun packet => do
-          let target ← readJson event event.message (string · "to_node_id")
-          return { target, packet, origin := event.origin event.function }
+  return events.toList.filterMap
+    fun event =>
+      match event.body with
+      | .send { to_node_id, packet, .. } =>
+          some { target := to_node_id, packet, origin := event.origin event.function }
+      | _ => none
 
 private def event (source : Event) (name : String) : Reduction Unit := do
   let next ← peek
@@ -121,28 +116,21 @@ private def ruleBootstrap : Reduction Unit := do
   optional_ (event head "batch_flush")
   modify fun s => { s with bootstrap := some head.node }
 
-private def readAppendContent (head : Event) (config : Option Event)
-    (retirements : List Event)
+private def readAppendContent (head : Event) (seqno : Nat) (signature : Bool)
+    (config : Option (Event × AddConfiguration)) (retiredNodes : List String)
     : Reduction EntryContent := do
-  let signature ← readJson head head.message (boolean · "globally_committable")
   if signature then
-    liftExcept head (require retirements.isEmpty "retirement metadata on signature")
-    if let some config := config then
+    liftExcept head (require retiredNodes.isEmpty "retirement metadata on signature")
+    if let some (config, _) := config then
       liftExcept config (throw "configuration write pair mismatch")
     return .signature
   let configuration ←
     match config with
-    | some config => do
+    | some (config, fields) => do
         liftExcept config do
-          require
-            ((← nat config.message "idx") == (← nat head.message "seqno"))
-            "configuration write pair mismatch"
-        some <$> modelMembers config (← readJson config config.message configuration)
+          require (fields.idx == some seqno) "configuration write pair mismatch"
+        some <$> modelMembers config fields.nodes
     | none => pure none
-  let retiredNodes ←
-    retirements.mapM
-      fun retirement =>
-        readJson retirement retirement.message (string · "retired_node_id")
   let retirementConfirmations ← modelMembers head retiredNodes
   let request := (← get).nextRequestId
   modify fun s => { s with nextRequestId := request + 1 }
@@ -150,36 +138,37 @@ private def readAppendContent (head : Event) (config : Option Event)
 
 /-- One entry of a batch: its replicate event, retirements, configuration and flush. -/
 private def readReplicateEntry (head : Event) : Reduction AppendEntryInput := do
-  let seqno ← readJson head head.message (nat · "seqno")
+  let .replicateEntry entry := head.body | mismatch head
+  let some seqno := entry.seqno | liftExcept head (throw "seqno: missing")
   -- consume
   event head "replicate_entry"
-  let retirements ←
+  let retiredNodes ←
     CCF.Parsec.many do
       let retirement ← peek
       event head "retired_committed_tx"
+      let .retiredCommittedTx fields := retirement.body | mismatch retirement
       liftExcept retirement do
-        let retirementSeqno ← nat retirement.message "seqno"
-        require (retirementSeqno == seqno)
-          s!"expected seqno {seqno}, got {retirementSeqno}"
-      return retirement
+        require (fields.seqno == seqno) s!"expected seqno {seqno}, got {fields.seqno}"
+      return fields.retired_node_id
   let config ←
     CCF.Parsec.optionalRule do
       let config ← peek
       event head "add_configuration"
+      let .addConfiguration fields := config.body | mismatch config
       many_ (event head "send_append_entries")
-      return config
+      return (config, fields)
   let flushes ←
     CCF.Parsec.optionalRule do
       event head "batch_flush"
       CCF.Parsec.many do
         let next ← peek
         event head "send_append_entries"
-        let packet ← readJson next next.message (field · "packet")
-        let destination ←
-          modelNode next (← readJson next next.message (string · "to_node_id"))
-        let last ← readJson next packet (nat · "idx")
-        return (destination, last)
-  let content ← readAppendContent head config retirements
+        let .send { to_node_id, packet := .appendEntries packet, .. } := next.body
+        | mismatch next
+        let destination ← modelNode next to_node_id
+        return (destination, packet.idx)
+  let content ←
+    readAppendContent head seqno entry.globally_committable config retiredNodes
   return { content, flushes := flushes.getD [] }
 
 /--
@@ -208,11 +197,10 @@ private def ruleAppend : Reduction Unit := do
   emitObserveSends head (← extractSends start)
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do
-  let sender ← readJson head head.message (string · "from_node_id")
-  let packet ← readJson head head.message (field · "packet")
-  let family ← readJson head packet (string · "msg")
-  liftExcept head (require (families.contains family) "receive function/packet mismatch")
-  return .receive sender head.node packet
+  let .recv { from_node_id, packet, .. } := head.body | mismatch head
+  liftExcept head
+    (require (families.contains packet.msg) "receive function/packet mismatch")
+  return .receive from_node_id head.node packet
 
 private def ruleRecvAppendEntries : Reduction Unit := do
   let head ← peek
@@ -338,12 +326,15 @@ private def ruleTick : Reduction Unit := do
       CCF.Parsec.many do
         let next ← peek
         event head "send_append_entries"
-        let packet ← readJson next next.message (field · "packet")
-        let destination ←
-          modelNode next (← readJson next next.message (string · "to_node_id"))
-        let last ← readJson next packet (nat · "idx")
-        return (next, destination, last)
+        let .send { to_node_id, packet := .appendEntries packet, .. } := next.body
+        | mismatch next
+        let destination ← modelNode next to_node_id
+        return (next, destination, packet.idx)
     let demoted ← CCF.Parsec.optionalRule (event head "become_follower")
+    -- A tick which does nothing else emits no group: the node's state is as its next group
+    -- observes it.
+    if sends.isEmpty && demoted.isNone then
+      return
     -- emit
     emitObserve head "tick"
     for (source, destination, last) in sends do
@@ -396,11 +387,10 @@ private def ruleInitAsBackup : Reduction Unit := do
   let init ← peek
   event head "init_as_backup"
   event head "become_follower"
-  let index ← readJson init init.message (nat · "seqno")
-  let view ← readJson init init.message (nat · "view")
+  let .initAsBackup { seqno, view, .. } := init.body | mismatch init
   -- emit
   emitObserve init "init-as-backup"
-  emitAction init "init-as-backup" (.initAsBackup head.node index view)
+  emitAction init "init-as-backup" (.initAsBackup head.node seqno view)
 
 def ruleStep : Reduction Unit := do
   -- Recv rules

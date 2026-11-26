@@ -41,7 +41,7 @@ if [[ ${#wheels[@]} -ne 1 ]]; then
 fi
 wheel=${wheels[0]}
 
-python3 scripts/validate_python_package.py "$wheel" "$package_version"
+scripts/validate_python_package.py "$wheel" "$package_version"
 
 venv_dir=$(mktemp -d /tmp/ccf-wheel-test.XXXXXX)
 cleanup() {
