@@ -18,6 +18,8 @@
 #include "service/tables/signatures.h"
 #include "service/tables/signing_identities.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
@@ -447,9 +449,9 @@ TEST_CASE("Check signing works across rollback")
   INFO("Check merkle roots are updating");
   {
     auto primary_root = primary_history->get_replicated_state_root();
-    auto pr_str = fmt::format("{}", primary_root);
+    auto pr_str = std::format("{}", primary_root);
     auto backup_root = backup_history->get_replicated_state_root();
-    auto bk_str = fmt::format("{}", backup_root);
+    auto bk_str = std::format("{}", backup_root);
 
     REQUIRE(pr_str == bk_str);
   }

@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 
 namespace asynchost
@@ -152,16 +153,17 @@ namespace asynchost
 
           const auto size_post_headers = size;
           const auto header_size = size_pre_headers - size_post_headers;
-          if (header_size > msg_size.value())
+          const size_t total_msg_size = msg_size.value();
+          if (header_size > total_msg_size)
           {
             LOG_DEBUG_FMT(
               "Received invalid node-to-node traffic. Total msg size {} "
               "doesn't even contain headers (of size {})",
-              msg_size.value(),
+              total_msg_size,
               header_size);
             return false;
           }
-          const size_t payload_size = msg_size.value() - header_size;
+          const size_t payload_size = total_msg_size - header_size;
 
           if (!node.has_value())
           {
@@ -178,8 +180,8 @@ namespace asynchost
           LOG_DEBUG_FMT(
             "node in: from node {}, size {}, type {}",
             node.value(),
-            msg_size.value(),
-            msg_type);
+            total_msg_size,
+            std::to_underlying(msg_type));
 
           parent.deliver_inbound(
             msg_type, from, std::vector<uint8_t>(data, data + payload_size));

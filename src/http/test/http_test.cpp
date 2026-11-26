@@ -12,11 +12,10 @@
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <algorithm>
 #include <doctest/doctest.h>
+#include <format>
 #include <queue>
 #include <string>
 #include <string_view>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 constexpr auto request_0 = "{\"a_json_key\": \"a_json_value\"}";
 constexpr auto request_1 = "{\"another_json_key\": \"another_json_value\"}";
@@ -131,7 +130,7 @@ DOCTEST_TEST_CASE("Empty Transfer-Encoding")
 {
   for (const auto whitespace : {"", " ", "\t", " \t"})
   {
-    const auto headers = fmt::format(
+    const auto headers = std::format(
       "Transfer-Encoding:{}\r\nContent-Length: 4\r\n\r\nbody", whitespace);
 
     {
@@ -160,7 +159,7 @@ DOCTEST_TEST_CASE("Content-Length with optional whitespace")
 {
   for (const auto value : {"4", " 4 ", "\t4\t", " \t4 \t"})
   {
-    const auto headers = fmt::format("Content-Length:{}\r\n\r\nbody", value);
+    const auto headers = std::format("Content-Length:{}\r\n\r\nbody", value);
     const auto body = s_to_v("body");
 
     {
@@ -189,7 +188,7 @@ DOCTEST_TEST_CASE("Connection close with optional whitespace")
   {
     http::SimpleRequestProcessor sp;
     http::RequestParser p(sp);
-    const auto message = fmt::format(
+    const auto message = std::format(
       "GET /first HTTP/1.1\r\nConnection: close{}\r\n\r\n"
       "GET /second HTTP/1.1\r\n\r\n",
       whitespace);
@@ -209,7 +208,7 @@ DOCTEST_TEST_CASE("Response line terminator")
     http::SimpleResponseProcessor sp;
     http::ResponseParser p(sp);
     const auto message =
-      fmt::format("HTTP/1.1 200 OK{}Content-Length: 4\r\n\r\nbody", terminator);
+      std::format("HTTP/1.1 200 OK{}Content-Length: 4\r\n\r\nbody", terminator);
     const auto res = s_to_v(message.c_str());
     DOCTEST_CHECK_THROWS_WITH(
       p.execute(res.data(), res.size()), doctest::Contains("HPE_STRICT"));
@@ -223,7 +222,7 @@ DOCTEST_TEST_CASE("Invalid quoted chunk extensions")
   {
     http::SimpleRequestProcessor sp;
     http::RequestParser p(sp);
-    const auto message = fmt::format(
+    const auto message = std::format(
       "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
       "4;ext=\"val{}ue\"\r\nbody\r\n0\r\n\r\n",
       control);
@@ -321,7 +320,7 @@ DOCTEST_TEST_CASE("Chunked request body")
       DOCTEST_CAPTURE(fragment_size);
       ccf::http::ParserConfiguration config;
       config.max_body_size =
-        ccf::ds::SizeString(fmt::format("{}B", max_body_size));
+        ccf::ds::SizeString(std::format("{}B", max_body_size));
       http::SimpleRequestProcessor sp;
       http::RequestParser p(sp, config);
 
@@ -371,7 +370,7 @@ DOCTEST_TEST_CASE("Malformed and incomplete chunked requests")
 
   for (const auto body : bodies)
   {
-    const auto req = s_to_v(fmt::format(
+    const auto req = s_to_v(std::format(
       "POST /chunked HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n{}", body));
     for (const auto fragment_size : {req.size(), size_t(1)})
     {
@@ -414,7 +413,7 @@ DOCTEST_TEST_CASE("Body too large")
 
     const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
     const auto res =
-      fmt::format("HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n", too_big);
+      std::format("HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n", too_big);
     const auto bytes = std::vector<uint8_t>(res.begin(), res.end());
 
     DOCTEST_CHECK_THROWS_AS(
@@ -488,7 +487,7 @@ DOCTEST_TEST_CASE("Body too large")
                                  size_t body_size,
                                  std::string_view additional_headers = {}) {
     const std::string chunk(body_size, 'a');
-    const std::string message = fmt::format(
+    const std::string message = std::format(
       "{}\r\n"
       "transfer-encoding: chunked\r\n"
       "{}"
@@ -563,7 +562,7 @@ DOCTEST_TEST_CASE("Body too large")
     LenientChunkedLengthResponseParser p(sp);
 
     const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
-    const auto content_length = fmt::format("content-length: {}\r\n", too_big);
+    const auto content_length = std::format("content-length: {}\r\n", too_big);
     auto response = build_chunked_message("HTTP/1.1 200 OK", 4, content_length);
 
     p.execute(response.data(), response.size());
@@ -1056,7 +1055,7 @@ DOCTEST_TEST_CASE("Query component decoding")
       }
 
       const auto escaped =
-        fmt::format("%{:02X}", static_cast<unsigned char>(byte));
+        std::format("%{:02X}", static_cast<unsigned char>(byte));
       const auto decoded = ccf::http::decode_query_component(escaped);
       DOCTEST_REQUIRE(decoded.size() == 1);
       DOCTEST_REQUIRE(decoded[0] == c);

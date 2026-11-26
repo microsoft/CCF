@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <format>
 #include <functional>
 #include <queue>
 #include <string>
@@ -46,7 +47,7 @@ struct ClientState
 struct Client : public LoopingThread<ClientState>
 {
   Client(Session& session_, const ClientParams& params_, size_t idx) :
-    LoopingThread<ClientState>(fmt::format("c{}", idx), session_, params_)
+    LoopingThread<ClientState>(std::format("c{}", idx), session_, params_)
   {}
 
   ~Client() override

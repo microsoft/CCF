@@ -20,11 +20,13 @@
 #include "tasks/periodic_task_owner.h"
 
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <list>
 #include <map>
 #include <random>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef VERBOSE_CFT_LOGGING
@@ -324,18 +326,12 @@ namespace aft
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
+      bool self_retired_committed = false;
       for (const auto& node_id : node_ids)
       {
         if (id() == node_id)
         {
-          CCF_ASSERT(
-            state->membership_state == ccf::kv::MembershipState::Retired,
-            "Node is not retired, cannot become retired committed");
-          CCF_ASSERT(
-            state->retirement_phase == ccf::kv::RetirementPhase::Completed,
-            "Node is not retired, cannot become retired committed");
-          state->retired_committed_idx = seqno;
-          become_retired(seqno, ccf::kv::RetirementPhase::RetiredCommitted);
+          self_retired_committed = true;
         }
         else
         {
@@ -346,6 +342,19 @@ namespace aft
           all_other_nodes.erase(node_id);
           CFT_INFO_FMT("Removed {} from nodes known to consensus", node_id);
         }
+      }
+
+      // Forget the whole batch before nominating a successor.
+      if (self_retired_committed)
+      {
+        CCF_ASSERT(
+          state->membership_state == ccf::kv::MembershipState::Retired,
+          "Node is not retired, cannot become retired committed");
+        CCF_ASSERT(
+          state->retirement_phase == ccf::kv::RetirementPhase::Completed,
+          "Node is not retired, cannot become retired committed");
+        state->retired_committed_idx = seqno;
+        become_retired(seqno, ccf::kv::RetirementPhase::RetiredCommitted);
       }
     }
 
@@ -565,9 +574,8 @@ namespace aft
       // a final state, and node identities never being re-used.
       if (
         !configurations.empty() &&
-        configurations.back().nodes.find(state->node_id) !=
-          configurations.back().nodes.end() &&
-        conf.find(state->node_id) == conf.end())
+        configurations.back().nodes.contains(state->node_id) &&
+        !conf.contains(state->node_id))
       {
         become_retired(idx, ccf::kv::RetirementPhase::Ordered);
       }
@@ -2251,7 +2259,7 @@ namespace aft
     {
       CFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
-        phase,
+        std::to_underlying(phase),
         state->leadership_state.load(),
         state->node_id,
         state->current_view,
@@ -2306,7 +2314,7 @@ namespace aft
       for (auto const& conf : configurations)
       {
         auto const& nodes = conf.nodes;
-        if (nodes.find(from) == nodes.end())
+        if (!nodes.contains(from))
         {
           // from node is no longer in any active configuration.
           continue;
@@ -2523,7 +2531,7 @@ namespace aft
     {
       if (idx > state->last_idx)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Tried to commit {} but last_idx is {}", idx, state->last_idx));
       }
 
@@ -2612,7 +2620,7 @@ namespace aft
       if (!configurations.empty())
       {
         auto current_nodes = configurations.back().nodes;
-        present = current_nodes.find(state->node_id) != current_nodes.end();
+        present = current_nodes.contains(state->node_id);
       }
       return present;
     }

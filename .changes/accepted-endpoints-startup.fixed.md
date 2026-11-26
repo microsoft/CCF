@@ -1,0 +1,2 @@
+A node now rejects an [`accepted_endpoints`](doc/operations/configuration.rst) pattern that isn't a valid regular expression when it validates its configuration, including with `--check`, and builds the patterns at startup instead of on its first requests, so that concurrent first requests no longer race and fail.
+The patterns now also apply when an application reads the node configuration from its constructor, which used to make the node ignore them.

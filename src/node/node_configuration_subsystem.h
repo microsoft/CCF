@@ -5,21 +5,34 @@
 #include "ccf/node/node_configuration_interface.h"
 #include "node/rpc/node_interface.h"
 
+#include <format>
 #include <regex>
+#include <stdexcept>
 
 namespace ccf
 {
   class NodeConfigurationSubsystem : public NodeConfigurationInterface
   {
+  public:
+    using InterfaceRegexes =
+      decltype(NodeConfigurationState::rpc_interface_regexes);
+
   protected:
     AbstractNodeState& node_state;
     NodeConfigurationState node_config_state;
 
   public:
-    NodeConfigurationSubsystem(AbstractNodeState& node_state_) :
+    // The node configuration is only set when the node is created, after this
+    // subsystem is installed, so the interface regexes are built beforehand,
+    // from the configuration, with build_interface_regexes().
+    NodeConfigurationSubsystem(
+      AbstractNodeState& node_state_, InterfaceRegexes interface_regexes) :
       node_state(node_state_),
       node_config_state(
-        {node_state_.get_node_config(), node_state_.get_node_data(), {}, false})
+        {node_state_.get_node_config(),
+         node_state_.get_node_data(),
+         std::move(interface_regexes),
+         true})
     {}
 
     ~NodeConfigurationSubsystem() override = default;
@@ -31,11 +44,6 @@ namespace ccf
 
     const NodeConfigurationState& get() override
     {
-      if (!node_config_state.initialized)
-      {
-        initialize_interface_regexes();
-        node_config_state.initialized = true;
-      }
       return node_config_state;
     }
 
@@ -44,28 +52,36 @@ namespace ccf
       return node_state.has_received_stop_notice();
     }
 
-    void initialize_interface_regexes()
+    // Throws std::invalid_argument if a pattern isn't a valid regular
+    // expression.
+    static InterfaceRegexes build_interface_regexes(
+      const NodeInfoNetwork::RpcInterfaces& rpc_interfaces)
     {
-      for (const auto& [id, interface] :
-           node_config_state.node_config.network.rpc_interfaces)
+      InterfaceRegexes regexes;
+      for (const auto& [id, interface] : rpc_interfaces)
       {
-        LOG_TRACE_FMT("Check regex: {}", id);
         if (interface.accepted_endpoints)
         {
-          auto [it, ok] = node_config_state.rpc_interface_regexes.emplace(
-            id, std::vector<std::regex>{});
-          if (!ok)
-          {
-            throw std::runtime_error("Could not emplace interface regexes");
-          }
+          auto& interface_regexes = regexes[id];
           for (const auto& re : *interface.accepted_endpoints)
           {
-            LOG_TRACE_FMT(
-              "Add accepted endpoint regex to interface config: {}", re);
-            it->second.emplace_back(re);
+            try
+            {
+              interface_regexes.emplace_back(re);
+            }
+            catch (const std::regex_error& e)
+            {
+              throw std::invalid_argument(std::format(
+                "Invalid accepted_endpoints pattern '{}' for RPC interface "
+                "'{}': {}",
+                re,
+                id,
+                e.what()));
+            }
           }
         }
       }
+      return regexes;
     }
   };
 }

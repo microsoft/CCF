@@ -13,8 +13,6 @@
 #include "ccf/version.h"
 
 #include <charconv>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 using namespace std;
 using namespace nlohmann;

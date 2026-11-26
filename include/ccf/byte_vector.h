@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "ccf/ds/siphash.h"
 
 #include <algorithm>
@@ -10,6 +11,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <functional>
 #include <initializer_list>
 #include <iterator>
@@ -20,10 +22,6 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
-#include <fmt/ranges.h>
 
 namespace ccf
 {
@@ -665,10 +663,8 @@ namespace std
   };
 }
 
-FMT_BEGIN_NAMESPACE
-
 template <>
-struct formatter<ccf::ByteVector>
+struct std::formatter<ccf::ByteVector>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -687,15 +683,13 @@ struct formatter<ccf::ByteVector>
     };
     if (std::all_of(e.begin(), e.end(), printable))
     {
-      return format_to(
+      return std::format_to(
         ctx.out(),
         "<uint8[{}]: ascii={}>",
         e.size(),
         std::string(e.begin(), e.end()));
     }
-    return format_to(
-      ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
+    return std::format_to(
+      ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), ccf::ds::join(e, " "));
   }
 };
-
-FMT_END_NAMESPACE

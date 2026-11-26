@@ -12,8 +12,7 @@
 #include "ccf/version.h"
 
 #include <charconv>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 
 using namespace nlohmann;
 
@@ -63,7 +62,7 @@ namespace programmabilityapp
           for (const auto& role : roles)
           {
             auto* role_handle = tx.ro<RoleSet>(
-              fmt::format("public:programmability.roles.{}", role));
+              std::format("public:programmability.roles.{}", role));
             if (role_handle->contains(action))
             {
               return true;
@@ -364,7 +363,7 @@ namespace programmabilityapp
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to get user data for user {}: {}",
             user_id.value(),
             ccf::api_result_to_str(result)));
@@ -396,7 +395,7 @@ namespace programmabilityapp
         ctx.tx,
         format,
         user_id.value(),
-        fmt::format(
+        std::format(
           "{} {}", ctx.rpc_ctx->get_method(), ctx.rpc_ctx->get_request_path()),
         ctx.rpc_ctx->get_request_body());
 
@@ -408,7 +407,7 @@ namespace programmabilityapp
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::MissingRequiredHeader,
-            fmt::format("Missing {} protected header", CREATED_AT_NAME));
+            std::format("Missing {} protected header", CREATED_AT_NAME));
           return;
         }
         ccf::InvalidArgsReason reason = {};
@@ -427,7 +426,7 @@ namespace programmabilityapp
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to install endpoints: {}", ccf::api_result_to_str(result)));
         return;
       }
@@ -445,7 +444,7 @@ namespace programmabilityapp
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to get endpoints: {}", ccf::api_result_to_str(result)));
         return;
       }
@@ -481,7 +480,7 @@ namespace programmabilityapp
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to get module: {}", ccf::api_result_to_str(result)));
         return;
       }
@@ -513,7 +512,7 @@ namespace programmabilityapp
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to get user data for user {}: {}",
             user_id.value(),
             ccf::api_result_to_str(result)));
@@ -561,7 +560,7 @@ namespace programmabilityapp
         ctx.tx,
         format,
         user_id.value(),
-        fmt::format(
+        std::format(
           "{} {}", ctx.rpc_ctx->get_method(), ctx.rpc_ctx->get_request_path()),
         ctx.rpc_ctx->get_request_body());
 
@@ -573,7 +572,7 @@ namespace programmabilityapp
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::MissingRequiredHeader,
-            fmt::format("Missing {} protected header", CREATED_AT_NAME));
+            std::format("Missing {} protected header", CREATED_AT_NAME));
           return;
         }
         ccf::InvalidArgsReason reason = {};
@@ -592,7 +591,7 @@ namespace programmabilityapp
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to set options: {}", ccf::api_result_to_str(result)));
         return;
       }
@@ -610,7 +609,7 @@ namespace programmabilityapp
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to get runtime options: {}",
             ccf::api_result_to_str(result)));
         return;
@@ -666,7 +665,7 @@ namespace programmabilityapp
           -> ccf::js::KVAccessPermissions {
           if (map_name == PRIVATE_RECORDS)
           {
-            explanation = fmt::format(
+            explanation = std::format(
               "The {} map is managed by C++ endpoints, so is read-only in "
               "JS.",
               PRIVATE_RECORDS);

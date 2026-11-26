@@ -15,6 +15,7 @@
 #include "node/internal_tables_access.h"
 #include "node/ledger_secret.h"
 
+#include <format>
 #include <openssl/crypto.h>
 #include <ranges>
 #include <vector>
@@ -231,7 +232,7 @@ namespace ccf
       {
         if (recovery_threshold > active_recovery_participants_info.size())
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Recovery threshold {} should be equal to or less than the number "
             "of active recovery members {}",
             recovery_threshold,
@@ -244,7 +245,7 @@ namespace ccf
       {
         if (recovery_threshold > 1)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Recovery threshold {} cannot be greater than 1 when the "
             "consortium consists of only active recovery owner members ({})",
             recovery_threshold,
@@ -396,7 +397,7 @@ namespace ccf
             default:
             {
               OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
-              throw std::logic_error(fmt::format(
+              throw std::logic_error(std::format(
                 "Error combining recovery shares: decrypted share of {} bytes "
                 "is not an {}-byte long new-style share.",
                 decrypted_share.size(),
@@ -422,7 +423,7 @@ namespace ccf
       auto recovery_threshold = config_val->recovery_threshold;
       if (recovery_threshold > num_shares)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Error combining recovery shares: only {} recovery shares were "
           "submitted but recovery threshold is {}",
           num_shares,
@@ -574,9 +575,7 @@ namespace ccf
           "Recovering encrypted ledger secret valid at seqno {}",
           prev_secret.version);
 
-        if (
-          restored_ledger_secrets.find(prev_secret.version) !=
-          restored_ledger_secrets.end())
+        if (restored_ledger_secrets.contains(prev_secret.version))
         {
           // Already decrypted this ledger secret
           LOG_INFO_FMT(
