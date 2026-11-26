@@ -3459,7 +3459,8 @@ private theorem present_after_step {nodes : List NodeID} {before after : Model.S
 committed log at every later state of the trace. -/
 private theorem committed_log_later {nodes : List NodeID}
     {trace
-      : CCF.Execution.Trace (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
+      : CCF.Execution.Behaviour
+          (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
     {index : Nat} {state : Model.State} (found : trace.stateAt index = some state)
     {node : NodeID} {firstState : NodeState} (member : (node, firstState) ∈ state.nodes)
     : forall offset later,
@@ -3484,7 +3485,7 @@ private theorem committed_log_later {nodes : List NodeID}
           obtain ⟨action, stepped⟩ := trace.step (index + offset) middle later atMiddle atLater
           obtain ⟨laterState, laterMember⟩ := present_after_step stepped middleMember
           refine ⟨laterState, laterMember, prefixed.trans ?_⟩
-          exact committed_log_step (keys_nodup (trace.reachable (CCF.Execution.Trace.stateAt_mem atMiddle)))
+          exact committed_log_step (keys_nodup (trace.reachable (CCF.Execution.Behaviour.stateAt_mem atMiddle)))
             stepped middleMember laterMember
 
 end Global
@@ -7701,7 +7702,7 @@ private theorem primary_eq_of_reachable [Config.InitialConfiguration]
 public theorem election_safety
     : forall (config : Finset NodeID),
       forall (nodes : List NodeID)
-              (trace : CCF.Execution.Trace (Model.transitionSystem config nodes))
+              (trace : CCF.Execution.Behaviour (Model.transitionSystem config nodes))
               (state : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
         (state ∈ trace
@@ -7728,7 +7729,8 @@ open Consensus.Proofs.Config
 private theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
     {nodes : List Model.Node.NodeID}
     {trace
-      : CCF.Execution.Trace (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
+      : CCF.Execution.Behaviour
+          (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
     {earlierIndex laterIndex : Nat} {earlier later : Model.State}
     {earlierNode laterNode : Model.Node.NodeID}
     {earlierState laterState : Model.Node.NodeState}
@@ -7743,7 +7745,7 @@ private theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
     Direct.committed_log_later earlierFound earlierMember (laterIndex - earlierIndex)
       later (by rwa [Nat.add_sub_cancel' ordered])
   obtain ⟨history, exec⟩ :=
-    Safety.exec_of_reachable (trace.reachable (CCF.Execution.Trace.stateAt_mem laterFound))
+    Safety.exec_of_reachable (trace.reachable (CCF.Execution.Behaviour.stateAt_mem laterFound))
   rcases Safety.committed_logs_comparable exec carriedMember laterMember with
     carriedFirst | laterFirst
   · exact Or.inl (grown.trans carriedFirst)
@@ -7752,7 +7754,7 @@ private theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
 public theorem committed_logs_prefix
     : forall (config : Finset NodeID),
       forall (nodes : List NodeID)
-              (trace : CCF.Execution.Trace (Model.transitionSystem config nodes)),
+              (trace : CCF.Execution.Behaviour (Model.transitionSystem config nodes)),
       forall (stateA stateB : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
         (stateA ∈ trace
@@ -7764,8 +7766,8 @@ public theorem committed_logs_prefix
   intro config nodes trace stateA stateB left right leftState rightState
     ⟨memberA, memberB, leftMember, rightMember⟩
   let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
-  obtain ⟨indexA, foundA⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp memberA
-  obtain ⟨indexB, foundB⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp memberB
+  obtain ⟨indexA, foundA⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp memberA
+  obtain ⟨indexB, foundB⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp memberB
   rcases Nat.le_total indexA indexB with ordered | ordered
   · exact Proofs.CommittedLogs.committed_logs_prefix_of_le ordered
       foundA.symm foundB.symm leftMember rightMember

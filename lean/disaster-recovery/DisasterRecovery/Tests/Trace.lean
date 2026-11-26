@@ -88,7 +88,7 @@ private theorem observedOpening
   rfl
 
 example : (Model.transitionSystem config).Reachable opened :=
-  trace.reachable (Execution.Trace.stateAt_mem (n := 4) rfl)
+  trace.reachable (Execution.Behaviour.stateAt_mem (n := 4) rfl)
 
 example : NotificationAt config trace 3 "A" (.opening .quorum) := observedOpening
 
@@ -98,9 +98,9 @@ example
         /\ Properties.UpToDateWithQuorum config openerTxID := by
   apply Properties.full_gossip_preserves_commit config trace ready opened "A" opening
   refine ⟨
-    Execution.Trace.stateAt_mem (n := 2) rfl,
+    Execution.Behaviour.stateAt_mem (n := 2) rfl,
     ?_,
-    Execution.Trace.stateAt_mem (n := 4) rfl,
+    Execution.Behaviour.stateAt_mem (n := 4) rfl,
     by simp [opened],
     rfl
   ⟩

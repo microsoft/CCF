@@ -705,10 +705,10 @@ theorem reachable_trace_of_tail {system : TransitionSystem} {state : system.Stat
     (actions : Nat -> system.Action) (first : states 0 = state)
     (enabled : forall n, system.step (states n) (actions n) = some (states (n + 1)))
     (index : Nat)
-    : exists trace : Execution.Trace system, states index ∈ trace := by
+    : exists trace : Execution.Behaviour system, states index ∈ trace := by
   induction reachable generalizing states actions index with
   | initial initialized =>
-      let trace : Execution.Trace system := ⟨{
+      let trace : Execution.Behaviour system := ⟨{
         init := states 0
         steps := CCF.Seq.ofStream fun n => (actions n, states (n + 1))
       }, by
@@ -720,7 +720,7 @@ theorem reachable_trace_of_tail {system : TransitionSystem} {state : system.Stat
         subst before
         subst action
         exact enabled n⟩
-      exact ⟨trace, Execution.Trace.stateAt_mem (n := index) (by cases index <;> rfl)⟩
+      exact ⟨trace, Execution.Behaviour.stateAt_mem (n := index) (by cases index <;> rfl)⟩
   | @step before after action reachable stepped ih =>
       let extended : Nat -> system.State
         | 0 => before
@@ -741,9 +741,9 @@ theorem at_trace {config : Config} {states : NodeID -> NodeState}
     (reachable : At config states) (node : NodeID) (member : node ∈ config.val)
     (leading : (states node).role = .primary)
     : exists (trace
-              : Execution.Trace (Model.transitionSystem config (ids config))) (network
-                                                                                : List
-                                                                                    Model.Envelope),
+              : Execution.Behaviour
+                  (Model.transitionSystem config (ids config))) (network
+                                                                  : List Model.Envelope),
         { nodes := table config states, network } ∈ trace := by
   obtain ⟨network, reachable⟩ := reachable
   obtain ⟨outputs, run⟩ := primary_nominates node (states node) leading

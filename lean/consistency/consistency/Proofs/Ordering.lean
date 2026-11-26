@@ -866,7 +866,7 @@ private theorem snapshots_reachable {state : State}
         (anchored_reachable reachable) ih transition
 
 theorem unique_txs
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ left ∈ responsesOf state.history .rw,
           ∀ right ∈ responsesOf state.history .rw,
@@ -886,7 +886,7 @@ theorem unique_txs
   exact Option.some.inj ((firstTx leftKind).symm.trans (secondTx rightKind))
 
 theorem same_observations
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ left ∈ responses state.history,
           ∀ right ∈ responses state.history,
@@ -1141,7 +1141,7 @@ private theorem committed_snapshot {state : State}
   exact ⟨ledger, found, obs, entry, atEntry, txMatches kind⟩
 
 theorem unique_seq_nums_committed
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ left ∈ committedResponses state.history .rw,
           ∀ right ∈ committedResponses state.history .rw,
@@ -1159,7 +1159,7 @@ theorem unique_seq_nums_committed
   exact Option.some.inj (leftTx.symm.trans rightTx)
 
 theorem committed_rw_serializable
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ left ∈ committedResponses state.history .rw,
           ∀ right ∈ committedResponses state.history .rw,
@@ -1342,7 +1342,7 @@ private theorem committed_sequence_order {state : State}
   exact Nat.lt_asymm prior beforeRequest
 
 theorem all_committed_observed
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ earlier ∈ committedResponses state.history .rw,
           ∀ request ∈ committedRequests state.history .rw,
@@ -1363,7 +1363,7 @@ theorem all_committed_observed
   exact write_in_prefix leftAt leftTx (Nat.le_of_lt bound)
 
 theorem committed_rw_ordered_real_time
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ earlier ∈ committedResponses state.history .rw,
           ∀ request ∈ committedRequests state.history .rw,
@@ -1483,7 +1483,7 @@ private theorem adjacent (history : List Event) {pair : Response × Response}
   ⟩
 
 theorem committed_rw_ordered_serializable
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ pair ∈
             (committedRwResponses state.history).zip

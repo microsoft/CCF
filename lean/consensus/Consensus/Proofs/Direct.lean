@@ -1204,7 +1204,7 @@ private theorem commitFrontier_invariant [Config.InitialConfiguration]
 public theorem committed_frontier_is_signature
     : forall (config : Finset NodeID),
       forall (nodes : List NodeID)
-              (trace : CCF.Execution.Trace (Model.transitionSystem config nodes))
+              (trace : CCF.Execution.Behaviour (Model.transitionSystem config nodes))
               (state : Model.State),
       forall (node : NodeID) (nodeState : NodeState),
         (state ∈ trace /\ (node, nodeState) ∈ state.nodes /\ 0 < nodeState.commitIndex)

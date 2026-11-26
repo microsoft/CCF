@@ -10,50 +10,50 @@ import Std.Tactic.BVDecide.Normalize.Prop
 namespace CCF.Execution
 
 /-!
-Theorems about executions: trace states are connected by transitions and reachable,
-and valid traces cover exactly the reachable states.
+Theorems about executions: the states of a behaviour are connected by transitions
+and reachable, and behaviours cover exactly the reachable states.
 -/
 
-namespace Trace
+namespace Behaviour
 
 /-- The first state exists and is initial. -/
-theorem valid_init {system : TransitionSystem} (trace : Trace system)
+theorem valid_init {system : TransitionSystem} (trace : Behaviour system)
     : exists initial, trace.stateAt 0 = some initial /\ system.init initial :=
   ⟨trace.val.init, CCF.Seq.get?_cons_zero _ _, trace.property.1⟩
 
 /-- Each recorded action executes the corresponding transition. -/
-theorem valid_step {system : TransitionSystem} (trace : Trace system)
+theorem valid_step {system : TransitionSystem} (trace : Behaviour system)
     (n : Nat) (before : system.State) (action : system.Action)
     (first : trace.stateAt n = some before) (chosen : trace.actionAt n = some action)
     : system.step before action = trace.stateAt (n + 1) :=
   trace.property.2 n before action first chosen
 
 /-- Actions exist exactly where a successor state exists, by construction. -/
-theorem valid_domains {system : TransitionSystem} (trace : Trace system) (n : Nat)
+theorem valid_domains {system : TransitionSystem} (trace : Behaviour system) (n : Nat)
     : (trace.actions.get? n).isSome <-> (trace.states.get? (n + 1)).isSome := by
   simp [actions, states]
 
 /-- State membership is membership in the recorded state sequence. -/
 @[simp]
-theorem mem_states {system : TransitionSystem} {trace : Trace system}
+theorem mem_states {system : TransitionSystem} {trace : Behaviour system}
     {state : system.State}
     : state ∈ trace.states <-> state ∈ trace :=
   Iff.rfl
 
-/-- A trace state is present at some index. -/
-theorem mem_iff_exists_stateAt {system : TransitionSystem} {trace : Trace system}
+/-- A state in a behaviour is present at some index. -/
+theorem mem_iff_exists_stateAt {system : TransitionSystem} {trace : Behaviour system}
     {state : system.State}
     : state ∈ trace <-> exists n, some state = trace.stateAt n :=
   CCF.Seq.mem_iff_exists_get?
 
-/-- A state found at an index belongs to the trace. -/
-theorem stateAt_mem {system : TransitionSystem} {trace : Trace system}
+/-- A state found at an index belongs to the behaviour. -/
+theorem stateAt_mem {system : TransitionSystem} {trace : Behaviour system}
     {n : Nat} {state : system.State} (found : trace.stateAt n = some state)
     : state ∈ trace :=
   CCF.Seq.get?_mem found
 
 /-- Adjacent states are connected by the action recorded at their shared step. -/
-theorem step {system : TransitionSystem} (trace : Trace system) (n : Nat)
+theorem step {system : TransitionSystem} (trace : Behaviour system) (n : Nat)
     (before after : system.State)
     (first : trace.stateAt n = some before) (next : trace.stateAt (n + 1) = some after)
     : exists action, system.step before action = some after := by
@@ -62,8 +62,8 @@ theorem step {system : TransitionSystem} (trace : Trace system) (n : Nat)
   obtain ⟨action, found⟩ := Option.isSome_iff_exists.mp present
   exact ⟨action, (trace.valid_step n before action first found).trans next⟩
 
-/-- Every state in a trace is reachable. -/
-theorem reachable {system : TransitionSystem} (trace : Trace system)
+/-- Every state in a behaviour is reachable. -/
+theorem reachable {system : TransitionSystem} (trace : Behaviour system)
     {state : system.State} (member : state ∈ trace)
     : system.Reachable state := by
   obtain ⟨index, found⟩ := mem_iff_exists_stateAt.mp member
@@ -85,12 +85,12 @@ theorem reachable {system : TransitionSystem} (trace : Trace system)
           obtain ⟨action, stepped⟩ := trace.step index before state previous found.symm
           exact .step (ih previous.symm) stepped
 
-end Trace
+end Behaviour
 
-/-- Valid traces cover exactly the reachable states. Every reachable state is the
-last state of some valid finite trace. -/
-theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
-    : system.Reachable state <-> exists trace : Trace system, state ∈ trace := by
+/-- Behaviours cover exactly the reachable states. Every reachable state is the
+last state of some finite behaviour. -/
+theorem reachable_iff_behaviour {system : TransitionSystem} {state : system.State}
+    : system.Reachable state <-> exists trace : Behaviour system, state ∈ trace := by
   constructor
   · intro reachable
     suffices finite : exists (initial : system.State) (steps : List (system.Action × system.State)),
@@ -118,7 +118,7 @@ theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
         change system.step before action = (steps[n]?).map Prod.snd
         rw [present]
         simpa only [← beforeEq, ← actionEq, ← pairEq, Option.map_some] using enabled ⟨n, bound⟩
-      · apply Trace.stateAt_mem (n := steps.length)
+      · apply Behaviour.stateAt_mem (n := steps.length)
         exact (indexed steps.length).trans last
     induction reachable with
     | initial initialized =>
@@ -168,11 +168,11 @@ theorem stepsFrom_getElem? {system : TransitionSystem}
       simp only [List.map_cons, List.getElem?_cons_succ] at first chosen ⊢
       exact stepsFrom_getElem? after rest valid n before action first chosen
 
-/-- The finite trace that starts at `initial` and records `steps`. -/
+/-- The finite behaviour that starts at `initial` and records `steps`. -/
 def ofSteps {system : TransitionSystem} (initial : system.State)
     (steps : List (system.Action × system.State)) (initialized : system.init initial)
     (valid : StepsFrom system initial steps)
-    : Trace system :=
+    : Behaviour system :=
   ⟨
     { init := initial, steps := CCF.Seq.ofList steps },
     initialized,
@@ -187,34 +187,34 @@ def ofSteps {system : TransitionSystem} (initial : system.State)
           List.getElem?_cons_succ, List.getElem?_map] using first
   ⟩
 
-/-- The states of a finite recorded trace, indexed from its initial state. -/
+/-- The states of a finite behaviour, indexed from its initial state. -/
 theorem ofSteps_stateAt {system : TransitionSystem} {initial : system.State}
     {steps : List (system.Action × system.State)} {initialized : system.init initial}
     {valid : StepsFrom system initial steps} (n : Nat)
     : (ofSteps initial steps initialized valid).stateAt n
       = (initial :: steps.map Prod.snd)[n]? := by
   cases n <;>
-    simp only [ofSteps, Trace.stateAt, Trace.states,
+    simp only [ofSteps, Behaviour.stateAt, Behaviour.states,
       CCF.Seq.get?_cons_zero, CCF.Seq.get?_cons_succ, CCF.Seq.map_get?,
       CCF.Seq.ofList_get?, List.getElem?_cons_zero, List.getElem?_cons_succ,
       List.getElem?_map]
 
-/-- The actions of a finite recorded trace. -/
+/-- The actions of a finite behaviour. -/
 theorem ofSteps_actionAt {system : TransitionSystem} {initial : system.State}
     {steps : List (system.Action × system.State)} {initialized : system.init initial}
     {valid : StepsFrom system initial steps} (n : Nat)
     : (ofSteps initial steps initialized valid).actionAt n
       = (steps.map Prod.fst)[n]? := by
-  simp only [ofSteps, Trace.actionAt, Trace.actions,
+  simp only [ofSteps, Behaviour.actionAt, Behaviour.actions,
     CCF.Seq.map_get?, CCF.Seq.ofList_get?, List.getElem?_map]
 
-/-- Membership in a finite recorded trace is membership in its list of states. -/
+/-- Membership in a finite behaviour is membership in its list of states. -/
 theorem mem_ofSteps {system : TransitionSystem} {initial : system.State}
     {steps : List (system.Action × system.State)} {initialized : system.init initial}
     {valid : StepsFrom system initial steps} {state : system.State}
     : state ∈ ofSteps initial steps initialized valid
       <-> state ∈ initial :: steps.map Prod.snd := by
-  rw [Trace.mem_iff_exists_stateAt]
+  rw [Behaviour.mem_iff_exists_stateAt]
   simp only [ofSteps_stateAt]
   constructor
   · rintro ⟨n, found⟩

@@ -22,7 +22,7 @@ namespace consistency.Properties
 
 open Model
 
-abbrev GlobalTrace := CCF.Execution.Trace transitionSystem
+abbrev GlobalTrace := CCF.Execution.Behaviour transitionSystem
 
 /-- Every reachable state has an enabled action. -/
 theorem deadlock_free : transitionSystem.DeadlockFree := by

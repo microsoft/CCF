@@ -811,8 +811,8 @@ private theorem Path.run {system : TransitionSystem} {before tail after}
       exact ⟨_, .cons step rest⟩
 
 /-- Enabled steps connect a state of a valid trace to every later state of the trace. -/
-private theorem valid_path {system : TransitionSystem} {trace : Execution.Trace system}
-    (start count : Nat) {before after : system.State}
+private theorem valid_path {system : TransitionSystem}
+    {trace : Execution.Behaviour system} (start count : Nat) {before after : system.State}
     (first : trace.stateAt start = some before)
     (last : trace.stateAt (start + count) = some after)
     : exists tail, Path system before tail after := by
@@ -4273,7 +4273,8 @@ private theorem trace_node_final {config : Model.Config}
         obtain ⟨updated, present', evolves'⟩ := ih (.step reachable transition) present
         exact ⟨updated, present', evolves_trans evolves evolves'⟩
   obtain ⟨suffix, run⟩ := linked.suffix i state le found
-  exact steps_evolve run (trace.reachable (CCF.Execution.Trace.stateAt_mem found)) present
+  exact steps_evolve run (trace.reachable (CCF.Execution.Behaviour.stateAt_mem found))
+    present
 
 private theorem next_frozen {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
@@ -4571,14 +4572,14 @@ theorem quorum_open_preserves_commit
       Committed.recoveredTxID_of_mem configValid (genuine _ present maximumCurrent),
       Committed.maximumGossip_upper_bound greatest ownSnapshot⟩
   rintro config trace state opener current ⟨inTrace, present, opened, own⟩
-  obtain ⟨openIndex, found⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp inTrace
+  obtain ⟨openIndex, found⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp inTrace
   obtain ⟨bound, boundIn, openLe, bounded⟩ :=
     Trace.exists_bound (P := fun voter i => exists witness, trace.stateAt i = some witness
         /\ exists nodeState txid,
             (voter, nodeState) ∈ witness.nodes /\ (voter, txid) ∈ nodeState.gossips)
       (Option.isSome_iff_exists.mpr ⟨_, found.symm⟩) current.votes fun voter voted => by
         obtain ⟨witness, member, rest⟩ := own voter voted
-        obtain ⟨i, atI⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp member
+        obtain ⟨i, atI⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp member
         exact ⟨i, Option.isSome_iff_exists.mpr ⟨_, atI.symm⟩, witness, atI.symm, rest⟩
   have own : forall voter, voter ∈ current.votes -> OwnGossipBy trace bound voter :=
     fun voter voted => by
@@ -4706,7 +4707,7 @@ theorem full_gossip_preserves_commit
     obtain ⟨genuine, frozen⟩ := reachable_gossip_invariant linked.reachable
     obtain ⟨current, present, _, same⟩ := frozen envelope sent vote
     obtain ⟨atGossip, gossipReachable, projected⟩ :=
-      Lifting.model_reachable_lifts (trace.reachable (CCF.Execution.Trace.stateAt_mem inTrace))
+      Lifting.model_reachable_lifts (trace.reachable (CCF.Execution.Behaviour.stateAt_mem inTrace))
     have configured := wf.sentSourceConfigured envelope sent
     have sourceKey : envelope.source ∈ atGossip.system.nodes.map Prod.fst := by
       exact (reachable_well_formed gossipReachable).nodeKeys _ configured
@@ -4727,8 +4728,8 @@ theorem full_gossip_preserves_commit
       simpa only [states, same] using finalGossip
   rintro config trace gossiped opened opener current
     ⟨gossipedMember, full, openedMember, present, opening⟩
-  obtain ⟨gossipIndex, gossipFound⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp gossipedMember
-  obtain ⟨openIndex, openFound⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp openedMember
+  obtain ⟨gossipIndex, gossipFound⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp gossipedMember
+  obtain ⟨openIndex, openFound⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp openedMember
   obtain ⟨ghost, linked⟩ := History.history_correspondence trace
     (Trace.max_isSome (Option.isSome_iff_exists.mpr ⟨_, gossipFound.symm⟩)
       (Option.isSome_iff_exists.mpr ⟨_, openFound.symm⟩))
@@ -4852,7 +4853,7 @@ private theorem quorum_notification_final_votes {config : Model.Config}
   obtain ⟨after, current, inTrace, present, opened⟩ :=
     Observed.notification_opening_state notification
   obtain ⟨atOpening, openingReachable, projected⟩ :=
-    Lifting.model_reachable_lifts (trace.reachable (CCF.Execution.Trace.stateAt_mem inTrace))
+    Lifting.model_reachable_lifts (trace.reachable (CCF.Execution.Behaviour.stateAt_mem inTrace))
   have openingPresent : (node, current) ∈ atOpening.system.nodes := by
     simpa only [← projected, Lifting.erase] using present
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent

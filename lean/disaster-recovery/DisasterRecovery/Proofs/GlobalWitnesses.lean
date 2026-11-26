@@ -746,7 +746,7 @@ theorem quorum_open_preserves_commit_witness
   obtain ⟨network, reachable⟩ := collect_votes config winner winnerMember reachable
     voters distinct subset (by omega)
   let globalState : Model.State := { nodes := table config states, network }
-  obtain ⟨trace, member⟩ := Execution.reachable_iff_trace.mp reachable
+  obtain ⟨trace, member⟩ := Execution.reachable_iff_behaviour.mp reachable
   refine ⟨trace, globalState, winner, voted config winner voters, member, ?_, ?_, ?_⟩
   · exact List.mem_map.mpr ⟨winner, winnerMember, by simp [states]⟩
   · simp [voted, length]
@@ -843,7 +843,7 @@ theorem full_gossip_preserves_commit_witness
     failover_reachable config multiple winner winnerMember reachable
   let states := Function.update (selected config winner) winner (failedOver config winner)
   let globalState : Model.State := { nodes := table config states, network }
-  obtain ⟨trace, member⟩ := Execution.reachable_iff_trace.mp reachable
+  obtain ⟨trace, member⟩ := Execution.reachable_iff_behaviour.mp reachable
   refine ⟨trace, globalState, globalState, winner, failedOver config winner,
     member, ?_, member, ?_, rfl⟩
   · intro node nodeState _ present gossip

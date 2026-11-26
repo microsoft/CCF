@@ -12,7 +12,7 @@ abbrev ValidConfig := { config : Model.Config // config.Valid }
 
 /-- A finite or infinite network execution used to state global recovery properties. -/
 abbrev GlobalTrace (config : Model.Config) :=
-  CCF.Execution.Trace (Model.transitionSystem config)
+  CCF.Execution.Behaviour (Model.transitionSystem config)
 
 open Model.Local in
 /-- A recorded local step of one DR node: its before and after states, input, and outputs. -/

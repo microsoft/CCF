@@ -11,10 +11,10 @@ open Consensus.Model.Node
 open GenericWitnesses
 
 private theorem committed_trace (config : Consensus.Properties.ValidConfig)
-    : exists (trace : Trace (Model.transitionSystem config (ids config))) (state
-                                                                            : Model.State) (node
-                                                                                            : NodeID) (nodeState
-                                                                                                        : NodeState),
+    : exists (trace : Behaviour (Model.transitionSystem config (ids config))) (state
+                                                                                : Model.State) (node
+                                                                                                : NodeID) (nodeState
+                                                                                                            : NodeState),
         state ∈ trace
         /\ (node, nodeState) ∈ state.nodes
         /\ 0 < nodeState.commitIndex
@@ -68,7 +68,7 @@ private theorem nodeState_member {state : Model.State} {node : NodeID} {value : 
 public theorem committed_logs_prefix_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
-        (nodes : List NodeID) (trace : Trace (Model.transitionSystem config nodes)),
+        (nodes : List NodeID) (trace : Behaviour (Model.transitionSystem config nodes)),
         exists (stateA stateB : Model.State),
         exists (left right : NodeID) (leftState rightState : NodeState),
           stateA ∈ trace
@@ -117,8 +117,9 @@ public theorem election_safety_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
         (nodes : List NodeID) (trace
-                                : Trace (Model.transitionSystem config nodes)) (state
-                                                                                : Model.State)
+                                : Behaviour
+                                    (Model.transitionSystem config nodes)) (state
+                                                                            : Model.State)
           ,
         exists (left right : NodeID) (leftState rightState : NodeState),
           state ∈ trace
@@ -166,8 +167,9 @@ public theorem committed_frontier_is_signature_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
         (nodes : List NodeID) (trace
-                                : Trace (Model.transitionSystem config nodes)) (state
-                                                                                : Model.State)
+                                : Behaviour
+                                    (Model.transitionSystem config nodes)) (state
+                                                                            : Model.State)
           ,
         exists (node : NodeID) (nodeState : NodeState),
           state ∈ trace

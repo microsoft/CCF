@@ -1113,7 +1113,7 @@ private theorem mem_statuses_iff (history : List Event) (txid : TxID) (status : 
     | _ => cases mapped
 
 theorem committed_or_invalid
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ txid ∈ statusIDs state.history .committed,
             txid ∉ statusIDs state.history .invalid := by
@@ -1123,7 +1123,7 @@ theorem committed_or_invalid
   exact Nat.lt_irrefl _ impossible
 
 theorem once_committed_prev_committed
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
@@ -1144,7 +1144,7 @@ theorem once_committed_prev_committed
       exact absurd bound (Nat.not_le.mpr impossible)
 
 theorem once_invalid_next_invalid
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
@@ -1165,7 +1165,7 @@ theorem once_invalid_next_invalid
   | invalid => rfl
 
 theorem once_committed_next_invalid
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
@@ -1501,7 +1501,7 @@ private theorem clean_reachable {state : State}
         (current_reachable reachable) transition
 
 theorem invalid_not_observed_by_committed
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
         (state ∈ trace)
         → ∀ invalid ∈ responsesOf state.history .rw,
           ∀ observer ∈ committedResponses state.history .rw,

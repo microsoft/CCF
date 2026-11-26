@@ -22,7 +22,7 @@ namespace Consensus.Properties
 open CCF (Finset)
 
 abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.NodeID) :=
-  CCF.Execution.Trace (Model.transitionSystem config nodes)
+  CCF.Execution.Behaviour (Model.transitionSystem config nodes)
 
 open Model.Node
 

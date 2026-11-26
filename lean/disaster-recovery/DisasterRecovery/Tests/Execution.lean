@@ -28,7 +28,7 @@ example : Run counter 0 [true, false, true] 2 :=
   .cons rfl (.cons rfl (.cons rfl (.nil (system := counter) 2)))
 
 -- Stutters are recorded as enabled actions, not inserted implicitly.
-private def counting : Trace counter :=
+private def counting : Behaviour counter :=
   ⟨
     { init := 0, steps := CCF.Seq.ofList [(false, 0), (true, 1), (true, 2)] },
     rfl,
@@ -44,22 +44,22 @@ private def counting : Trace counter :=
   ⟩
 
 example : counter.Reachable 2 :=
-  counting.reachable (Trace.stateAt_mem (n := 3) rfl)
+  counting.reachable (Behaviour.stateAt_mem (n := 3) rfl)
 
 example (state : Nat)
-    : counter.Reachable state <-> exists trace : Trace counter, state ∈ trace :=
-  reachable_iff_trace
+    : counter.Reachable state <-> exists trace : Behaviour counter, state ∈ trace :=
+  reachable_iff_behaviour
 
 example : counting.stateAt 3 = some 2 := rfl
 example : counting.actionAt 0 = some false := rfl
 example : counting.actionAt 2 = some true := rfl
 example : counting.stateAt 4 = none := rfl
 example : counting.actionAt 3 = none := rfl
-example : 2 ∈ counting := Trace.stateAt_mem (n := 3) rfl
+example : 2 ∈ counting := Behaviour.stateAt_mem (n := 3) rfl
 example : 2 ∈ counting.states := CCF.Seq.get?_mem (n := 3) rfl
 example : false ∈ counting.actions := CCF.Seq.get?_mem (n := 0) rfl
 
-private def initialOnly : Trace counter :=
+private def initialOnly : Behaviour counter :=
   ⟨
     { init := 0, steps := CCF.Seq.nil },
     rfl,
@@ -70,7 +70,7 @@ example : initialOnly.stateAt 0 = some 0 := rfl
 example : initialOnly.stateAt 1 = none := rfl
 example : initialOnly.actionAt 0 = none := rfl
 
-private def infinite : Trace counter :=
+private def infinite : Behaviour counter :=
   ⟨
     { init := 0, steps := CCF.Seq.ofStream (fun n => (true, n + 1)) },
     rfl,
@@ -83,12 +83,12 @@ example (n : Nat) : infinite.stateAt n = some n := by cases n <;> rfl
 example (n : Nat) : infinite.actionAt n = some true := rfl
 
 example (n : Nat) : n ∈ infinite :=
-  Trace.stateAt_mem (n := n) (by cases n <;> rfl)
+  Behaviour.stateAt_mem (n := n) (by cases n <;> rfl)
 
 -- Actions and states may share a type, so trace membership remains state-only.
 example
     (trace
-      : Trace
+      : Behaviour
           ({
               State := Nat,
               Action := Nat,
@@ -101,14 +101,14 @@ example
   Iff.rfl
 
 -- A final state has no outgoing action, but each transition has one.
-example (trace : Trace counter)
+example (trace : Behaviour counter)
     (states : trace.states = CCF.Seq.ofList [0, 1])
     (actions : trace.actions = CCF.Seq.ofList [])
     : False := by
   have domains := trace.valid_domains 0
   simp [states, actions] at domains
 
-example (trace : Trace counter)
+example (trace : Behaviour counter)
     (states : trace.states = CCF.Seq.ofList [0])
     (actions : trace.actions = CCF.Seq.ofList [true])
     : False := by
@@ -116,7 +116,7 @@ example (trace : Trace counter)
   simp [states, actions] at domains
 
 -- An enabled action that reaches the wrong successor is not a recorded step.
-example (trace : Trace counter)
+example (trace : Behaviour counter)
     (states : trace.states = CCF.Seq.ofList [0, 1])
     (actions : trace.actions = CCF.Seq.ofList [false])
     : False := by
@@ -124,26 +124,28 @@ example (trace : Trace counter)
   simp [counter, states] at stepped
 
 -- An empty trace has no initial state.
-example (trace : Trace counter) (states : trace.states = CCF.Seq.ofList []) : False := by
+example (trace : Behaviour counter) (states : trace.states = CCF.Seq.ofList [])
+    : False := by
   obtain ⟨_, first, _⟩ := trace.valid_init
   simp [states] at first
 
-example (trace : Trace counter) (states : trace.states = CCF.Seq.ofList [1]) : False := by
+example (trace : Behaviour counter) (states : trace.states = CCF.Seq.ofList [1])
+    : False := by
   obtain ⟨initial, first, initialized⟩ := trace.valid_init
   simp [states] at first
   subst first
   simp at initialized
 
 -- Adjacent states must be related by an enabled action.
-example (trace : Trace counter) (states : trace.states = CCF.Seq.ofList [0, 2])
+example (trace : Behaviour counter) (states : trace.states = CCF.Seq.ofList [0, 2])
     : False := by
-  obtain ⟨action, step⟩ := trace.step 0 0 2 (by simp [Trace.stateAt, states])
-    (by simp [Trace.stateAt, states])
+  obtain ⟨action, step⟩ := trace.step 0 0 2 (by simp [Behaviour.stateAt, states])
+    (by simp [Behaviour.stateAt, states])
   cases action <;> simp [counter] at step
 
 example
     (trace
-      : Trace
+      : Behaviour
           ({
               State := Nat,
               Action := Unit,
@@ -153,8 +155,8 @@ example
             : TransitionSystem))
     (states : trace.states = CCF.Seq.ofList [0, 0])
     : False := by
-  obtain ⟨_, step⟩ := trace.step 0 0 0 (by simp [Trace.stateAt, states])
-    (by simp [Trace.stateAt, states])
+  obtain ⟨_, step⟩ := trace.step 0 0 0 (by simp [Behaviour.stateAt, states])
+    (by simp [Behaviour.stateAt, states])
   cases step
 
 end DisasterRecovery.Tests.Execution

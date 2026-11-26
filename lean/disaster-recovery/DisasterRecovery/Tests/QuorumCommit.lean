@@ -109,7 +109,7 @@ private theorem opened : ("C", openedC) ∈ s11.nodes := by
   simp [s11, snapshot]
 
 private theorem final_in_trace : s11 ∈ trace :=
-  Execution.Trace.stateAt_mem (n := 11) rfl
+  Execution.Behaviour.stateAt_mem (n := 11) rfl
 
 private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
   unfold Properties.UpToDateWithQuorum
