@@ -3,7 +3,6 @@
 # Licensed under the Apache 2.0 License.
 
 import os
-import stat
 import sys
 import subprocess
 
@@ -52,10 +51,9 @@ def has_notice(path, prefixes):
 
 
 def check_python_shebang(path):
-    mode = stat.S_IMODE(os.stat(path).st_mode)
-    is_executable = bool(mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
+    is_executable = os.access(path, os.X_OK)
     with open(path) as f:
-        first_line = f.readline().rstrip("\r\n")
+        first_line = f.readline().removesuffix("\n")
     has_shebang = first_line.startswith("#!")
     errors = []
     if is_executable and first_line != PYTHON_SHEBANG:
