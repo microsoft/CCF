@@ -111,7 +111,7 @@ jobs:
           shopt -s failglob
           for trace in lean/consensus/replay/fixtures/valid/*.ndjson; do
             echo "::group::Validate $trace"
-            python3 scripts/pack-trace.py < "$trace" > "$RUNNER_TEMP/trace.msgpack"
+            scripts/pack-trace.py < "$trace" > "$RUNNER_TEMP/trace.msgpack"
             lean/consensus/.lake/build/bin/consensus-replay "$RUNNER_TEMP/trace.msgpack"
             echo "::endgroup::"
           done
@@ -123,7 +123,7 @@ jobs:
           shopt -s failglob
           for trace in lean/consensus/replay/fixtures/invalid/*.ndjson; do
             echo "::group::Reject $trace"
-            python3 scripts/pack-trace.py < "$trace" > "$RUNNER_TEMP/trace.msgpack"
+            scripts/pack-trace.py < "$trace" > "$RUNNER_TEMP/trace.msgpack"
             status=0
             lean/consensus/.lake/build/bin/consensus-replay "$RUNNER_TEMP/trace.msgpack" || status=$?
             if [ "$status" -ne 1 ]; then
@@ -138,7 +138,7 @@ jobs:
         run: |
           set -euo pipefail
           replay() {
-            python3 scripts/pack-trace.py < "lean/consensus/replay/fixtures/$1" > "$RUNNER_TEMP/trace.msgpack"
+            scripts/pack-trace.py < "lean/consensus/replay/fixtures/$1" > "$RUNNER_TEMP/trace.msgpack"
             lean/consensus/.lake/build/bin/consensus-replay --lenient "$RUNNER_TEMP/trace.msgpack"
           }
           [ "$(replay valid/replication.ndjson | jq .watermark)" = 1 ]

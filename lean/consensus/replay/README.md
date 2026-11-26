@@ -17,7 +17,7 @@ lake build --wfail consensus-replay
 To read a trace, [`dump-trace.py`](../../../scripts/dump-trace.py) dumps it as NDJSON, a record per line, which [`pack-trace.py`](../../../scripts/pack-trace.py) packs again:
 
 ```sh
-python3 ../../scripts/dump-trace.py < path/to/trace.msgpack | grep -n ccf.cft
+../../scripts/dump-trace.py < path/to/trace.msgpack | grep -n ccf.cft
 ```
 
 Replay names a record as `<trace>:<n>`, by its number among the records of every tag: it is line `n` of the dump, which `grep -n` prefixes.

@@ -37,7 +37,7 @@ The model driver itself [differs](#driving-the-model) from the scenario driver w
 To compare the two traces of a scenario, after `cft_scenario_test` and `cft_model_test`:
 
 ```sh
-diff <(python3 scripts/dump-trace.py < build/consensus/raw/<name>.msgpack | sed 's/"tag": "ccf.cft", "ts": [0-9]*, //; s/"pid": "[^"]*"//') \
+diff <(scripts/dump-trace.py < build/consensus/raw/<name>.msgpack | sed 's/"tag": "ccf.cft", "ts": [0-9]*, //; s/"pid": "[^"]*"//') \
   <(sed 's/"pid": "[^"]*"//' build/consensus/model/<name>.ndjson)
 ```
 

@@ -32,6 +32,6 @@ From `lean/consensus`, inspect a failure directly (exit status 1 is expected).
 Packing needs Python `msgpack`:
 
 ```sh
-python3 ../../scripts/pack-trace.py < replay/fixtures/invalid/snapshot-mismatch.ndjson > /tmp/snapshot-mismatch.msgpack
+../../scripts/pack-trace.py < replay/fixtures/invalid/snapshot-mismatch.ndjson > /tmp/snapshot-mismatch.msgpack
 lake exe consensus-replay /tmp/snapshot-mismatch.msgpack
 ```
