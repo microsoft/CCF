@@ -16,14 +16,24 @@
 
 namespace ccf::tracing
 {
+  inline constexpr size_t INITIAL_EVENT_BUFFER_CAPACITY = 2048;
+  inline constexpr size_t MAX_RETAINED_EVENT_BUFFER_CAPACITY =
+    size_t{16} * 1024;
+
   inline std::vector<uint8_t>& event_buffer()
   {
     thread_local auto buffer = [] {
       std::vector<uint8_t> buffer;
-      buffer.reserve(2048);
+      buffer.reserve(INITIAL_EVENT_BUFFER_CAPACITY);
       return buffer;
     }();
     return buffer;
+  }
+
+  inline bool& emitting()
+  {
+    thread_local bool in_progress = false;
+    return in_progress;
   }
 
   inline uint64_t next_sequence()
@@ -50,11 +60,40 @@ namespace ccf::tracing
     {
       return;
     }
+    auto& active = emitting();
+    if (active)
+    {
+      FluentdSink::record_drop(tag);
+      return;
+    }
+
+    struct Scope
+    {
+      bool& active;
+      std::vector<uint8_t>* buffer = nullptr;
+
+      ~Scope()
+      {
+        if (buffer && buffer->capacity() > MAX_RETAINED_EVENT_BUFFER_CAPACITY)
+        {
+          std::vector<uint8_t>().swap(*buffer);
+        }
+        active = false;
+      }
+    };
+
+    active = true;
+    Scope scope{active};
     const auto sequence = next_sequence();
     try
     {
       auto& buffer = event_buffer();
+      scope.buffer = &buffer;
       buffer.clear();
+      if (buffer.capacity() < INITIAL_EVENT_BUFFER_CAPACITY)
+      {
+        buffer.reserve(INITIAL_EVENT_BUFFER_CAPACITY);
+      }
       msgpack::write_array_header(buffer, 3);
       msgpack::write_str(buffer, tag);
       msgpack::write_fluentd_event_time(
