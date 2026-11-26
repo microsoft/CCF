@@ -115,11 +115,14 @@ namespace ccf
   // A chain stops at the self-endorsement of its oldest service, which is not
   // part of the chain. Checks that it starts at expected_from, the oldest
   // epoch which the chain covers, and that expected_key, the key which the
-  // chain trusts for that epoch, signed it over itself.
-  inline void validate_self_endorsement(
+  // chain trusts for that epoch, signed it over itself. format_key renders a
+  // key in the errors.
+  template <typename FormatKey>
+  void validate_self_endorsement(
     const ccf::CoseEndorsement& endorsement,
     const ccf::TxID& expected_from,
-    std::span<const uint8_t> expected_key)
+    std::span<const uint8_t> expected_key,
+    FormatKey format_key)
   {
     const auto from_str = endorsement.endorsement_epoch_begin.to_str();
 
@@ -156,8 +159,8 @@ namespace ccf
         "Self-endorsement at {} is signed by public key {}, which is not the "
         "key {} trusted from that epoch",
         from_str,
-        ccf::ds::to_hex(endorsement.endorsing_key),
-        ccf::ds::to_hex(expected_key)));
+        format_key(endorsement.endorsing_key),
+        format_key(expected_key)));
     }
 
     std::vector<uint8_t> endorsed_key;
@@ -178,7 +181,7 @@ namespace ccf
         "Self-endorsement at {} endorses public key {}, which is not the key "
         "which signed it",
         from_str,
-        ccf::ds::to_hex(endorsed_key)));
+        format_key(endorsed_key)));
     }
 
     // The signature is verified, so the header is safe to trust

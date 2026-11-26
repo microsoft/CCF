@@ -822,7 +822,12 @@ namespace ccf
       if (chain_self_endorsement.has_value())
       {
         validate_self_endorsement(
-          chain_self_endorsement.value(), oldest_from, oldest_key);
+          chain_self_endorsement.value(),
+          oldest_from,
+          oldest_key,
+          [identity_type](std::span<const uint8_t> key_der) {
+            return key_for_error(identity_type, key_der);
+          });
       }
 
       LOG_INFO_FMT(

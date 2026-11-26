@@ -1820,7 +1820,8 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
     endorsement.endorsement_epoch_end = std::nullopt;
     f.historical->pq_entries.erase(cb.write_versions.at(0));
     expected_error =
-      "PQ endorsements chain: Self-endorsement at 6.201 endorses public key";
+      "PQ endorsements chain: Self-endorsement at 6.201 endorses public key "
+      "sha256:";
   }
   SUBCASE("PQ endorsement over a key which is not an ML-DSA key")
   {
