@@ -69,6 +69,8 @@ namespace
     std::optional<ccf::TxID> current_service_from;
     std::optional<ccf::CoseEndorsement> topmost;
     std::optional<ccf::CoseEndorsement> pq_topmost;
+    // Thrown by get_current_service_identity when set
+    std::optional<std::string> identity_error;
 
     [[nodiscard]] bool is_part_of_network() const override
     {
@@ -77,6 +79,10 @@ namespace
 
     ccf::CurrentServiceIdentity get_current_service_identity() override
     {
+      if (identity_error.has_value())
+      {
+        throw std::logic_error(identity_error.value());
+      }
       return {current_service_from, topmost, pq_topmost};
     }
   };
@@ -1056,6 +1062,24 @@ TEST_CASE(
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
   const auto keys = sub->get_trusted_keys();
   REQUIRE(keys.size() == 2);
+}
+
+TEST_CASE("Failed: current service identity cannot be read")
+{
+  SubsystemFixture f;
+  ChainBuilder cb;
+  cb.add_self({2, 1}).add_next({2, 1}, {4, 200});
+  f.use_identity_key(cb.current_key_pair());
+  wire_chain(f, cb);
+  f.node_state->identity_error = "inconsistent endorsement versions";
+
+  auto sub = std::make_unique<ccf::NetworkIdentitySubsystem>(
+    f.node_state, f.historical, f.identity, f.scheduler);
+  REQUIRE_THROWS_WITH_AS(
+    sub->start_with_config(SubsystemFixture::default_config()),
+    "Failed fetching network identity: inconsistent endorsement versions",
+    std::runtime_error);
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Failed);
 }
 
 TEST_CASE("Failed: bad signature on topmost detected during bootstrap")

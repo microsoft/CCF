@@ -524,7 +524,15 @@ namespace ccf
         return;
       }
 
-      auto current = node_state_accessor->get_current_service_identity();
+      CurrentServiceIdentity current;
+      try
+      {
+        current = node_state_accessor->get_current_service_identity();
+      }
+      catch (const std::exception& e)
+      {
+        fail_fetching(e.what());
+      }
       if (!current.create_txid.has_value())
       {
         LOG_INFO_FMT(
