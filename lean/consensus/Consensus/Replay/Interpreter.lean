@@ -88,6 +88,8 @@ lock.
 structure Group where
   /-- The node whose lock hold this is. -/
   node : String
+  /-- Index of the head event among its node's events. -/
+  start : Nat
   /-- `m_ts` of the head event: where the group starts in its process's order. -/
   m_ts : Nat
   /-- `ts` of the head event, when the trace records it. -/
@@ -421,7 +423,8 @@ private def runGroup (header : Header) (replay : ReplayState) (group : Group)
     replay
 
 structure Result where
-  groups : Nat
+  /-- Groups run of each node, fewer than it has only if replay is lenient. -/
+  ran : Array Nat
   actions : Nat
   observations : Nat
 deriving Repr, BEq
@@ -469,8 +472,9 @@ makes diagnostics reproducible, as counters of different processes are not compa
 A group's node changes only through its own groups, other nodes only add packets it may
 receive, and a committed prefix stays committed, so the verdict does not depend on which
 enabled group runs.
+If `lenient`, replay ends without failing once no group may run.
 -/
-def schedule (header : Header) (queues : Array (Array Group))
+def schedule (header : Header) (queues : Array (Array Group)) (lenient := false)
     : ExceptT String (StateM (Array Group)) Result := do
   unless !header.declared.isEmpty
           && header.declared.all (!·.isEmpty)
@@ -503,13 +507,17 @@ def schedule (header : Header) (queues : Array (Array Group))
       | some reason => blocked := blocked.push (group, reason)
     let some (group, queue) := chosen
     |
+      if lenient then
+        break
       let rest := queues.zipIdx.flatMap fun (groups, queue) => groups.extract next[queue]!
       throw (stuck rest blocked)
     modify (·.push group)
     state ← ofExcept (runGroup header state group)
     next := next.modify queue (· + 1)
-  let instructions := queues.flatMap (·.flatMap (·.instructions))
+  let instructions :=
+    queues.zipIdx.flatMap
+      fun (groups, queue) => (groups.extract 0 next[queue]!).flatMap (·.instructions)
   let actions := (instructions.filter (· matches .action ..)).size
-  return { groups := total, actions, observations := instructions.size - actions }
+  return { ran := next, actions, observations := instructions.size - actions }
 
 end Consensus.Replay

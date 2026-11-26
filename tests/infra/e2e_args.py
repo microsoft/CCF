@@ -35,6 +35,7 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "consensus_update_timeout_ms": "consensus.message_timeout",
     "worker_threads": "worker_threads",
     "observability": "observability",
+    "capture_trace": None,
     "pdb": None,
     "workspace": None,
     "label": None,
@@ -448,6 +449,12 @@ def cli_args(
         "--observability",
         help="Node observability configuration as a JSON object",
         type=json.loads,
+    )
+    parser.add_argument(
+        "--capture-trace",
+        help="Record each network's trace events, of every tag, in "
+        "<workspace>/<label>_trace/<n>.ndjson",
+        action="store_true",
     )
     parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"

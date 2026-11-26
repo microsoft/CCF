@@ -131,6 +131,16 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Replay an incomplete CCF consensus trace
+        if: inputs.package == 'consensus'
+        run: |
+          set -euo pipefail
+          cd lean/consensus
+          replay() { ./.lake/build/bin/consensus-replay --lenient "replay/fixtures/$1"; }
+          [ "$(replay valid/replication.ndjson | jq .watermark)" = 1 ]
+          [ "$(replay invalid/missing-packet.ndjson | jq '.watermark < 1')" = true ]
+          if replay invalid/snapshot-mismatch.ndjson; then exit 1; fi
+
       - name: Check recovery trace fixtures against their schema
         if: inputs.package == 'disaster-recovery'
         run: |

@@ -204,7 +204,7 @@ function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0
     PARSED_ARGS
-    "DETECT_DEADLOCKS"
+    "DETECT_DEADLOCKS;NO_TRACE_CAPTURE"
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;TSAN_SUPPRESSIONS"
     "CONSTITUTION;ADDITIONAL_ARGS;BUILD_DEPENDS;CONFIGURATIONS"
   )
@@ -228,12 +228,20 @@ function(add_e2e_test)
       set(PARSED_ARGS_PERF_LABEL ${PARSED_ARGS_NAME})
     endif()
 
+    # Record each network's trace events for validation.
+    # Benchmarks expect their own collector to be the nodes' only sink.
+    set(TRACE_CAPTURE_ARGS --capture-trace)
+    if(PARSED_ARGS_NO_TRACE_CAPTURE OR "${PARSED_ARGS_LABEL}" STREQUAL "perf")
+      set(TRACE_CAPTURE_ARGS)
+    endif()
+
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
         ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
+        ${PARSED_ARGS_ADDITIONAL_ARGS} ${TRACE_CAPTURE_ARGS} --tick-ms
+        ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
     if(NOT PARSED_ARGS_BUILD_DEPENDS)

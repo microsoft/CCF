@@ -35,6 +35,7 @@ The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `
 ## Replay contract
 
 A trace is one NDJSON file of `{pid, m_ts, msg}` records from all nodes, in any line order, where `pid` identifies the process that emitted the record.
+A record may carry its Fluentd `tag`; replay ignores records whose `tag` is not `ccf.cft`, so a capture may hold events of other tags.
 Replay orders each process's records by `m_ts`, a counter that must not repeat within the process and may have gaps because other tags share it.
 It then splits events into one stream per node; a process may trace several nodes, as `cft_driver` does, but each node's records must come from one process.
 Native code emits consensus events while holding the node's consensus lock, so a node's `m_ts` order is the order of its lock holds, whichever threads took them.
@@ -51,6 +52,8 @@ A group whose first action is a receive waits until a matching packet is queued,
 Clocks of different hosts therefore only choose among enabled groups, and cannot fail a trace.
 If groups remain but none may run, replay fails, listing first the groups that can never run, such as a receive whose packet is never sent.
 `--schedule` prints the groups in the order they ran, ending with any that failed.
+`--lenient` accepts a trace that is incomplete, for example because a node was killed before it sent its last events: a node's groups end before its first event that no rule consumes, and replay ends once no group may run.
+The reported `watermark` is then the least fraction of a node's events that replay consumed; a group that the model disagrees with still fails the trace.
 After bootstrap, each group emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
 
 A receive delivers any queued model envelope from its sender whose rendered packet has exactly the native packet's fields, with equal values.
