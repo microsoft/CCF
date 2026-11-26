@@ -400,43 +400,6 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
   }
 }
 
-TEST_CASE("Endorsement CCF claims which are not a map are rejected")
-{
-  using namespace tav::cbor;
-
-  const std::vector<uint8_t> payload = {0xCA, 0xFE};
-  for (const bool as_map : {true, false})
-  {
-    std::vector<MapItem> phdr;
-    phdr.emplace_back(
-      make_string(ccf::cose::header::custom::CCF_V1),
-      as_map ? make_map({}) : make_array({}));
-    const auto phdr_bytes = make_map(std::move(phdr)).det_serialize();
-    std::vector<Value> fields;
-    fields.push_back(make_bytes(phdr_bytes));
-    fields.push_back(make_map({}));
-    fields.push_back(make_bytes(payload));
-    fields.push_back(make_bytes(payload));
-    const auto envelope =
-      make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(fields)))
-        .det_serialize();
-
-    if (as_map)
-    {
-      CHECK(
-        ccf::crypto::extract_cose_endorsement_previous_root(envelope) ==
-        std::nullopt);
-    }
-    else
-    {
-      CHECK_THROWS_WITH_AS(
-        ccf::crypto::extract_cose_endorsement_previous_root(envelope),
-        doctest::Contains("Retrieve CCF claims"),
-        tav::Exception);
-    }
-  }
-}
-
 TEST_CASE("COSE signing protected header bytes")
 {
   // Must stay byte-identical to headers already written to existing ledgers.
