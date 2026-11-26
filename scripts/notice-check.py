@@ -11,15 +11,15 @@ NOTICE_LINES_CCF = [
     "Licensed under the Apache 2.0 License.",
 ]
 
-SLASH_PREFIXED = os.linesep.join(["// " + line for line in NOTICE_LINES_CCF])
-HASH_PREFIXED = os.linesep.join(["# " + line for line in NOTICE_LINES_CCF])
+SLASH_PREFIXED = "\n".join(["// " + line for line in NOTICE_LINES_CCF])
+HASH_PREFIXED = "\n".join(["# " + line for line in NOTICE_LINES_CCF])
 PYTHON_SHEBANG = "#!/usr/bin/env python3"
 
 # Must have a '#pragma once' line
 HEADERS_WITH_PRAGMAS = [
-    SLASH_PREFIXED + os.linesep + "#pragma once",
+    SLASH_PREFIXED + "\n#pragma once",
     # Maybe there's a single blank line
-    SLASH_PREFIXED + os.linesep + os.linesep + "#pragma once",
+    SLASH_PREFIXED + "\n\n#pragma once",
 ]
 
 PREFIX_BY_FILETYPE = {
@@ -30,12 +30,12 @@ PREFIX_BY_FILETYPE = {
     ".py": [
         HASH_PREFIXED,
         # May have a shebang before the license
-        PYTHON_SHEBANG + os.linesep + HASH_PREFIXED,
+        PYTHON_SHEBANG + "\n" + HASH_PREFIXED,
     ],
     ".sh": [
         HASH_PREFIXED,
         # May have a shebang before the license
-        "#!/bin/bash" + os.linesep + HASH_PREFIXED,
+        "#!/bin/bash\n" + HASH_PREFIXED,
     ],
     ".cmake": [HASH_PREFIXED],
 }
@@ -68,9 +68,7 @@ def check_python_shebang(path):
 def submodules():
     r = subprocess.run(["git", "submodule", "status"], capture_output=True, check=True)
     return [
-        line.strip().split(" ")[1]
-        for line in r.stdout.decode().split(os.linesep)
-        if line
+        line.strip().split(" ")[1] for line in r.stdout.decode().splitlines() if line
     ]
 
 
