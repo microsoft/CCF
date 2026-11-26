@@ -322,8 +322,10 @@ def test_new_service(
             not table_has_entries(table, public_state) for table in legacy_tables
         )
 
-        # Cannot remove legacy if the current table is not populated but required to be
-        network.consortium.remove_jwt_issuer(primary, network.jwt_issuer.issuer_url)
+        # Cannot remove legacy if the current table is not populated but required to be.
+        # Stored end-of-life files also carry the issuers of the runs which wrote them.
+        for issuer in public_state.get("public:ccf.gov.jwt.issuers", {}):
+            network.consortium.remove_jwt_issuer(primary, issuer.decode())
         public_state = get_fresh_public_state()
         assert not table_has_entries(new_table, public_state)
         try:
