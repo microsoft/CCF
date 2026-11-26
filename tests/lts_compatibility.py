@@ -323,8 +323,10 @@ def test_new_service(
             not table_has_entries(table, public_state) for table in legacy_tables
         )
 
-        # Cannot remove legacy if the current table is not populated but required to be
-        network.consortium.remove_jwt_issuer(primary, network.jwt_issuer.issuer_url)
+        # Cannot remove legacy if the current table is not populated but required to be.
+        # Stored end-of-life files also carry the issuers of the runs which wrote them.
+        for issuer in public_state.get("public:ccf.gov.jwt.issuers", {}):
+            network.consortium.remove_jwt_issuer(primary, issuer.decode())
         public_state = get_fresh_public_state()
         assert not table_has_entries(new_table, public_state)
         try:
@@ -708,12 +710,19 @@ def run_live_compatibility_with_latest(
 
 @reqs.description("Run ledger compatibility since first LTS")
 def run_ledger_compatibility_since_first(
-    args, repo, lts_releases, use_snapshot, test_jwt_cleanup
+    args,
+    releases,
+    use_snapshot,
+    test_jwt_cleanup,
+    local_install_path=LOCAL_CHECKOUT_DIRECTORY,
+    local_container_image=None,
 ):
     """
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
 
+    `releases` lists the version, install path and node container image of each
+    release, oldest first. Nodes without an image run directly on the host.
     The supplied release selection is shared between the ledger and snapshot passes.
     Snapshots are used if `use_snapshot` is True. Otherwise, the entire historical
     ledger is used.
@@ -724,7 +733,7 @@ def run_ledger_compatibility_since_first(
     """
 
     LOG.info("Use snapshot: {}", use_snapshot)
-    LOG.info(f"LTS releases: {list(lts_releases.values())}")
+    LOG.info(f"LTS releases: {[version for version, _, _ in releases]}")
 
     lts_versions = []
 
@@ -740,19 +749,17 @@ def run_ledger_compatibility_since_first(
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         # None is the final local-checkout step.
-        for idx, lts_release in enumerate([*lts_releases.values(), None]):
+        for idx, lts_release in enumerate([*releases, None]):
             if lts_release:
-                version, install_path = repo.install_release(
-                    lts_release,
-                    platform=infra.platform_detection.get_platform(),
-                )
+                version, install_path, container_image = lts_release
                 if not use_snapshot or writes_cose_snapshot_receipts(version):
                     lts_versions.append(version)
                 set_js_args(args, install_path)
             else:
                 version = args.ccf_version
-                install_path = LOCAL_CHECKOUT_DIRECTORY
+                install_path = local_install_path
                 get_new_constitution_for_install(args, install_path)
+                container_image = local_container_image
 
             binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
                 install_path
@@ -774,10 +781,15 @@ def run_ledger_compatibility_since_first(
                 ):
                     kwargs["reconfiguration_type"] = "OneTransaction"
 
+                # The eol snapshots carry JSON receipts, which releases writing
+                # COSE receipts reject, so those recover from the eol ledger alone
+                use_eol_snapshots = use_snapshot and not writes_cose_snapshot_receipts(
+                    version
+                )
                 # The nodes of this step start from the eol snapshots, or from
                 # the snapshots handed over by the previous step
-                started_from_snapshots = use_snapshot and (
-                    idx == 0 or snapshots_dir is not None
+                started_from_snapshots = (
+                    use_eol_snapshots if idx == 0 else snapshots_dir is not None
                 )
 
                 if idx == 0:
@@ -809,7 +821,7 @@ def run_ledger_compatibility_since_first(
                         dirs_exist_ok=True,
                     )
 
-                    if use_snapshot:
+                    if use_eol_snapshots:
                         new_snapshots = os.path.join(new_common, "snapshots")
                         shutil.copytree(
                             os.path.join(service_dir, "snapshots"),
@@ -828,8 +840,9 @@ def run_ledger_compatibility_since_first(
                     network.start_in_recovery(
                         args,
                         committed_ledger_dirs=[new_ledger],
-                        snapshots_dir=new_snapshots if use_snapshot else None,
+                        snapshots_dir=new_snapshots if use_eol_snapshots else None,
                         common_dir=new_common,
+                        node_container_image=container_image,
                         **kwargs,
                     )
 
@@ -851,6 +864,7 @@ def run_ledger_compatibility_since_first(
                         committed_ledger_dirs,
                         snapshots_dir=snapshots_dir,
                         set_authenticate_session=update_gov_authn(version),
+                        node_container_image=container_image,
                         **kwargs,
                     )
                     # Recovery count is not stored in pre-2.0.3 ledgers
@@ -898,6 +912,7 @@ def run_ledger_compatibility_since_first(
                         library_dir,
                         version,
                         test_jwt_cleanup=run_jwt_cleanup,
+                        node_container_image=container_image,
                     )
 
                 # Snapshots written by releases before 7.0 carry JSON receipts,
@@ -1041,28 +1056,41 @@ if __name__ == "__main__":
             {"with same LTS": latest_lts_version}
         )
 
-        if args.check_ledger_compatibility:
-            compatibility_report["data compatibility"] = {}
-            lts_releases = repo.get_supported_lts_releases(local_branch)
+    if args.check_ledger_compatibility:
+        if args.release_install_path:
+            releases = [
+                (
+                    infra.github.get_version_from_install(args.release_install_path),
+                    args.release_install_path,
+                    args.release_install_image,
+                )
+            ]
+        else:
+            releases = [
+                (
+                    *repo.install_release(
+                        tag, platform=infra.platform_detection.get_platform()
+                    ),
+                    None,
+                )
+                for tag in repo.get_supported_lts_releases(local_branch).values()
+            ]
+        compatibility_report["data compatibility"] = {}
+        for use_snapshot, report_key in (
+            (False, "with previous ledger"),
+            (True, "with previous snapshots"),
+        ):
             lts_versions = run_ledger_compatibility_since_first(
                 args,
-                repo,
-                lts_releases,
-                use_snapshot=False,
-                test_jwt_cleanup=False,
+                releases,
+                use_snapshot=use_snapshot,
+                # Destructive, so only once the ledger pass is done
+                test_jwt_cleanup=use_snapshot,
+                local_install_path=args.local_install_path,
+                local_container_image=args.local_install_image,
             )
             compatibility_report["data compatibility"].update(
-                {"with previous ledger": lts_versions}
-            )
-            lts_versions = run_ledger_compatibility_since_first(
-                args,
-                repo,
-                lts_releases,
-                use_snapshot=True,
-                test_jwt_cleanup=True,
-            )
-            compatibility_report["data compatibility"].update(
-                {"with previous snapshots": lts_versions}
+                {report_key: lts_versions}
             )
 
     if not args.dry_run:

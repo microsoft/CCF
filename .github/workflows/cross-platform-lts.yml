@@ -15,9 +15,23 @@ on:
         description: CCF version to build on Azure Linux 4 (defaults to the checked-out commit)
         required: false
         type: string
+      long:
+        description: Also recover the ledger and snapshots of each supported LTS release in turn
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      long:
+        description: Also recover the ledger and snapshots of each supported LTS release in turn
+        required: false
+        type: boolean
+        default: false
 
+# The group does not use github.workflow, which names the caller when this
+# workflow is called, and would make this run cancel the caller.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: cross-platform-lts-${{ inputs.long && 'long' || 'short' }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions: read-all
@@ -82,20 +96,20 @@ jobs:
           echo "to_ref=$to_ref" >> "$GITHUB_OUTPUT"
 
   build-install:
-    name: "Build CCF ${{ matrix.ccf_version }} on ${{ matrix.name }}"
+    name: "Build ${{ matrix.name }}"
     needs: configure
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Azure Linux 3
+          - name: 7.latest
             artifact: al3
             ccf_version: ${{ needs.configure.outputs.from_version }}
             ref: ccf-${{ needs.configure.outputs.from_version }}
             pool: *azl3_pool
             image: *azl3_image
-          - name: Azure Linux 4
+          - name: Dev
             artifact: al4
             ccf_version: ${{ needs.configure.outputs.to_version }}
             ref: ${{ needs.configure.outputs.to_ref }}
@@ -162,9 +176,9 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade ${{ needs.configure.outputs.from_version }} AL3 to ${{ needs.configure.outputs.to_version }} AL4"
+    name: "Upgrade 7.latest to Dev"
     needs: [configure, build-install]
-    timeout-minutes: 60
+    timeout-minutes: ${{ inputs.long && 120 || 60 }}
     runs-on: [*azl3_pool]
 
     steps:
@@ -204,10 +218,17 @@ jobs:
 
       - name: "Run cross-platform upgrade"
         shell: bash
+        env:
+          LONG: ${{ inputs.long }}
         run: |
           set -euo pipefail
           source env/bin/activate
+          options=()
+          if [[ "$LONG" == "true" ]]; then
+            options+=(--check-ledger-compatibility)
+          fi
           tests/docker/run_lts_compatibility.sh \
+            "${options[@]}" \
             "artifacts/al3/$INSTALL_ARCHIVE" \
             "$AZL3_IMAGE" \
             "artifacts/al4/$INSTALL_ARCHIVE" \

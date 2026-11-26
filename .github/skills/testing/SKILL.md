@@ -37,13 +37,13 @@ An existing caller-supplied `VENV_DIR` is reused without reinstalling packages; 
 
 ### Compatibility
 
-For changes affecting older releases, configure the intended build directory with `-DLONG_TESTS=ON` (a CMake option, not just a shell variable), rebuild affected targets, then run from that directory:
+For changes affecting older releases, run from the build directory:
 
 ```bash
 ./tests.sh -R '^lts_compatibility$' --no-tests=error
 ```
 
-`LONG_TESTS` enables additional ledger compatibility coverage. This test is not registered with `SAN=ON`; use a suitable separate build rather than silently skipping it. It also needs access to older releases; report unavailable downloads as blockers.
+This covers live upgrades from releases built for the distribution it runs on. Releases before 8.0 are only built for Azure Linux 3, so upgrades from 7.x, and recovery of its ledger and snapshots, run through `tests/docker/run_lts_compatibility.sh` (with `--check-ledger-compatibility` for the recovery), which runs each build in a container and needs Docker and prebuilt install archives; see the [Cross-platform LTS](../../workflows/README.md#cross-platform-lts) workflow. The `lts_compatibility` test is not registered with `SAN=ON`; use a suitable separate build rather than silently skipping it. It also needs access to older releases; report unavailable downloads as blockers.
 
 ### Python SDK
 
