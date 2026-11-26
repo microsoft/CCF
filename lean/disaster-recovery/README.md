@@ -5,17 +5,17 @@ The public proof API is `DisasterRecovery.Properties`; its full theorem statemen
 
 ## Contents
 
-| Purpose                               | Location                                        |
-| ------------------------------------- | ----------------------------------------------- |
-| Safety theorems and witness lemmas    | `DisasterRecovery/Properties.lean`              |
-| Single-node protocol                  | `DisasterRecovery/Model/Local.lean`             |
-| Network composition                   | `DisasterRecovery/Model.lean`, `../common/CCF/` |
-| Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`        |
-| Proof implementations                 | `DisasterRecovery/Proofs/`                      |
+| Purpose                              | Location                                        |
+| ------------------------------------ | ----------------------------------------------- |
+| Safety theorems and witness lemmas   | `DisasterRecovery/Properties.lean`              |
+| Single-node protocol                 | `DisasterRecovery/Model/Local.lean`             |
+| Network composition                  | `DisasterRecovery/Model.lean`, `../common/CCF/` |
+| Definitions used by the statements   | `DisasterRecovery/Properties/Utils.lean`        |
+| Proof implementations                | `DisasterRecovery/Proofs/`                      |
 | Executable checks and behaviours     | `DisasterRecovery/Tests/`                       |
-| Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`         |
-| Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`             |
-| Replayer executable and test traces   | `replayer/`                                     |
+| Replay of recorded C++ traces        | `DisasterRecovery/TraceValidation.lean`         |
+| Parsing and ordering of those traces | `DisasterRecovery/TraceValidation/`             |
+| Replayer executable and test traces  | `replayer/`                                     |
 
 Human review covers the model, the full theorem and lemma statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
