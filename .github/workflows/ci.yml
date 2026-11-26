@@ -415,5 +415,5 @@ jobs:
       - name: Validate e2e consensus traces
         run: |
           set -euo pipefail
-          python3 tests/cft_trace_validation.py \
+          tests/cft_trace_validation.py \
             lean/consensus/.lake/build/bin/consensus-replay "$RUNNER_TEMP/e2e-logs"
