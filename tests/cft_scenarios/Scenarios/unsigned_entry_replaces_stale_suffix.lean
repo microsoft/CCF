@@ -4,12 +4,6 @@ import CftDriver
 
 open CftDriver
 
-private def assertPending (source target : NodeId) (count : Nat) : IO Unit := do
-  let pending ← pendingMessages source target
-  let link := s!"from {source.text} to {target.text}"
-  unless pending.size == count do
-    throw (IO.userError s!"Expected {count} messages {link}, got {pending}")
-
 -- A follower replaces an entry of an earlier primary with a transaction of its
 -- primary, and acknowledges it. Nothing is committed, so a node which is
 -- elected keeps the transactions after its last signature. Node 1 holds 2.4,
