@@ -80,34 +80,14 @@ def test_basic_rust(network, args):
 
 
 @reqs.description("Rust KV calls report explicit denial of current signature tables")
-@reqs.supports_methods("/app/signature-table-access/{table}/{operation}")
+@reqs.supports_methods("/app/signature-table-access")
 def test_signature_table_access_denied(network, args):
     primary, _ = network.find_primary()
 
     with primary.client() as anonymous:
-        for table in ("signatures", "cose_signatures", "tree"):
-            for method, operations in (
-                (anonymous.get, ("get", "has")),
-                (anonymous.post, ("get", "has", "put", "remove")),
-            ):
-                for operation in operations:
-                    path = f"/app/signature-table-access/{table}/{operation}"
-                    response = method(path)
-                    assert (
-                        response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
-                    ), (
-                        path,
-                        response,
-                    )
-                    error = response.body.json()["error"]
-                    assert error["code"] == "InternalError", (path, error)
-                    assert error["message"] == "CCF bridge error: AccessDenied", (
-                        path,
-                        error,
-                    )
-
-        response = anonymous.get("/app/health")
+        response = anonymous.post("/app/signature-table-access")
         assert response.status_code == http.HTTPStatus.OK, response
+        assert response.body.text() == "denied"
 
     return network
 

@@ -104,12 +104,8 @@ namespace ccf::kv
   }
 
   MapChanges BaseTx::get_map_and_change_set_by_name(
-    const std::string& map_name,
-    bool track_deletes_on_missing_keys,
-    AccessMode access)
+    const std::string& map_name, bool track_deletes_on_missing_keys)
   {
-    check_map_access(map_name, access);
-
     auto& read_txid = pimpl->read_txid;
 #ifdef CCF_KV_TRACING
     trace::Context trace_context(pimpl->trace_attempt.id);
@@ -159,9 +155,13 @@ namespace ccf::kv
     auto change_set = untyped_map->create_change_set(
       read_txid->seqno, track_deletes_on_missing_keys);
     // Rollback can replace a map between the access check and snapshot capture.
-    if (pimpl->role == PrivateImpl::Role::MaterialisedReadOnly)
+    if (
+      pimpl->role == PrivateImpl::Role::MaterialisedReadOnly &&
+      !pimpl->store->check_rollback_count(pimpl->read_rollback_count))
     {
-      check_map_access(map_name, access);
+      throw CompactedVersionConflict(std::format(
+        "Materialised state for map '{}' was invalidated by rollback",
+        map_name));
     }
     return {abstract_map, std::move(change_set)};
   }

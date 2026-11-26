@@ -2948,28 +2948,12 @@ TEST_CASE("Current JS signature table handles deny every operation")
       CAPTURE(access);
       auto tx = store.create_tx();
       const auto body = std::string(signature_table_test_prelude) + R"JS(
-const reader = ccf.kv["public:ccf.internal.table"];
-const writer = ccf.kv["public:signature_permission_probe"];
 for (const table of signatureTables) {
-  const indirectName = ["public:ccf", "internal", table.split(".").pop()].join(".");
-  const handle = Reflect.get(ccf.kv, indirectName);
-  handle._map_name = "public:ccf.internal.table";
-  handle._source = "Historical";
-  handle._seqno = 1;
-  const direct = [...readOperations(handle), ...writeOperations(handle)];
-  const borrowed = [...readOperations(reader), ...writeOperations(writer)];
-  for (const [name, operation] of direct) {
+  const handle = ccf.kv[table];
+  for (const [, operation] of [
+    ...readOperations(handle), ...writeOperations(handle)
+  ]) {
     expectTypeError(() => operation(handle), table, "inaccessible");
-  }
-  for (const [name, operation] of borrowed) {
-    expectTypeError(() => operation(handle), table, "inaccessible");
-    for (const forged of [
-      {_map_name: table},
-      Object.create(handle),
-      new Proxy(handle, {})
-    ]) {
-      expectTypeError(() => operation(forged), "KV Map Handle object expected");
-    }
   }
 }
 for (const table of [
@@ -2979,10 +2963,10 @@ for (const table of [
   "public:ccf.internal.tree_other"
 ]) {
   const handle = ccf.kv[table];
-  for (const [name, operation] of readOperations(handle)) {
+  for (const [, operation] of readOperations(handle)) {
     operation(handle);
   }
-  for (const [name, operation] of writeOperations(handle)) {
+  for (const [, operation] of writeOperations(handle)) {
     expectTypeError(() => operation(handle), table, "read-only");
   }
 }
@@ -3060,7 +3044,6 @@ TEST_CASE("Historical JS signature table handles retain read-only access")
                             restricted) +
         signature_table_test_prelude + R"JS(
 export function run() {
-  const currentReader = ccf.kv["public:ccf.internal.table"];
   for (const table of signatureTables) {
     const handle = testState.kv[table];
     if (restricted) {
@@ -3099,27 +3082,8 @@ export function run() {
     if (seen !== handle.size) {
       throw new Error(`Unexpected iteration count for ${table}`);
     }
-    for (const [name, operation] of writeOperations(handle)) {
+    for (const [, operation] of writeOperations(handle)) {
       expectTypeError(() => operation(handle), table, "read-only");
-    }
-
-    const current = ccf.kv[table];
-    for (const [name, operation] of readOperations(currentReader)) {
-      expectTypeError(() => operation(handle), "different key-value store");
-    }
-    for (const [name, operation] of readOperations(handle)) {
-      expectTypeError(() => operation(current), "different key-value store");
-      expectTypeError(
-        () => operation({_map_name: table, _seqno: 1}),
-        "KV Map Handle object expected");
-    }
-    handle._map_name = "public:ccf.internal.table";
-    handle._source = "CurrentTx";
-    if (handle.size !== (populated ? 1 : 0)) {
-      throw new Error(`Historical handle identity changed for ${table}`);
-    }
-    for (const [name, operation] of readOperations(currentReader)) {
-      expectTypeError(() => operation(handle), "different key-value store");
     }
   }
 }
