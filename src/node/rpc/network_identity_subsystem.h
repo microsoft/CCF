@@ -484,6 +484,13 @@ namespace ccf
       {
         fail_pq_fetching(e.what());
       }
+      if (!previous_root.has_value())
+      {
+        fail_pq_fetching(std::format(
+          "endorsement for {} - {} is not signed over a previous ledger root",
+          endorsement.endorsement_epoch_begin.to_str(),
+          format_epoch(endorsement.endorsement_epoch_end)));
+      }
       if (previous_root != classical_previous_root)
       {
         fail_pq_fetching(std::format(

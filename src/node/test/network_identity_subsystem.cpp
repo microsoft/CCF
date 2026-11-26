@@ -1812,6 +1812,28 @@ TEST_CASE("An inconsistent PQ chain fails fetching")
       "PQ endorsements chain: endorsement for 2.1 - 4.200 is signed over "
       "another previous ledger root";
   }
+  SUBCASE("PQ and classical endorsements both without a previous root")
+  {
+    auto& endorsement = f.historical->pq_entries.at(middle_version);
+    endorsement.endorsement = ccf::cose::sign_endorsement(
+      *pq.keys.at(1),
+      1700000000,
+      endorsement.endorsement_epoch_begin.to_str(),
+      endorsement.endorsement_epoch_end->to_str(),
+      {},
+      pq.key_der(0));
+    auto& classical = f.historical->entries.at(middle_version);
+    classical.endorsement = ccf::cose::sign_endorsement(
+      *cb.service_keys.at(1),
+      1700000000,
+      classical.endorsement_epoch_begin.to_str(),
+      classical.endorsement_epoch_end->to_str(),
+      {},
+      cb.service_keys.at(0)->public_key_der());
+    expected_error =
+      "PQ endorsements chain: endorsement for 2.1 - 4.200 is not signed over "
+      "a previous ledger root";
+  }
   SUBCASE("No PQ endorsement where the newer PQ endorsement points")
   {
     f.historical->pq_entries.erase(middle_version);
