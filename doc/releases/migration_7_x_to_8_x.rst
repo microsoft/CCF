@@ -54,7 +54,12 @@ If an issuer's private CA is trusted only through governance, refresh will fail 
    On SEV-SNP, follow the :ref:`snp-outbound-tls-trust` guidance to restrict the overrides in the attested execution policy and protect the CA material from the untrusted host.
 2. Keep the existing CA bundles and issuer ``ca_cert_bundle_name`` values while any 7.x node can still become primary.
    During the mixed-version rollout, continue to include the legacy bundle name when creating or updating auto-refreshing issuers.
+   During this window, :http:GET:`/gov/service/jwk` returns ``caCertBundleName`` and ``caCertBundles`` from 7.x nodes, while 8.x nodes omit ``caCertBundleName`` and return an empty ``caCertBundles`` object even while legacy entries remain in the KV.
 3. After retiring the 7.x nodes and confirming that an 8.x primary can refresh the issuers' keys, update the constitution and stop sending ``ca_cert_bundle_name`` in issuer proposals.
+
+The same trust-store preparation applies to disaster recovery from a 7.x ledger or snapshot onto 8.x nodes: 8.x nodes ignore the recovered governance CA bundles even while the recovered 7.x constitution is still installed, so every recovering node must trust the required CAs at startup.
+
+The public C++ header ``ccf/service/tables/cert_bundles.h`` (``ccf::CACertBundlePEMs`` and ``ccf::Tables::CA_CERT_BUNDLE_PEMS``) has been removed.
 
 Public C++ Headers
 ------------------
