@@ -3555,6 +3555,7 @@ TEST_CASE("Canonical chunk discovery observes restores in the main directory")
   CHECK_FALSE(ledger.committed_ledger_path_with_idx(2).has_value());
   fs::remove(path);
   fs::copy_file(archived, path);
+  CHECK_FALSE(ledger.committed_ledger_path_with_idx(0).has_value());
   for (size_t idx = 1; idx <= 3; ++idx)
   {
     CHECK(ledger.committed_ledger_path_with_idx(idx) == path);

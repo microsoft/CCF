@@ -54,7 +54,7 @@ namespace asynchost
 
     for (auto const& f : fs::directory_iterator(dir))
     {
-      const auto f_name = f.path().filename().string();
+      auto f_name = f.path().filename().string();
       const auto range = ccf::ledger::get_ledger_committed_range_from_file_name(
         f_name, include_recovery);
       if (!range.has_value())
@@ -2087,6 +2087,11 @@ namespace asynchost
     [[nodiscard]] std::optional<fs::path> committed_ledger_path_with_idx(
       size_t idx)
     {
+      if (idx == 0)
+      {
+        return std::nullopt;
+      }
+
       while (true)
       {
         const auto generation = init_generation.load();
