@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "kv/null_encryptor.h"
 #include "kv/store.h"
 #include "node/commit_callback_subsystem.h"
 #include "service/tables/signatures.h"
@@ -3229,7 +3228,7 @@ DOCTEST_TEST_CASE(
   using ValueMap = ccf::kv::Map<size_t, size_t>;
   using ConfigMap = ccf::kv::Map<size_t, aft::Configuration::Nodes>;
 
-  class TermPreservingEncryptor : public ccf::kv::NullTxEncryptor
+  class TermPreservingEncryptor : public ccf::kv::AbstractTxEncryptor
   {
   public:
     bool encrypt(
@@ -3249,25 +3248,6 @@ DOCTEST_TEST_CASE(
       return true;
     }
 
-    bool encrypt(
-      std::span<const uint8_t> plain,
-      std::span<const uint8_t>,
-      std::span<uint8_t> serialised_header,
-      std::span<uint8_t> cipher,
-      const ccf::TxID& tx_id,
-      ccf::kv::EntryType = ccf::kv::EntryType::WriteSet,
-      bool = false) override
-    {
-      uint8_t* p = serialised_header.data();
-      size_t s = serialised_header.size();
-      serialized::write(p, s, tx_id.view);
-      if (plain.data() != cipher.data())
-      {
-        std::copy(plain.begin(), plain.end(), cipher.begin());
-      }
-      return true;
-    }
-
     bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>&,
@@ -3282,18 +3262,10 @@ DOCTEST_TEST_CASE(
       return true;
     }
 
-    bool decrypt(
-      std::span<const uint8_t> cipher,
-      std::span<const uint8_t>,
-      std::span<const uint8_t> serialised_header,
-      std::vector<uint8_t>& plain,
-      ccf::kv::Version,
-      ccf::kv::Term& term,
-      bool = false) override
+    ccf::crypto::HashBytes get_commit_nonce(
+      const ccf::TxID&, bool = false) override
     {
-      plain.assign(cipher.begin(), cipher.end());
-      term = get_term(serialised_header.data(), serialised_header.size());
-      return true;
+      return {};
     }
 
     size_t get_header_length() override
@@ -3305,6 +3277,8 @@ DOCTEST_TEST_CASE(
     {
       return serialized::read<ccf::kv::Term>(data, size);
     }
+
+    void rollback(ccf::kv::Version) override {}
   };
 
   struct FollowerFixture
@@ -3449,37 +3423,6 @@ DOCTEST_TEST_CASE(
     }
   };
 
-  DOCTEST_SUBCASE("Single rejected entry after committed baseline")
-  {
-    FollowerFixture fx;
-    DOCTEST_REQUIRE(fx.append_signature() == 1);
-    DOCTEST_REQUIRE(fx.append_entry(2, 200, aft::Configuration::Nodes{}) == 2);
-
-    fx.deliver(0, 1, 0, 1);
-    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 1);
-    DOCTEST_REQUIRE(fx.follower_store->current_version() == 1);
-    DOCTEST_REQUIRE(fx.follower.ledger->ledger.size() == 1);
-    fx.follower_channels->messages.clear();
-
-    fx.deliver(1, 2, 1, 1);
-
-    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 1);
-    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 1);
-    DOCTEST_REQUIRE(fx.follower_store->current_version() == 1);
-    DOCTEST_REQUIRE_FALSE(fx.read_value(2).has_value());
-    DOCTEST_REQUIRE(fx.follower.ledger->ledger.size() == 1);
-    const auto follower_details = fx.follower.get_details();
-    DOCTEST_REQUIRE(follower_details.configs.size() == 1);
-    DOCTEST_REQUIRE(
-      follower_details.configs.back().nodes == fx.two_node_config);
-    DOCTEST_REQUIRE(
-      follower_details.membership_state == ccf::kv::MembershipState::Active);
-
-    const auto resp = fx.pop_response();
-    DOCTEST_REQUIRE(resp.success == aft::AppendEntriesResponseType::FAIL);
-    DOCTEST_REQUIRE(resp.last_log_idx == 1);
-  }
-
   DOCTEST_SUBCASE("Preserves existing unsigned suffix on rollback")
   {
     FollowerFixture fx;
@@ -3555,90 +3498,6 @@ DOCTEST_TEST_CASE(
     const auto resp = fx.pop_response();
     DOCTEST_REQUIRE(resp.success == aft::AppendEntriesResponseType::FAIL);
     DOCTEST_REQUIRE(resp.last_log_idx == 3);
-  }
-
-  DOCTEST_SUBCASE(
-    "Forgets peers added only after rollback point while keeping peers "
-    "awaiting retirement confirmation")
-  {
-    FollowerFixture fx;
-    const ccf::NodeId added_id = ccf::kv::test::ThirdBackupNodeId;
-
-    // Start with three nodes so third_id can be retired and remain awaiting
-    // retirement confirmation when a later batch fails and rolls back.
-    aft::Configuration::Nodes with_added = fx.two_node_config;
-    with_added[added_id] = {};
-
-    DOCTEST_REQUIRE(fx.append_entry(1, 100, fx.three_node_config) == 1);
-    DOCTEST_REQUIRE(fx.append_signature() == 2);
-    DOCTEST_REQUIRE(fx.append_entry(3, 300, fx.two_node_config) == 3);
-    DOCTEST_REQUIRE(fx.append_signature() == 4);
-    DOCTEST_REQUIRE(fx.append_entry(5, 500, with_added) == 5);
-    DOCTEST_REQUIRE(fx.append_entry(6, 600, aft::Configuration::Nodes{}) == 6);
-
-    // Commit adding third_id, then commit retiring third_id (without
-    // retired_committed confirmation).
-    fx.deliver(0, 2, 0, 2);
-    fx.deliver(2, 4, 1, 4);
-    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 4);
-    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 4);
-    {
-      const auto pre_details = fx.follower.get_details();
-      DOCTEST_REQUIRE(pre_details.configs.size() == 1);
-      DOCTEST_REQUIRE(pre_details.configs[0].idx == 3);
-      DOCTEST_REQUIRE(pre_details.configs[0].nodes == fx.two_node_config);
-      DOCTEST_REQUIRE(pre_details.acks.contains(fx.primary_id));
-      DOCTEST_REQUIRE(pre_details.acks.contains(fx.third_id));
-      DOCTEST_REQUIRE_FALSE(pre_details.acks.contains(added_id));
-    }
-    fx.follower_channels->messages.clear();
-
-    // Deliver a batch that adds added_id at index 5 and then fails on an empty
-    // configuration at index 6.
-    fx.deliver(4, 6, 1, 4);
-
-    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 4);
-    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 4);
-    DOCTEST_REQUIRE(fx.follower_store->current_version() == 4);
-    DOCTEST_REQUIRE_FALSE(fx.read_value(5).has_value());
-    DOCTEST_REQUIRE_FALSE(fx.read_value(6).has_value());
-    DOCTEST_REQUIRE(fx.follower.ledger->ledger.size() == 4);
-
-    const auto follower_details = fx.follower.get_details();
-    DOCTEST_REQUIRE(follower_details.configs.size() == 1);
-    DOCTEST_REQUIRE(follower_details.configs[0].idx == 3);
-    DOCTEST_REQUIRE(follower_details.configs[0].nodes == fx.two_node_config);
-    DOCTEST_REQUIRE(follower_details.acks.contains(fx.primary_id));
-    DOCTEST_REQUIRE(follower_details.acks.contains(fx.third_id));
-    DOCTEST_REQUIRE_FALSE(follower_details.acks.contains(added_id));
-
-    const auto resp = fx.pop_response();
-    DOCTEST_REQUIRE(resp.success == aft::AppendEntriesResponseType::FAIL);
-    DOCTEST_REQUIRE(resp.last_log_idx == 4);
-
-    // If this follower later becomes primary, it still communicates with
-    // active and retired-unconfirmed peers, but neither sends entries to nor
-    // nominates the discarded peer.
-    fx.follower_channels->messages.clear();
-    fx.follower.become_aware_of_new_term(fx.follower.get_view() + 1);
-    fx.follower.force_become_primary();
-    fx.follower_channels->messages.clear();
-    fx.follower.periodic(request_timeout);
-    DOCTEST_REQUIRE(
-      fx.follower_channels->pop_first(aft::append_entries, fx.primary_id)
-        .has_value());
-    DOCTEST_REQUIRE(
-      fx.follower_channels->pop_first(aft::append_entries, fx.third_id)
-        .has_value());
-    DOCTEST_REQUIRE_FALSE(
-      fx.follower_channels->pop_first(aft::append_entries, added_id)
-        .has_value());
-
-    fx.follower_channels->messages.clear();
-    fx.follower.nominate_successor();
-    DOCTEST_REQUIRE_FALSE(
-      fx.follower_channels->pop_first(aft::propose_request_vote, added_id)
-        .has_value());
   }
 }
 

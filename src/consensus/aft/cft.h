@@ -2708,41 +2708,18 @@ namespace aft
 
       // Rollback configurations.
       bool changed = false;
-      std::set<ccf::NodeId> rolled_back_nodes;
 
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         CFT_DEBUG_FMT(
           "Configurations: rollback configuration at {}",
           configurations.back().idx);
-        for (const auto& [node_id, _] : configurations.back().nodes)
-        {
-          rolled_back_nodes.insert(node_id);
-        }
         configurations.pop_back();
         changed = true;
       }
 
       if (changed)
       {
-        // Forget the nodes which only the configurations rolled back named:
-        // no configuration is left to make them known. A node which retired
-        // from an earlier configuration is never named again, so it is not
-        // among them, and stays known until its retirement is confirmed.
-        const auto remaining_nodes = other_nodes_in_active_configs();
-        for (const auto& node_id : rolled_back_nodes)
-        {
-          if (
-            !remaining_nodes.contains(node_id) &&
-            all_other_nodes.erase(node_id) != 0)
-          {
-            CFT_INFO_FMT(
-              "Removed {} from nodes known to consensus: the configuration "
-              "which added it was rolled back",
-              node_id);
-          }
-        }
-
         create_and_remove_node_state();
       }
     }
