@@ -25,6 +25,8 @@ Options:
   --merge-only      Only merge profiles into the output file, without reading
                     binaries or producing reports
   --html <dir>      Generate an HTML coverage report in <dir>
+  --json <file>     Export LLVM JSON coverage data to <file> (gzip-compressed
+                    if <file> ends with .gz; macro expansions are omitted)
   --show-uncovered  Print files and line numbers with zero coverage
   -h, --help        Show this help
 
@@ -40,6 +42,9 @@ Examples:
 
   # Generate an HTML report:
   ../scripts/coverage.sh --html ./coverage_html
+
+  # Export LLVM JSON coverage data (gzip-compressed):
+  ../scripts/coverage.sh --json ./coverage.json.gz
 
   # Show which specific lines are uncovered:
   ../scripts/coverage.sh --show-uncovered
@@ -78,6 +83,7 @@ OUTPUT_FILE=""
 ADDITIONAL_PROFILES=()
 MERGE_ONLY=0
 HTML_DIR=""
+JSON_FILE=""
 SHOW_UNCOVERED=0
 BINARIES=()
 SOURCE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -90,6 +96,7 @@ while [[ $# -gt 0 ]]; do
     --add-profile) ADDITIONAL_PROFILES+=("$2"); shift 2 ;;
     --merge-only) MERGE_ONLY=1; shift ;;
     --html) HTML_DIR="$2"; shift 2 ;;
+    --json) JSON_FILE="$2"; shift 2 ;;
     --show-uncovered) SHOW_UNCOVERED=1; shift ;;
     -h|--help) usage ;;
     --) shift; BINARIES+=("$@"); break ;;
@@ -103,7 +110,7 @@ if [[ -z "${OUTPUT_FILE}" ]]; then
 fi
 
 if [[ "${MERGE_ONLY}" -eq 1 ]] &&
-  [[ -n "${HTML_DIR}" || "${SHOW_UNCOVERED}" -eq 1 || ${#BINARIES[@]} -gt 0 ]]; then
+  [[ -n "${HTML_DIR}" || -n "${JSON_FILE}" || "${SHOW_UNCOVERED}" -eq 1 || ${#BINARIES[@]} -gt 0 ]]; then
   echo "Error: --merge-only cannot be combined with binaries or report options." >&2
   exit 1
 fi
@@ -234,7 +241,14 @@ mapfile -t COV_ARGS < <(build_cov_args)
 # columns are unmodified llvm-cov output.
 # ---------------------------------------------------------------------------
 REPORT_FILE=$(mktemp)
-trap 'rm -f "${REPORT_FILE}"' EXIT
+JSON_TMP=""
+cleanup() {
+  rm -f "${REPORT_FILE}"
+  if [[ -n "${JSON_TMP}" ]]; then
+    rm -f "${JSON_TMP}"
+  fi
+}
+trap cleanup EXIT
 "${LLVM_COV}" report "${COV_ARGS[@]}" > "${REPORT_FILE}"
 
 echo ""
@@ -287,4 +301,26 @@ if [[ -n "${HTML_DIR}" ]]; then
   echo "Note: the HTML index totals use llvm-cov's own per-function summary,"
   echo "not the corrected line counts above. Each file's own source view is"
   echo "unaffected, and already shows every line once."
+fi
+
+# ---------------------------------------------------------------------------
+# JSON export
+# ---------------------------------------------------------------------------
+if [[ -n "${JSON_FILE}" ]]; then
+  echo ""
+  echo "Exporting JSON coverage report to '${JSON_FILE}'..."
+  mkdir -p "$(dirname "${JSON_FILE}")"
+  # Write via a temp file in the destination directory so an incomplete export
+  # never leaves a truncated file behind.
+  JSON_TMP=$(mktemp "${JSON_FILE}.XXXXXX")
+  if [[ "${JSON_FILE}" == *.gz ]]; then
+    "${LLVM_COV}" export -format=text -skip-expansions "${COV_ARGS[@]}" |
+      gzip -c > "${JSON_TMP}"
+  else
+    "${LLVM_COV}" export -format=text -skip-expansions "${COV_ARGS[@]}" \
+      > "${JSON_TMP}"
+  fi
+  mv -f "${JSON_TMP}" "${JSON_FILE}"
+  JSON_TMP=""
+  echo "JSON coverage report written to '${JSON_FILE}'"
 fi
