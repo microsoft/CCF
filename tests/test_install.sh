@@ -69,7 +69,7 @@ while [ "$(service_http_status)" == "200" ]; do
 done
 
 # Now that the service has been stopped, run ledger tutorial
-python ../../../python/ledger_tutorial.py ./workspace/sandbox_0/0.ledger
+../../../python/ledger_tutorial.py ./workspace/sandbox_0/0.ledger
 
 # Recover network
 cp -r ./workspace/sandbox_0/0.ledger .

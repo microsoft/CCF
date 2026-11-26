@@ -240,7 +240,7 @@ trap 'rm -f "${REPORT_FILE}"' EXIT
 echo ""
 echo "=== Coverage Summary ==="
 "${LLVM_COV}" export -format=lcov "${COV_ARGS[@]}" |
-  python3 "${SOURCE_DIR}/scripts/coverage_lines.py" "${REPORT_FILE}"
+  "${SOURCE_DIR}/scripts/coverage_lines.py" "${REPORT_FILE}"
 
 # ---------------------------------------------------------------------------
 # Uncovered lines detail
