@@ -54,10 +54,7 @@ inductive Event where
 
 /-! ## Primary state -/
 
-/--
-Approximates `all_other_nodes`; unlike CCF, a node which starts from a snapshot knows the
-nodes which retired before it.
--/
+/-- Peers tracked by a primary, corresponding to CCF's `all_other_nodes`. -/
 def eligiblePeers (state : NodeState) (self : NodeID) : Finset NodeID :=
   (state.activeMembers ∪ state.retirementCompletedNodes).erase self
 
