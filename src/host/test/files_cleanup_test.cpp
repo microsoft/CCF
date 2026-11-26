@@ -163,6 +163,9 @@ TEST_CASE("find_committed_ledger_chunks: skips non-committed and special files")
   // Subdirectory
   fs::create_directories(tmp / "subdir");
 
+  // Non-canonical committed file
+  write_file(tmp / "ledger_01-09.committed", "data");
+
   // Non-ledger file
   write_file(tmp / "random_file.txt", "data");
 
@@ -974,6 +977,64 @@ TEST_CASE("is_ledger_file_name_committed: detects committed suffix")
   CHECK_FALSE(is_ledger_file_name_committed("ledger_1"));
   CHECK_FALSE(is_ledger_file_name_committed("ledger_1-100.committed.recovery"));
   CHECK_FALSE(is_ledger_file_name_committed("ledger_1-100.committed.ignored"));
+}
+
+TEST_CASE("committed chunk names contain a canonical range")
+{
+  const auto single =
+    get_ledger_committed_range_from_file_name("ledger_1-1.committed");
+  REQUIRE(single.has_value());
+  CHECK(single->first == 1);
+  CHECK(single->second == 1);
+
+  const auto range =
+    get_ledger_committed_range_from_file_name("ledger_42-100.committed");
+  REQUIRE(range.has_value());
+  CHECK(range->first == 42);
+  CHECK(range->second == 100);
+
+  const auto max_val = std::numeric_limits<size_t>::max();
+  const auto max_range = get_ledger_committed_range_from_file_name(
+    fmt::format("ledger_{}-{}.committed", max_val, max_val));
+  REQUIRE(max_range.has_value());
+  CHECK(max_range->first == max_val);
+  CHECK(max_range->second == max_val);
+
+  CHECK_FALSE(get_ledger_committed_range_from_file_name(
+                "ledger_42-100.committed.recovery")
+                .has_value());
+  const auto recovery_range = get_ledger_committed_range_from_file_name(
+    "ledger_42-100.committed.recovery", true);
+  REQUIRE(recovery_range.has_value());
+  CHECK(recovery_range->first == 42);
+  CHECK(recovery_range->second == 100);
+
+  for (const auto* invalid :
+       {"ledger_1",
+        "ledger_1-100",
+        "ledger_1.recovery",
+        "ledger_1-100.committed.recovery.recovery",
+        "ledger_1-100.committed.ignored",
+        "ledger_1-100.committed_prefix",
+        "ledger_01-09.committed",
+        "ledger_1-09.committed",
+        "ledger_0-3.committed",
+        "ledger_5-3.committed",
+        "junk_1-3.committed",
+        "ledger_1-3a.committed",
+        "ledger_1--1.committed",
+        "ledger_1-+3.committed",
+        "ledger_.committed",
+        "ledger_1-.committed",
+        "ledger_-1.committed",
+        "ledger_99999999999999999999999999999-1.committed"})
+  {
+    INFO("Checking invalid committed file name: " << invalid);
+    CHECK_FALSE(
+      get_ledger_committed_range_from_file_name(invalid, false).has_value());
+    CHECK_FALSE(
+      get_ledger_committed_range_from_file_name(invalid, true).has_value());
+  }
 }
 
 TEST_CASE("committed prefix names contain a strict range")

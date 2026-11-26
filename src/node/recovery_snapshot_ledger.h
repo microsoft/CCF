@@ -172,16 +172,22 @@ namespace ccf
           }
 
           const auto name = it->path().filename().string();
-          if (
-            !name.starts_with("ledger_") ||
-            ccf::ledger::is_ledger_file_ignored(name))
+          if (ccf::ledger::is_ledger_file_ignored(name))
           {
             continue;
           }
 
-          const auto committed =
-            ccf::ledger::is_ledger_file_name_committed(name);
-          if (read_only && !committed)
+          if (
+            const auto range =
+              ccf::ledger::get_ledger_committed_range_from_file_name(name))
+          {
+            files.push_back({it->path(), range->first, range->second, true});
+            continue;
+          }
+
+          if (
+            read_only || !name.starts_with("ledger_") ||
+            ccf::ledger::is_ledger_file_name_committed(name))
           {
             continue;
           }
@@ -192,7 +198,7 @@ namespace ccf
               {it->path(),
                ccf::ledger::get_start_idx_from_file_name(name),
                ccf::ledger::get_last_idx_from_file_name(name),
-               committed});
+               false});
           }
           catch (const std::exception& e)
           {
