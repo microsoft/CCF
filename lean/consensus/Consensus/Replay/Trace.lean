@@ -204,6 +204,8 @@ deriving Inhabited
 def Msg.read : Reader Msg := do
   let start ← get
   let n ← readMapHeader
+  if n == 0 then
+    throw "the first key of a msg must be function or cmd"
   if ← strIs "function" then
     let function ← readStr
     return .event function (← Body.read function (n - 1))
