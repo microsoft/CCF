@@ -7,11 +7,11 @@
 #include "ccf/http_header_map.h"
 #include "ccf/http_status.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <llhttp/llhttp.h>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace http
@@ -21,7 +21,7 @@ namespace http
     std::string header_string;
     for (const auto& [k, v] : headers)
     {
-      header_string += fmt::format("{}: {}\r\n", k, v);
+      header_string += std::format("{}: {}\r\n", k, v);
     }
 
     return header_string;
@@ -78,7 +78,7 @@ namespace http
         headers.find(ccf::http::headers::CONTENT_LENGTH) == headers.end())
       {
         headers[ccf::http::headers::CONTENT_LENGTH] =
-          fmt::format("{}", get_content_length());
+          std::format("{}", get_content_length());
       }
     }
 
@@ -93,7 +93,7 @@ namespace http
         headers.find(ccf::http::headers::CONTENT_LENGTH) == headers.end())
       {
         headers[ccf::http::headers::CONTENT_LENGTH] =
-          fmt::format("{}", get_content_length());
+          std::format("{}", get_content_length());
       }
     }
   };
@@ -125,7 +125,7 @@ namespace http
       }
       else
       {
-        path = fmt::format("/{}", p);
+        path = std::format("/{}", p);
       }
     }
 
@@ -141,7 +141,7 @@ namespace http
       for (const auto& it : query_params)
       {
         formatted_query +=
-          fmt::format("{}{}={}", (first ? '?' : '&'), it.first, it.second);
+          std::format("{}{}={}", (first ? '?' : '&'), it.first, it.second);
         first = false;
       }
       return formatted_query;
@@ -150,14 +150,14 @@ namespace http
     [[nodiscard]] std::vector<uint8_t> build_request(
       bool header_only = false) const
     {
-      const auto uri = fmt::format("{}{}", path, get_formatted_query());
+      const auto uri = std::format("{}{}", path, get_formatted_query());
 
       const auto body_view = (header_only || body == nullptr) ?
         std::string_view() :
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         std::string_view(reinterpret_cast<char const*>(body), body_size);
 
-      const auto request_string = fmt::format(
+      const auto request_string = std::format(
         "{} {} HTTP/1.1\r\n"
         "{}"
         "\r\n"
@@ -187,12 +187,12 @@ namespace http
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         std::string_view(reinterpret_cast<char const*>(body), body_size);
 
-      const auto response_string = fmt::format(
+      const auto response_string = std::format(
         "HTTP/1.1 {} {}\r\n"
         "{}"
         "\r\n"
         "{}",
-        status,
+        std::to_underlying(status),
         ccf::http_status_str(status),
         get_header_string(headers),
         body_view);

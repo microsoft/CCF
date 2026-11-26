@@ -8,6 +8,7 @@
 #include "crypto/openssl/hash.h"
 
 #include <climits>
+#include <format>
 #include <openssl/core_names.h>
 
 namespace ccf::crypto
@@ -20,7 +21,7 @@ namespace ccf::crypto
     // The key size is passed as an int
     if (public_key_size > INT_MAX)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "RSA key size {} exceeds the maximum of {} bits",
         public_key_size,
         INT_MAX));
@@ -227,7 +228,7 @@ namespace ccf::crypto
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
     if (salt_length > INT_MAX)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
     }
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));

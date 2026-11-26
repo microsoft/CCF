@@ -11,10 +11,9 @@
 
 #include <algorithm>
 #include <exception>
+#include <format>
 #include <span>
 #include <utility>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace ccf
 {

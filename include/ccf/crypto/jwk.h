@@ -6,7 +6,9 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
 
+#include <format>
 #include <string>
+#include <utility>
 
 namespace ccf::crypto
 {
@@ -75,8 +77,8 @@ namespace ccf::crypto
       case CurveID::CURVE25519:
       case CurveID::X25519:
       {
-        throw std::logic_error(
-          fmt::format("Invalid JWK EC CurveId {}", curve_id));
+        throw std::logic_error(std::format(
+          "Invalid JWK EC CurveId {}", std::to_underlying(curve_id)));
       }
       case CurveID::SECP384R1:
       {
@@ -92,7 +94,8 @@ namespace ccf::crypto
       }
       default:
       {
-        throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
+        throw std::logic_error(
+          std::format("Unknown curve {}", std::to_underlying(curve_id)));
       }
     }
   }
@@ -115,7 +118,8 @@ namespace ccf::crypto
       }
       default:
       {
-        throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
+        throw std::logic_error(
+          std::format("Unknown JWK curve {}", std::to_underlying(jwk_curve)));
       }
     }
   }
@@ -139,7 +143,8 @@ namespace ccf::crypto
       case CurveID::SECP256R1:
       case CurveID::SECP521R1:
       {
-        throw std::logic_error(fmt::format("Invalid EdDSA curve {}", curve_id));
+        throw std::logic_error(
+          std::format("Invalid EdDSA curve {}", std::to_underlying(curve_id)));
       }
       case CurveID::CURVE25519:
       {
@@ -151,7 +156,8 @@ namespace ccf::crypto
       }
       default:
       {
-        throw std::logic_error(fmt::format("Unknown EdDSA curve {}", curve_id));
+        throw std::logic_error(
+          std::format("Unknown EdDSA curve {}", std::to_underlying(curve_id)));
       }
     }
   }

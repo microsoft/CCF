@@ -82,10 +82,6 @@ def validateOp (t : Tx) (op : NormalOp String String String) : Except Failure Un
       expect (observes t.data t.normal.writes op)
         s!"normal observation disagrees with pinned local views at read version {snap.current.version}: {repr op}"
 
-/-- Order-insensitive validation of a reported publication echo. -/
-def writesEqual (a b : Pending) : Bool :=
-  a.length == b.length && a.all (fun (k, v) => find b k == some v)
-
 /-- No reported key occurs twice. -/
 def uniqueKeys {K V : Type} [DecidableEq K] (a : Assoc K V) : Bool :=
   decide (a.map Prod.fst).Nodup
@@ -260,7 +256,7 @@ def guardEvent (w : World) (event : Event) : Except Failure Unit := do
       require (t.phase == .committing) "apply without commit_begin, or duplicate apply"
       require (uniqueKeys writes) "duplicate key in logged apply"
       expect (!t.normal.writes.isEmpty) "read-only attempt assigned a write version"
-      expect (writesEqual writes t.normal.writes)
+      expect (decide (writes.Perm t.normal.writes))
         "logged apply is not the entire staged multi-map write set"
       expect (canApply s t)
         "application violates read dependencies, branch lineage, or commit term"

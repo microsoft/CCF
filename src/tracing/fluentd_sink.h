@@ -37,6 +37,7 @@ namespace ccf::tracing
   public:
     using Endpoint = ccf::FluentdConfig;
     static constexpr uint64_t DROP_REPORT_INTERVAL = 65536;
+    static constexpr size_t MAX_PENDING_SEND_FAILURES = 3;
 
     static size_t validate(const Endpoint& endpoint, size_t producers = 1)
     {
@@ -120,6 +121,7 @@ namespace ccf::tracing
       int fd CCF_GUARDED_BY(mutex) = -1;
       std::unique_ptr<std::vector<uint8_t>> pending CCF_GUARDED_BY(mutex);
       size_t write_offset CCF_GUARDED_BY(mutex) = 0;
+      size_t pending_send_failures CCF_GUARDED_BY(mutex) = 0;
       QueueReader reader CCF_GUARDED_BY(mutex);
       bool finished CCF_GUARDED_BY(mutex) = false;
 
@@ -139,7 +141,7 @@ namespace ccf::tracing
         if (rc != 0)
         {
           throw std::invalid_argument(
-            fmt::format("Cannot resolve Fluentd host: {}", gai_strerror(rc)));
+            std::format("Cannot resolve Fluentd host: {}", gai_strerror(rc)));
         }
         std::memcpy(&address, addresses->ai_addr, addresses->ai_addrlen);
         address_size = addresses->ai_addrlen;
@@ -302,11 +304,14 @@ namespace ccf::tracing
             {
               break;
             }
+            pending_send_failures = 0;
             result.progress = true;
           }
           if (write_offset == pending->size())
           {
             pending.reset();
+            write_offset = 0;
+            pending_send_failures = 0;
             continue;
           }
           const auto sent = ::send(
@@ -322,6 +327,7 @@ namespace ccf::tracing
             {
               pending.reset();
               write_offset = 0;
+              pending_send_failures = 0;
             }
             continue;
           }
@@ -333,6 +339,15 @@ namespace ccf::tracing
           {
             result.blocked = true;
             break;
+          }
+          // Count only post-connect send failures so collector outages that
+          // fail connect() do not consume the record's retry budget.
+          ++pending_send_failures;
+          if (pending_send_failures >= MAX_PENDING_SEND_FAILURES)
+          {
+            pending.reset();
+            pending_send_failures = 0;
+            dropped.fetch_add(1, std::memory_order_relaxed);
           }
           disconnect();
           result.blocked = true;
@@ -372,6 +387,7 @@ namespace ccf::tracing
         {
           dropped.fetch_add(remaining, std::memory_order_relaxed);
           pending.reset();
+          pending_send_failures = 0;
           disconnect();
           finished = true;
         }

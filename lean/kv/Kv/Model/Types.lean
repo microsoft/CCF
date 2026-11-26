@@ -110,7 +110,7 @@ def Dependency.holds {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq
     (db : DB M K V)
     : Dependency M K V → Bool
   | .key a expected => decide (find db a = expected)
-  | .map m expected => decide (image db m = expected)
+  | .map m expected => decide ((image db m).Perm expected)
 
 /-- Every dependency holds in `db`. -/
 def validates {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]

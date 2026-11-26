@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+
+#include <format>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/did_key.h"
@@ -287,7 +289,7 @@ ccf::crypto::Pem generate_self_signed_cert(
 static Pem pem_from_der(
   const std::string& label, const std::vector<uint8_t>& der)
 {
-  return Pem(fmt::format(
+  return Pem(std::format(
     "-----BEGIN {0}-----\n{1}\n-----END {0}-----\n",
     label,
     ccf::ds::b64_from_raw(der)));
@@ -296,7 +298,7 @@ static Pem pem_from_der(
 TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
 {
   auto cert_der = ccf::ds::raw_from_b64(nested_cert);
-  auto cert_pem = fmt::format(
+  auto cert_pem = std::format(
     "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----", nested_cert);
   auto der_verifier = make_verifier(cert_der);
   auto pem_verifier = make_verifier(cert_pem);
@@ -332,7 +334,7 @@ TEST_CASE("Verifier rejects unloadable public key")
   CHECK_THROWS_WITH_AS(
     make_verifier(cert_der), expected_error, std::invalid_argument);
   CHECK_THROWS_WITH_AS(
-    make_verifier(fmt::format(
+    make_verifier(std::format(
       "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----",
       ccf::ds::b64_from_raw(cert_der))),
     expected_error,

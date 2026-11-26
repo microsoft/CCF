@@ -20,11 +20,13 @@
 #include "tasks/periodic_task_owner.h"
 
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <list>
 #include <map>
 #include <random>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef VERBOSE_CFT_LOGGING
@@ -324,18 +326,12 @@ namespace aft
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
+      bool self_retired_committed = false;
       for (const auto& node_id : node_ids)
       {
         if (id() == node_id)
         {
-          CCF_ASSERT(
-            state->membership_state == ccf::kv::MembershipState::Retired,
-            "Node is not retired, cannot become retired committed");
-          CCF_ASSERT(
-            state->retirement_phase == ccf::kv::RetirementPhase::Completed,
-            "Node is not retired, cannot become retired committed");
-          state->retired_committed_idx = seqno;
-          become_retired(seqno, ccf::kv::RetirementPhase::RetiredCommitted);
+          self_retired_committed = true;
         }
         else
         {
@@ -346,6 +342,19 @@ namespace aft
           all_other_nodes.erase(node_id);
           CFT_INFO_FMT("Removed {} from nodes known to consensus", node_id);
         }
+      }
+
+      // Forget the whole batch before nominating a successor.
+      if (self_retired_committed)
+      {
+        CCF_ASSERT(
+          state->membership_state == ccf::kv::MembershipState::Retired,
+          "Node is not retired, cannot become retired committed");
+        CCF_ASSERT(
+          state->retirement_phase == ccf::kv::RetirementPhase::Completed,
+          "Node is not retired, cannot become retired committed");
+        state->retired_committed_idx = seqno;
+        become_retired(seqno, ccf::kv::RetirementPhase::RetiredCommitted);
       }
     }
 
@@ -556,6 +565,16 @@ namespace aft
     {
       CFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
+
+      // A configuration with no nodes has no quorum, so nothing could be
+      // committed once it is active. Refuse it on any node, before appending
+      // the entry or adopting it.
+      if (conf.empty())
+      {
+        CFT_FAIL_FMT("Refusing configuration at {}: it has no nodes", idx);
+        throw std::logic_error(
+          std::format("Configuration at {} has no nodes", idx));
+      }
 
       trace::add_configuration(*state, configurations, idx, conf, idx);
 
@@ -1368,6 +1387,7 @@ namespace aft
       const ccf::NodeId& from,
       const AppendEntries& r)
     {
+      const auto initial_last_idx = state->last_idx;
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
@@ -1386,9 +1406,26 @@ namespace aft
         }
         state->last_idx = i;
 
-        for (auto& hook : ds->get_hooks())
+        try
         {
-          hook->call(this);
+          for (auto& hook : ds->get_hooks())
+          {
+            hook->call(this);
+          }
+        }
+        catch (const std::exception& e)
+        {
+          CFT_FAIL_FMT("Failed to run consensus hooks at {}: {}", i, e.what());
+          rollback(std::max(initial_last_idx, last_committable_index()));
+          send_append_entries_response_nack(from);
+          return;
+        }
+        catch (...)
+        {
+          CFT_FAIL_FMT("Failed to run consensus hooks at {}: unknown error", i);
+          rollback(std::max(initial_last_idx, last_committable_index()));
+          send_append_entries_response_nack(from);
+          return;
         }
 
         bool globally_committable =
@@ -2243,7 +2280,7 @@ namespace aft
     {
       CFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
-        phase,
+        std::to_underlying(phase),
         state->leadership_state.load(),
         state->node_id,
         state->current_view,
@@ -2515,7 +2552,7 @@ namespace aft
     {
       if (idx > state->last_idx)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Tried to commit {} but last_idx is {}", idx, state->last_idx));
       }
 

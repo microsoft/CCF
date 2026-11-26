@@ -5,14 +5,14 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "ccf/ds/join.h"
 #include "crypto/openssl/bignum.h"
 #include "crypto/openssl/csr.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
 
-#define FMT_HEADER_ONLY
 #include <climits>
-#include <fmt/format.h>
+#include <format>
 #include <openssl/asn1.h>
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
@@ -314,7 +314,7 @@ namespace ccf::crypto
     auto rc = BN_bn2binpad(d, bytes.data(), size);
     if (rc != size)
     {
-      throw std::runtime_error(fmt::format("BN_bn2binpad failed: {}", rc));
+      throw std::runtime_error(std::format("BN_bn2binpad failed: {}", rc));
     }
     jwk.d = ccf::ds::b64url_from_raw(bytes, false /* with_padding */);
 
