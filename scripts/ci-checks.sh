@@ -52,7 +52,6 @@ CHECKS=(
   "Python format:python-format-checks.sh"
   "Python lint:python-lint-checks.sh"
   "Python types:python-types-checks.sh"
-  "Python shebangs:python-shebang-checks.sh"
   "CI test buckets:test-buckets-checks.sh"
 )
 

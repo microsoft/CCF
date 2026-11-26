@@ -3,6 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 import os
+import stat
 import sys
 import subprocess
 
@@ -13,6 +14,7 @@ NOTICE_LINES_CCF = [
 
 SLASH_PREFIXED = os.linesep.join(["// " + line for line in NOTICE_LINES_CCF])
 HASH_PREFIXED = os.linesep.join(["# " + line for line in NOTICE_LINES_CCF])
+PYTHON_SHEBANG = "#!/usr/bin/env python3"
 
 # Must have a '#pragma once' line
 HEADERS_WITH_PRAGMAS = [
@@ -29,7 +31,7 @@ PREFIX_BY_FILETYPE = {
     ".py": [
         HASH_PREFIXED,
         # May have a shebang before the license
-        "#!/usr/bin/env python3" + os.linesep + HASH_PREFIXED,
+        PYTHON_SHEBANG + os.linesep + HASH_PREFIXED,
     ],
     ".sh": [
         HASH_PREFIXED,
@@ -47,6 +49,22 @@ def has_notice(path, prefixes):
             if text.startswith(prefix):
                 return True
     return False
+
+
+def check_python_shebang(path):
+    mode = stat.S_IMODE(os.stat(path).st_mode)
+    is_executable = bool(mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
+    with open(path) as f:
+        first_line = f.readline().rstrip("\r\n")
+    has_shebang = first_line.startswith("#!")
+    errors = []
+    if is_executable and first_line != PYTHON_SHEBANG:
+        errors.append(
+            f"{path}: executable Python file must start with '{PYTHON_SHEBANG}'"
+        )
+    elif has_shebang and not is_executable:
+        errors.append(f"{path}: has shebang but is not executable (run chmod +x)")
+    return errors
 
 
 def submodules():
@@ -73,6 +91,7 @@ def list_files(suffix):
 
 def check_ccf():
     missing = []
+    shebang_errors = []
     count = 0
     for file_suffix, notice_lines in PREFIX_BY_FILETYPE.items():
         for path in list_files(file_suffix):
@@ -81,13 +100,17 @@ def check_ccf():
                 count += 1
                 if not has_notice(path, notice_lines):
                     missing.append(path)
-    return missing, count
+                if file_suffix == ".py":
+                    shebang_errors.extend(check_python_shebang(path))
+    return missing, shebang_errors, count
 
 
 if __name__ == "__main__":
-    missing, count = check_ccf()
+    missing, shebang_errors, count = check_ccf()
     print(f"Checked {count} files for copyright notices.")
 
     for path in missing:
         print(f"Copyright notice missing from {path}")
-    sys.exit(len(missing))
+    for err in shebang_errors:
+        print(err)
+    sys.exit(len(missing) + len(shebang_errors))

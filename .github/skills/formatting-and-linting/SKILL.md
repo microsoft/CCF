@@ -32,7 +32,6 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `python-format-checks.sh` | Python in `tests/`, `python/`, `scripts/` | black | `-f` |
 | `python-lint-checks.sh` | Python in `python/`, `tests/` | ruff | `-f` |
 | `python-types-checks.sh` | Python SDK, tutorial, and SDK tests under `python/` | Pyright | No |
-| `python-shebang-checks.sh` | Tracked Python files outside `3rdparty/` | Shebang lines and executable bits stay in sync | No |
 | `prettier-checks.sh` | TS, JS, Markdown, YAML, JSON (excluding `.github/**/*.md` and `tests/sandbox/`) | prettier | `-f` |
 | `doc-newline-checks.sh` | Markdown and RST prose | Mid-sentence newline policy | `-f` |
 | `builtin-maps-checks.sh` | Built-in map names in `include/` or `src/`, and `doc/audit/builtin_maps.rst` | Every `public:ccf.gov.*` and `public:ccf.internal.*` map is documented | No |
@@ -40,7 +39,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `release-notes-checks.sh` | `CHANGELOG.md`, `.changes/*.md` (also run prettier) | extract-release-notes.py | `-f` (changelog links only) |
 | `shellcheck-checks.sh` | Shell scripts outside `3rdparty/` | shellcheck | No |
 | `includes-checks.sh` | C++ includes in `include/` and `src/` | Public/private include, exported-header, and component dependency checks | No |
-| `copyright-checks.sh` | Source files | Copyright notices | No |
+| `copyright-checks.sh` | Source files | Copyright notices and Python shebang/executable-bit consistency | No |
 | `openapi-checks.sh` | JSON under `doc/schemas/` | openapi-spec-validator | No |
 | `todo-checks.sh` | Tracked files | Disallowed comments | No |
 | `ascii-checks.sh` | Source/config files and agent-instruction Markdown | ASCII policy and grandfathered Unicode lines | No |
