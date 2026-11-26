@@ -6,6 +6,10 @@ Each specification lists:
 - **Core implementation files**: C++ source and header files whose logic is directly modeled by the specification.
 - **Questionable or partial inclusions**: files where coverage is partial, indirect, limited to thin wrappers or shared types, restricted to trace instrumentation, or abstracted away by the model.
 
+[`scripts/lean_coverage_report.py`](../scripts/lean_coverage_report.py) parses this document to compute C++ code LoC, Lean specification LoC, and CI line/branch coverage per specification.
+Where a core implementation file mixes modeled and unmodeled mechanisms, a companion `lean/<spec>/coverage_mask.json` file specifies anchor-validated line ranges so that LoC and coverage are measured only over the modeled sections (pass `--no-masks` to measure whole files).
+Each specification also has a companion `lean/<spec>/UNCOVERED_LINES.md` inventorying its uncovered lines and suggested tests.
+
 Test files, test drivers, and Python trace-replay runners (such as `src/consensus/aft/test/driver.cpp`, `src/kv/test/kv_trace.cpp`, `tests/infra/consistency_trace.py`, and `tests/infra/recovery_trace.py`) are excluded because they do not implement production CCF behavior.
 Two packages under `lean/` are support packages rather than protocol specifications and therefore have no implementation mapping:
 
@@ -34,6 +38,7 @@ Mapped files absent from the `llvm-cov` report (0 instrumented lines, still coun
 ## Consensus (`lean/consensus`)
 
 Specification: [`lean/consensus/README.md`](consensus/README.md).
+Uncovered lines analysis: [`lean/consensus/UNCOVERED_LINES.md`](consensus/UNCOVERED_LINES.md).
 Models the CCF CFT/AFT consensus protocol, including elections, pre-vote, log replication, signature-gated commitment, reconfiguration quorums, retirement phases, successor nomination, rollback, and backup initialization from a committed prefix.
 
 ### Core implementation files
@@ -67,6 +72,7 @@ Models the CCF CFT/AFT consensus protocol, including elections, pre-vote, log re
 ## Consistency (`lean/consistency`)
 
 Specification: [`lean/consistency/README.md`](consistency/README.md).
+Uncovered lines analysis: [`lean/consistency/UNCOVERED_LINES.md`](consistency/UNCOVERED_LINES.md).
 Models CCF's externally visible consistency contract (serializability and real-time ordering of committed writes, forwarded reads, elections, and `Committed`/`Invalid` status reporting) for an abstract append-and-read application.
 Because this is a service-level specification rather than a 1-to-1 model of a single C++ component (and has no refinement proof to `lean/consensus` or `lean/kv`), the boundary between directly mapped and supporting files is inherently broader than for the other specifications.
 
@@ -103,6 +109,7 @@ Because this is a service-level specification rather than a 1-to-1 model of a si
 ## Disaster Recovery (`lean/disaster-recovery`)
 
 Specification: [`lean/disaster-recovery/README.md`](disaster-recovery/README.md).
+Uncovered lines analysis: [`lean/disaster-recovery/UNCOVERED_LINES.md`](disaster-recovery/UNCOVERED_LINES.md).
 Models CCF's self-healing open recovery decision protocol: per-node phases (`Gossiping`, `Voting`, `Opening`, `Joining`, `Open`), independent timeout lane, deterministic gossip selection by `(view, seqno, location)`, quorum vs failover opening, retries, and restart notifications.
 
 ### Core implementation files
@@ -135,23 +142,25 @@ Models CCF's self-healing open recovery decision protocol: per-node phases (`Gos
 ## Key-Value Store (`lean/kv`)
 
 Specification: [`lean/kv/README.md`](kv/README.md) and [`doc/build_apps/kv/semantics.rst`](../doc/build_apps/kv/semantics.rst).
+Line-range mask: [`lean/kv/coverage_mask.json`](kv/coverage_mask.json).
+Uncovered lines analysis: [`lean/kv/UNCOVERED_LINES.md`](kv/UNCOVERED_LINES.md).
 Models the observable single-node semantics of CCF's transactional KV store: lazy current-snapshot metadata capture, lazy per-map local and globally committed view capture, point and map-wide reads/writes/iteration, optimistic concurrency control, atomic multi-map local application, compaction, and rollback.
 
 ### Core implementation files
 
-- [`src/kv/store.h`](../src/kv/store.h): `ccf::kv::Store` and `StoreState` store lifecycle, `current_txid_and_commit_term`, `next_version` (including stale-term rejection), `get_map` / `add_dynamic_map`, `commit` replication result handling, `compact`, and `rollback`.
-  See partial-coverage notes below for unmodeled features in this file.
-- [`src/kv/untyped_map.h`](../src/kv/untyped_map.h): `ccf::kv::untyped::Map`, `Roll`, `LocalCommit`, `HandleCommitter` (`prepare` OCC conflict checks on per-key reads, whole-map `read_version`, and `rollback_counter`; `commit` frame publication), `create_change_set` (per-map local and globally committed view capture and compacted-version checks), and map-level `compact` and `rollback`.
-  See partial-coverage notes below for unmodeled features in this file.
-- [`src/kv/untyped_change_set.h`](../src/kv/untyped_change_set.h): `ccf::kv::untyped::ChangeSet` holding pinned `state`, pinned `committed` view, `start_version`, `rollback_counter`, `read_version`, `reads`, and `writes`.
-  Serialization helpers and `SnapshotChangeSet` in this file are unmodeled.
+- [`src/kv/store.h`](../src/kv/store.h) (masked in [`lean/kv/coverage_mask.json`](kv/coverage_mask.json)): `ccf::kv::Store` and `StoreState` store lifecycle, `current_txid_and_commit_term`, `next_version` (including stale-term rejection), `get_map` / `add_dynamic_map`, `commit` replication result handling, `compact`, and `rollback`.
+  See partial-coverage notes below for unmodeled features excluded by the mask.
+- [`src/kv/untyped_map.h`](../src/kv/untyped_map.h) (masked in [`lean/kv/coverage_mask.json`](kv/coverage_mask.json)): `ccf::kv::untyped::Map`, `Roll`, `LocalCommit`, `HandleCommitter` (`prepare` OCC conflict checks on per-key reads, whole-map `read_version`, and `rollback_counter`; `commit` frame publication), `create_change_set` (per-map local and globally committed view capture and compacted-version checks), and map-level `compact` and `rollback`.
+  See partial-coverage notes below for unmodeled features excluded by the mask.
+- [`src/kv/untyped_change_set.h`](../src/kv/untyped_change_set.h) (masked in [`lean/kv/coverage_mask.json`](kv/coverage_mask.json)): `ccf::kv::untyped::ChangeSet` holding pinned `state`, pinned `committed` view, `start_version`, `rollback_counter`, `read_version`, `reads`, and `writes`.
+  Serialization helpers and `SnapshotChangeSet` are excluded by the mask.
 - [`src/kv/untyped_map_handle.cpp`](../src/kv/untyped_map_handle.cpp) and [`include/ccf/kv/untyped_map_handle.h`](../include/ccf/kv/untyped_map_handle.h): `ccf::kv::untyped::MapHandle` implementing `get`, `has`, `put`, `remove`, `clear`, `get_version_of_previous_write`, `get_globally_committed`, `has_globally_committed`, `foreach`, `size`, `range`, `read_key`, and `foreach_state_and_writes`.
-- [`src/kv/apply_changes.h`](../src/kv/apply_changes.h): `apply_changes(...)` implementing ordered map locking, atomic multi-map `prepare()`, dynamic new-map conflict checks, version resolution, and atomic `commit()`.
-  Signature `expected_rollback_count` checks and `ConsensusHook` collection in this file are unmodeled.
-- [`src/kv/tx.cpp`](../src/kv/tx.cpp), [`src/kv/tx_pimpl.h`](../src/kv/tx_pimpl.h), and [`include/ccf/kv/tx.h`](../include/ccf/kv/tx.h): `BaseTx`, `ReadOnlyTx`, and `Tx` implementing lazy initial snapshot capture (`read_txid`, `commit_view`), lazy per-map `ChangeSet` acquisition and dynamic map creation, handle reuse over a shared `ChangeSet`, and `CompactedVersionConflict` reporting.
-  `TxDiff` in `include/ccf/kv/tx.h` is unmodeled.
-- [`src/kv/committable_tx.h`](../src/kv/committable_tx.h): `CommittableTx::commit(...)` handling read-only commits, invoking `apply_changes`, returning `FAIL_CONFLICT` or stale-term `FAIL_NO_REPLICATE`, and submitting applied writes to `Store::commit`.
-  See partial-coverage notes below for unmodeled features in this file.
+- [`src/kv/apply_changes.h`](../src/kv/apply_changes.h) (masked in [`lean/kv/coverage_mask.json`](kv/coverage_mask.json)): `apply_changes(...)` implementing ordered map locking, atomic multi-map `prepare()`, dynamic new-map conflict checks, version resolution, and atomic `commit()`.
+  Signature `expected_rollback_count` checks and `ConsensusHook` collection are excluded by the mask.
+- [`src/kv/tx.cpp`](../src/kv/tx.cpp), [`src/kv/tx_pimpl.h`](../src/kv/tx_pimpl.h), and [`include/ccf/kv/tx.h`](../include/ccf/kv/tx.h) (`tx.h` masked in [`lean/kv/coverage_mask.json`](kv/coverage_mask.json)): `BaseTx`, `ReadOnlyTx`, and `Tx` implementing lazy initial snapshot capture (`read_txid`, `commit_view`), lazy per-map `ChangeSet` acquisition and dynamic map creation, handle reuse over a shared `ChangeSet`, and `CompactedVersionConflict` reporting.
+  `TxDiff` and `get_root_at_read_version` in `include/ccf/kv/tx.h` are excluded by the mask.
+- [`src/kv/committable_tx.h`](../src/kv/committable_tx.h) (masked in [`lean/kv/coverage_mask.json`](kv/coverage_mask.json)): `CommittableTx::commit(...)` handling read-only commits, invoking `apply_changes`, returning `FAIL_CONFLICT` or stale-term `FAIL_NO_REPLICATE`, and submitting applied writes to `Store::commit`.
+  See partial-coverage notes below for unmodeled features excluded by the mask.
 - [`src/kv/compacted_version_conflict.h`](../src/kv/compacted_version_conflict.h): `CompactedVersionConflict` exception corresponding to `map_unavailable`.
 - [`src/kv/version_v.h`](../src/kv/version_v.h) and [`include/ccf/kv/version.h`](../include/ccf/kv/version.h): `Version`, `NoVersion`, and `VersionV<V>` pairing stored values with their write version.
 
