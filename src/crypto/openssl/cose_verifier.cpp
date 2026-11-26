@@ -559,7 +559,15 @@ namespace ccf::crypto
 
       return rethrow_with_msg(
         [&]() {
-          return phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
+          auto ccf_claims =
+            phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
+          // size() and the positional accessors also accept an array
+          if (ccf_claims.kind() != Kind::MAP)
+          {
+            throw tav::Exception(
+              tav::ErrorCode::CBOR_TYPE_MISMATCH, "Expected a map");
+          }
+          return ccf_claims;
         },
         "Retrieve CCF claims");
     }
