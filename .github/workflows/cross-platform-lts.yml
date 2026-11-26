@@ -109,7 +109,7 @@ jobs:
             ref: ccf-${{ needs.configure.outputs.from_version }}
             pool: *azl3_pool
             image: *azl3_image
-          - name: dev
+          - name: Dev
             artifact: al4
             ccf_version: ${{ needs.configure.outputs.to_version }}
             ref: ${{ needs.configure.outputs.to_ref }}
@@ -176,7 +176,7 @@ jobs:
           if-no-files-found: error
 
   test-upgrade:
-    name: "Upgrade 7.latest to dev"
+    name: "Upgrade 7.latest to Dev"
     needs: [configure, build-install]
     timeout-minutes: ${{ inputs.long && 120 || 60 }}
     runs-on: [*azl3_pool]
