@@ -589,6 +589,7 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer = infra.jwt_issuer.JwtIssuer("https://127.0.0.1", cn="127.0.0.1")
+    trust_jwt_issuer(args, issuer)
     kid = "response_size_limit"
 
     LOG.info("Start OpenID endpoint server with oversized metadata")

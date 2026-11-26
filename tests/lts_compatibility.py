@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import copy
 import datetime
 import json
 import os
@@ -406,6 +407,7 @@ def run_code_upgrade_from(
     to_version=None,
     from_container_image=None,
     to_container_image=None,
+    update_constitution_before_upgrade=True,
 ):
     if infra.platform_detection.is_snp():
         LOG.info(
@@ -434,7 +436,7 @@ def run_code_upgrade_from(
     fv_skip_verify_chunking = infra.node.CCFVersion(from_version) < ccf621
     tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf621
 
-    with jwt_issuer.start_openid_server(), ExitStack() as cleanup:
+    with ExitStack() as cleanup:
         from_uses_node_trust = jwt_issuer.uses_node_trust_store(from_version)
         to_uses_node_trust = jwt_issuer.uses_node_trust_store(to_version)
         trust_env = {}
@@ -445,6 +447,7 @@ def run_code_upgrade_from(
             )
             trust_store.trust(jwt_issuer)
             trust_env = trust_store.env
+        cleanup.enter_context(jwt_issuer.start_openid_server())
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
             args.nodes,
@@ -476,13 +479,18 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
 
-            LOG.info("Update constitution")
-            new_constitution = get_new_constitution_for_install(args, to_install_path)
-            network.consortium.set_constitution(primary, new_constitution)
+            if update_constitution_before_upgrade:
+                LOG.info("Update constitution")
+                new_constitution = get_new_constitution_for_install(
+                    args, to_install_path
+                )
+                network.consortium.set_constitution(primary, new_constitution)
 
-            LOG.info("Legacy enrollment still works on the old primary")
-            upgrade_user = network.create_user("upgrade_user", args.participants_curve)
-            network.consortium.add_user(primary, upgrade_user.local_id)
+                LOG.info("Legacy enrollment still works on the old primary")
+                upgrade_user = network.create_user(
+                    "upgrade_user", args.participants_curve
+                )
+                network.consortium.add_user(primary, upgrade_user.local_id)
 
             new_measurement = infra.utils.get_measurement(
                 infra.platform_detection.get_platform(),
@@ -587,6 +595,43 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
 
+            if (
+                not update_constitution_before_upgrade
+                and not from_uses_node_trust
+                and to_uses_node_trust
+            ):
+                LOG.info(
+                    "Verify mixed-version /gov/service/jwk and old-primary JWT refresh"
+                )
+                with old_nodes[0].api_versioned_client(
+                    api_version=args.gov_api_version
+                ) as c:
+                    r = c.get("/gov/service/jwk")
+                    assert r.status_code == 200, r
+                    old_jwk = r.body.json()
+                    assert (
+                        old_jwk["issuers"][jwt_issuer.issuer_url]["caCertBundleName"]
+                        == jwt_issuer.TEST_CA_BUNDLE_NAME
+                    ), old_jwk
+                    assert (
+                        jwt_issuer.TEST_CA_BUNDLE_NAME in old_jwk["caCertBundles"]
+                    ), old_jwk
+
+                with new_nodes[0].api_versioned_client(
+                    api_version=args.gov_api_version
+                ) as c:
+                    r = c.get("/gov/service/jwk")
+                    assert r.status_code == 200, r
+                    new_jwk = r.body.json()
+                    assert (
+                        "caCertBundleName"
+                        not in new_jwk["issuers"][jwt_issuer.issuer_url]
+                    ), new_jwk
+                    assert new_jwk["caCertBundles"] == {}, new_jwk
+
+                jwt_issuer.refresh_keys()
+                jwt_issuer.wait_for_refresh(network, args)
+
             primary, _ = network.find_primary()
 
             old_measurement = infra.utils.get_measurement(
@@ -632,6 +677,18 @@ def run_code_upgrade_from(
             jwt_issuer.refresh_keys()
             jwt_issuer.wait_for_refresh(network, args)
 
+            if (
+                not update_constitution_before_upgrade
+                and not from_uses_node_trust
+                and to_uses_node_trust
+            ):
+                LOG.info(
+                    "Remove legacy CA bundle before updating to the new constitution"
+                )
+                network.consortium.remove_ca_cert_bundle(
+                    primary, jwt_issuer.TEST_CA_BUNDLE_NAME
+                )
+
             test_new_service(
                 network,
                 args,
@@ -643,6 +700,13 @@ def run_code_upgrade_from(
                 node_container_image=to_container_image,
                 env=trust_env if to_uses_node_trust else None,
             )
+
+            if not update_constitution_before_upgrade:
+                LOG.info(
+                    "Verify JWT auto-refresh continues after updating constitution"
+                )
+                jwt_issuer.refresh_keys()
+                jwt_issuer.wait_for_refresh(network, args)
             if not primary.major_version:
                 # test_new_service installs the new bundle only after every old
                 # node has left, so old nodes retain their version-matched app.
@@ -719,6 +783,21 @@ def run_live_compatibility_with_latest(
             from_container_image=lts_container_image,
             to_container_image=local_container_image,
         )
+        LOG.info(
+            f"From LTS {lts_version} to local {local_branch} branch (deferred constitution update)"
+        )
+        deferred_args = copy.deepcopy(args)
+        deferred_args.label = f"{args.label}_deferred_constitution"
+        run_code_upgrade_from(
+            deferred_args,
+            from_install_path=lts_install_path,
+            to_install_path=local_install_path,
+            from_version=lts_version,
+            to_version=local_version,
+            from_container_image=lts_container_image,
+            to_container_image=local_container_image,
+            update_constitution_before_upgrade=False,
+        )
     return lts_version
 
 
@@ -753,10 +832,12 @@ def run_ledger_compatibility_since_first(
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
-    with jwt_issuer.start_openid_server(), infra.jwt_issuer.NodeTrustStore() as trust_store:
+    with ExitStack() as cleanup:
+        trust_store = cleanup.enter_context(infra.jwt_issuer.NodeTrustStore())
         # CCF 8 and local builds verify the OpenID server's certificate against
         # their trust store rather than a governance-managed CA bundle.
         trust_store.trust(jwt_issuer)
+        cleanup.enter_context(jwt_issuer.start_openid_server())
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         # None is the final local-checkout step.
         for idx, lts_release in enumerate([*lts_releases.values(), None]):

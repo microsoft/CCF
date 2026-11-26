@@ -56,6 +56,7 @@ If an issuer's private CA is trusted only through governance, refresh will fail 
    During the mixed-version rollout, continue to include the legacy bundle name when creating or updating auto-refreshing issuers.
    During this window, :http:GET:`/gov/service/jwk` returns ``caCertBundleName`` and ``caCertBundles`` from 7.x nodes, while 8.x nodes omit ``caCertBundleName`` and return an empty ``caCertBundles`` object even while legacy entries remain in the KV.
 3. After retiring the 7.x nodes and confirming that an 8.x primary can refresh the issuers' keys, update the constitution and stop sending ``ca_cert_bundle_name`` in issuer proposals.
+   If you also want to clear legacy entries from ``public:ccf.gov.tls.ca_cert_bundles``, run ``remove_ca_cert_bundle`` after retiring the 7.x nodes and before updating the constitution.
 
 The same trust-store preparation applies to disaster recovery from a 7.x ledger or snapshot onto 8.x nodes: 8.x nodes ignore the recovered governance CA bundles even while the recovered 7.x constitution is still installed, so every recovering node must trust the required CAs at startup.
 

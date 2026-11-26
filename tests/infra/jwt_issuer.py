@@ -6,7 +6,6 @@ import os
 import shutil
 import ssl
 import tempfile
-import threading
 import time
 import uuid
 from contextlib import AbstractContextManager
@@ -172,14 +171,19 @@ def system_ca_bundle():
 
 class NodeTrustStore(AbstractContextManager):
     """
-    PEM bundle passed to nodes via SSL_CERT_FILE, so that their outbound TLS
-    connections trust the self-signed certificates of test OpenID servers.
-    By default it starts from the system roots, since SSL_CERT_FILE replaces
-    the system CA bundle. Issuers are appended as they are created.
+    Immutable PEM bundle passed to nodes via SSL_CERT_FILE at startup.
+    Generates a test root CA whose certificate is written once before nodes
+    start; calling trust(issuer) signs the issuer's TLS certificate with this
+    CA so nodes trust it without modifying the bundle at runtime.
     """
 
+    TEST_CA_CN = "ccf_test_node_trust_store_ca"
+
     def __init__(self, *, include_system_roots=True):
-        self._lock = threading.Lock()
+        self._ca_priv_pem, _ = infra.crypto.generate_ec_keypair(ec.SECP256R1)
+        self._ca_cert_pem = infra.crypto.generate_cert(
+            self._ca_priv_pem, cn=self.TEST_CA_CN, ca=True
+        )
         self._file = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed in __exit__
             prefix="ccf_trust_store_", mode="w+"
         )
@@ -187,7 +191,9 @@ class NodeTrustStore(AbstractContextManager):
             with open(system_ca_bundle(), encoding="utf-8") as system_roots:
                 shutil.copyfileobj(system_roots, self._file)
             self._file.write("\n")
-            self._file.flush()
+        self._file.write(self._ca_cert_pem)
+        self._file.write("\n")
+        self._file.flush()
 
     def __exit__(self, *exc_info):
         self._file.close()
@@ -201,10 +207,14 @@ class NodeTrustStore(AbstractContextManager):
         return {"SSL_CERT_FILE": self.path}
 
     def trust(self, issuer):
-        with self._lock:
-            self._file.write(issuer.tls_cert)
-            self._file.write("\n")
-            self._file.flush()
+        if issuer.tls_ca_cert == self._ca_cert_pem:
+            return
+        assert (
+            issuer.server is None
+        ), "trust() must be called before starting the issuer's OpenID server"
+        issuer.sign_tls_cert_with_ca(
+            self._ca_priv_pem, self.TEST_CA_CN, self._ca_cert_pem
+        )
 
 
 class JwtIssuer:
@@ -257,10 +267,22 @@ class JwtIssuer:
         (self.tls_priv, _), self.tls_cert = self._generate_auth_data(
             cn or stripped_host or name
         )
+        self.tls_ca_cert = self.tls_cert
         if not cert:
             self.refresh_keys()
         else:
             self.cert_pem = cert
+
+    def sign_tls_cert_with_ca(self, ca_priv_pem, ca_cn, ca_cert_pem):
+        self.tls_cert = infra.crypto.generate_cert(
+            self.tls_priv,
+            cn=self.host,
+            issuer_priv_key_pem=ca_priv_pem,
+            issuer_cn=ca_cn,
+            ca=False,
+            san=self.host,
+        )
+        self.tls_ca_cert = ca_cert_pem
 
     @property
     def public_key(self):
@@ -338,7 +360,7 @@ class JwtIssuer:
             with tempfile.NamedTemporaryFile(
                 prefix="ccf", mode="w+"
             ) as ca_cert_bundle_fp:
-                ca_cert_bundle_fp.write(self.tls_cert)
+                ca_cert_bundle_fp.write(self.tls_ca_cert)
                 ca_cert_bundle_fp.flush()
                 network.consortium.set_ca_cert_bundle(
                     primary, self.TEST_CA_BUNDLE_NAME, ca_cert_bundle_fp.name

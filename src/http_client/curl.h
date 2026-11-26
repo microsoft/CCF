@@ -194,8 +194,6 @@ namespace ccf::http_client
       {
         set_opt(CURLOPT_CAPATH, cert_dir);
       }
-
-      set_opt(CURLOPT_CA_CACHE_TIMEOUT, 0L);
     }
   };
 

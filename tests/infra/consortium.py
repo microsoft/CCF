@@ -722,6 +722,18 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def remove_ca_cert_bundle(self, remote_node, cert_name):
+        """
+        Used by lts_compatibility tests to remove legacy CA bundles on services
+        still running a constitution that defines remove_ca_cert_bundle.
+        """
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_ca_cert_bundle",
+            name=cert_name,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def transition_service_to_open(self, remote_node, previous_service_identity=None):
         """
         Assuming a network in state OPENING, this functions creates a new
