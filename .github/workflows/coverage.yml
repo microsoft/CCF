@@ -164,7 +164,7 @@ jobs:
           set -ex
           cd build
           if [[ -f coverage_report.txt ]]; then
-            python3 ../scripts/coverage_summary.py coverage_report.txt coverage_history \
+            ../scripts/coverage_summary.py coverage_report.txt coverage_history \
               >> "$GITHUB_STEP_SUMMARY" || true
             {
               echo '## Code Coverage'
@@ -213,6 +213,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -230,7 +231,7 @@ jobs:
       - name: "Confirm running on SEV-SNP Genoa"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp genoa
+          tests/infra/platform_detection.py snp genoa
         shell: bash
 
       - name: "Discover THIM endpoint"
@@ -302,6 +303,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()

@@ -1,6 +1,7 @@
 module
 
 public import Consensus.Model.Node
+public import CCF.Proofs.Finset
 public import Mathlib.Order.Prod.Lex.Basic
 public import Mathlib.Tactic.CongrExclamation
 
@@ -41,5 +42,6 @@ theorem findSuccessor_eq_lex (state : NodeState) (self : NodeID)
     : findSuccessor state self = findSuccessorLex state self := by
   simp only [findSuccessor, findSuccessorLex, rankBelow_eq, decide_eq_true_eq]
   congr!
+  exact CCF.Finset.ext fun _ => by simp
 
 end MathlibEquivalence.Rank

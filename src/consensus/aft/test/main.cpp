@@ -1,7 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "kv/store.h"
+#include "kv/test/stub_consensus.h"
 #include "node/commit_callback_subsystem.h"
+#include "service/tables/signatures.h"
 #include "test_common.h"
 
 #include <barrier>
@@ -55,6 +58,50 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(store.retired_committed_entries.empty());
   store.compact(12);
   DOCTEST_CHECK(calls.size() == 3);
+}
+
+DOCTEST_TEST_CASE(
+  "Retirement nomination excludes every peer confirmed in the batch" *
+  doctest::test_suite("retirement"))
+{
+  for (const auto self_id : {"1", "3"})
+  {
+    const ccf::NodeId self{self_id};
+    DOCTEST_INFO("Primary ID: ", self);
+    const ccf::NodeId survivor{"0"};
+    const ccf::NodeId retiring_peer{"2"};
+    auto kv_store = std::make_shared<Store>(self);
+    auto state = std::make_shared<aft::State>(self);
+    TCft cft(
+      cft_settings,
+      std::make_unique<Adaptor>(kv_store),
+      std::make_unique<aft::LedgerStubProxy>(self),
+      std::make_shared<aft::ChannelStubProxy>(),
+      state,
+      nullptr);
+    aft::Configuration::Nodes config;
+    config[self] = {};
+    config[survivor] = {};
+    config[retiring_peer] = {};
+    cft.add_configuration(0, config);
+    cft.force_become_primary();
+    state->membership_state = ccf::kv::MembershipState::Retired;
+    state->retirement_phase = ccf::kv::RetirementPhase::Completed;
+    auto channels = channel_stub_proxy(cft);
+    channels->messages.clear();
+
+    std::vector<ccf::kv::NodeId> confirmed = {self, retiring_peer};
+    std::sort(confirmed.begin(), confirmed.end());
+    cft.set_retired_committed(5, confirmed);
+
+    DOCTEST_REQUIRE(channels->messages.size() == 1);
+    DOCTEST_CHECK(channels->messages.front().first == survivor);
+    DOCTEST_CHECK(
+      channels->count_messages_with_type(aft::propose_request_vote) == 1);
+    DOCTEST_CHECK(state->retired_committed_idx == 5);
+    DOCTEST_CHECK(cft.is_retired_committed());
+    DOCTEST_CHECK_FALSE(cft.is_primary());
+  }
 }
 
 DOCTEST_TEST_CASE("cft owns its periodic timer" * doctest::test_suite("single"))
@@ -1871,6 +1918,71 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
+  "Nodes added by a rolled back configuration are forgotten" *
+  doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
+  ccf::NodeId node_id3 = ccf::kv::test::ThirdBackupNodeId;
+
+  TestNode node0(node_id0);
+  auto& r0 = node0.cft;
+  auto r0c = channel_stub_proxy(r0);
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  config[node_id2] = {};
+  r0.add_configuration(0, config);
+  r0.force_become_primary();
+
+  DOCTEST_INFO(
+    "Node 2 retires: its retirement is committed, and not confirmed");
+  config.erase(node_id2);
+  auto retire_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  retire_hooks->push_back(
+    std::make_unique<aft::ConfigurationChangeHook>(config, 1));
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{1, data, true, retire_hooks}}, r0.get_view()));
+  const auto ack = as_bytes(aft::AppendEntriesResponse{
+    .term = r0.get_view(),
+    .last_log_idx = 1,
+    .success = aft::AppendEntriesResponseType::OK});
+  r0.recv_message(node_id1, ack);
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
+
+  DOCTEST_INFO("A configuration which is not committed adds node 3");
+  config[node_id3] = {};
+  auto trust_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  trust_hooks->push_back(
+    std::make_unique<aft::ConfigurationChangeHook>(config, 2));
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{2, data, true, trust_hooks}}, r0.get_view()));
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 2);
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id3));
+
+  DOCTEST_INFO("Once it is rolled back, no configuration names node 3");
+  r0.rollback(1);
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
+  DOCTEST_REQUIRE_FALSE(r0.get_details().acks.contains(node_id3));
+
+  DOCTEST_INFO(
+    "Node 1 is in the configuration which remains, and the retirement of "
+    "node 2 is still to confirm");
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id1));
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+  r0c->messages.clear();
+  r0.periodic(request_timeout);
+  DOCTEST_REQUIRE_FALSE(
+    r0c->pop_first(aft::append_entries, node_id3).has_value());
+  DOCTEST_REQUIRE(r0c->pop_first(aft::append_entries, node_id1).has_value());
+  DOCTEST_REQUIRE(r0c->pop_first(aft::append_entries, node_id2).has_value());
+}
+
+DOCTEST_TEST_CASE(
   "cft messages that cannot be parsed are ignored" *
   doctest::test_suite("multiple"))
 {
@@ -3168,6 +3280,347 @@ DOCTEST_TEST_CASE(
     r0.replicate(ccf::kv::BatchVector{{3, entry, true, hooks}}, 1));
   DOCTEST_REQUIRE(r0.get_last_idx() == 1);
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
+}
+
+DOCTEST_TEST_CASE(
+  "Nodes refuse a configuration with no nodes" * doctest::test_suite("single"))
+{
+  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
+  TestNode node(node_id);
+  auto& r0 = node.cft;
+
+  aft::Configuration::Nodes config;
+  config[node_id] = {};
+  r0.add_configuration(0, config);
+
+  r0.start_ticking();
+  r0.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(r0.is_primary());
+
+  auto entry =
+    std::make_shared<std::vector<uint8_t>>(std::vector<uint8_t>{1, 2, 3});
+  DOCTEST_REQUIRE(
+    r0.replicate(ccf::kv::BatchVector{{1, entry, true, hooks}}, 1));
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
+
+  DOCTEST_INFO("The transaction which removes the only node is refused");
+  auto removal_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  removal_hooks->push_back(std::make_unique<aft::ConfigurationChangeHook>(
+    aft::Configuration::Nodes{}, 2));
+  DOCTEST_REQUIRE_THROWS_WITH_AS(
+    r0.replicate(ccf::kv::BatchVector{{2, entry, false, removal_hooks}}, 1),
+    "Configuration at 2 has no nodes",
+    std::logic_error);
+
+  DOCTEST_INFO("Nothing is appended, and the configuration is as it was");
+  DOCTEST_REQUIRE(r0.get_last_idx() == 1);
+  DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
+  const auto details = r0.get_details();
+  DOCTEST_REQUIRE(details.configs.size() == 1);
+  DOCTEST_REQUIRE(details.configs.back().nodes == config);
+  DOCTEST_REQUIRE(details.membership_state == ccf::kv::MembershipState::Active);
+  DOCTEST_REQUIRE(r0.is_primary());
+
+  DOCTEST_INFO("A backup also refuses add_configuration with no nodes");
+  TestNode backup(ccf::kv::test::FirstBackupNodeId);
+  backup.cft.add_configuration(0, config);
+  DOCTEST_REQUIRE_THROWS_WITH_AS(
+    backup.cft.add_configuration(2, {}),
+    "Configuration at 2 has no nodes",
+    std::logic_error);
+  DOCTEST_REQUIRE(backup.cft.get_details().configs.size() == 1);
+  DOCTEST_REQUIRE(backup.cft.get_details().configs.back().nodes == config);
+
+  DOCTEST_INFO(
+    "A follower receiving an AppendEntries with an empty configuration "
+    "rolls back its KV, ledger, and configurations and NACKs");
+
+  using ValueMap = ccf::kv::Map<size_t, size_t>;
+  using ConfigMap = ccf::kv::Map<size_t, aft::Configuration::Nodes>;
+
+  class TermPreservingEncryptor : public ccf::kv::AbstractTxEncryptor
+  {
+  public:
+    bool encrypt(
+      const std::vector<uint8_t>& plain,
+      const std::vector<uint8_t>&,
+      std::vector<uint8_t>& serialised_header,
+      std::vector<uint8_t>& cipher,
+      const ccf::TxID& tx_id,
+      ccf::kv::EntryType = ccf::kv::EntryType::WriteSet,
+      bool = false) override
+    {
+      serialised_header.resize(sizeof(ccf::kv::Term));
+      uint8_t* p = serialised_header.data();
+      size_t s = serialised_header.size();
+      serialized::write(p, s, tx_id.view);
+      cipher = plain;
+      return true;
+    }
+
+    bool decrypt(
+      const std::vector<uint8_t>& cipher,
+      const std::vector<uint8_t>&,
+      const std::vector<uint8_t>& serialised_header,
+      std::vector<uint8_t>& plain,
+      ccf::kv::Version,
+      ccf::kv::Term& term,
+      bool = false) override
+    {
+      plain = cipher;
+      term = get_term(serialised_header.data(), serialised_header.size());
+      return true;
+    }
+
+    ccf::crypto::HashBytes get_commit_nonce(
+      const ccf::TxID&, bool = false) override
+    {
+      return {};
+    }
+
+    size_t get_header_length() override
+    {
+      return sizeof(ccf::kv::Term);
+    }
+
+    uint64_t get_term(const uint8_t* data, size_t size) override
+    {
+      return serialized::read<ccf::kv::Term>(data, size);
+    }
+
+    void rollback(ccf::kv::Version) override {}
+  };
+
+  struct FollowerFixture
+  {
+    const ccf::NodeId primary_id = ccf::kv::test::PrimaryNodeId;
+    const ccf::NodeId follower_id = ccf::kv::test::FirstBackupNodeId;
+    const ccf::NodeId third_id = ccf::kv::test::SecondBackupNodeId;
+
+    ValueMap values{"public:table"};
+    ConfigMap configs{"public:test_config"};
+    ccf::Signatures signatures{ccf::Tables::SIGNATURES};
+    ccf::SerialisedMerkleTree serialised_tree{
+      ccf::Tables::SERIALISED_MERKLE_TREE};
+
+    ccf::kv::Store sender_store;
+    std::shared_ptr<ccf::kv::test::PrimaryStubConsensus> sender_consensus =
+      std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+    std::shared_ptr<ccf::kv::Store> follower_store =
+      std::make_shared<ccf::kv::Store>();
+    std::shared_ptr<aft::ChannelStubProxy> follower_channels =
+      std::make_shared<aft::ChannelStubProxy>();
+    aft::Aft<aft::LedgerStubProxy> follower;
+    std::vector<std::vector<uint8_t>> raw_entries;
+
+    aft::Configuration::Nodes two_node_config;
+    aft::Configuration::Nodes three_node_config;
+
+    FollowerFixture() :
+      follower(
+        cft_settings,
+        std::make_unique<aft::Adaptor<ccf::kv::Store>>(follower_store),
+        std::make_unique<aft::LedgerStubProxy>(follower_id),
+        follower_channels,
+        std::make_shared<aft::State>(follower_id),
+        nullptr)
+    {
+      auto encryptor = std::make_shared<TermPreservingEncryptor>();
+      sender_store.set_encryptor(encryptor);
+      sender_store.set_consensus(sender_consensus);
+      sender_store.initialise_term(1);
+
+      follower_store->set_encryptor(encryptor);
+      follower_store->set_map_hook(
+        configs.get_name(),
+        configs.wrap_map_hook(
+          [](ccf::kv::Version v, const ConfigMap::Write& w)
+            -> ccf::kv::ConsensusHookPtr {
+            if (const auto it = w.find(0);
+                it != w.end() && it->second.has_value())
+            {
+              return std::make_unique<aft::ConfigurationChangeHook>(
+                *it->second, v);
+            }
+            return nullptr;
+          }));
+
+      two_node_config[primary_id] = {};
+      two_node_config[follower_id] = {};
+      three_node_config = two_node_config;
+      three_node_config[third_id] = {};
+
+      follower.add_configuration(0, two_node_config);
+    }
+
+    ccf::kv::Version append_signature()
+    {
+      const auto txid = sender_store.next_txid();
+      auto tx = sender_store.create_reserved_tx(txid);
+      tx.wo(signatures)->put(ccf::PrimarySignature(primary_id, txid.seqno));
+      tx.wo(serialised_tree)->put({});
+      auto [rc, data, claims_digest, commit_evidence_digest, tx_hooks] =
+        tx.commit_reserved();
+      DOCTEST_REQUIRE(rc == ccf::kv::CommitResult::SUCCESS);
+      DOCTEST_REQUIRE(
+        sender_store.commit(
+          txid,
+          std::make_unique<ccf::kv::MovePendingTx>(
+            std::move(data),
+            std::move(claims_digest),
+            std::move(commit_evidence_digest),
+            std::move(tx_hooks)),
+          true) == ccf::kv::CommitResult::SUCCESS);
+      const auto replicated = sender_consensus->get_latest_data();
+      DOCTEST_REQUIRE(replicated.has_value());
+      raw_entries.push_back(*replicated);
+      return txid.seqno;
+    }
+
+    ccf::kv::Version append_entry(
+      size_t key,
+      size_t value,
+      const std::optional<aft::Configuration::Nodes>& new_config = std::nullopt)
+    {
+      auto tx = sender_store.create_tx();
+      tx.rw(values)->put(key, value);
+      if (new_config.has_value())
+      {
+        tx.rw(configs)->put(0, *new_config);
+      }
+      DOCTEST_REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      const auto replicated = sender_consensus->get_latest_data();
+      DOCTEST_REQUIRE(replicated.has_value());
+      raw_entries.push_back(*replicated);
+      return tx.commit_version();
+    }
+
+    void deliver(
+      aft::Index prev_idx,
+      aft::Index idx,
+      aft::Term prev_term,
+      aft::Index leader_commit_idx)
+    {
+      std::vector<uint8_t> payload;
+      for (aft::Index i = prev_idx + 1; i <= idx; ++i)
+      {
+        const auto& entry = raw_entries.at(i - 1);
+        const size_t entry_size = entry.size();
+        const size_t offset = payload.size();
+        payload.resize(offset + sizeof(size_t) + entry_size);
+        uint8_t* ptr = payload.data() + offset;
+        size_t remaining = sizeof(size_t);
+        serialized::write(ptr, remaining, entry_size);
+        std::copy(
+          entry.begin(),
+          entry.end(),
+          payload.begin() + offset + sizeof(size_t));
+      }
+
+      aft::AppendEntries ae{};
+      ae.idx = idx;
+      ae.prev_idx = prev_idx;
+      ae.term = 1;
+      ae.prev_term = prev_term;
+      ae.leader_commit_idx = leader_commit_idx;
+      ae.term_of_idx = 1;
+      follower.recv_message(
+        primary_id,
+        {reinterpret_cast<const uint8_t*>(&ae), sizeof(ae)},
+        payload);
+    }
+
+    std::optional<size_t> read_value(size_t key)
+    {
+      auto tx = follower_store->create_read_only_tx();
+      return tx.ro(values)->get(key);
+    }
+
+    aft::AppendEntriesResponse pop_response()
+    {
+      auto resp_msg =
+        follower_channels->pop_first(aft::append_entries_response, primary_id);
+      DOCTEST_REQUIRE(resp_msg.has_value());
+      return read_msg<aft::AppendEntriesResponse>(*resp_msg);
+    }
+  };
+
+  DOCTEST_SUBCASE("Preserves existing unsigned suffix on rollback")
+  {
+    FollowerFixture fx;
+    DOCTEST_REQUIRE(fx.append_signature() == 1);
+    DOCTEST_REQUIRE(fx.append_entry(2, 200, fx.three_node_config) == 2);
+    DOCTEST_REQUIRE(fx.append_entry(3, 300, fx.two_node_config) == 3);
+    DOCTEST_REQUIRE(fx.append_entry(4, 400, aft::Configuration::Nodes{}) == 4);
+
+    fx.deliver(0, 1, 0, 1);
+    fx.deliver(1, 2, 1, 1);
+    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 2);
+    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 1);
+    DOCTEST_REQUIRE(fx.follower_store->current_version() == 2);
+    DOCTEST_REQUIRE(fx.read_value(2) == 200);
+    DOCTEST_REQUIRE(fx.follower.ledger->ledger.size() == 2);
+    fx.follower_channels->messages.clear();
+
+    fx.deliver(2, 4, 1, 1);
+
+    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 2);
+    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 1);
+    DOCTEST_REQUIRE(fx.follower_store->current_version() == 2);
+    DOCTEST_REQUIRE(fx.read_value(2) == 200);
+    DOCTEST_REQUIRE_FALSE(fx.read_value(3).has_value());
+    DOCTEST_REQUIRE_FALSE(fx.read_value(4).has_value());
+    DOCTEST_REQUIRE(fx.follower.ledger->ledger.size() == 2);
+    const auto follower_details = fx.follower.get_details();
+    DOCTEST_REQUIRE(follower_details.configs.size() == 2);
+    DOCTEST_REQUIRE(follower_details.configs[0].idx == 0);
+    DOCTEST_REQUIRE(follower_details.configs[0].nodes == fx.two_node_config);
+    DOCTEST_REQUIRE(follower_details.configs[1].idx == 2);
+    DOCTEST_REQUIRE(follower_details.configs[1].nodes == fx.three_node_config);
+    DOCTEST_REQUIRE(
+      follower_details.membership_state == ccf::kv::MembershipState::Active);
+
+    const auto resp = fx.pop_response();
+    DOCTEST_REQUIRE(resp.success == aft::AppendEntriesResponseType::FAIL);
+    DOCTEST_REQUIRE(resp.last_log_idx == 2);
+  }
+
+  DOCTEST_SUBCASE(
+    "Preserves signature accepted earlier in the same AppendEntries batch")
+  {
+    FollowerFixture fx;
+    DOCTEST_REQUIRE(fx.append_signature() == 1);
+    DOCTEST_REQUIRE(fx.append_entry(2, 200, fx.three_node_config) == 2);
+    DOCTEST_REQUIRE(fx.append_signature() == 3);
+    DOCTEST_REQUIRE(fx.append_entry(4, 400, fx.two_node_config) == 4);
+    DOCTEST_REQUIRE(fx.append_entry(5, 500, aft::Configuration::Nodes{}) == 5);
+
+    fx.deliver(0, 1, 0, 1);
+    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 1);
+    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 1);
+    DOCTEST_REQUIRE(fx.follower_store->current_version() == 1);
+    fx.follower_channels->messages.clear();
+
+    fx.deliver(1, 5, 1, 3);
+
+    DOCTEST_REQUIRE(fx.follower.get_last_idx() == 3);
+    DOCTEST_REQUIRE(fx.follower.get_committed_seqno() == 3);
+    DOCTEST_REQUIRE(fx.follower_store->current_version() == 3);
+    DOCTEST_REQUIRE(fx.read_value(2) == 200);
+    DOCTEST_REQUIRE_FALSE(fx.read_value(4).has_value());
+    DOCTEST_REQUIRE_FALSE(fx.read_value(5).has_value());
+    DOCTEST_REQUIRE(fx.follower.ledger->ledger.size() == 3);
+    const auto follower_details = fx.follower.get_details();
+    DOCTEST_REQUIRE(follower_details.configs.size() == 1);
+    DOCTEST_REQUIRE(follower_details.configs[0].idx == 2);
+    DOCTEST_REQUIRE(follower_details.configs[0].nodes == fx.three_node_config);
+    DOCTEST_REQUIRE(
+      follower_details.membership_state == ccf::kv::MembershipState::Active);
+
+    const auto resp = fx.pop_response();
+    DOCTEST_REQUIRE(resp.success == aft::AppendEntriesResponseType::FAIL);
+    DOCTEST_REQUIRE(resp.last_log_idx == 3);
+  }
 }
 
 int main(int argc, char** argv)

@@ -6,6 +6,7 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
+      - "scripts/pack-trace.py"
       - "tests/cft_trace*.py"
       - "tests/cft_scenarios*.py"
       - "tests/cft_scenarios/**"
@@ -81,7 +82,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cft-scenario-traces
-          path: ${{ runner.temp }}/cft-build/consensus/raw/*.ndjson
+          path: ${{ runner.temp }}/cft-build/consensus/raw/*.msgpack
           if-no-files-found: error
           retention-days: 1
           overwrite: true
@@ -133,10 +134,10 @@ jobs:
       - name: Generate KV captures
         run: |
           set -euo pipefail
-          python3 tests/kv_trace_validation_test.py
+          tests/kv_trace_validation_test.py
           # RUNNER_TEMP can persist between jobs on reused self-hosted runners; drop files from earlier runs.
           rm -rf "$RUNNER_TEMP/ccf-kv-build/kv-traces"
-          python3 tests/kv_trace_validation.py \
+          tests/kv_trace_validation.py \
             --binary "$RUNNER_TEMP/ccf-kv-build/kv_test" --capture-only \
             --output "$RUNNER_TEMP/ccf-kv-build/kv-traces" --seeds 8 --timeout 900
 
@@ -284,7 +285,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s failglob
-          for trace in "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson; do
+          for trace in "$RUNNER_TEMP"/cft-scenario-traces/*.msgpack; do
             echo "::group::Validate $trace"
             lean/consensus/.lake/build/bin/consensus-replay "$trace"
             echo "::endgroup::"

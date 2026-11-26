@@ -72,13 +72,18 @@ Upgrades from 7.x, which is only built for Azure Linux 3, are covered by [Cross-
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 
+End to end tests record each network's trace events, of every tag, and upload the capture with their logs.
+The `Replay e2e consensus traces` job runs after the Virtual jobs complete (unless the workflow is cancelled), builds the Lean replayer, and replays the `ccf.cft` events of every capture from their logs against the Lean model with `tests/cft_trace_validation.py`.
+A capture may be incomplete, for example if a test killed a node, so the job replays with `--lenient`.
+It fails if the model disagrees with a capture, if replay consumes less than 90% of the events of one of a capture's nodes, or if there is no capture.
+
 File: `ci.yml`
 3rd party dependencies: elan
 
 ## Test failure annotations
 
 On GitHub Actions, `tests/tests.sh` automatically enables `tests/infra/test_reporting.py` to publish test failures as error annotations and a job-summary table.
-The Python SDK job invokes the reporter with `python ../tests/infra/test_reporting.py pytest`.
+The Python SDK job invokes the reporter with `../tests/infra/test_reporting.py pytest`.
 Each invocation publishes up to ten annotations and 100 summary rows.
 Full test output is available in the job logs, with node logs in the log artifacts.
 

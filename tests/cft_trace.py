@@ -30,10 +30,11 @@ def unique_map(pairs):
     return result
 
 
-def run_driver(driver, scenario, timeout=60, *, text=True):
+def run_driver(driver, scenario, timeout=60, *, text=True, raw_frames=None):
     """Run the named scenario and collect its structured records.
 
     Console output is decoded for text consumers unless text is False.
+    When raw_frames is a bytearray, the received MessagePack bytes are appended to it.
     """
     records = []
     stdout = stderr = b""
@@ -62,6 +63,8 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
                             received = complete = 0
                             while data := peer.recv(65536):
                                 received += len(data)
+                                if raw_frames is not None:
+                                    raw_frames.extend(data)
                                 unpacker.feed(data)
                                 for tag, timestamp, record in unpacker:
                                     assert tag == "ccf.cft"

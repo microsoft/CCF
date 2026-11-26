@@ -54,9 +54,7 @@ inductive Event where
 
 /-! ## Primary state -/
 
-/--
-Approximates `all_other_nodes`; unlike CCF, peers lost on rollback are not retained.
--/
+/-- Peers tracked by a primary, corresponding to CCF's `all_other_nodes`. -/
 def eligiblePeers (state : NodeState) (self : NodeID) : Finset NodeID :=
   (state.activeMembers ∪ state.retirementCompletedNodes).erase self
 
@@ -65,11 +63,12 @@ def rankBelow (a b : Nat × Nat × Nat) : Bool :=
   decide (a.1 < b.1 \/ (a.1 = b.1 /\ Prod.lexLt a.2 b.2))
 
 /-- Maximize replication progress, latest active membership, then node ID. -/
-def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
+def findSuccessor (state : NodeState) (self : NodeID) (excluded : Finset NodeID := ∅)
+    : Option NodeID :=
   let configurations := state.activeConfigurations
   let rank node :=
     (state.matchIndex node, latestMembershipIndex configurations node, node)
-  let peers := (eligiblePeers state self).sort
+  let peers := (eligiblePeers state self \ excluded).sort
   peers.foldl
     (fun best candidate =>
       match best with
@@ -82,9 +81,10 @@ def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
     none
 
 def nominateSuccessor (caps : Caps) (state : NodeState) (self : NodeID)
+    (excluded : Finset NodeID := ∅)
     : NodeEffect NodeState := do
   guard (state.role = .primary)
-  if let some successor := findSuccessor state self then
+  if let some successor := findSuccessor state self excluded then
     caps.send (.proposeRequestVoteRequest state.currentTerm) successor
   return state
 
@@ -140,8 +140,8 @@ def NodeState.recordCommit (node : NodeID) (state : NodeState) (commitIndex : Na
     state
 
 /--
-Retirement nominates using the precommit peer and configuration view, before
-discarding old configurations and clearing the outgoing primary's role.
+Retirement nominates using the precommit configuration view, excluding every peer
+confirmed through the transaction confirming self, before clearing the primary's role.
 -/
 def advanceCommit (caps : Caps) (state : NodeState) (self : NodeID)
     : NodeEffect NodeState := do
@@ -153,7 +153,11 @@ def advanceCommit (caps : Caps) (state : NodeState) (self : NodeID)
     let state := state.recordCommit self commitIndex
     if state.isRetiredCommitted self then
       if preCommitState.role = .primary then
-        let _ ← nominateSuccessor caps preCommitState self
+        -- Keep precommit ranking and leadership, but exclude peers retired by this transaction.
+        let excluded :=
+          retiredCommittedNodes
+            (state.log.take (state.retiredCommittedIndex.getD commitIndex))
+        let _ ← nominateSuccessor caps preCommitState self excluded
       return state
     else
       return state

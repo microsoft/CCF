@@ -34,6 +34,7 @@ Supported extensions include:
 - "CheckQuorum": the primary node automatically steps down, in the same view, if it does not hear back (via ``AppendEntriesResponse`` messages) from a majority of backups within a ``consensus.election_timeout`` period. This prevents an isolated primary node from still processing client write requests without being able to commit them.
 - "NoTimeoutRetirement": a primary node that completes its retirement sends a ``ProposeRequestVote`` message to the most up-to-date node in the new configuration, causing that node to run for election without waiting for time out.
   The successor is the node with the highest match index; ties are broken by the most recent active configuration containing each node, then by the highest node ID in string order.
+  Nodes whose retirement is confirmed by the same transaction are excluded from successor selection.
   - A ``ProposeRequestVote`` message is also sent when a primary receives a termination signal. This reduces downtime when the orchestrator must suddenly retire the primary's host, but there is insufficient time to reconfigure the network first.
 - "PreVote": followers must first request a pre-vote before starting a new election. This prevents followers from starting elections (and increasing the view) when they are isolated from the rest of the network.
 
@@ -84,6 +85,7 @@ For a live service, reconfiguration is materialised in two separate transactions
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines.
 Transactions before an uncommitted reconfiguration transaction do not need acknowledgements from the new configuration it defines: they commit once their signature has a quorum in each active configuration defined at or before that signature.
+A node which rolls back an uncommitted reconfiguration transaction stops tracking the nodes which only that transaction added: they are no longer sent ``AppendEntries`` and no longer appear in :http:GET:`/node/consensus`.
 
 Disaster recovery is an exception to this retirement sequence.
 Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance.

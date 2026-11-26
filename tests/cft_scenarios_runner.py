@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import argparse
-import json
 import os
 import pathlib
 import sys
@@ -84,22 +83,18 @@ if __name__ == "__main__":
 
     for source in files:
         name = source.stem
-        raw_trace = raw_output / f"{name}.ndjson"
+        raw_trace = raw_output / f"{name}.msgpack"
         raw_trace.unlink(missing_ok=True)
         ostream.write(f"## {name}\n\n")
         with block(ostream, "steps", 3, "lean"):
             ostream.write(source.read_text(encoding="utf-8"))
-        proc, records = run_driver(args.driver, name)
+        raw_frames = bytearray()
+        proc, records = run_driver(args.driver, name, raw_frames=raw_frames)
         out, err = proc.stdout, proc.stderr
         test_result = test_result and proc.returncode == 0
 
         if proc.returncode == 0 and not err and records:
-            raw_trace.write_text(
-                "".join(
-                    json.dumps(record, allow_nan=False) + "\n" for record in records
-                ),
-                encoding="utf-8",
-            )
+            raw_trace.write_bytes(raw_frames)
 
         if err:
             err_list.append([name, err])
