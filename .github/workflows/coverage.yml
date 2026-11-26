@@ -131,6 +131,7 @@ jobs:
             exit 1
           fi
           ../scripts/coverage.sh --html coverage_html \
+            --json coverage.json.gz \
             --add-profile coverage_snp_genoa.profdata | tee coverage_report.txt
         shell: bash
 
@@ -199,6 +200,14 @@ jobs:
         with:
           name: coverage-report-html
           path: build/coverage_html/
+          if-no-files-found: ignore
+        if: success() || failure()
+
+      - name: "Upload JSON coverage export"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-export-json
+          path: build/coverage.json.gz
           if-no-files-found: ignore
         if: success() || failure()
 

@@ -62,8 +62,9 @@ Exit status 0 indicates success; report the selected tests and their actual resu
 Configure with `-DCOVERAGE=ON`, build instrumented targets, and run the selected tests. From that build directory, with `llvm-profdata` and `llvm-cov` available:
 
 ```bash
-../scripts/coverage.sh                  # Print summary
-../scripts/coverage.sh --html report/   # Generate HTML report
+../scripts/coverage.sh                          # Print summary
+../scripts/coverage.sh --html report/           # Generate HTML report
+../scripts/coverage.sh --json coverage.json.gz  # Export LLVM JSON coverage data
 ```
 
 These paths assume `build` is immediately under the repository root. For another layout, use the actual path to `scripts/coverage.sh` while retaining the build working directory. The script consumes `.profraw` files and the generated `coverage_binaries.txt`; building alone does not produce coverage.
