@@ -54,9 +54,7 @@ inductive Event where
 
 /-! ## Primary state -/
 
-/--
-Approximates `all_other_nodes`; unlike CCF, peers lost on rollback are not retained.
--/
+/-- Peers tracked by a primary, corresponding to CCF's `all_other_nodes`. -/
 def eligiblePeers (state : NodeState) (self : NodeID) : Finset NodeID :=
   (state.activeMembers ∪ state.retirementCompletedNodes).erase self
 

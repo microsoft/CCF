@@ -1125,13 +1125,18 @@ private def checkCommitSafety (node : NodeID) : IO Unit := do
       fail s!"Node ({nodeName node}) at unsafe commit idx ({state.commitIndex})"
 
 /--
-Sign on the primary in the highest term, connect the nodes which have not retired, and
-have that primary send until they are in sync.
+Sign on the primary in the highest term, connect the nodes which have not retired and which
+that primary knows, and have it send until they are in sync. It sends nothing to a node
+which it does not know.
 -/
 private def loopUntilSync : IO Unit := do
   let some (term, primary) ← latestPrimary
   | fail "Can't currently loop until sync, no primary"
-  let active ← (← nodeIds).filterM fun node => return isActive node (← get node)
+  let known := eligiblePeers (← get primary) primary
+  let active ←
+    (← nodeIds).filterM
+      fun node =>
+        return isActive node (← get node) && (node == primary || decide (node ∈ known))
   append (toString term : String) [signed]
   for node in active do
     for other in ← nodeIds do
