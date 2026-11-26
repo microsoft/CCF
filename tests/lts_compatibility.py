@@ -213,6 +213,7 @@ def test_new_service(
     expected_subject_name=None,
     test_jwt_cleanup=False,
     node_container_image=None,
+    env=None,
 ):
     if infra.platform_detection.is_snp():
         LOG.info(
@@ -254,6 +255,9 @@ def test_new_service(
     else:
         kwargs["from_snapshot"] = False
         kwargs["fetch_recent_snapshot"] = True
+
+    if env:
+        kwargs["env"] = env
 
     new_node = create_and_join_node(
         network,
@@ -623,8 +627,7 @@ def run_code_upgrade_from(
             LOG.info("Service is now made of new nodes only")
             primary, _ = network.find_nodes()
 
-            # Rollover JWKS so that new primary must read historical CA bundle table
-            # and retrieve new keys via auto refresh
+            # Rollover JWKS so the new primary refreshes keys via auto-refresh
             jwt_issuer.refresh_keys()
             jwt_issuer.wait_for_refresh(network, args)
 
@@ -637,6 +640,7 @@ def run_code_upgrade_from(
                 to_version,
                 expected_subject_name=service_subject_name,
                 node_container_image=to_container_image,
+                env=trust_env if to_uses_node_trust else None,
             )
             if not primary.major_version:
                 # test_new_service installs the new bundle only after every old
@@ -896,8 +900,7 @@ def run_ledger_compatibility_since_first(
                         ), f"Node version is not {expected_version}"
                     node.verify_certificate_validity_period()
 
-                # Rollover JWKS so that new primary must read historical CA bundle table
-                # and retrieve new keys via auto refresh
+                # Rollover JWKS so the new primary refreshes keys via auto-refresh
                 jwt_issuer.refresh_keys()
                 primary, _ = network.find_nodes()
                 jwt_issuer.wait_for_refresh(network, args)
@@ -916,6 +919,11 @@ def run_ledger_compatibility_since_first(
                         library_dir,
                         version,
                         test_jwt_cleanup=run_jwt_cleanup,
+                        env=(
+                            trust_store.env
+                            if jwt_issuer.uses_node_trust_store(version)
+                            else None
+                        ),
                     )
 
                 # Snapshots written by releases before 7.0 carry JSON receipts,
