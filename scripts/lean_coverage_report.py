@@ -12,6 +12,7 @@ coverage per specification.
 """
 
 import argparse
+import gzip
 import json
 import os
 import re
@@ -19,8 +20,9 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Sequence
+from html.parser import HTMLParser
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from coverage_summary import (
     DEFAULT_REPOSITORY,
@@ -31,6 +33,8 @@ from coverage_summary import (
 
 DEFAULT_MAPPING = "lean/COVERAGE_MAPPING.md"
 DEFAULT_BRANCH = "main"
+EXPORT_JSON_ARTIFACT = "coverage-export-json"
+HTML_REPORT_ARTIFACT = "coverage-report-html"
 
 _SPEC_HEADING_RE = re.compile(r"^##\s+.+?\(`lean/([^/`]+)`\)\s*$")
 _SUBSECTION_RE = re.compile(r"^###\s+(.+?)\s*$")
@@ -64,6 +68,8 @@ class SpecMetrics(NamedTuple):
     missed_lines: int
     branches: int
     missed_branches: int
+    masked: bool = False
+    branches_available: bool = True
 
     @property
     def lines_hit(self) -> int:
@@ -79,7 +85,23 @@ class SpecMetrics(NamedTuple):
 
     @property
     def branch_coverage(self) -> float | None:
+        if not self.branches_available:
+            return None
         return _percentage(self.branches, self.missed_branches)
+
+
+class BranchRecord(NamedTuple):
+    line: int
+    col: int
+    end_line: int
+    end_col: int
+    true_count: int
+    false_count: int
+
+
+class DetailedFileCoverage(NamedTuple):
+    lines: dict[int, int]
+    branches: list[BranchRecord] | None = None
 
 
 class ReportSource(NamedTuple):
@@ -87,6 +109,7 @@ class ReportSource(NamedTuple):
     description: str
     run_id: int | None = None
     run_number: str | None = None
+    detail_description: str | None = None
 
 
 def _percentage(total: int, missed: int) -> float | None:
@@ -190,13 +213,18 @@ def parse_coverage_mapping(text: str) -> list[SpecMapping]:
     return mappings
 
 
-def count_cpp_loc(text: str) -> int:
-    """Count non-blank, non-comment C/C++ lines of code (SLOC)."""
+def count_cpp_loc(text: str, included_lines: set[int] | None = None) -> int:
+    """Count non-blank, non-comment C/C++ lines of code (SLOC).
+
+    When ``included_lines`` is given, every line is still lexed to keep block
+    comment and raw-string state accurate, but only 1-based line numbers in
+    ``included_lines`` are counted.
+    """
     loc = 0
     in_block_comment = False
     raw_delim: str | None = None
 
-    for line in text.splitlines():
+    for line_no, line in enumerate(text.splitlines(), start=1):
         i = 0
         n = len(line)
         has_code = False
@@ -282,7 +310,7 @@ def count_cpp_loc(text: str) -> int:
                 has_code = True
             i += 1
 
-        if has_code:
+        if has_code and (included_lines is None or line_no in included_lines):
             loc += 1
 
     return loc
@@ -497,6 +525,381 @@ def fetch_ci_coverage_report(
     )
 
 
+def _expand_mask_ranges(
+    mask_path: Path,
+    rel_path: str,
+    source_lines: Sequence[str],
+    entries: Sequence[dict[str, Any]],
+    kind: str,
+) -> set[int]:
+    num_lines = len(source_lines)
+    selected: set[int] = set()
+    for entry in entries:
+        start = int(entry["start"])
+        end = int(entry["end"])
+        if not (1 <= start <= end <= num_lines):
+            raise ValueError(
+                f"{mask_path}: {rel_path} {kind} range {start}-{end} "
+                f"is out of bounds (file has {num_lines} lines)"
+            )
+        start_anchor = entry.get("start_anchor")
+        if start_anchor and start_anchor not in source_lines[start - 1]:
+            raise ValueError(
+                f"{mask_path}: {rel_path}:{start} start_anchor "
+                f"{start_anchor!r} not found in {source_lines[start - 1]!r}"
+            )
+        end_anchor = entry.get("end_anchor")
+        if end_anchor and end_anchor not in source_lines[end - 1]:
+            raise ValueError(
+                f"{mask_path}: {rel_path}:{end} end_anchor "
+                f"{end_anchor!r} not found in {source_lines[end - 1]!r}"
+            )
+        selected.update(range(start, end + 1))
+    return selected
+
+
+def load_spec_mask(
+    repo_root: Path,
+    spec_name: str,
+    mapped_files: Sequence[str] | None = None,
+) -> dict[str, set[int]]:
+    """Load and validate ``lean/<spec>/coverage_mask.json`` if present.
+
+    Returns a mapping from repo-relative file path to the 1-based set of
+    included line numbers. Files without an entry in the mask are omitted from
+    the returned dict (meaning the whole file is included). Raises
+    ``ValueError`` if any line range is out of bounds or an anchor fails to
+    match the current source file.
+    """
+    mask_path = repo_root / "lean" / spec_name / "coverage_mask.json"
+    if not mask_path.is_file():
+        return {}
+
+    payload = json.loads(mask_path.read_text(encoding="utf-8"))
+    if payload.get("spec") not in (None, spec_name):
+        raise ValueError(
+            f"{mask_path}: 'spec' is {payload.get('spec')!r}, expected {spec_name!r}"
+        )
+
+    files_cfg = payload.get("files", {})
+    if not isinstance(files_cfg, dict):
+        raise TypeError(f"{mask_path}: 'files' must be an object")
+
+    mapped_set = set(mapped_files) if mapped_files is not None else None
+    result: dict[str, set[int]] = {}
+
+    for rel_path, rule in files_cfg.items():
+        if mapped_set is not None and rel_path not in mapped_set:
+            raise ValueError(
+                f"{mask_path}: masked file '{rel_path}' is not in the "
+                f"'{spec_name}' mapping"
+            )
+        source_path = repo_root / rel_path
+        if not source_path.is_file():
+            raise ValueError(f"{mask_path}: file '{rel_path}' does not exist")
+        source_lines = source_path.read_text(encoding="utf-8").splitlines()
+        num_lines = len(source_lines)
+
+        include_entries = rule.get("include")
+        exclude_entries = rule.get("exclude", [])
+        if include_entries is not None:
+            included = _expand_mask_ranges(
+                mask_path, rel_path, source_lines, include_entries, "include"
+            )
+        else:
+            included = set(range(1, num_lines + 1))
+        if exclude_entries:
+            included -= _expand_mask_ranges(
+                mask_path, rel_path, source_lines, exclude_entries, "exclude"
+            )
+        result[rel_path] = included
+
+    return result
+
+
+def _parse_html_count(raw: str) -> int:
+    """Parse an llvm-cov HTML execution count cell such as '0', '42', or '1.2k'."""
+    text = raw.strip()
+    if not text:
+        return 0
+    if text.isdigit():
+        return int(text)
+    suffix_mult = {"k": 1_000, "M": 1_000_000, "G": 1_000_000_000}
+    if text[-1] in suffix_mult:
+        return max(1, int(float(text[:-1]) * suffix_mult[text[-1]]))
+    return 1
+
+
+class _HtmlTopLevelLineParser(HTMLParser):
+    """Extract per-line execution counts from the top-level llvm-cov HTML table."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.table_depth = 0
+        self.in_tr = False
+        self.td_idx = -1
+        self.cur_td_class = ""
+        self.cur_text: list[str] = []
+        self.line_no: int | None = None
+        self.cls: str | None = None
+        self.cnt: str | None = None
+        self.lines: dict[int, int] = {}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr_map = dict(attrs)
+        if tag == "table":
+            self.table_depth += 1
+        elif self.table_depth == 1:
+            if tag == "tr":
+                self.in_tr = True
+                self.td_idx = -1
+                self.line_no = self.cls = self.cnt = None
+            elif self.in_tr and tag == "td":
+                self.td_idx += 1
+                self.cur_td_class = attr_map.get("class") or ""
+                self.cur_text = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "table":
+            self.table_depth -= 1
+        elif self.table_depth == 1:
+            if self.in_tr and tag == "td":
+                txt = "".join(self.cur_text).strip()
+                if self.td_idx == 0 and txt.isdigit():
+                    self.line_no = int(txt)
+                elif self.td_idx == 1:
+                    self.cls = self.cur_td_class
+                    self.cnt = txt
+            elif tag == "tr" and self.in_tr:
+                if (
+                    self.line_no is not None
+                    and self.cls in ("covered-line", "uncovered-line")
+                    and self.cnt
+                ):
+                    self.lines[self.line_no] = _parse_html_count(self.cnt)
+                self.in_tr = False
+
+    def handle_data(self, data: str) -> None:
+        if self.table_depth == 1 and self.in_tr and self.td_idx in (0, 1):
+            self.cur_text.append(data)
+
+
+def parse_html_file_coverage(html_text: str) -> dict[int, int]:
+    """Return ``{line_no: hit_count}`` for instrumented lines in an llvm-cov HTML file."""
+    parser = _HtmlTopLevelLineParser()
+    parser.feed(html_text)
+    return parser.lines
+
+
+def load_html_coverage_dir(
+    html_dir: Path,
+    target_files: Sequence[str],
+) -> dict[str, DetailedFileCoverage]:
+    """Load per-line coverage from an extracted ``coverage-report-html`` directory."""
+    all_html = [
+        p.as_posix() for p in html_dir.rglob("*.html") if p.name != "index.html"
+    ]
+    details: dict[str, DetailedFileCoverage] = {}
+    for rel_path in target_files:
+        suffix = "/" + rel_path + ".html"
+        matches = [p for p in all_html if p == rel_path + ".html" or p.endswith(suffix)]
+        if not matches:
+            continue
+        html_path = Path(min(matches, key=len))
+        line_counts = parse_html_file_coverage(
+            html_path.read_text(encoding="utf-8", errors="replace")
+        )
+        details[rel_path] = DetailedFileCoverage(lines=line_counts, branches=None)
+    return details
+
+
+def _lines_from_llvm_segments(segments: Sequence[Sequence[Any]]) -> dict[int, int]:
+    """Decode ``llvm-cov export`` file segments into per-line hit counts.
+
+    Follows LLVM's ``LineCoverageStats`` rules so each physical instrumented
+    line is counted once.
+    """
+    if not segments:
+        return {}
+
+    by_line: dict[int, list[tuple[int, int, bool, bool, bool]]] = {}
+    min_line = int(segments[0][0])
+    max_line = min_line
+    for seg in segments:
+        line = int(seg[0])
+        col = int(seg[1])
+        count = int(seg[2])
+        has_count = bool(seg[3])
+        is_entry = bool(seg[4])
+        is_gap = bool(seg[5]) if len(seg) > 5 else False
+        by_line.setdefault(line, []).append((col, count, has_count, is_entry, is_gap))
+        min_line = min(min_line, line)
+        max_line = max(max_line, line)
+
+    result: dict[int, int] = {}
+    wrapped: tuple[int, int, bool, bool, bool] | None = None
+    for line in range(min_line, max_line + 1):
+        line_segs = by_line.get(line, [])
+        wrapped_active = (
+            wrapped is not None
+            and wrapped[2]
+            and not wrapped[4]
+            and not (line_segs and line_segs[0][0] == 1 and not line_segs[0][2])
+        )
+        entry_counts = [seg[1] for seg in line_segs if seg[2] and seg[3] and not seg[4]]
+        if wrapped_active or entry_counts:
+            candidates = list(entry_counts)
+            if wrapped_active and wrapped is not None:
+                candidates.append(wrapped[1])
+            result[line] = max(candidates)
+        if line_segs:
+            wrapped = line_segs[-1]
+    return result
+
+
+def parse_llvm_cov_export_json(
+    payload: dict[str, Any],
+) -> dict[str, DetailedFileCoverage]:
+    """Parse ``llvm-cov export -format=text`` JSON into per-file line and branch data."""
+    details: dict[str, DetailedFileCoverage] = {}
+    for export_entry in payload.get("data", []):
+        for file_entry in export_entry.get("files", []):
+            filename = str(file_entry.get("filename", ""))
+            if not filename:
+                continue
+            line_counts = _lines_from_llvm_segments(file_entry.get("segments", []))
+            branch_map: dict[tuple[int, int, int, int], tuple[int, int]] = {}
+            for raw_branch in file_entry.get("branches", []):
+                if len(raw_branch) < 6:
+                    continue
+                line_start = int(raw_branch[0])
+                col_start = int(raw_branch[1])
+                line_end = int(raw_branch[2])
+                col_end = int(raw_branch[3])
+                true_count = int(raw_branch[4])
+                false_count = int(raw_branch[5])
+                key = (line_start, col_start, line_end, col_end)
+                prev = branch_map.get(key)
+                if prev is None:
+                    branch_map[key] = (true_count, false_count)
+                else:
+                    branch_map[key] = (
+                        max(prev[0], true_count),
+                        max(prev[1], false_count),
+                    )
+            branches = [
+                BranchRecord(k[0], k[1], k[2], k[3], v[0], v[1])
+                for k, v in sorted(branch_map.items())
+            ]
+            details[filename] = DetailedFileCoverage(
+                lines=line_counts,
+                branches=branches,
+            )
+    return details
+
+
+def load_export_json(path: Path) -> dict[str, DetailedFileCoverage]:
+    """Load an ``llvm-cov export`` JSON file (plain ``.json`` or ``.json.gz``)."""
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    else:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    return parse_llvm_cov_export_json(payload)
+
+
+def fetch_ci_detailed_coverage(
+    repo: str,
+    run_id: int,
+    target_files: Sequence[str],
+) -> tuple[dict[str, DetailedFileCoverage], str]:
+    """Fetch per-line (and when available, per-branch) coverage for a CI run.
+
+    Prefers ``coverage-export-json`` (which includes branch regions) and falls
+    back to ``coverage-report-html`` (line counts only) on runs that do not
+    upload the JSON export artifact.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        try:
+            _run_gh(
+                [
+                    "run",
+                    "download",
+                    str(run_id),
+                    "--repo",
+                    repo,
+                    "--name",
+                    EXPORT_JSON_ARTIFACT,
+                    "--dir",
+                    tmpdir,
+                ]
+            )
+            json_files = sorted([*tmp.rglob("*.json.gz"), *tmp.rglob("*.json")])
+            if json_files:
+                return load_export_json(json_files[0]), EXPORT_JSON_ARTIFACT
+        except RuntimeError:
+            pass
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _run_gh(
+            [
+                "run",
+                "download",
+                str(run_id),
+                "--repo",
+                repo,
+                "--name",
+                HTML_REPORT_ARTIFACT,
+                "--dir",
+                tmpdir,
+            ]
+        )
+        return (
+            load_html_coverage_dir(Path(tmpdir), target_files),
+            HTML_REPORT_ARTIFACT,
+        )
+
+
+def _lookup_detailed_coverage(
+    path: str,
+    by_path: dict[str, DetailedFileCoverage],
+) -> DetailedFileCoverage | None:
+    if path in by_path:
+        return by_path[path]
+    suffix = "/" + path
+    matches = [k for k in by_path if k.endswith(suffix)]
+    if matches:
+        return by_path[min(matches, key=len)]
+    return None
+
+
+def _summarize_detailed(
+    detail: DetailedFileCoverage,
+    included_lines: set[int] | None,
+) -> tuple[int, int, int, int, bool]:
+    """Return ``(lines, missed_lines, branches, missed_branches, branches_ok)``."""
+    lines = missed_lines = 0
+    for line_no, count in detail.lines.items():
+        if included_lines is None or line_no in included_lines:
+            lines += 1
+            if count == 0:
+                missed_lines += 1
+
+    if detail.branches is None:
+        return lines, missed_lines, 0, 0, False
+
+    branches = missed_branches = 0
+    for br in detail.branches:
+        if included_lines is None or br.line in included_lines:
+            branches += 2
+            if br.true_count == 0:
+                missed_branches += 1
+            if br.false_count == 0:
+                missed_branches += 1
+    return lines, missed_lines, branches, missed_branches, True
+
+
 def _lookup_coverage(
     path: str,
     by_path: dict[str, FileCoverage],
@@ -510,25 +913,78 @@ def _lookup_coverage(
     return None
 
 
+def _file_metrics(
+    path: str,
+    included_lines: set[int] | None,
+    by_path: dict[str, FileCoverage],
+    detailed_by_path: dict[str, DetailedFileCoverage] | None,
+) -> tuple[int, int, int, int, bool, bool]:
+    """Return ``(lines, missed_lines, branches, missed_branches, branches_ok, present)``."""
+    if included_lines is not None:
+        detail = (
+            _lookup_detailed_coverage(path, detailed_by_path)
+            if detailed_by_path is not None
+            else None
+        )
+        if detail is None:
+            if _lookup_coverage(path, by_path) is None:
+                return 0, 0, 0, 0, True, False
+            raise RuntimeError(
+                f"File '{path}' has a line mask, but per-line coverage data "
+                "is unavailable. Pass --html-dir, --export-json, or fetch from CI."
+            )
+        lines, missed_lines, branches, missed_branches, branches_ok = (
+            _summarize_detailed(detail, included_lines)
+        )
+        return lines, missed_lines, branches, missed_branches, branches_ok, True
+
+    cov = _lookup_coverage(path, by_path)
+    if cov is not None:
+        return (
+            cov.lines,
+            cov.missed_lines,
+            cov.branches,
+            cov.missed_branches,
+            True,
+            True,
+        )
+
+    if detailed_by_path is not None:
+        detail = _lookup_detailed_coverage(path, detailed_by_path)
+        if detail is not None:
+            lines, missed_lines, branches, missed_branches, branches_ok = (
+                _summarize_detailed(detail, None)
+            )
+            return lines, missed_lines, branches, missed_branches, branches_ok, True
+
+    return 0, 0, 0, 0, True, False
+
+
 def compute_metrics(
     repo_root: Path,
     mappings: Sequence[SpecMapping],
     coverage_files: Sequence[FileCoverage],
     include_questionable: bool = False,
+    spec_masks: dict[str, dict[str, set[int]]] | None = None,
+    detailed_coverage: dict[str, DetailedFileCoverage] | None = None,
 ) -> tuple[list[SpecMetrics], SpecMetrics, int]:
     """Aggregate LoC and coverage metrics per specification and overall."""
     by_path: dict[str, FileCoverage] = {entry.path: entry for entry in coverage_files}
-    loc_cache: dict[str, int] = {}
+    text_cache: dict[str, str] = {}
 
-    def cpp_loc(rel_path: str) -> int:
-        if rel_path not in loc_cache:
-            full_path = repo_root / rel_path
-            loc_cache[rel_path] = count_cpp_loc(full_path.read_text(encoding="utf-8"))
-        return loc_cache[rel_path]
+    def file_text(rel_path: str) -> str:
+        if rel_path not in text_cache:
+            text_cache[rel_path] = (repo_root / rel_path).read_text(encoding="utf-8")
+        return text_cache[rel_path]
+
+    def cpp_loc(rel_path: str, included_lines: set[int] | None) -> int:
+        return count_cpp_loc(file_text(rel_path), included_lines)
 
     per_spec: list[SpecMetrics] = []
     all_unique_files: list[str] = []
-    seen_files: set[str] = set()
+    # Maps each unique file to its merged included line set across specs
+    # (None means at least one spec includes the whole file).
+    merged_masks: dict[str, set[int] | None] = {}
 
     for mapping in mappings:
         files = list(mapping.core_files)
@@ -537,24 +993,39 @@ def compute_metrics(
                 if path not in files:
                     files.append(path)
 
+        mask = (spec_masks or {}).get(mapping.name, {})
+        spec_is_masked = any(path in mask for path in files)
+
         code_loc = 0
         lines = missed_lines = branches = missed_branches = 0
+        branches_available = True
         missing: list[str] = []
 
         for path in files:
-            code_loc += cpp_loc(path)
-            cov = _lookup_coverage(path, by_path)
-            if cov is None:
+            included = mask.get(path)
+            code_loc += cpp_loc(path, included)
+            f_lines, f_missed, f_br, f_br_missed, f_br_ok, present = _file_metrics(
+                path, included, by_path, detailed_coverage
+            )
+            if not present:
                 missing.append(path)
             else:
-                lines += cov.lines
-                missed_lines += cov.missed_lines
-                branches += cov.branches
-                missed_branches += cov.missed_branches
+                lines += f_lines
+                missed_lines += f_missed
+                if f_br_ok:
+                    branches += f_br
+                    missed_branches += f_br_missed
+                else:
+                    branches_available = False
 
-            if path not in seen_files:
-                seen_files.add(path)
+            if path not in merged_masks:
                 all_unique_files.append(path)
+                merged_masks[path] = None if included is None else set(included)
+            elif merged_masks[path] is not None:
+                if included is None:
+                    merged_masks[path] = None
+                else:
+                    merged_masks[path] |= included
 
         spec_loc, total_lean_loc = count_lean_package_loc(
             repo_root / "lean" / mapping.name
@@ -571,21 +1042,31 @@ def compute_metrics(
                 missed_lines=missed_lines,
                 branches=branches,
                 missed_branches=missed_branches,
+                masked=spec_is_masked,
+                branches_available=branches_available,
             )
         )
 
-    total_code_loc = sum(cpp_loc(path) for path in all_unique_files)
+    total_code_loc = 0
     total_lines = total_missed_lines = total_branches = total_missed_branches = 0
+    total_branches_available = True
     total_missing: list[str] = []
     for path in all_unique_files:
-        cov = _lookup_coverage(path, by_path)
-        if cov is None:
+        included = merged_masks[path]
+        total_code_loc += cpp_loc(path, included)
+        f_lines, f_missed, f_br, f_br_missed, f_br_ok, present = _file_metrics(
+            path, included, by_path, detailed_coverage
+        )
+        if not present:
             total_missing.append(path)
         else:
-            total_lines += cov.lines
-            total_missed_lines += cov.missed_lines
-            total_branches += cov.branches
-            total_missed_branches += cov.missed_branches
+            total_lines += f_lines
+            total_missed_lines += f_missed
+            if f_br_ok:
+                total_branches += f_br
+                total_missed_branches += f_br_missed
+            else:
+                total_branches_available = False
 
     total_metrics = SpecMetrics(
         name="Total (unique)",
@@ -598,6 +1079,8 @@ def compute_metrics(
         missed_lines=total_missed_lines,
         branches=total_branches,
         missed_branches=total_missed_branches,
+        masked=any(m.masked for m in per_spec),
+        branches_available=total_branches_available,
     )
 
     common_dir = repo_root / "lean" / "common"
@@ -657,6 +1140,8 @@ def render_report(
     coverage_files: Sequence[FileCoverage],
     repo_root: Path,
     markdown: bool = True,
+    spec_masks: dict[str, dict[str, set[int]]] | None = None,
+    detailed_coverage: dict[str, DetailedFileCoverage] | None = None,
 ) -> str:
     headers = [
         "Item",
@@ -673,7 +1158,15 @@ def render_report(
 
     rows: list[list[str]] = []
     for item in [*per_spec, total]:
-        label = f"**{item.name}**" if markdown and item is total else item.name
+        name = item.name
+        if item.masked and item is not total:
+            name = f"{name} (masked)"
+        label = f"**{name}**" if markdown and item is total else name
+        branch_pair = (
+            f"{item.branches_hit:,}/{item.branches:,}"
+            if item.branches_available
+            else "-"
+        )
         rows.append(
             [
                 label,
@@ -683,7 +1176,7 @@ def render_report(
                 f"{item.total_lean_loc:,}",
                 f"{item.lines_hit:,}/{item.lines:,}",
                 _format_percentage(item.line_coverage),
-                f"{item.branches_hit:,}/{item.branches:,}",
+                branch_pair,
                 _format_percentage(item.branch_coverage),
             ]
         )
@@ -691,8 +1184,13 @@ def render_report(
     out: list[str] = [_format_table(headers, rows, right_align, markdown)]
 
     scope = "core + questionable" if include_questionable else "core only"
+    detail_note = (
+        f"; masked line/branch source: {source.detail_description}"
+        if source.detail_description
+        else ""
+    )
     notes = [
-        f"Coverage source: {source.description} (scope: {scope}).",
+        f"Coverage source: {source.description} (scope: {scope}{detail_note}).",
         (
             "Code LoC counts non-blank, non-comment C/C++ lines; "
             "Spec LoC counts non-blank, non-comment Lean lines in Model and Properties; "
@@ -700,6 +1198,23 @@ def render_report(
             f"(shared lean/common adds {common_lean_loc:,} LoC)."
         ),
     ]
+    masked_specs = [m.name for m in per_spec if m.masked]
+    if masked_specs:
+        mask_files = ", ".join(
+            (
+                f"`lean/{name}/coverage_mask.json`"
+                if markdown
+                else f"lean/{name}/coverage_mask.json"
+            )
+            for name in masked_specs
+        )
+        notes.append(f"Line-range masks applied: {mask_files}.")
+    if any(not m.branches_available for m in [*per_spec, total]):
+        notes.append(
+            "Masked branch coverage requires an llvm-cov JSON export "
+            f"(artifact `{EXPORT_JSON_ARTIFACT}` or --export-json); "
+            "rows with masked files show '-' for branches when only HTML line coverage is available."
+        )
     if total.missing_from_report:
         missing_list = ", ".join(
             f"`{p}`" if markdown else p for p in total.missing_from_report
@@ -725,29 +1240,36 @@ def render_report(
         file_align = [False, False, True, True, True, True, True]
         file_rows: list[list[str]] = []
         for item in per_spec:
+            mask = (spec_masks or {}).get(item.name, {})
             for path in item.files:
-                loc = count_cpp_loc((repo_root / path).read_text(encoding="utf-8"))
-                cov = _lookup_coverage(path, by_path)
-                if cov is None:
+                included = mask.get(path)
+                loc = count_cpp_loc(
+                    (repo_root / path).read_text(encoding="utf-8"), included
+                )
+                f_lines, f_missed, f_br, f_br_missed, f_br_ok, present = _file_metrics(
+                    path, included, by_path, detailed_coverage
+                )
+                if not present:
                     line_str = "-"
                     line_cov = "-"
                     branch_str = "-"
                     branch_cov = "-"
                 else:
-                    line_str = f"{cov.lines - cov.missed_lines:,}/{cov.lines:,}"
-                    line_cov = _format_percentage(
-                        _percentage(cov.lines, cov.missed_lines)
-                    )
-                    branch_str = (
-                        f"{cov.branches - cov.missed_branches:,}/{cov.branches:,}"
-                    )
-                    branch_cov = _format_percentage(
-                        _percentage(cov.branches, cov.missed_branches)
-                    )
+                    line_str = f"{f_lines - f_missed:,}/{f_lines:,}"
+                    line_cov = _format_percentage(_percentage(f_lines, f_missed))
+                    if f_br_ok:
+                        branch_str = f"{f_br - f_br_missed:,}/{f_br:,}"
+                        branch_cov = _format_percentage(_percentage(f_br, f_br_missed))
+                    else:
+                        branch_str = "-"
+                        branch_cov = "-"
+                file_label = f"`{path}`" if markdown else path
+                if included is not None:
+                    file_label += " (masked)"
                 file_rows.append(
                     [
                         item.name,
-                        f"`{path}`" if markdown else path,
+                        file_label,
                         f"{loc:,}",
                         line_str,
                         line_cov,
@@ -795,6 +1317,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Path to a local llvm-cov report file (skips GitHub artifact download).",
     )
     parser.add_argument(
+        "--export-json",
+        default=None,
+        help=(
+            "Path to a local llvm-cov export JSON (.json or .json.gz) for "
+            "masked line and branch coverage."
+        ),
+    )
+    parser.add_argument(
+        "--html-dir",
+        default=None,
+        help=(
+            "Path to an extracted coverage-report-html directory for masked "
+            "line coverage."
+        ),
+    )
+    parser.add_argument(
+        "--no-masks",
+        action="store_true",
+        help="Ignore lean/<spec>/coverage_mask.json files and report whole-file numbers.",
+    )
+    parser.add_argument(
         "--include-questionable",
         action="store_true",
         help="Include questionable/partial files alongside core implementation files.",
@@ -822,17 +1365,67 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"No specification mappings found in {mapping_path}.", file=sys.stderr)
         return 1
 
+    spec_masks: dict[str, dict[str, set[int]]] = {}
+    if not args.no_masks:
+        for mapping in mappings:
+            allowed_files = list(mapping.core_files) + list(mapping.questionable_files)
+            mask = load_spec_mask(repo_root, mapping.name, allowed_files)
+            if mask:
+                spec_masks[mapping.name] = mask
+
+    masked_files: list[str] = []
+    for mapping in mappings:
+        mask = spec_masks.get(mapping.name, {})
+        active = list(mapping.core_files)
+        if args.include_questionable:
+            active.extend(mapping.questionable_files)
+        for path in active:
+            if path in mask and path not in masked_files:
+                masked_files.append(path)
+
+    detailed_coverage: dict[str, DetailedFileCoverage] | None = None
+    detail_description: str | None = None
+
     if args.report is not None:
         report_path = Path(args.report)
         source = ReportSource(
             text=report_path.read_text(encoding="utf-8", errors="replace"),
             description=str(report_path),
         )
+        coverage_files = extract_file_coverage(source.text)
+    elif args.export_json is not None and args.run_id is None:
+        export_path = Path(args.export_json)
+        detailed_coverage = load_export_json(export_path)
+        detail_description = str(export_path)
+        source = ReportSource(
+            text="",
+            description=str(export_path),
+            detail_description=detail_description,
+        )
+        coverage_files = []
     else:
         source = fetch_ci_coverage_report(args.repo, args.branch, args.run_id)
+        coverage_files = extract_file_coverage(source.text)
 
-    coverage_files = extract_file_coverage(source.text)
-    if not coverage_files:
+    if detailed_coverage is None:
+        if args.export_json is not None:
+            export_path = Path(args.export_json)
+            detailed_coverage = load_export_json(export_path)
+            detail_description = str(export_path)
+        elif args.html_dir is not None:
+            html_path = Path(args.html_dir)
+            detailed_coverage = load_html_coverage_dir(html_path, masked_files)
+            detail_description = str(html_path)
+        elif masked_files and source.run_id is not None:
+            detailed_coverage, artifact_used = fetch_ci_detailed_coverage(
+                args.repo, source.run_id, masked_files
+            )
+            detail_description = f"artifact `{artifact_used}`"
+
+    if detail_description is not None and source.detail_description is None:
+        source = source._replace(detail_description=detail_description)
+
+    if not coverage_files and detailed_coverage is None:
         print("No per-file coverage rows found in report.", file=sys.stderr)
         return 1
 
@@ -841,6 +1434,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         mappings=mappings,
         coverage_files=coverage_files,
         include_questionable=args.include_questionable,
+        spec_masks=spec_masks,
+        detailed_coverage=detailed_coverage,
     )
 
     print(
@@ -854,6 +1449,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             coverage_files=coverage_files,
             repo_root=repo_root,
             markdown=(args.format == "markdown"),
+            spec_masks=spec_masks,
+            detailed_coverage=detailed_coverage,
         )
     )
     return 0

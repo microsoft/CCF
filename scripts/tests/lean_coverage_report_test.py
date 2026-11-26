@@ -2,6 +2,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import gzip
+import json
 import sys
 import tempfile
 import unittest
@@ -128,6 +130,158 @@ def g : Nat := 1
             self.assertEqual(total.missed_branches, 1)
             self.assertEqual(total.spec_loc, 3)
             self.assertEqual(total.total_lean_loc, 4)
+
+    def test_count_cpp_loc_with_mask_preserves_block_comment_state(self) -> None:
+        code = (
+            "int keep_1 = 1;\n"
+            "/* comment starts in excluded range\n"
+            "   still commented inside included range */\n"
+            "int keep_2 = 2;\n"
+            "int drop_me = 3;\n"
+        )
+        # Include lines 1, 3, 4; exclude lines 2 and 5.
+        # Line 3 is still inside the block comment opened on excluded line 2.
+        self.assertEqual(lean_coverage_report.count_cpp_loc(code, {1, 3, 4}), 2)
+
+    def test_load_spec_mask_and_anchor_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src/kv").mkdir(parents=True)
+            (root / "lean/kv").mkdir(parents=True)
+            (root / "src/kv/a.h").write_text(
+                "int keep();\nvoid skip_me()\n{\n}\nint also_keep();\n",
+                encoding="utf-8",
+            )
+            mask = {
+                "spec": "kv",
+                "files": {
+                    "src/kv/a.h": {
+                        "exclude": [
+                            {
+                                "start": 2,
+                                "end": 4,
+                                "start_anchor": "void skip_me()",
+                                "end_anchor": "}",
+                                "reason": "unmodeled",
+                            }
+                        ]
+                    }
+                },
+            }
+            mask_path = root / "lean/kv/coverage_mask.json"
+            mask_path.write_text(json.dumps(mask), encoding="utf-8")
+
+            loaded = lean_coverage_report.load_spec_mask(root, "kv", ["src/kv/a.h"])
+            self.assertEqual(loaded, {"src/kv/a.h": {1, 5}})
+
+            # Anchor drift must raise ValueError.
+            mask["files"]["src/kv/a.h"]["exclude"][0]["start_anchor"] = "wrong()"
+            mask_path.write_text(json.dumps(mask), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                lean_coverage_report.load_spec_mask(root, "kv", ["src/kv/a.h"])
+
+    def test_parse_html_ignores_nested_expansion_tables(self) -> None:
+        html = (
+            "<table>"
+            "<tr><td class='line-number'><a name='L1'><pre>1</pre></a></td>"
+            "<td class='covered-line'><pre>1.2k</pre></td>"
+            "<td class='code'><pre>int x;</pre></td></tr>"
+            "<tr><td class='line-number'><a name='L2'><pre>2</pre></a></td>"
+            "<td class='uncovered-line'><pre>0</pre></td>"
+            "<td class='code'><pre><table>"
+            "<tr><td class='line-number'><a name='L1'><pre>1</pre></a></td>"
+            "<td class='uncovered-line'><pre>0</pre></td>"
+            "<td class='code'><pre>nested</pre></td></tr>"
+            "</table></pre></td></tr>"
+            "</table>"
+        )
+        parsed = lean_coverage_report.parse_html_file_coverage(html)
+        self.assertEqual(parsed, {1: 1200, 2: 0})
+
+    def test_load_export_json_gz_and_masked_branches(self) -> None:
+        payload = {
+            "data": [
+                {
+                    "files": [
+                        {
+                            "filename": "/__w/CCF/src/kv/a.h",
+                            "segments": [
+                                [1, 1, 5, True, True, False],
+                                [3, 1, 0, False, False, False],
+                                [4, 1, 0, True, True, False],
+                                [5, 1, 0, False, False, False],
+                            ],
+                            "branches": [
+                                [1, 5, 1, 10, 4, 1, 0, 0, 4],
+                                # Duplicate instantiation of same branch location:
+                                [1, 5, 1, 10, 0, 2, 0, 0, 4],
+                                # Branch on excluded line 4:
+                                [4, 5, 4, 10, 0, 0, 0, 0, 4],
+                            ],
+                        }
+                    ]
+                }
+            ]
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src/kv").mkdir(parents=True)
+            (root / "lean/kv/Kv").mkdir(parents=True)
+            (root / "src/kv/a.h").write_text(
+                "if (a) {}\nint b = 1;\n\nif (c) {}\n", encoding="utf-8"
+            )
+            (root / "lean/kv/Kv/Model.lean").write_text(
+                "def x := 1\n", encoding="utf-8"
+            )
+
+            gz_path = root / "coverage.json.gz"
+            with gzip.open(gz_path, "wt", encoding="utf-8") as fh:
+                json.dump(payload, fh)
+
+            details = lean_coverage_report.load_export_json(gz_path)
+            mappings = [
+                lean_coverage_report.SpecMapping(
+                    name="kv", core_files=["src/kv/a.h"], questionable_files=[]
+                )
+            ]
+            # Mask includes lines 1-3, excludes line 4.
+            per_spec, total, _ = lean_coverage_report.compute_metrics(
+                repo_root=root,
+                mappings=mappings,
+                coverage_files=[],
+                spec_masks={"kv": {"src/kv/a.h": {1, 2, 3}}},
+                detailed_coverage=details,
+            )
+            kv = per_spec[0]
+            self.assertTrue(kv.masked)
+            self.assertTrue(kv.branches_available)
+            self.assertEqual(kv.code_loc, 2)
+            # Lines 1 and 2 are covered (count 5); line 3 ends region at col 1; line 4 excluded.
+            self.assertEqual((kv.lines, kv.missed_lines), (2, 0))
+            # Only the deduplicated branch on line 1 is included: both true (4) and false (2) hit.
+            self.assertEqual((kv.branches, kv.missed_branches), (2, 0))
+            self.assertEqual((total.lines, total.branches), (2, 2))
+
+    def test_repo_kv_coverage_mask_is_valid(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        mappings = lean_coverage_report.parse_coverage_mapping(
+            (repo_root / "lean/COVERAGE_MAPPING.md").read_text(encoding="utf-8")
+        )
+        kv_mapping = next(m for m in mappings if m.name == "kv")
+        loaded = lean_coverage_report.load_spec_mask(
+            repo_root, "kv", kv_mapping.core_files
+        )
+        self.assertEqual(
+            set(loaded.keys()),
+            {
+                "src/kv/store.h",
+                "src/kv/untyped_map.h",
+                "src/kv/untyped_change_set.h",
+                "src/kv/apply_changes.h",
+                "include/ccf/kv/tx.h",
+                "src/kv/committable_tx.h",
+            },
+        )
 
 
 if __name__ == "__main__":

@@ -22,7 +22,12 @@ Coverage data comes from `microsoft/CCF` Coverage run #988 (ID `45850573035`, ar
 | **Total**                                                                              |      **112** |   **2,409** | **95.35%** |                                                                                             |
 
 Notably, every line inside the core transactional operations modeled by `lean/kv` (`untyped_map_handle.cpp`, `apply_changes.h`, `untyped_change_set.h`, `tx.h`, and the modeled paths of `store.h` and `untyped_map.h`) is already at or near 100% line coverage.
-The 112 uncovered lines fall into unmodeled serialization/snapshot/reserved-tx paths, unused methods (`commit_term()`, `Map::clear()`, `SnapshotPublicMaps::operator=`), defensive `std::logic_error` checks, and one LLVM range-for coverage artifact.
+Applying the line-range mask in [`lean/kv/coverage_mask.json`](coverage_mask.json) excludes 69 of the 112 missed lines (unmodeled snapshot, serialisation/deserialisation, `ReservedTx`, `TxFlag`, hooks, and `Map::clear()` paths), leaving **43 missed lines out of 1,100 instrumented lines (96.09%)**:
+
+- `src/kv/store.h` (12 missed of 320): `L210-213` (64-bit wraparound guard), `L983` (LLVM range-for artifact), and `L1278-1284` (defensive unexpected-result log).
+- `src/kv/untyped_map.h` (3 missed of 205): `L526-528` (defensive type-confusion throw).
+- `src/kv/tx.cpp` (15 missed of 85): `L34-37`, `L78-80`, `L95-98`, `L125-128` (defensive internal `std::logic_error` guards).
+- `src/kv/committable_tx.h` (13 missed of 138): `L438-450` (unused `CommittableTx::commit_term()`).
 
 ## `src/kv/store.h` (23 uncovered lines)
 

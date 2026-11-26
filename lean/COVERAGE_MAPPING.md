@@ -14,19 +14,21 @@ Two packages under `lean/` are support packages rather than protocol specificati
 
 ## Current coverage summary
 
-Generated with [`scripts/lean_coverage_report.py`](../scripts/lean_coverage_report.py) against `microsoft/CCF` Coverage run #988 (ID 45850573035, artifact `coverage-history-main` on `main`, scope: core implementation files only).
+Generated with [`scripts/lean_coverage_report.py`](../scripts/lean_coverage_report.py) against `microsoft/CCF` Coverage run #989 (ID 45855065141, artifacts `coverage-history-main` and `coverage-report-html` on `main`, scope: core implementation files only, with [`lean/kv/coverage_mask.json`](kv/coverage_mask.json) applied).
 
 | Item               | Files | Code LoC | Spec LoC | Total Lean LoC | Lines (Hit/Total) | Line Cov | Branches (Hit/Total) | Branch Cov |
 | ------------------ | ----: | -------: | -------: | -------------: | ----------------: | -------: | -------------------: | ---------: |
 | consensus          |     3 |    2,601 |      955 |         12,792 |       2,046/2,137 |   95.74% |            719/1,006 |     71.47% |
-| consistency        |     8 |    2,584 |      594 |          4,986 |       1,629/1,994 |   81.70% |              384/552 |     69.57% |
+| consistency        |     8 |    2,584 |      594 |          4,986 |       1,629/1,994 |   81.70% |              385/552 |     69.75% |
 | disaster-recovery  |     4 |    1,361 |      473 |          8,299 |         781/1,050 |   74.38% |              166/348 |     47.70% |
-| kv                 |    13 |    3,294 |    1,071 |          4,648 |       2,297/2,409 |   95.35% |              601/734 |     81.88% |
-| **Total (unique)** |    28 |    9,840 |    3,093 |         30,725 |       6,753/7,590 |   88.97% |          1,870/2,640 |     70.83% |
+| kv (masked)        |    13 |    1,728 |    1,071 |          4,648 |       1,057/1,100 |   96.09% |                    - |          - |
+| **Total (unique)** |    28 |    8,274 |    3,093 |         30,725 |       5,513/6,281 |   87.77% |                    - |          - |
 
 Code LoC counts non-blank, non-comment C/C++ lines.
 Spec LoC counts non-blank, non-comment Lean lines in `Model` and `Properties`.
 Total Lean LoC includes `Proofs`, `TraceValidation`/`Replay`, and `Tests` (shared `lean/common` adds 939 LoC).
+Line-range masks applied: [`lean/kv/coverage_mask.json`](kv/coverage_mask.json) (unmasked `kv` is 3,294 Code LoC, 2,297/2,409 lines at 95.35%, and 600/734 branches at 81.74% in run #989; run `--no-masks` to reproduce whole-file totals).
+Masked branch coverage requires an `llvm-cov` JSON export (artifact `coverage-export-json`, added in [#8857](https://github.com/microsoft/CCF/pull/8857), or `--export-json`); rows with masked files show `-` for branches until `coverage-export-json` is available on the run.
 Mapped files absent from the `llvm-cov` report (0 instrumented lines, still counted in Code LoC): `include/ccf/common_endpoint_registry.h`, `src/node/recovery_decision_protocol.h`, `include/ccf/kv/untyped_map_handle.h`, `src/kv/tx_pimpl.h`, `include/ccf/kv/version.h`.
 
 ## Consensus (`lean/consensus`)

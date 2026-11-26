@@ -1,0 +1,394 @@
+{
+  "spec": "kv",
+  "description": "Line-range masks selecting the C++ implementation sections modeled by lean/kv. Mapped core files default to fully included; listed ranges exclude mechanisms explicitly outside lean/kv (snapshots, ledger serialisation/deserialisation, ReservedTx, TxFlag, hooks, encryption/history/chunker plumbing, TxDiff, StoreState::clear, Map::clear, swap_private_maps).",
+  "files": {
+    "src/kv/store.h": {
+      "exclude": [
+        {
+          "start": 26,
+          "end": 32,
+          "start_anchor": "enum class StoreReadiness",
+          "end_anchor": "};",
+          "reason": "Node readiness state machine is unmodeled"
+        },
+        {
+          "start": 74,
+          "end": 93,
+          "start_anchor": "public:",
+          "end_anchor": "}",
+          "reason": "StoreState::clear is unmodeled (trace::unsupported: store clear)"
+        },
+        {
+          "start": 124,
+          "end": 200,
+          "start_anchor": "// Holds the lock of every map",
+          "end_anchor": "}",
+          "reason": "ScopedMapLocks (snapshot-only) and commit_deserialised are unmodeled (trace::unsupported: commit deserialised)"
+        },
+        {
+          "start": 240,
+          "end": 253,
+          "start_anchor": "void set_readiness(",
+          "end_anchor": "}",
+          "reason": "Store readiness accessors are unmodeled"
+        },
+        {
+          "start": 265,
+          "end": 329,
+          "start_anchor": "std::shared_ptr<TxHistory> get_history()",
+          "end_anchor": "}",
+          "reason": "History, ledger chunker, encryptor, max_transaction_size, and snapshotter configuration are unmodeled"
+        },
+        {
+          "start": 407,
+          "end": 420,
+          "start_anchor": "{",
+          "end_anchor": "}",
+          "reason": "Map and global hook attachment on dynamic map creation is unmodeled"
+        },
+        {
+          "start": 423,
+          "end": 818,
+          "start_anchor": "std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(",
+          "end_anchor": "}",
+          "reason": "Snapshot creation, serialisation, SnapshotPublicMaps, and snapshot import/deserialisation are unmodeled (trace::unsupported: snapshot import)"
+        },
+        {
+          "start": 830,
+          "end": 840,
+          "start_anchor": "if (snapshotter)",
+          "end_anchor": "}",
+          "reason": "Snapshotter and ledger chunker compaction callbacks are unmodeled"
+        },
+        {
+          "start": 886,
+          "end": 897,
+          "start_anchor": "auto h = get_history();",
+          "end_anchor": "}",
+          "reason": "TxHistory compaction and global post_compact hooks are unmodeled"
+        },
+        {
+          "start": 930,
+          "end": 936,
+          "start_anchor": "// History must be informed",
+          "end_anchor": "}",
+          "reason": "TxHistory rollback notification is unmodeled"
+        },
+        {
+          "start": 940,
+          "end": 950,
+          "start_anchor": "if (snapshotter)",
+          "end_anchor": "}",
+          "reason": "Snapshotter and chunker rollback notifications (no-op rollback branch) are unmodeled"
+        },
+        {
+          "start": 962,
+          "end": 963,
+          "start_anchor": "last_committable = std::min(",
+          "end_anchor": "unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);",
+          "reason": "Signature last_committable tracking and snapshot store flags are unmodeled"
+        },
+        {
+          "start": 966,
+          "end": 980,
+          "start_anchor": "if (snapshotter)",
+          "end_anchor": "}",
+          "reason": "Snapshotter, chunker, and encryptor rollback notifications are unmodeled"
+        },
+        {
+          "start": 1030,
+          "end": 1034,
+          "start_anchor": "auto h = get_history();",
+          "end_anchor": "}",
+          "reason": "TxHistory term notification is unmodeled"
+        },
+        {
+          "start": 1037,
+          "end": 1136,
+          "start_anchor": "bool fill_maps(",
+          "end_anchor": "}",
+          "reason": "Ledger entry deserialisation (fill_maps, deserialize) is unmodeled (trace::unsupported: deserialisation)"
+        },
+        {
+          "start": 1286,
+          "end": 1308,
+          "start_anchor": "if (h)",
+          "end_anchor": "}",
+          "reason": "Merkle TxHistory append_entry and ledger chunker size tracking inside Store::commit are unmodeled"
+        },
+        {
+          "start": 1342,
+          "end": 1404,
+          "start_anchor": "bool should_schedule_snapshot()",
+          "end_anchor": "}",
+          "reason": "Snapshot scheduling and ledger chunking predicates are unmodeled"
+        },
+        {
+          "start": 1416,
+          "end": 1420,
+          "start_anchor": "bool check_rollback_count(",
+          "end_anchor": "}",
+          "reason": "ReservedTx rollback-count check is unmodeled"
+        },
+        {
+          "start": 1446,
+          "end": 1593,
+          "start_anchor": "TxID next_txid()",
+          "end_anchor": "}",
+          "reason": "Reserved next_txid, committable_gap, swap_private_maps, and map/global hook registration are unmodeled"
+        },
+        {
+          "start": 1605,
+          "end": 1608,
+          "start_anchor": "TxDiff create_tx_diff()",
+          "end_anchor": "}",
+          "reason": "TxDiff creation is unmodeled"
+        },
+        {
+          "start": 1620,
+          "end": 1681,
+          "start_anchor": "ReservedTx create_reserved_tx(",
+          "end_anchor": "}",
+          "reason": "ReservedTx creation, apply_tx_flags, and StoreFlag helpers are unmodeled"
+        }
+      ]
+    },
+    "src/kv/untyped_map.h": {
+      "exclude": [
+        {
+          "start": 92,
+          "end": 122,
+          "start_anchor": "static State deserialize_map_snapshot(",
+          "end_anchor": "}",
+          "reason": "Map snapshot deserialisation is unmodeled"
+        },
+        {
+          "start": 252,
+          "end": 258,
+          "start_anchor": "ConsensusHookPtr post_commit()",
+          "end_anchor": "}",
+          "reason": "Map local commit hooks are unmodeled"
+        },
+        {
+          "start": 261,
+          "end": 298,
+          "start_anchor": "class Snapshot : public AbstractMap::Snapshot",
+          "end_anchor": "};",
+          "reason": "Map::Snapshot serialisation is unmodeled"
+        },
+        {
+          "start": 317,
+          "end": 519,
+          "start_anchor": "void serialise_changes(",
+          "end_anchor": "}",
+          "reason": "Entry serialisation, SnapshotHandleCommitter, snapshot import, and ledger deserialisation are unmodeled"
+        },
+        {
+          "start": 530,
+          "end": 536,
+          "start_anchor": "auto* snapshot_change_set =",
+          "end_anchor": "}",
+          "reason": "SnapshotChangeSet committer branch is unmodeled"
+        },
+        {
+          "start": 550,
+          "end": 604,
+          "start_anchor": "void set_map_hook(",
+          "end_anchor": "}",
+          "reason": "Hook setters, security domain accessor, and Map::snapshot are unmodeled"
+        },
+        {
+          "start": 622,
+          "end": 626,
+          "start_anchor": "// We know that write set is not empty.",
+          "end_anchor": "}",
+          "reason": "Global hook commit_deltas collection during compact is unmodeled"
+        },
+        {
+          "start": 630,
+          "end": 634,
+          "start_anchor": "// Discardable, so move to commit_deltas.",
+          "end_anchor": "}",
+          "reason": "Global hook commit_deltas collection during compact is unmodeled"
+        },
+        {
+          "start": 650,
+          "end": 653,
+          "start_anchor": "if (global_hook && !r->writes.empty())",
+          "end_anchor": "}",
+          "reason": "Global hook commit_deltas collection during compact is unmodeled"
+        },
+        {
+          "start": 656,
+          "end": 672,
+          "start_anchor": "void post_compact()",
+          "end_anchor": "}",
+          "reason": "Global hook execution (post_compact) is unmodeled (trace::unsupported: global hook)"
+        },
+        {
+          "start": 705,
+          "end": 713,
+          "start_anchor": "void clear()",
+          "end_anchor": "}",
+          "reason": "Map::clear outside a transaction is unmodeled (trace::unsupported: map clear outside transaction)"
+        },
+        {
+          "start": 727,
+          "end": 732,
+          "start_anchor": "// Exchanges the entire state",
+          "end_anchor": "}",
+          "reason": "Map::swap (used only by swap_private_maps) is unmodeled"
+        },
+        {
+          "start": 750,
+          "end": 759,
+          "start_anchor": "if (track_deletes_on_missing_keys)",
+          "end_anchor": "}",
+          "reason": "MapDiff delete-tracking path in create_change_set is unmodeled"
+        },
+        {
+          "start": 797,
+          "end": 809,
+          "start_anchor": "ConsensusHookPtr trigger_map_hook(",
+          "end_anchor": "}",
+          "reason": "Local map hooks are unmodeled (trace::unsupported: local hook)"
+        }
+      ]
+    },
+    "src/kv/untyped_change_set.h": {
+      "exclude": [
+        {
+          "start": 75,
+          "end": 94,
+          "start_anchor": "// This is a container for a snapshot.",
+          "end_anchor": "};",
+          "reason": "SnapshotChangeSet is unmodeled"
+        },
+        {
+          "start": 97,
+          "end": 175,
+          "start_anchor": "namespace map",
+          "end_anchor": "}",
+          "reason": "Snapshot/map wire serialisation helpers are unmodeled"
+        }
+      ]
+    },
+    "src/kv/apply_changes.h": {
+      "exclude": [
+        {
+          "start": 54,
+          "end": 71,
+          "start_anchor": "if (expected_rollback_count.has_value()",
+          "end_anchor": "}",
+          "reason": "expected_rollback_count is only used by ReservedTx signature transactions (unmodeled)"
+        },
+        {
+          "start": 145,
+          "end": 153,
+          "start_anchor": "// Collect ConsensusHooks",
+          "end_anchor": "}",
+          "reason": "ConsensusHook collection via post_commit is unmodeled"
+        }
+      ]
+    },
+    "include/ccf/kv/tx.h": {
+      "exclude": [
+        {
+          "start": 124,
+          "end": 127,
+          "start_anchor": "std::optional<ccf::crypto::Sha256Hash> get_root_at_read_version()",
+          "end_anchor": "}",
+          "reason": "Merkle root at read version is unmodeled"
+        },
+        {
+          "start": 130,
+          "end": 151,
+          "start_anchor": "class TxDiff : public BaseTx",
+          "end_anchor": "};",
+          "reason": "TxDiff / MapDiff is unmodeled (trace::unsupported: map diff)"
+        }
+      ]
+    },
+    "src/kv/committable_tx.h": {
+      "exclude": [
+        {
+          "start": 20,
+          "end": 27,
+          "start_anchor": "using TxFlags = uint8_t;",
+          "end_anchor": "};",
+          "reason": "Transaction ledger/snapshot flags are unmodeled"
+        },
+        {
+          "start": 67,
+          "end": 82,
+          "start_anchor": "void serialise_all_changes(",
+          "end_anchor": "}",
+          "reason": "Transaction serialisation is unmodeled"
+        },
+        {
+          "start": 92,
+          "end": 174,
+          "start_anchor": "size_t projected_serialised_size(",
+          "end_anchor": "}",
+          "reason": "Transaction size limit projection and serialisation are unmodeled"
+        },
+        {
+          "start": 216,
+          "end": 231,
+          "start_anchor": "std::optional<size_t> projected_entry_size = std::nullopt;",
+          "end_anchor": "}",
+          "reason": "MaxTransactionSizeExceeded pre-check is unmodeled"
+        },
+        {
+          "start": 310,
+          "end": 313,
+          "start_anchor": "const auto force_ledger_chunk =",
+          "end_anchor": "tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);",
+          "reason": "Ledger chunk / snapshot TxFlag reads are unmodeled"
+        },
+        {
+          "start": 320,
+          "end": 325,
+          "start_anchor": "if (snapshot_at_next_signature)",
+          "end_anchor": "}",
+          "reason": "Snapshot flag handling on read-only commit is unmodeled"
+        },
+        {
+          "start": 330,
+          "end": 350,
+          "start_anchor": "// These side effects outlive this transaction",
+          "end_anchor": "}",
+          "reason": "Ledger chunk / snapshot TxFlag application is unmodeled"
+        },
+        {
+          "start": 357,
+          "end": 376,
+          "start_anchor": "ccf::crypto::Sha256Hash commit_evidence_digest;",
+          "end_anchor": "}",
+          "reason": "Post-apply serialisation, size assert, and write_set_observer are unmodeled"
+        },
+        {
+          "start": 395,
+          "end": 406,
+          "start_anchor": "catch (const std::exception& e)",
+          "end_anchor": "}",
+          "reason": "Serialisation exception re-throw (KvSerialiserException) is unmodeled"
+        },
+        {
+          "start": 477,
+          "end": 508,
+          "start_anchor": "void set_read_txid(",
+          "end_anchor": "}",
+          "reason": "set_read_txid, set_root_at_read_version, and TxFlag methods are unmodeled"
+        },
+        {
+          "start": 511,
+          "end": 634,
+          "start_anchor": "// Used by frontend for reserved transactions.",
+          "end_anchor": "};",
+          "reason": "ReservedTx (signature transactions) is unmodeled (trace::unsupported: reserved transaction)"
+        }
+      ]
+    }
+  }
+}
