@@ -8,7 +8,7 @@ import all Init.Control.State
 
 @[expose] public section
 
-namespace DisasterRecovery.Proofs.Trace
+namespace DisasterRecovery.Proofs.Behaviour
 
 open CCF
 variable {State : Type}
@@ -31,7 +31,7 @@ private theorem Path.reachable {system : TransitionSystem} {before tail after}
   | nil => exact reachable
   | cons step _ ih => exact ih (.step reachable step)
 
-end DisasterRecovery.Proofs.Trace
+end DisasterRecovery.Proofs.Behaviour
 
 namespace DisasterRecovery.Proofs.Execution.Local
 
@@ -700,20 +700,21 @@ private inductive Decoration (config : Model.Config)
     (rest : Decoration config middle tail after)
     : Decoration config before (erase middle :: tail) after
 
-/-- A reachable decorated state with a model execution suffix from every trace state
+/-- A reachable decorated state with a model execution suffix from every behaviour state
 up to `bound`. -/
 private structure Correspondence (config : Model.Config)
-    (trace : Properties.GlobalTrace config) (bound : Nat) (ghost : Execution.Global.State)
+    (behaviour : Properties.Behaviour config) (bound : Nat)
+    (ghost : Execution.Global.State)
     : Prop where
   /-- The instrumented state is reachable under the same recovery configuration. -/
   reachable : Execution.Global.Reachable config ghost
-  /-- Every trace state up to `bound` has a model path to the erased ghost state. -/
+  /-- Every behaviour state up to `bound` has a model path to the erased ghost state. -/
   suffix
     : forall i state,
         i <= bound
-        -> trace.stateAt i = some state
+        -> behaviour.stateAt i = some state
         -> exists tail,
-            Trace.Path (Model.transitionSystem config) state tail (erase ghost)
+            Behaviour.Path (Model.transitionSystem config) state tail (erase ghost)
 
 end DisasterRecovery.Proofs.History
 
@@ -784,19 +785,19 @@ private def FrozenVotes (state : State) : Prop :=
         /\ current.chosen.isSome = true
         /\ current.gossips = envelope.sourceState.gossips
 
-/-- `node` has accepted gossip from itself in a trace state up to `bound`. -/
-private def OwnGossipBy {config : Model.Config} (trace : Properties.GlobalTrace config)
+/-- `node` has accepted gossip from itself in a behaviour state up to `bound`. -/
+private def OwnGossipBy {config : Model.Config} (behaviour : Properties.Behaviour config)
     (bound : Nat) (node : Location)
     : Prop :=
   exists i state,
     i <= bound
-    /\ trace.stateAt i = some state
+    /\ behaviour.stateAt i = some state
     /\ exists nodeState txid,
         (node, nodeState) ∈ state.nodes /\ (node, txid) ∈ nodeState.gossips
 
 end DisasterRecovery.Proofs.Gossip
 
-namespace DisasterRecovery.Proofs.Trace
+namespace DisasterRecovery.Proofs.Behaviour
 
 open CCF
 variable {State : Type}
@@ -810,45 +811,45 @@ private theorem Path.run {system : TransitionSystem} {before tail after}
       obtain ⟨actions, rest⟩ := ih
       exact ⟨_, .cons step rest⟩
 
-/-- Enabled steps connect a state of a valid trace to every later state of the trace. -/
-private theorem valid_path {system : TransitionSystem} {trace : Execution.Trace system}
-    (start count : Nat) {before after : system.State}
-    (first : trace.stateAt start = some before)
-    (last : trace.stateAt (start + count) = some after)
+/-- Enabled steps connect a state of a valid behaviour to every later state of the behaviour. -/
+private theorem valid_path {system : TransitionSystem}
+    {behaviour : Execution.Behaviour system} (start count : Nat)
+    {before after : system.State} (first : behaviour.stateAt start = some before)
+    (last : behaviour.stateAt (start + count) = some after)
     : exists tail, Path system before tail after := by
   induction count generalizing start before with
   | zero =>
       cases first.symm.trans last
       exact ⟨[], .nil _⟩
   | succ count ih =>
-      cases next : trace.stateAt (start + 1) with
+      cases next : behaviour.stateAt (start + 1) with
       | none =>
-          have absent := trace.states.le_stable
+          have absent := behaviour.states.le_stable
             (show start + 1 <= start + (count + 1) by omega) next
-          change trace.states.get? (start + (count + 1)) = some after at last
+          change behaviour.states.get? (start + (count + 1)) = some after at last
           simp [absent] at last
       | some middle =>
-          obtain ⟨action, step⟩ := trace.step start before middle first next
+          obtain ⟨action, step⟩ := behaviour.step start before middle first next
           obtain ⟨tail, rest⟩ :=
             ih (start + 1) next (by rwa [show start + 1 + count = start + (count + 1) by omega])
           exact ⟨_, .cons step rest⟩
 
-/-- The later of two trace positions is also a trace position. -/
-private theorem max_isSome {trace : CCF.Seq State} {first second : Nat}
-    (firstIn : (trace.get? first).isSome) (secondIn : (trace.get? second).isSome)
-    : (trace.get? (max first second)).isSome := by
+/-- The later of two behaviour positions is also a behaviour position. -/
+private theorem max_isSome {behaviour : CCF.Seq State} {first second : Nat}
+    (firstIn : (behaviour.get? first).isSome) (secondIn : (behaviour.get? second).isSome)
+    : (behaviour.get? (max first second)).isSome := by
   rcases Nat.le_total first second with le | le
   · rwa [Nat.max_eq_right le]
   · rwa [Nat.max_eq_left le]
 
-/-- Finitely many trace positions all lie at or before one trace position after `start`. -/
-private theorem exists_bound {α : Type} {trace : CCF.Seq State} {P : α -> Nat -> Prop}
-    {start : Nat} (startIn : (trace.get? start).isSome) (items : List α)
+/-- Finitely many behaviour positions all lie at or before one behaviour position after `start`. -/
+private theorem exists_bound {α : Type} {behaviour : CCF.Seq State} {P : α -> Nat -> Prop}
+    {start : Nat} (startIn : (behaviour.get? start).isSome) (items : List α)
     (indexed
       : forall item,
-          item ∈ items -> exists index, (trace.get? index).isSome /\ P item index)
+          item ∈ items -> exists index, (behaviour.get? index).isSome /\ P item index)
     : exists bound,
-        (trace.get? bound).isSome
+        (behaviour.get? bound).isSome
         /\ start <= bound
         /\ forall item, item ∈ items -> exists index, index <= bound /\ P item index := by
   induction items with
@@ -868,7 +869,7 @@ private theorem exists_bound {α : Type} {trace : CCF.Seq State} {P : α -> Nat 
       · obtain ⟨index, le, holds⟩ := bounded item member
         exact ⟨index, Nat.le_trans le (Nat.le_max_right _ _), holds⟩
 
-end DisasterRecovery.Proofs.Trace
+end DisasterRecovery.Proofs.Behaviour
 
 namespace DisasterRecovery.Proofs.Invariants
 
@@ -3793,14 +3794,14 @@ namespace DisasterRecovery.Proofs.History
 open CCF
 open Lifting
 
-/-- The prefix of a valid trace up to any of its positions is decorated by a reachable
+/-- The prefix of a valid behaviour up to any of its positions is decorated by a reachable
 ghost execution. -/
 private theorem history_correspondence {config : Model.Config}
-    (trace : Properties.GlobalTrace config) {bound : Nat}
-    (inTrace : (trace.stateAt bound).isSome)
-    : exists ghost, Correspondence config trace bound ghost := by
-  have trace_lifts {config : Model.Config} {before after : Model.State} {tail}
-      (path : Trace.Path (Model.transitionSystem config) before tail after)
+    (behaviour : Properties.Behaviour config) {bound : Nat}
+    (inBehaviour : (behaviour.stateAt bound).isSome)
+    : exists ghost, Correspondence config behaviour bound ghost := by
+  have behaviour_lifts {config : Model.Config} {before after : Model.State} {tail}
+      (path : Behaviour.Path (Model.transitionSystem config) before tail after)
       (ghost : Execution.Global.State) (reachable : Execution.Global.Reachable config ghost)
       (linked : erase ghost = before)
       : exists final,
@@ -3808,7 +3809,7 @@ private theorem history_correspondence {config : Model.Config}
           /\ Execution.Global.Reachable config final
           /\ erase final = after := by
     induction path
-      using @Trace.Path.rec (Model.transitionSystem config) generalizing ghost with
+      using @Behaviour.Path.rec (Model.transitionSystem config) generalizing ghost with
     | nil => exact ⟨ghost, .nil _, reachable, linked⟩
     | @cons before middle after tail action step _ ih =>
         obtain ⟨ghostAction, ghostMiddle, _, ghostStep, middleEq⟩ :=
@@ -3823,14 +3824,14 @@ private theorem history_correspondence {config : Model.Config}
           reachableFinal,
           finalEq
         ⟩
-  obtain ⟨last, found⟩ := Option.isSome_iff_exists.mp inTrace
-  obtain ⟨before, first, initialized⟩ := trace.valid_init
+  obtain ⟨last, found⟩ := Option.isSome_iff_exists.mp inBehaviour
+  obtain ⟨before, first, initialized⟩ := behaviour.valid_init
   obtain ⟨initial, init, linked⟩ := model_initial_lifts config before initialized
-  obtain ⟨tail, path⟩ := Trace.valid_path 0 bound first (by simpa using found)
-  obtain ⟨final, _, reachable, finalEq⟩ := trace_lifts path initial (.initial init) linked
+  obtain ⟨tail, path⟩ := Behaviour.valid_path 0 bound first (by simpa using found)
+  obtain ⟨final, _, reachable, finalEq⟩ := behaviour_lifts path initial (.initial init) linked
   refine ⟨final, reachable, fun i state le atI => ?_⟩
   obtain ⟨suffix, rest⟩ :=
-    Trace.valid_path i (bound - i) atI (by rwa [Nat.add_sub_cancel' le])
+    Behaviour.valid_path i (bound - i) atI (by rwa [Nat.add_sub_cancel' le])
   exact ⟨suffix, finalEq ▸ rest⟩
 
 end DisasterRecovery.Proofs.History
@@ -4232,10 +4233,10 @@ private theorem next_evolves {config : Config} {before after : State} {action : 
       obtain ⟨_, ⟨system, output⟩, updated, _, rfl⟩ := transition
       simpa only [recordEffects_system] using systemStep_evolves wf.nodeKeysNodup updated member
 
-private theorem trace_node_final {config : Model.Config}
-    {trace : Properties.GlobalTrace config} {bound : Nat} {ghost : State}
-    (linked : History.Correspondence config trace bound ghost) {i : Nat}
-    {state : Model.State} (le : i <= bound) (found : trace.stateAt i = some state)
+private theorem behaviour_node_final {config : Model.Config}
+    {behaviour : Properties.Behaviour config} {bound : Nat} {ghost : State}
+    (linked : History.Correspondence config behaviour bound ghost) {i : Nat}
+    {state : Model.State} (le : i <= bound) (found : behaviour.stateAt i = some state)
     {node : Location} {current : NodeState} (present : (node, current) ∈ state.nodes)
     : exists final, (node, final) ∈ ghost.system.nodes /\ Evolves current final := by
   have evolves_trans {first second third : NodeState}
@@ -4261,19 +4262,20 @@ private theorem trace_node_final {config : Model.Config}
     simpa only [← projected', Lifting.erase]
       using next_evolves (reachable_well_formed reachable') step original
   have steps_evolve {config : Model.Config} {before after : Model.State} {steps}
-      (run : Trace.Path (Model.transitionSystem config) before steps after)
+      (run : Behaviour.Path (Model.transitionSystem config) before steps after)
       (reachable : (Model.transitionSystem config).Reachable before)
       {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
       : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
     induction run
-      using @Trace.Path.rec (Model.transitionSystem config) generalizing current with
+      using @Behaviour.Path.rec (Model.transitionSystem config) generalizing current with
     | nil => exact ⟨current, member, evolves_refl current⟩
     | cons transition _ ih =>
         obtain ⟨middle, present, evolves⟩ := model_step_evolves reachable transition member
         obtain ⟨updated, present', evolves'⟩ := ih (.step reachable transition) present
         exact ⟨updated, present', evolves_trans evolves evolves'⟩
   obtain ⟨suffix, run⟩ := linked.suffix i state le found
-  exact steps_evolve run (trace.reachable (CCF.Execution.Trace.stateAt_mem found)) present
+  exact steps_evolve run (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem found))
+    present
 
 private theorem next_frozen {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
@@ -4527,22 +4529,23 @@ open Execution.Global
 open Invariants Quorum
 
 theorem quorum_open_preserves_commit
-    : forall (config : Model.Config) (trace : Properties.GlobalTrace config)
+    : forall (config : Model.Config) (behaviour : Properties.Behaviour config)
               (openedState : Model.State),
       forall (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
-        (openedState ∈ trace
+        (openedState ∈ behaviour
           /\ (opener, openerState) ∈ openedState.nodes
           /\ openerState.openKind = some .quorum
           /\ (forall voter,
-                voter ∈ openerState.votes -> Properties.ReceivedOwnGossip trace voter))
+                voter ∈ openerState.votes
+                -> Properties.ReceivedOwnGossip behaviour voter))
         -> exists openerTxID,
             Model.recoveredTxID config opener = some openerTxID
             /\ Properties.UpToDateWithQuorum config openerTxID := by
-  have sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace config}
+  have sent_vote_preserves_own {config : Config} {behaviour : Properties.Behaviour config}
       {bound : Nat} {ghost : State}
-      (linked : History.Correspondence config trace bound ghost) {envelope : Envelope}
+      (linked : History.Correspondence config behaviour bound ghost) {envelope : Envelope}
       (sent : envelope ∈ ghost.sent) (vote : envelope.payload = .vote)
-      (own : OwnGossipBy trace bound envelope.source)
+      (own : OwnGossipBy behaviour bound envelope.source)
       : exists sourceTx targetTx,
           Model.recoveredTxID config envelope.source = some sourceTx
           /\ Model.recoveredTxID config envelope.target = some targetTx
@@ -4551,7 +4554,7 @@ theorem quorum_open_preserves_commit
     obtain ⟨genuine, frozen⟩ := reachable_gossip_invariant linked.reachable
     obtain ⟨current, present, _, same⟩ := frozen envelope sent vote
     obtain ⟨i, witness, le, found, original, txid, originalPresent, ownGossip⟩ := own
-    obtain ⟨final, finalMember, evolves⟩ := trace_node_final linked le found originalPresent
+    obtain ⟨final, finalMember, evolves⟩ := behaviour_node_final linked le found originalPresent
     have states : final = current :=
       congrArg Prod.snd (eq_of_key_eq wf.nodeKeysNodup finalMember present rfl)
     have ownCurrent : (envelope.source, txid) ∈ current.gossips := by
@@ -4570,30 +4573,30 @@ theorem quorum_open_preserves_commit
       Committed.recoveredTxID_of_mem configValid (genuine _ present ownCurrent),
       Committed.recoveredTxID_of_mem configValid (genuine _ present maximumCurrent),
       Committed.maximumGossip_upper_bound greatest ownSnapshot⟩
-  rintro config trace state opener current ⟨inTrace, present, opened, own⟩
-  obtain ⟨openIndex, found⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp inTrace
+  rintro config behaviour state opener current ⟨inBehaviour, present, opened, own⟩
+  obtain ⟨openIndex, found⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp inBehaviour
   obtain ⟨bound, boundIn, openLe, bounded⟩ :=
-    Trace.exists_bound (P := fun voter i => exists witness, trace.stateAt i = some witness
+    Behaviour.exists_bound (P := fun voter i => exists witness, behaviour.stateAt i = some witness
         /\ exists nodeState txid,
             (voter, nodeState) ∈ witness.nodes /\ (voter, txid) ∈ nodeState.gossips)
       (Option.isSome_iff_exists.mpr ⟨_, found.symm⟩) current.votes fun voter voted => by
         obtain ⟨witness, member, rest⟩ := own voter voted
-        obtain ⟨i, atI⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp member
+        obtain ⟨i, atI⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp member
         exact ⟨i, Option.isSome_iff_exists.mpr ⟨_, atI.symm⟩, witness, atI.symm, rest⟩
-  have own : forall voter, voter ∈ current.votes -> OwnGossipBy trace bound voter :=
+  have own : forall voter, voter ∈ current.votes -> OwnGossipBy behaviour bound voter :=
     fun voter voted => by
       obtain ⟨i, le, witness, atI, rest⟩ := bounded voter voted
       exact ⟨i, witness, le, atI, rest⟩
-  obtain ⟨ghost, linked⟩ := History.history_correspondence trace boundIn
+  obtain ⟨ghost, linked⟩ := History.history_correspondence behaviour boundIn
   have invariant := reachable_quorum_invariant linked.reachable
-  have stateReachable := trace.reachable inTrace
+  have stateReachable := behaviour.reachable inBehaviour
   obtain ⟨atOpening, openingReachable, projected⟩ := Lifting.model_reachable_lifts stateReachable
   have openingPresent : (opener, current) ∈ atOpening.system.nodes := by
     simpa only [← projected, Lifting.erase] using present
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
   have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
   obtain ⟨final, finalMember, evolves⟩ :=
-    trace_node_final linked openLe found.symm present
+    behaviour_node_final linked openLe found.symm present
   have votesSent : forall voter, voter ∈ current.votes -> Predicates.SentVote ghost voter opener :=
     fun voter member => invariant.votesSent _ finalMember voter (evolves.votes member)
   have anyVote : exists voter, voter ∈ current.votes := by
@@ -4675,25 +4678,25 @@ open Execution.Global
 open Invariants Quorum
 
 theorem full_gossip_preserves_commit
-    : forall (config : Model.Config) (trace : Properties.GlobalTrace config)
+    : forall (config : Model.Config) (behaviour : Properties.Behaviour config)
               (gossipedState openedState : Model.State),
       forall (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
-        (gossipedState ∈ trace
+        (gossipedState ∈ behaviour
           /\ (forall node nodeState,
                 node ∈ config.protocol.expectedLocations
                 -> (node, nodeState) ∈ gossipedState.nodes
                 -> forall gossip,
                     gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
-          /\ openedState ∈ trace
+          /\ openedState ∈ behaviour
           /\ (opener, openerState) ∈ openedState.nodes
           /\ openerState.openKind.isSome = true)
         -> exists openerTxID,
             Model.recoveredTxID config opener = some openerTxID
             /\ Properties.UpToDateWithQuorum config openerTxID := by
-  have sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace config}
+  have sent_vote_full_gossip {config : Config} {behaviour : Properties.Behaviour config}
       {bound : Nat} {ghost : State}
-      (linked : History.Correspondence config trace bound ghost) {i : Nat}
-      {gossiped : Model.State} (le : i <= bound) (inTrace : trace.stateAt i = some gossiped)
+      (linked : History.Correspondence config behaviour bound ghost) {i : Nat}
+      {gossiped : Model.State} (le : i <= bound) (inBehaviour : behaviour.stateAt i = some gossiped)
       (full
         : forall node nodeState,
             node ∈ config.protocol.expectedLocations
@@ -4706,7 +4709,7 @@ theorem full_gossip_preserves_commit
     obtain ⟨genuine, frozen⟩ := reachable_gossip_invariant linked.reachable
     obtain ⟨current, present, _, same⟩ := frozen envelope sent vote
     obtain ⟨atGossip, gossipReachable, projected⟩ :=
-      Lifting.model_reachable_lifts (trace.reachable (CCF.Execution.Trace.stateAt_mem inTrace))
+      Lifting.model_reachable_lifts (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem inBehaviour))
     have configured := wf.sentSourceConfigured envelope sent
     have sourceKey : envelope.source ∈ atGossip.system.nodes.map Prod.fst := by
       exact (reachable_well_formed gossipReachable).nodeKeys _ configured
@@ -4714,7 +4717,7 @@ theorem full_gossip_preserves_commit
     have originalPresent : (envelope.source, entry.2) ∈ gossiped.nodes := by
       simpa only [← projected, Lifting.erase, ← key] using entryMember
     obtain ⟨final, finalMember, evolves⟩ :=
-      trace_node_final linked le inTrace originalPresent
+      behaviour_node_final linked le inBehaviour originalPresent
     have states : final = current :=
       congrArg Prod.snd (eq_of_key_eq wf.nodeKeysNodup finalMember present rfl)
     intro gossip
@@ -4725,21 +4728,21 @@ theorem full_gossip_preserves_commit
       have original := (full envelope.source entry.2 configured originalPresent gossip).mpr member
       have finalGossip := evolves.gossips original
       simpa only [states, same] using finalGossip
-  rintro config trace gossiped opened opener current
+  rintro config behaviour gossiped opened opener current
     ⟨gossipedMember, full, openedMember, present, opening⟩
-  obtain ⟨gossipIndex, gossipFound⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp gossipedMember
-  obtain ⟨openIndex, openFound⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp openedMember
-  obtain ⟨ghost, linked⟩ := History.history_correspondence trace
-    (Trace.max_isSome (Option.isSome_iff_exists.mpr ⟨_, gossipFound.symm⟩)
+  obtain ⟨gossipIndex, gossipFound⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp gossipedMember
+  obtain ⟨openIndex, openFound⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp openedMember
+  obtain ⟨ghost, linked⟩ := History.history_correspondence behaviour
+    (Behaviour.max_isSome (Option.isSome_iff_exists.mpr ⟨_, gossipFound.symm⟩)
       (Option.isSome_iff_exists.mpr ⟨_, openFound.symm⟩))
   obtain ⟨atOpening, openingReachable, projected⟩ :=
-    Lifting.model_reachable_lifts (trace.reachable openedMember)
+    Lifting.model_reachable_lifts (behaviour.reachable openedMember)
   have openingPresent : (opener, current) ∈ atOpening.system.nodes := by
     simpa only [← projected, Lifting.erase] using present
   obtain ⟨voter, voted⟩ :=
     Observed.reachable_opening_has_vote openingReachable _ openingPresent opening
   obtain ⟨final, finalMember, evolves⟩ :=
-    trace_node_final linked (Nat.le_max_right _ _) openFound.symm present
+    behaviour_node_final linked (Nat.le_max_right _ _) openFound.symm present
   have invariant := reachable_quorum_invariant linked.reachable
   obtain ⟨envelope, sent, _, target, vote⟩ :=
     invariant.votesSent _ finalMember voter (evolves.votes voted)
@@ -4766,36 +4769,36 @@ open Execution.Global hiding Config
 open Predicates
 
 private theorem notification_opening_state {config : Model.Config}
-    {trace : Properties.GlobalTrace config} {index : Nat} {node : Location}
+    {behaviour : Properties.Behaviour config} {index : Nat} {node : Location}
     {kind : OpenKind}
     (notification
-      : Properties.Trace.NotificationAt config trace index node (.opening kind))
+      : Properties.Behaviour.NotificationAt config behaviour index node (.opening kind))
     : exists after current,
-        trace.stateAt (index + 1) = some after
+        behaviour.stateAt (index + 1) = some after
         /\ (node, current) ∈ after.nodes
         /\ current.openKind = some kind := by
   obtain ⟨before, after, action, nodeBefore, nodeAfter, outputs,
     _, atAfter, _, _, _, foundAfter, enabled, notified⟩ := notification
   obtain ⟨recovered, _, enabled⟩ :=
     DisasterRecovery.Proofs.Local.validStep_run
-      (s := ⟨node, nodeBefore, Properties.Trace.event action, nodeAfter, outputs⟩) enabled
+      (s := ⟨node, nodeBefore, Properties.Behaviour.event action, nodeAfter, outputs⟩) enabled
   have erased := Lifting.step_erases config.protocol recovered nodeBefore (source := node)
-    (Properties.Trace.event action) { state := nodeAfter, effects := outputs.notifications }
+    (Properties.Behaviour.event action) { state := nodeAfter, effects := outputs.notifications }
     (by simp [enabled, Lifting.capture])
   have stateEq := congrArg Lifting.Result.state erased
   have notifications := congrArg Lifting.Result.effects erased
-  change (step config.protocol nodeBefore (Properties.Trace.event action)).state = nodeAfter at stateEq
+  change (step config.protocol nodeBefore (Properties.Behaviour.event action)).state = nodeAfter at stateEq
   change
-    (step config.protocol nodeBefore (Properties.Trace.event action)).effects.filterMap
+    (step config.protocol nodeBefore (Properties.Behaviour.event action)).effects.filterMap
       Effect.diagnostic = outputs.notifications at notifications
   have recorded : .opening kind ∈
-      (step config.protocol nodeBefore (Properties.Trace.event action)).effects := by
+      (step config.protocol nodeBefore (Properties.Behaviour.event action)).effects := by
     rw [← notifications] at notified
     obtain ⟨effect, member, diagnostic⟩ := List.mem_filterMap.mp notified
     cases effect <;> cases diagnostic
     exact member
   have opened := (Quorum.opening_effect_state config.protocol nodeBefore
-    (Properties.Trace.event action) kind recorded).2
+    (Properties.Behaviour.event action) kind recorded).2
   rw [stateEq] at opened
   refine ⟨after, nodeAfter, atAfter, ?_, opened⟩
   obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp foundAfter
@@ -4841,23 +4844,24 @@ open Execution.Global
 open Invariants Quorum
 
 private theorem quorum_notification_final_votes {config : Model.Config}
-    {trace : Properties.GlobalTrace config} {bound : Nat} {ghost : State}
-    (linked : History.Correspondence config trace bound ghost) {index : Nat}
+    {behaviour : Properties.Behaviour config} {bound : Nat} {ghost : State}
+    (linked : History.Correspondence config behaviour bound ghost) {index : Nat}
     (le : index + 1 <= bound) {node : Location}
     (notification
-      : Properties.Trace.NotificationAt config trace index node (.opening .quorum))
+      : Properties.Behaviour.NotificationAt config behaviour index node
+          (.opening .quorum))
     : exists final,
         (node, final) ∈ ghost.system.nodes
         /\ voteQuorum config.protocol <= final.votes.length := by
-  obtain ⟨after, current, inTrace, present, opened⟩ :=
+  obtain ⟨after, current, inBehaviour, present, opened⟩ :=
     Observed.notification_opening_state notification
   obtain ⟨atOpening, openingReachable, projected⟩ :=
-    Lifting.model_reachable_lifts (trace.reachable (CCF.Execution.Trace.stateAt_mem inTrace))
+    Lifting.model_reachable_lifts (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem inBehaviour))
   have openingPresent : (node, current) ∈ atOpening.system.nodes := by
     simpa only [← projected, Lifting.erase] using present
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
   have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
-  obtain ⟨final, finalMember, evolves⟩ := trace_node_final linked le inTrace present
+  obtain ⟨final, finalMember, evolves⟩ := behaviour_node_final linked le inBehaviour present
   have count := nodup.length_le_of_subset fun _ member => evolves.votes member
   exact ⟨final, finalMember, Nat.le_trans threshold count⟩
 
@@ -4866,19 +4870,19 @@ end DisasterRecovery.Proofs.Gossip
 namespace DisasterRecovery.Proofs.Model
 
 theorem quorum_opener_unique
-    : forall (config : Model.Config) (trace : Properties.GlobalTrace config),
+    : forall (config : Model.Config) (behaviour : Properties.Behaviour config),
       forall (firstStep secondStep : Nat)
               (firstOpener secondOpener : Model.Local.Location),
-        (Properties.Trace.NotificationAt config trace firstStep firstOpener
+        (Properties.Behaviour.NotificationAt config behaviour firstStep firstOpener
             (.opening .quorum)
-          /\ Properties.Trace.NotificationAt config trace secondStep secondOpener
+          /\ Properties.Behaviour.NotificationAt config behaviour secondStep secondOpener
               (.opening .quorum))
         -> firstOpener = secondOpener := by
-  rintro config trace firstStep secondStep firstOpener secondOpener ⟨first, second⟩
+  rintro config behaviour firstStep secondStep firstOpener secondOpener ⟨first, second⟩
   obtain ⟨_, _, firstFound, _⟩ := Observed.notification_opening_state first
   obtain ⟨_, _, secondFound, _⟩ := Observed.notification_opening_state second
-  obtain ⟨ghost, linked⟩ := History.history_correspondence trace
-    (Trace.max_isSome (Option.isSome_iff_exists.mpr ⟨_, firstFound⟩)
+  obtain ⟨ghost, linked⟩ := History.history_correspondence behaviour
+    (Behaviour.max_isSome (Option.isSome_iff_exists.mpr ⟨_, firstFound⟩)
       (Option.isSome_iff_exists.mpr ⟨_, secondFound⟩))
   obtain ⟨firstState, firstMember, firstThreshold⟩ :=
     Gossip.quorum_notification_final_votes linked (Nat.le_max_left _ _) first

@@ -10,20 +10,20 @@ open CCF.Execution
 open Consensus.Model.Node
 open GenericWitnesses
 
-private theorem committed_trace (config : Consensus.Properties.ValidConfig)
-    : exists (trace : Trace (Model.transitionSystem config (ids config))) (state
-                                                                            : Model.State) (node
-                                                                                            : NodeID) (nodeState
-                                                                                                        : NodeState),
-        state ∈ trace
+private theorem committed_behaviour (config : Consensus.Properties.ValidConfig)
+    : exists (behaviour : Behaviour (Model.transitionSystem config (ids config))) (state
+                                                                                    : Model.State) (node
+                                                                                                    : NodeID) (nodeState
+                                                                                                                : NodeState),
+        state ∈ behaviour
         /\ (node, nodeState) ∈ state.nodes
         /\ 0 < nodeState.commitIndex
         /\ nodeState.committedLog ≠ [] := by
   obtain ⟨states, reachable, leading, _, _⟩ :=
     replicate_set config (config.val.erase (primary config)) (CCF.Finset.Subset.refl _)
-  obtain ⟨trace, network, present⟩ := at_trace reachable
+  obtain ⟨behaviour, network, present⟩ := at_behaviour reachable
     (primary config) (primary_mem config) (by rw [leading]; rfl)
-  refine ⟨trace, { nodes := table config states, network },
+  refine ⟨behaviour, { nodes := table config states, network },
     primary config, states (primary config), present,
     table_member config states _ (primary_mem config), ?_, ?_⟩
   · rw [leading]
@@ -68,19 +68,20 @@ private theorem nodeState_member {state : Model.State} {node : NodeID} {value : 
 public theorem committed_logs_prefix_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
-        (nodes : List NodeID) (trace : Trace (Model.transitionSystem config nodes)),
+        (nodes : List NodeID) (behaviour
+                                : Behaviour (Model.transitionSystem config nodes)),
         exists (stateA stateB : Model.State),
         exists (left right : NodeID) (leftState rightState : NodeState),
-          stateA ∈ trace
-          /\ stateB ∈ trace
+          stateA ∈ behaviour
+          /\ stateB ∈ behaviour
           /\ (left, leftState) ∈ stateA.nodes
           /\ (right, rightState) ∈ stateB.nodes
           /\ leftState.committedLog ≠ []
           /\ rightState.committedLog ≠ [] := by
   intro config
-  obtain ⟨trace, state, node, nodeState, present, member, _, committed⟩ :=
-    committed_trace config
-  exact ⟨ids config, trace, state, state, node, node, nodeState, nodeState,
+  obtain ⟨behaviour, state, node, nodeState, present, member, _, committed⟩ :=
+    committed_behaviour config
+  exact ⟨ids config, behaviour, state, state, node, node, nodeState, nodeState,
     present, present, member, member, committed, committed⟩
 
 public theorem single_node_committed_log_monotonic_witness
@@ -116,20 +117,21 @@ public theorem single_node_committed_log_monotonic_witness
 public theorem election_safety_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
-        (nodes : List NodeID) (trace
-                                : Trace (Model.transitionSystem config nodes)) (state
-                                                                                : Model.State)
+        (nodes : List NodeID) (behaviour
+                                : Behaviour
+                                    (Model.transitionSystem config nodes)) (state
+                                                                            : Model.State)
           ,
         exists (left right : NodeID) (leftState rightState : NodeState),
-          state ∈ trace
+          state ∈ behaviour
           /\ (left, leftState) ∈ state.nodes
           /\ (right, rightState) ∈ state.nodes
           /\ leftState.role = .primary
           /\ rightState.role = .primary
           /\ leftState.currentTerm = rightState.currentTerm := by
   intro config
-  obtain ⟨trace, network, present⟩ :=
-    at_trace (at_initial config) (primary config) (primary_mem config)
+  obtain ⟨behaviour, network, present⟩ :=
+    at_behaviour (at_initial config) (primary config) (primary_mem config)
       (by simp only [initial_primary])
   let state : Model.State := { nodes := table config (Model.initialNodeState config), network }
   have member := table_member config (Model.initialNodeState config) _ (primary_mem config)
@@ -137,7 +139,7 @@ public theorem election_safety_witness
     simp only [initial_primary]
   exact ⟨
     ids config,
-    trace,
+    behaviour,
     state,
     primary config,
     primary config,
@@ -158,24 +160,25 @@ public theorem deadlock_free_after_bootstrap_witness
           (Model.transitionSystem config nodes).Reachable state
           /\ Consensus.Properties.Bootstrapped state := by
   intro config
-  obtain ⟨trace, state, node, nodeState, present, member, positive, _⟩ :=
-    committed_trace config
-  exact ⟨ids config, state, trace.reachable present, node, nodeState, member, positive⟩
+  obtain ⟨behaviour, state, node, nodeState, present, member, positive, _⟩ :=
+    committed_behaviour config
+  exact ⟨ids config, state, behaviour.reachable present, node, nodeState, member, positive⟩
 
 public theorem committed_frontier_is_signature_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
-        (nodes : List NodeID) (trace
-                                : Trace (Model.transitionSystem config nodes)) (state
-                                                                                : Model.State)
+        (nodes : List NodeID) (behaviour
+                                : Behaviour
+                                    (Model.transitionSystem config nodes)) (state
+                                                                            : Model.State)
           ,
         exists (node : NodeID) (nodeState : NodeState),
-          state ∈ trace
+          state ∈ behaviour
           /\ (node, nodeState) ∈ state.nodes
           /\ 0 < nodeState.commitIndex := by
   intro config
-  obtain ⟨trace, state, node, nodeState, present, member, positive, _⟩ :=
-    committed_trace config
-  exact ⟨ids config, trace, state, node, nodeState, present, member, positive⟩
+  obtain ⟨behaviour, state, node, nodeState, present, member, positive, _⟩ :=
+    committed_behaviour config
+  exact ⟨ids config, behaviour, state, node, nodeState, present, member, positive⟩
 
 end Consensus.Proofs.Witnesses

@@ -9,7 +9,7 @@ namespace CCF
 /-!
 The minimal interface every model implements, bundling its state and action types.
 `init` picks out the initial
-states; `step` applies one action. Every other shared definition (traces,
+states; `step` applies one action. Every other shared definition (behaviours,
 reachability, the multi-node network) is built on these two fields.
 -/
 

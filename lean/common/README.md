@@ -7,28 +7,28 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Capabilities`              | Envelopes, ordered outputs, effects, and recording callbacks |
 | `CCF.TransitionSystem`          | Initial states, enabled transitions, and reachability        |
 | `CCF.MultiNodeTransitionSystem` | Local protocols composed into a message-passing network      |
-| `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
+| `CCF.Execution`                 | Finite runs and finite or infinite behaviours                |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Msgpack`                   | MessagePack readers, and structures declared with theirs     |
 | `CCF.Architecture`              | Checks of specification import layering                      |
 | `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
 | `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
 | `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
-| `CCF.Proofs.Execution`          | Execution constructors and theorems about runs and traces    |
+| `CCF.Proofs.Execution`          | Constructors and theorems for runs and behaviours            |
 | `CCF.Proofs.Finset`             | Lemmas about the `CCF.Finset` operations                     |
 | `CCF.Proofs.Function`           | Lemmas about point updates                                   |
 | `CCF.Proofs.Seq`                | Lemmas about sequence access and membership                  |
 
-`CCF.Execution.TraceImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
-`CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
-`reachable_iff_trace`, in `CCF.Proofs.Execution`, shows that finite execution traces reach exactly the reachable states.
+`CCF.Execution.BehaviourImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
+`CCF.Execution.Behaviour system` is the subtype whose `BehaviourImpl.Valid` proof establishes initialization and every recorded transition.
+`reachable_iff_behaviour`, in `CCF.Proofs.Execution`, shows that finite behaviours reach exactly the reachable states.
 Proof-only constructors in `CCF.Proofs.Execution` build concrete executions for witnesses and regression checks.
-`CCF.Execution.ofSteps` constructs finite traces from recorded action/state pairs satisfying `StepsFrom`.
+`CCF.Execution.ofSteps` constructs finite behaviours from recorded action/state pairs satisfying `StepsFrom`.
 Their indexing, membership, and step-extension theorems are in the same proof module.
 `CCF.TxID` shares the view/sequence-number representation and its strict (`lt`) and non-strict (`le`) lexicographic ordering across models.
 
 As in the specification packages, definitions and the theorems about them live in separate modules.
-Theorems go under `CCF.Proofs`, keeping their original names, so `CCF.Execution.reachable_iff_trace` is declared in `CCF.Proofs.Execution`.
+Theorems go under `CCF.Proofs`, keeping their original names, so `CCF.Execution.reachable_iff_behaviour` is declared in `CCF.Proofs.Execution`.
 Definition modules keep only the proofs their definitions carry, such as the sortedness of `CCF.Finset` and the stability of `CCF.Seq`.
 Sequence and function lemmas live in `CCF.Proofs.Seq` and `CCF.Proofs.Function`, including their `rfl` and `simp` lemmas.
 `CCF.Finset.Disjoint` remains with the set definitions because the consensus model uses it in its commit rule.
@@ -70,12 +70,12 @@ Use `abbrev` for concrete systems so Lean can unfold their bundled types during 
 Generic helpers use `system.State` and `system.Action`, while `system.Reachable state` and `Execution.Run system start actions final` describe executions.
 `system.DeadlockFree` means that every reachable state has at least one action whose `step` returns `some nextState`.
 Enabled stutters count; disabled actions returning `none` do not.
-This does not require fair scheduling, eventual progress, or infinite traces: a finite trace may stop even when another action is enabled.
-Traces have type `Execution.Trace system`, with validity carried by the structure rather than a separate premise.
-Use `trace.stateAt n` and `trace.actionAt n` for optional indexed access, `state ∈ trace` for state membership, and `trace.states` and `trace.actions` to access the sequences directly.
-The sequences are derived from `init` and `steps`, so finite traces always have one more state than action.
-Use `action ∈ trace.actions` for action membership; `State` and `Action` can be the same type, so `action ∈ trace` cannot safely be overloaded.
-`trace.reachable` proves that every member state is reachable.
+This does not require fair scheduling, eventual progress, or infinite behaviours: a finite behaviour may stop even when another action is enabled.
+Behaviours have type `Execution.Behaviour system`, with validity carried by the structure rather than a separate premise.
+Use `behaviour.stateAt n` and `behaviour.actionAt n` for optional indexed access, `state ∈ behaviour` for state membership, and `behaviour.states` and `behaviour.actions` to access the sequences directly.
+The sequences are derived from `init` and `steps`, so finite behaviours always have one more state than action.
+Use `action ∈ behaviour.actions` for action membership; `State` and `Action` can be the same type, so `action ∈ behaviour` cannot safely be overloaded.
+`behaviour.reachable` proves that every member state is reachable.
 
 ## Import coverage
 
