@@ -3,14 +3,20 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/ds/hex.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/cft_types.h"
 #include "crypto/cose.h"
+#include "crypto/openssl/cose_verifier.h"
 #include "ds/internal_logger.h"
 #include "service/tables/previous_service_identity.h"
 
+#include <algorithm>
 #include <format>
+#include <span>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace ccf
 {
@@ -104,6 +110,99 @@ namespace ccf
     }
 
     return {endorsed_key.begin(), endorsed_key.end()};
+  }
+
+  // A chain stops at the self-endorsement of its oldest service, which is not
+  // part of the chain. Checks that it starts at expected_from, the oldest
+  // epoch which the chain covers, and that expected_key, the key which the
+  // chain trusts for that epoch, signed it over itself. format_key renders a
+  // key in the errors.
+  template <typename FormatKey>
+  void validate_self_endorsement(
+    const ccf::CoseEndorsement& endorsement,
+    const ccf::TxID& expected_from,
+    std::span<const uint8_t> expected_key,
+    FormatKey format_key)
+  {
+    const auto from_str = endorsement.endorsement_epoch_begin.to_str();
+
+    if (!is_self_endorsement(endorsement))
+    {
+      throw std::logic_error(
+        std::format("Endorsement at {} is not a self-endorsement", from_str));
+    }
+
+    if (endorsement.endorsement_epoch_end.has_value())
+    {
+      throw std::logic_error(std::format(
+        "Self-endorsement at {} has an epoch end {}",
+        from_str,
+        endorsement.endorsement_epoch_end->to_str()));
+    }
+
+    if (endorsement.endorsement_epoch_begin != expected_from)
+    {
+      throw std::logic_error(std::format(
+        "Self-endorsement at {} does not start at the oldest endorsed epoch "
+        "{}",
+        from_str,
+        expected_from.to_str()));
+    }
+
+    if (!std::equal(
+          endorsement.endorsing_key.begin(),
+          endorsement.endorsing_key.end(),
+          expected_key.begin(),
+          expected_key.end()))
+    {
+      throw std::logic_error(std::format(
+        "Self-endorsement at {} is signed by public key {}, which is not the "
+        "key {} trusted from that epoch",
+        from_str,
+        format_key(endorsement.endorsing_key),
+        format_key(expected_key)));
+    }
+
+    std::vector<uint8_t> endorsed_key;
+    try
+    {
+      endorsed_key = verify_cose_endorsement_signature(
+        endorsement.endorsement, endorsement.endorsing_key);
+    }
+    catch (const std::exception&)
+    {
+      throw std::logic_error(std::format(
+        "Self-endorsement at {} failed signature verification", from_str));
+    }
+
+    if (endorsed_key != endorsement.endorsing_key)
+    {
+      throw std::logic_error(std::format(
+        "Self-endorsement at {} endorses public key {}, which is not the key "
+        "which signed it",
+        from_str,
+        format_key(endorsed_key)));
+    }
+
+    // The signature is verified, so the header is safe to trust
+    const auto signed_epochs =
+      ccf::crypto::extract_cose_endorsement_epochs(endorsement.endorsement);
+    if (signed_epochs.begin != from_str)
+    {
+      throw std::logic_error(std::format(
+        "Self-endorsement at {} is signed for another epoch begin {}",
+        from_str,
+        signed_epochs.begin));
+    }
+
+    // A back-endorsement is signed with an epoch end
+    if (signed_epochs.end.has_value())
+    {
+      throw std::logic_error(std::format(
+        "Self-endorsement at {} is signed with an epoch end {}",
+        from_str,
+        signed_epochs.end.value()));
+    }
   }
 
   inline void verify_endorsements_connected(

@@ -6,7 +6,10 @@
 #include "ccf/crypto/cose_verifier.h"
 
 #include <chrono>
+#include <optional>
 #include <span>
+#include <string>
+#include <vector>
 
 namespace ccf::crypto
 {
@@ -70,4 +73,20 @@ namespace ccf::crypto
     COSEKeyVerifier_OpenSSL(std::span<const uint8_t> public_key_der);
     explicit COSEKeyVerifier_OpenSSL(const COSEKey& key);
   };
+
+  struct COSEEndorsementEpochs
+  {
+    std::string begin;
+    // A self-endorsement has no epoch end
+    std::optional<std::string> end;
+  };
+
+  // Epochs signed in the protected header of an endorsement
+  COSEEndorsementEpochs extract_cose_endorsement_epochs(
+    std::span<const uint8_t> cose_msg);
+
+  // Ledger root at the end of the endorsed epoch, signed in the protected
+  // header of a back-endorsement
+  std::optional<std::vector<uint8_t>> extract_cose_endorsement_previous_root(
+    std::span<const uint8_t> cose_msg);
 }

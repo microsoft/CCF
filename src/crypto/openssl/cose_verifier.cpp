@@ -535,39 +535,72 @@ namespace ccf::crypto
     return std::make_unique<COSEKeyVerifier_OpenSSL>(key);
   }
 
+  namespace
+  {
+    tav::cbor::Value extract_cose_endorsement_ccf_claims(
+      std::span<const uint8_t> cose_msg)
+    {
+      using namespace tav::cbor;
+
+      auto cose_cbor = rethrow_with_msg(
+        [&]() { return nondet_parse(cose_msg); }, "Parse COSE CBOR");
+
+      const auto cose_envelope = rethrow_with_msg(
+        [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+        "Parse COSE tag");
+
+      const auto phdr_raw = rethrow_with_msg(
+        [&]() { return cose_envelope.array_at(0); },
+        "Parse raw protected header");
+
+      auto phdr = rethrow_with_msg(
+        [&]() { return nondet_parse(phdr_raw.as_bytes()); },
+        "Decode protected header");
+
+      return rethrow_with_msg(
+        [&]() {
+          return phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
+        },
+        "Retrieve CCF claims");
+    }
+
+    std::string extract_epoch_begin(const tav::cbor::Value& ccf_claims)
+    {
+      using namespace tav::cbor;
+
+      return rethrow_with_msg(
+        [&]() {
+          return std::string(
+            ccf_claims
+              .map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
+              .as_string());
+        },
+        "Retrieve epoch range begin");
+    }
+
+    std::optional<tav::cbor::Value> find_claim(
+      const tav::cbor::Value& ccf_claims, std::string_view name)
+    {
+      const auto size = ccf_claims.size();
+      for (size_t i = 0; i < size; ++i)
+      {
+        const auto key = ccf_claims.map_key_at(i);
+        if (key.kind() == tav::cbor::Kind::STRING && key.as_string() == name)
+        {
+          return ccf_claims.map_value_at(i);
+        }
+      }
+      return std::nullopt;
+    }
+  }
+
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg)
   {
     using namespace tav::cbor;
 
-    auto cose_cbor = rethrow_with_msg(
-      [&]() { return nondet_parse(cose_msg); }, "Parse COSE CBOR");
-
-    const auto cose_envelope = rethrow_with_msg(
-      [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
-      "Parse COSE tag");
-
-    const auto phdr_raw = rethrow_with_msg(
-      [&]() { return cose_envelope.array_at(0); },
-      "Parse raw protected header");
-
-    auto phdr = rethrow_with_msg(
-      [&]() { return nondet_parse(phdr_raw.as_bytes()); },
-      "Decode protected header");
-
-    const auto ccf_claims = rethrow_with_msg(
-      [&]() {
-        return phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
-      },
-      "Retrieve CCF claims");
-
-    auto from = rethrow_with_msg(
-      [&]() {
-        return ccf_claims
-          .map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
-          .as_string();
-      },
-      "Retrieve epoch range begin");
+    const auto ccf_claims = extract_cose_endorsement_ccf_claims(cose_msg);
+    auto from = extract_epoch_begin(ccf_claims);
 
     auto to = rethrow_with_msg(
       [&]() {
@@ -578,6 +611,49 @@ namespace ccf::crypto
       "Retrieve epoch range end");
 
     return COSEEndorsementValidity{
-      .from_txid = std::string(from), .to_txid = std::string(to)};
+      .from_txid = std::move(from), .to_txid = std::string(to)};
+  }
+
+  COSEEndorsementEpochs extract_cose_endorsement_epochs(
+    std::span<const uint8_t> cose_msg)
+  {
+    using namespace tav::cbor;
+
+    const auto ccf_claims = extract_cose_endorsement_ccf_claims(cose_msg);
+    COSEEndorsementEpochs epochs{
+      .begin = extract_epoch_begin(ccf_claims), .end = std::nullopt};
+
+    rethrow_with_msg(
+      [&]() {
+        const auto end =
+          find_claim(ccf_claims, ccf::cose::header::custom::TX_RANGE_END);
+        if (end.has_value())
+        {
+          epochs.end = std::string(end->as_string());
+        }
+      },
+      "Retrieve epoch range end");
+
+    return epochs;
+  }
+
+  std::optional<std::vector<uint8_t>> extract_cose_endorsement_previous_root(
+    std::span<const uint8_t> cose_msg)
+  {
+    using namespace tav::cbor;
+
+    const auto ccf_claims = extract_cose_endorsement_ccf_claims(cose_msg);
+    return rethrow_with_msg(
+      [&]() -> std::optional<std::vector<uint8_t>> {
+        const auto root = find_claim(
+          ccf_claims, ccf::cose::header::custom::EPOCH_LAST_MERKLE_ROOT);
+        if (!root.has_value())
+        {
+          return std::nullopt;
+        }
+        const auto bytes = root->as_bytes();
+        return std::vector<uint8_t>(bytes.begin(), bytes.end());
+      },
+      "Retrieve epoch last merkle root");
   }
 }
