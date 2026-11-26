@@ -1413,6 +1413,13 @@ namespace aft
           send_append_entries_response_nack(from);
           return;
         }
+        catch (...)
+        {
+          CFT_FAIL_FMT("Failed to run consensus hooks at {}: unknown error", i);
+          rollback(std::max(initial_last_idx, last_committable_index()));
+          send_append_entries_response_nack(from);
+          return;
+        }
 
         bool globally_committable =
           (apply_success == ccf::kv::ApplyResult::PASS_SIGNATURE);

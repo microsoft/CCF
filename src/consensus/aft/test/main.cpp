@@ -3418,8 +3418,7 @@ DOCTEST_TEST_CASE(
       auto resp_msg =
         follower_channels->pop_first(aft::append_entries_response, primary_id);
       DOCTEST_REQUIRE(resp_msg.has_value());
-      return *reinterpret_cast<const aft::AppendEntriesResponse*>(
-        resp_msg->data());
+      return read_msg<aft::AppendEntriesResponse>(*resp_msg);
     }
   };
 

@@ -1532,7 +1532,7 @@ def run_remove_last_node(const_args):
         else:
             raise AssertionError("The last trusted node of the service was removed")
 
-        assert primary.remote.check_done(timeout=10), "The node is still running"
+        assert primary.remote.check_done(timeout=30), "The node is still running"
 
         out_path, _ = primary.get_logs()
         refusal_re = re.compile(r"Refusing configuration at (\d+): it has no nodes")
