@@ -35,6 +35,7 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "consensus_update_timeout_ms": "consensus.message_timeout",
     "worker_threads": "worker_threads",
     "observability": "observability",
+    "capture_trace": None,
     "pdb": None,
     "workspace": None,
     "label": None,
@@ -85,7 +86,6 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "max_http_headers_count": (
         "network.rpc_interfaces.*.http_configuration.max_headers_count"
     ),
-    "http2": "network.rpc_interfaces.*.app_protocol",
     "snp_endorsements_servers": None,
     "forwarding_timeout_ms": "network.rpc_interfaces.*.forwarding_timeout_ms",
     "tick_ms": "tick_interval",
@@ -153,7 +153,6 @@ _CONFIG_DEFAULT_CONVERTERS = {
     "max_http_body_size": _convert_size_string_to_bytes,
     "max_http_header_size": _convert_size_string_to_bytes,
     "max_http_request_target_size": _convert_size_string_to_bytes,
-    "http2": lambda value: value == "HTTP2",
     "tick_ms": lambda value: _convert_time_string(value, "ms"),
 }
 
@@ -452,6 +451,12 @@ def cli_args(
         type=json.loads,
     )
     parser.add_argument(
+        "--capture-trace",
+        help="Record each network's trace events, of every tag, in "
+        "<workspace>/<label>_trace/<n>.msgpack",
+        action="store_true",
+    )
+    parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"
     )
     parser.add_argument(
@@ -673,12 +678,6 @@ def cli_args(
         help="Maximum number of headers in single HTTP request",
         default=256,
         type=int,
-    )
-    parser.add_argument(
-        "--http2",
-        help="Enable HTTP/2 for all interfaces",
-        action="store_true",
-        default=False,
     )
     parser.add_argument(
         "--snp-endorsements-servers",

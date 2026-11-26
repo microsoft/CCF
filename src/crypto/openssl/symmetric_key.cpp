@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <format>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 
@@ -38,7 +39,7 @@ namespace ccf::crypto
         return EVP_aes_128_gcm();
       }
       throw std::logic_error(
-        fmt::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
+        std::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
     }
 
     const EVP_CIPHER* get_wrap_pad_cipher(std::span<const uint8_t> raw_key)
@@ -101,7 +102,7 @@ namespace ccf::crypto
       }
       if (cipher.size() != plain.size())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "AES-GCM ciphertext size {} does not match plaintext size {}",
           cipher.size(),
           plain.size()));
@@ -109,7 +110,7 @@ namespace ccf::crypto
 
       if (plain.size() > GCM_MAX_DATA_SIZE)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "AES-GCM plaintext size {} exceeds the limit of {} bytes",
           plain.size(),
           GCM_MAX_DATA_SIZE));
@@ -170,7 +171,7 @@ namespace ccf::crypto
     {
       if (plain.size() != cipher.size())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "AES-GCM plaintext size {} does not match ciphertext size {}",
           plain.size(),
           cipher.size()));
@@ -388,7 +389,7 @@ namespace ccf::crypto
   {
     if (plain.size() > AES_KEY_WRAP_PAD_MAX_SIZE)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "AES key wrap input size {} exceeds the limit of {} bytes",
         plain.size(),
         AES_KEY_WRAP_PAD_MAX_SIZE));
@@ -415,7 +416,7 @@ namespace ccf::crypto
     // not representable as the int length of the single update call.
     if (cipher.size() > INT_MAX)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "AES key unwrap input size {} exceeds the limit of {} bytes",
         cipher.size(),
         INT_MAX));
@@ -428,8 +429,18 @@ namespace ccf::crypto
     CHECK1(
       EVP_DecryptInit_ex(ctx, evp_cipher_wrap_pad, nullptr, nullptr, nullptr));
     CHECK1(EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), nullptr));
+    // The length query rejects invalid non-empty input lengths before the
+    // output buffer is allocated, but reports less than wrap modes may write:
+    // up to the input length rounded up to the block size, plus one block
+    // (see EVP_EncryptInit(3)). OpenSSL releases without openssl/openssl#30663
+    // clear the whole input length of the output when the integrity check
+    // fails.
     CHECK1(EVP_DecryptUpdate(ctx, nullptr, &len, cipher.data(), inl));
-    std::vector<uint8_t> plain(len);
+    const auto block_size = EVP_CIPHER_CTX_get_block_size(ctx);
+    CHECKPOSITIVE(block_size);
+    const auto block = static_cast<size_t>(block_size);
+    const auto input_blocks = (cipher.size() + block - 1) / block;
+    std::vector<uint8_t> plain((input_blocks + 1) * block);
     CHECK1(EVP_DecryptUpdate(ctx, plain.data(), &len, cipher.data(), inl));
     plain.resize(len);
     if (EVP_DecryptFinal_ex(ctx, nullptr, &len) != 1)

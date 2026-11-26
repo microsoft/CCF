@@ -45,7 +45,7 @@ jobs:
         shell: bash
 
       - name: Test verifier
-        run: python3 scripts/tests/verify_vendored_dependency_test.py
+        run: scripts/tests/verify_vendored_dependency_test.py
 
       - name: Verify vendored dependencies
         run: scripts/verify-vendored-dependency.py cgmanifest.json

@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 
 import ccf.ledger
 import infra.concurrency
+import infra.consistency_trace
 import infra.e2e_args
 import infra.interfaces
 import infra.logging_app as app
@@ -255,6 +256,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         r = c.get(f"/node/tx?transaction_id={lost_tx_resp.view}.{lost_tx_resp.seqno}")
         status = TxStatus(r.body.json()["status"])
         assert status == TxStatus.Invalid, r
+        infra.consistency_trace.tx_status(r.body.json())
 
 
 @reqs.description("New joiner helps liveness")
@@ -457,6 +459,7 @@ def test_rolled_back_node_certificate(network, args):
             f"{renewal.completed_view}.{renewal.completed_seqno}"
         )
         assert TxStatus(r.body.json()["status"]) == TxStatus.Invalid, r
+        infra.consistency_trace.tx_status(r.body.json())
 
     LOG.info("Confirm the re-elected node can use the rolled-back certificate")
     force_become_primary(network, args, renewed_node)
@@ -636,11 +639,15 @@ def test_join_rollback_on_primary_isolation(network, args):
     )
     network.wait_for_all_nodes_to_commit(primary=primary)
 
+    cluster_nodes = [primary, *backups]
+    isolated_primary = network.wait_for_primary_unanimity(nodes=cluster_nodes)
+    backups = [n for n in cluster_nodes if n.node_id != isolated_primary.node_id]
+
     with network.partitioner.partition(
-        [primary, trusted_node], name="isolate primary and joiner during trust"
+        [isolated_primary, trusted_node], name="isolate primary and joiner during trust"
     ):
         network.consortium.trust_node(
-            primary,
+            isolated_primary,
             trusted_node.node_id,
             valid_from=datetime.now(UTC),
             wait_for_commit=False,
@@ -653,14 +660,38 @@ def test_join_rollback_on_primary_isolation(network, args):
         # trusted transition has been observed by the joiner, but cannot be
         # committed and must be rolled back once the backups elect a new primary.
         network.wait_for_node_in_store(
-            primary, trusted_node.node_id, ccf.ledger.NodeStatus.TRUSTED
+            isolated_primary, trusted_node.node_id, ccf.ledger.NodeStatus.TRUSTED
         )
+        with isolated_primary.client() as c:
+            r = c.get("/node/consensus")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert trusted_node.node_id in r.body.json()["details"]["acks"], r
 
-        network.wait_for_new_primary(primary, nodes=backups)
+        _, new_term = network.wait_for_new_primary(isolated_primary, nodes=backups)
+        new_primary = network.wait_for_primary_unanimity(
+            nodes=backups, min_view=new_term
+        )
+        rollback_tx = check_can_progress(
+            new_primary, timeout=args.ledger_recovery_timeout
+        )
 
     LOG.info("Check the trusted transition is rolled back and can be retried")
     # The rolled-back joiner is not yet a member of the stable configuration.
-    primary = network.wait_for_stability(nodes=[primary, *backups])
+    primary = network.wait_for_stability(nodes=[isolated_primary, *backups])
+    with isolated_primary.client() as c:
+        c.wait_for_commit(rollback_tx, timeout=args.ledger_recovery_timeout)
+    network.wait_for_node_in_store(
+        isolated_primary,
+        trusted_node.node_id,
+        ccf.ledger.NodeStatus.PENDING,
+        timeout=args.ledger_recovery_timeout,
+    )
+    with isolated_primary.client() as c:
+        r = c.get("/node/consensus")
+        assert r.status_code == http.HTTPStatus.OK, r
+        details = r.body.json()["details"]
+        assert trusted_node.node_id not in details["acks"], details
+        assert {b.node_id for b in backups}.issubset(details["acks"].keys()), details
     network.wait_for_node_in_store(
         primary,
         trusted_node.node_id,
@@ -1466,7 +1497,7 @@ def partitioned_network(args):
     Every Partitioner owns a private iptables chain whose rules only match its
     own nodes' addresses and ports, so co-existing groups do not interfere.
     """
-    with infra.network.network(
+    with infra.consistency_trace.recording(args), infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
@@ -1507,9 +1538,7 @@ def run_reconfiguration_partitions(args):
 def run_sessions(args):
     with partitioned_network(args) as network:
         test_invalidated_blocking_calls(network, args)
-        # RawSocketClient uses HTTP/1.1.
-        if not args.http2:
-            test_direct_session_view_changes(network, args)
+        test_direct_session_view_changes(network, args)
 
 
 def run_recovery_elections(args):

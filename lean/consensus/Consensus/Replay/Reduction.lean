@@ -4,15 +4,15 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import Consensus.Replay.Input
-
-import CCF.Parsec
+public import CCF.Parsec
 
 public section
 
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
 Explicit native boundaries distinguish related events from subsequent actions.
-After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
+After bootstrap, each rule observes its native group's starting snapshot before emitting actions;
+a tick with no action emits nothing.
 Each rule that may send checks the native sends among its events against the envelopes its
 actions queued.
 Reduction never executes or repairs model state.
@@ -20,26 +20,27 @@ Reduction never executes or repairs model state.
 
 namespace Consensus.Replay.Reducer
 
-open Lean Model.Node
+open Model.Node
 open CCF (Finset)
 open CCF.Parsec (failure validated attempt many_ optional_)
 
-private structure ReductionState where
+structure ReductionState where
   header : Header
   nextRequestId : ReqID := 1
   instructions : Array Instruction := #[]
+  /-- The node, if its events start by bootstrapping the network. -/
+  bootstrap : Option String := none
 
-private abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
+abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
 private def liftExcept {α : Type} (event : Event) (result : Except String α)
     : Reduction α :=
   validated
     (result.mapError fun error => s!"{event.record.location}: {event.function}: {error}")
 
-private def readJson {α : Type} (event : Event) (value : Json)
-    (decode : Json → Except String α)
-    : Reduction α :=
-  liftExcept event (decode value)
+/-- Fail on an event whose fields are not those a rule reads. -/
+private def mismatch {α : Type} (event : Event) : Reduction α :=
+  liftExcept event (throw "unexpected fields")
 
 private def peek : Reduction Event := do
   let some event ← CCF.Parsec.peek | failure "unexpected end of input"
@@ -56,17 +57,12 @@ private def extractSends (start : Nat) : Reduction (List NativeSend) := do
     liftM (m := CCF.Parsec.Parser Event)
       ((fun input => .success input (input.events.extract start input.position))
         : CCF.Parsec.Parser Event (Array Event))
-  events.toList.filterMapM
-    fun event => do
-      let packet ←
-        if event.function.startsWith "send_" then
-          some <$> readJson event event.message (field · "packet")
-        else
-          pure none
-      packet.mapM
-        fun packet => do
-          let target ← readJson event event.message (string · "to_node_id")
-          return { target, packet, origin := event.origin event.function }
+  return events.toList.filterMap
+    fun event =>
+      match event.body with
+      | .send { to_node_id, packet, .. } =>
+          some { target := to_node_id, packet, origin := event.origin event.function }
+      | _ => none
 
 private def event (source : Event) (name : String) : Reduction Unit := do
   let next ← peek
@@ -102,43 +98,39 @@ private def emitObserveSends (event : Event) (sends : List NativeSend) : Reducti
 
 /--
 Genesis runs asynchronously after the first node becomes leader, so bare ticks may precede
-it; the model starts after genesis, so they are not observed.
+it, as may nominations; the model starts after genesis, so they are not observed.
 `replicate` flushes a genesis entry over the append entries size limit. The node has no peers
 yet, so the flush sends nothing.
+Only a node's first events bootstrap the network.
 -/
-private def ruleBootstrap : Reduction String := do
+private def ruleBootstrap : Reduction Unit := do
   let head ← peek
+  unless (← position) == 0 do
+    failure s!"{head.record.location}: expected the node's first event"
   -- consume
   event head "become_leader"
-  many_ (event head "tick")
+  many_ (event head "tick" <|> event head "nomination")
   event head "replicate"
   event head "replicate_entry"
   event head "add_configuration"
   optional_ (event head "batch_flush")
-  return head.node
+  modify fun s => { s with bootstrap := some head.node }
 
-private def readAppendContent (head : Event) (config : Option Event)
-    (retirements : List Event)
+private def readAppendContent (head : Event) (seqno : Nat) (signature : Bool)
+    (config : Option (Event × AddConfiguration)) (retiredNodes : List String)
     : Reduction EntryContent := do
-  let signature ← readJson head head.message (boolean · "globally_committable")
   if signature then
-    liftExcept head (require retirements.isEmpty "retirement metadata on signature")
-    if let some config := config then
+    liftExcept head (require retiredNodes.isEmpty "retirement metadata on signature")
+    if let some (config, _) := config then
       liftExcept config (throw "configuration write pair mismatch")
     return .signature
   let configuration ←
     match config with
-    | some config => do
+    | some (config, fields) => do
         liftExcept config do
-          require
-            ((← nat config.message "idx") == (← nat head.message "seqno"))
-            "configuration write pair mismatch"
-        some <$> modelMembers config (← readJson config config.message configuration)
+          require (fields.idx == some seqno) "configuration write pair mismatch"
+        some <$> modelMembers config fields.nodes
     | none => pure none
-  let retiredNodes ←
-    retirements.mapM
-      fun retirement =>
-        readJson retirement retirement.message (string · "retired_node_id")
   let retirementConfirmations ← modelMembers head retiredNodes
   let request := (← get).nextRequestId
   modify fun s => { s with nextRequestId := request + 1 }
@@ -146,36 +138,37 @@ private def readAppendContent (head : Event) (config : Option Event)
 
 /-- One entry of a batch: its replicate event, retirements, configuration and flush. -/
 private def readReplicateEntry (head : Event) : Reduction AppendEntryInput := do
-  let seqno ← readJson head head.message (nat · "seqno")
+  let .replicateEntry entry := head.body | mismatch head
+  let some seqno := entry.seqno | liftExcept head (throw "seqno: missing")
   -- consume
   event head "replicate_entry"
-  let retirements ←
+  let retiredNodes ←
     CCF.Parsec.many do
       let retirement ← peek
       event head "retired_committed_tx"
+      let .retiredCommittedTx fields := retirement.body | mismatch retirement
       liftExcept retirement do
-        let retirementSeqno ← nat retirement.message "seqno"
-        require (retirementSeqno == seqno)
-          s!"expected seqno {seqno}, got {retirementSeqno}"
-      return retirement
+        require (fields.seqno == seqno) s!"expected seqno {seqno}, got {fields.seqno}"
+      return fields.retired_node_id
   let config ←
     CCF.Parsec.optionalRule do
       let config ← peek
       event head "add_configuration"
+      let .addConfiguration fields := config.body | mismatch config
       many_ (event head "send_append_entries")
-      return config
+      return (config, fields)
   let flushes ←
     CCF.Parsec.optionalRule do
       event head "batch_flush"
       CCF.Parsec.many do
         let next ← peek
         event head "send_append_entries"
-        let packet ← readJson next next.message (field · "packet")
-        let destination ←
-          modelNode next (← readJson next next.message (string · "to_node_id"))
-        let last ← readJson next packet (nat · "idx")
-        return (destination, last)
-  let content ← readAppendContent head config retirements
+        let .send { to_node_id, packet := .appendEntries packet, .. } := next.body
+        | mismatch next
+        let destination ← modelNode next to_node_id
+        return (destination, packet.idx)
+  let content ←
+    readAppendContent head seqno entry.globally_committable config retiredNodes
   return { content, flushes := flushes.getD [] }
 
 /--
@@ -204,11 +197,10 @@ private def ruleAppend : Reduction Unit := do
   emitObserveSends head (← extractSends start)
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do
-  let sender ← readJson head head.message (string · "from_node_id")
-  let packet ← readJson head head.message (field · "packet")
-  let family ← readJson head packet (string · "msg")
-  liftExcept head (require (families.contains family) "receive function/packet mismatch")
-  return .receive sender head.node packet
+  let .recv { from_node_id, packet, .. } := head.body | mismatch head
+  liftExcept head
+    (require (families.contains packet.msg) "receive function/packet mismatch")
+  return .receive from_node_id head.node packet
 
 private def ruleRecvAppendEntries : Reduction Unit := do
   let head ← peek
@@ -334,12 +326,15 @@ private def ruleTick : Reduction Unit := do
       CCF.Parsec.many do
         let next ← peek
         event head "send_append_entries"
-        let packet ← readJson next next.message (field · "packet")
-        let destination ←
-          modelNode next (← readJson next next.message (string · "to_node_id"))
-        let last ← readJson next packet (nat · "idx")
-        return (next, destination, last)
+        let .send { to_node_id, packet := .appendEntries packet, .. } := next.body
+        | mismatch next
+        let destination ← modelNode next to_node_id
+        return (next, destination, packet.idx)
     let demoted ← CCF.Parsec.optionalRule (event head "become_follower")
+    -- A tick which does nothing else emits no group: the node's state is as its next group
+    -- observes it.
+    if sends.isEmpty && demoted.isNone then
+      return
     -- emit
     emitObserve head "tick"
     for (source, destination, last) in sends do
@@ -369,6 +364,8 @@ private def ruleDrop : Reduction Unit := do
 /--
 Snapshot installation runs ledger hooks outside the consensus lock, so bare ticks
 may interleave with their events.
+A tick is a lock hold of its own, as is `init_as_backup`, so the hooks emit nothing; the
+node must still initialize later.
 -/
 private def ruleInitAsBackup : Reduction Unit := do
   let head ← peek
@@ -376,21 +373,26 @@ private def ruleInitAsBackup : Reduction Unit := do
   unless hooks.contains head.function || head.function == "init_as_backup" do
     failure s!"{head.record.location}: expected init_as_backup, got {head.function}"
   -- consume
-  many_ (hooks.foldr (fun name rest => event head name <|> rest) (event head "tick"))
-  unless (← CCF.Parsec.peek).any (·.function == "init_as_backup") do
+  many_ (event head "add_configuration" <|> event head "retired_committed_tx")
+  let rest ←
+    liftM (m := CCF.Parsec.Parser Event)
+      ((fun input => .success input (input.events.extract input.position))
+        : CCF.Parsec.Parser Event (Array Event))
+  unless rest.any (·.function == "init_as_backup") do
     liftExcept head
       (throw
         "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
+  if hooks.contains head.function then
+    return
   let init ← peek
   event head "init_as_backup"
   event head "become_follower"
-  let index ← readJson init init.message (nat · "seqno")
-  let view ← readJson init init.message (nat · "view")
+  let .initAsBackup { seqno, view, .. } := init.body | mismatch init
   -- emit
   emitObserve init "init-as-backup"
-  emitAction init "init-as-backup" (.initAsBackup head.node index view)
+  emitAction init "init-as-backup" (.initAsBackup head.node seqno view)
 
-private def ruleStep : Reduction Unit := do
+def ruleStep : Reduction Unit := do
   -- Recv rules
   attempt ruleRecvAppendEntries
   <|> attempt ruleRecvAppendEntriesResponse
@@ -398,39 +400,11 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleRecvProposeRequestVote
   <|> attempt ruleRecvRequestVoteResponse
   -- Async rules
+  <|> attempt ruleBootstrap
   <|> attempt ruleInitAsBackup
   <|> attempt ruleAppend
   <|> attempt ruleTick
   <|> attempt ruleNomination
   <|> attempt ruleDrop
 
-private def ruleTrace : Reduction String := do
-  let leader ← ruleBootstrap
-  many_ ruleStep
-  if let some event ← CCF.Parsec.peek then
-    failure s!"{event.record.location}: ungrouped event {event.function}"
-  return leader
-
-/-- Consume every event exactly once; an ungrouped event is never a stutter. -/
-def reduce (events : Array Event) (header : Header)
-    : Except String (String × Array Instruction) := do
-  let (leader, state) ← CCF.Parsec.run events (ruleTrace.run { header })
-  return (leader, state.instructions)
-
 end Consensus.Replay.Reducer
-
-namespace Consensus.Replay
-
-/-- Prepared initialization and instructions for direct model replay. -/
-structure Reduced where
-  header : Header
-  instructions : Array Instruction
-
-/-- Prepare replay identities and reduce the associated event stream. -/
-def reduce (events : Array Event) (declared : List String) : Except String Reduced := do
-  let header : Header := { bootstrap := ∅, declared }
-  let (leader, instructions) ← Reducer.reduce events header
-  let header := { header with bootstrap := {← header.nodeId leader} }
-  return { header, instructions }
-
-end Consensus.Replay

@@ -201,7 +201,7 @@ namespace ccf
     bool have_channel(const ccf::NodeId& nid) override
     {
       std::lock_guard<ccf::ds::Mutex> guard(lock);
-      return channels.find(nid) != channels.end();
+      return channels.contains(nid);
     }
 
     bool send_authenticated(

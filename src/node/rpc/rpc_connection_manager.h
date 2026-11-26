@@ -24,7 +24,6 @@
 #include "http/error_reporter.h"
 #include "node/rpc/abstract_rpc_sessions.h"
 #include "node/rpc/custom_protocol_subsystem.h"
-#include "node/rpc/http2_session.h"
 #include "node/rpc/http_session.h"
 #include "node/rpc/no_more_sessions.h"
 #include "node/rpc/openssl_session_manager.h"
@@ -37,6 +36,7 @@
 #include <charconv>
 #include <chrono>
 #include <cstring>
+#include <format>
 #include <functional>
 #include <map>
 #include <memory>
@@ -277,7 +277,7 @@ namespace ccf
       const auto [read_to, ec] = std::from_chars(port.data(), end, parsed);
       if (ec != std::errc() || read_to != end)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Invalid port '{}' for interface '{}' - expected a number in "
           "[0, 65535]",
           port,
@@ -430,17 +430,6 @@ namespace ccf
       ccf::SessionWriter& writer,
       std::vector<uint8_t> peer_cert)
     {
-      if (li->app_protocol == "HTTP2")
-      {
-        return std::make_shared<::http::HTTP2ServerSession>(
-          rpc_map,
-          conn_id,
-          li->name,
-          writer,
-          std::move(peer_cert),
-          li->http_configuration,
-          error_reporter());
-      }
       if (li->app_protocol == "HTTP1")
       {
         return std::make_shared<::http::HTTPServerSession>(
@@ -458,7 +447,7 @@ namespace ccf
       {
         return cpss->create_session(li->app_protocol, conn_id, writer);
       }
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Unknown application protocol '{}' and custom protocol subsystem "
         "missing",
         li->app_protocol));
@@ -470,17 +459,6 @@ namespace ccf
       ccf::SessionWriter& writer,
       std::vector<uint8_t> peer_cert)
     {
-      if (li->app_protocol == "HTTP2")
-      {
-        return std::make_shared<NoMoreSessionsImpl<::http::HTTP2ServerSession>>(
-          rpc_map,
-          conn_id,
-          li->name,
-          writer,
-          std::move(peer_cert),
-          li->http_configuration,
-          error_reporter());
-      }
       return std::make_shared<NoMoreSessionsImpl<::http::HTTPServerSession>>(
         rpc_map,
         conn_id,
@@ -556,6 +534,7 @@ namespace ccf
       {
         return;
       }
+      const auto idle_timeout = idle_connection_timeout.value();
 
       const auto now = std::chrono::steady_clock::now();
       if (now - udp->last_idle_sweep < udp_idle_sweep_interval)
@@ -567,7 +546,7 @@ namespace ccf
       for (auto it = udp->sessions_by_peer.begin();
            it != udp->sessions_by_peer.end();)
       {
-        if (now - it->second.last_active <= *idle_connection_timeout)
+        if (now - it->second.last_active <= idle_timeout)
         {
           ++it;
           continue;
@@ -740,14 +719,13 @@ namespace ccf
       if (it == interfaces.end())
       {
         throw std::logic_error(
-          fmt::format("Cannot listen on unconfigured interface '{}'", name));
+          std::format("Cannot listen on unconfigured interface '{}'", name));
       }
       auto* li = it->second.get();
 
       const bool plaintext =
         li->endorsement.authority == ccf::Authority::UNSECURED;
-      const std::string alpn =
-        plaintext ? "" : (li->app_protocol == "HTTP2" ? "h2" : "http/1.1");
+      const std::string alpn = plaintext ? "" : "http/1.1";
 
       std::string cert_pem;
       std::string key_pem;
@@ -807,7 +785,7 @@ namespace ccf
       auto li_it = interfaces.find(name);
       if (li_it == interfaces.end())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot listen on unconfigured UDP interface '{}'", name));
       }
       auto* li = li_it->second.get();

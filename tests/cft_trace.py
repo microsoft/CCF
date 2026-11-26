@@ -30,10 +30,11 @@ def unique_map(pairs):
     return result
 
 
-def run_driver(driver, scenario, timeout=60, *, text=True):
+def run_driver(driver, scenario, timeout=60, *, text=True, raw_frames=None):
     """Run the named scenario and collect its structured records.
 
     Console output is decoded for text consumers unless text is False.
+    When raw_frames is a bytearray, the received MessagePack bytes are appended to it.
     """
     records = []
     stdout = stderr = b""
@@ -62,6 +63,8 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
                             received = complete = 0
                             while data := peer.recv(65536):
                                 received += len(data)
+                                if raw_frames is not None:
+                                    raw_frames.extend(data)
                                 unpacker.feed(data)
                                 for tag, timestamp, record in unpacker:
                                     assert tag == "ccf.cft"
@@ -71,7 +74,7 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
                                         ">II", timestamp.data
                                     )
                                     assert seconds > 0 and nanos < 10**9
-                                    assert set(record) == {"process_id", "h_ts", "msg"}
+                                    assert set(record) == {"pid", "m_ts", "msg"}
                                     records.append(record)
                                     complete = unpacker.tell()
                             assert received == complete, "Truncated MessagePack stream"
@@ -102,9 +105,9 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
             assert records, f"No cft trace records captured for {scenario}"
         for sequence, record in enumerate(records):
             assert (
-                record["h_ts"] == sequence
+                record["m_ts"] == sequence
             ), "Missing, duplicate or reordered trace sequence"
-            assert record["process_id"] == records[0]["process_id"]
+            assert record["pid"] == records[0]["pid"]
         return (
             subprocess.CompletedProcess(
                 result.args,

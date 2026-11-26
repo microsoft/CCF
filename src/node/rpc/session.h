@@ -8,6 +8,7 @@
 #include "tasks/task_system.h"
 #include "tcp/msg_types.h"
 
+#include <format>
 #include <span>
 #include <string>
 
@@ -96,7 +97,7 @@ namespace ccf
     {
       task_scheduler = ccf::tasks::OrderedTasks::create(
         ccf::tasks::get_main_job_board(),
-        fmt::format("Session {}", session_id));
+        std::format("Session {}", session_id));
     }
 
     ~ThreadedSession() override
@@ -141,10 +142,10 @@ namespace ccf
     virtual void close_session_thread() = 0;
   };
 
-  // A protocol session (HTTP/HTTP2/...) running over a transport that owns the
-  // TLS connection (the host-side OpenSSL connection). It receives and emits
-  // plaintext: inbound bytes are already decrypted, and outbound bytes are
-  // handed to a SessionWriter which encrypts and writes them. The peer
+  // A protocol session (HTTP/custom protocol) running over a transport that
+  // owns the TLS connection (the host-side OpenSSL connection). It receives and
+  // emits plaintext: inbound bytes are already decrypted, and outbound bytes
+  // are handed to a SessionWriter which encrypts and writes them. The peer
   // certificate and SNI (captured by the transport at handshake) are provided
   // for caller authentication.
   class PlaintextSession : public ThreadedSession

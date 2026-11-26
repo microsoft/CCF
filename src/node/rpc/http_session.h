@@ -12,6 +12,8 @@
 #include "node/rpc/rpc_map.h"
 #include "node/rpc/session.h"
 
+#include <format>
+
 namespace http
 {
   class HTTPServerSession : public ccf::PlaintextSession,
@@ -116,7 +118,7 @@ namespace http
 
         // NB: Avoid formatting input data a string, as it may contain null
         // bytes. Instead insert it at the end of this message, verbatim
-        auto body_s = fmt::format(
+        auto body_s = std::format(
           "Unable to parse data as a HTTP request. Error message is: {}\n"
           "Error occurred while parsing fragment:\n",
           e.what());
@@ -140,8 +142,7 @@ namespace http
       llhttp_method verb,
       const std::string_view& url,
       ccf::http::HeaderMap&& headers,
-      std::vector<uint8_t>&& body,
-      int32_t /*stream_id*/) override
+      std::vector<uint8_t>&& body) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {} [{} bytes])",
@@ -161,19 +162,14 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session_ctx,
-            ccf::HttpVersion::HTTP1,
-            verb,
-            url,
-            std::move(headers),
-            std::move(body));
+            session_ctx, verb, url, std::move(headers), std::move(body));
         }
         catch (std::exception& e)
         {
           send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("Error constructing RpcContext: {}", e.what())});
+            std::format("Error constructing RpcContext: {}", e.what())});
           close_session();
           return;
         }
@@ -265,7 +261,7 @@ namespace http
         send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())});
+          std::format("Exception: {}", e.what())});
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");

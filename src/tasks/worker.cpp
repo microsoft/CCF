@@ -80,6 +80,7 @@ namespace ccf::tasks
             continue;
           }
         }
+        // NOLINTNEXTLINE(bugprone-empty-catch)
         catch (const std::bad_alloc&)
         {
           // Symbolization is best-effort; retain the captured native handle.

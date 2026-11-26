@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "http2_types.h"
 #include "http_builder.h"
 
 #include <algorithm>
@@ -24,8 +23,7 @@ namespace http
       llhttp_method method,
       const std::string_view& url,
       ccf::http::HeaderMap&& headers,
-      std::vector<uint8_t>&& body,
-      int32_t stream_id = http2::DEFAULT_STREAM_ID) = 0;
+      std::vector<uint8_t>&& body) = 0;
   };
 
   class ResponseProcessor

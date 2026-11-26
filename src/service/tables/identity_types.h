@@ -6,7 +6,7 @@
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <cstdint>
-#include <fmt/format.h>
+#include <format>
 #include <map>
 #include <stdexcept>
 #include <vector>
@@ -64,10 +64,8 @@ namespace ccf
   using Identities = std::map<IdentityType, Identity>;
 }
 
-FMT_BEGIN_NAMESPACE
-
 template <>
-struct formatter<ccf::IdentityType>
+struct std::formatter<ccf::IdentityType>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -83,18 +81,17 @@ struct formatter<ccf::IdentityType>
     {
       case ccf::IdentityType::CLASSICAL:
       {
-        return format_to(ctx.out(), "CLASSICAL");
+        return std::format_to(ctx.out(), "CLASSICAL");
       }
       case ccf::IdentityType::PQ:
       {
-        return format_to(ctx.out(), "PQ");
+        return std::format_to(ctx.out(), "PQ");
       }
     }
-    return format_to(ctx.out(), "{}", static_cast<uint64_t>(identity_type));
+    return std::format_to(
+      ctx.out(), "{}", static_cast<uint64_t>(identity_type));
   }
 };
-
-FMT_END_NAMESPACE
 
 namespace ccf::kv::serialisers
 {
@@ -126,7 +123,7 @@ namespace ccf::kv::serialisers
         default:
         {
           throw std::logic_error(
-            fmt::format("Unknown identity type: {}", value));
+            std::format("Unknown identity type: {}", value));
         }
       }
     }

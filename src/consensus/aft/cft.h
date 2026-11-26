@@ -20,11 +20,13 @@
 #include "tasks/periodic_task_owner.h"
 
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <list>
 #include <map>
 #include <random>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef VERBOSE_CFT_LOGGING
@@ -324,18 +326,12 @@ namespace aft
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
+      bool self_retired_committed = false;
       for (const auto& node_id : node_ids)
       {
         if (id() == node_id)
         {
-          CCF_ASSERT(
-            state->membership_state == ccf::kv::MembershipState::Retired,
-            "Node is not retired, cannot become retired committed");
-          CCF_ASSERT(
-            state->retirement_phase == ccf::kv::RetirementPhase::Completed,
-            "Node is not retired, cannot become retired committed");
-          state->retired_committed_idx = seqno;
-          become_retired(seqno, ccf::kv::RetirementPhase::RetiredCommitted);
+          self_retired_committed = true;
         }
         else
         {
@@ -346,6 +342,19 @@ namespace aft
           all_other_nodes.erase(node_id);
           CFT_INFO_FMT("Removed {} from nodes known to consensus", node_id);
         }
+      }
+
+      // Forget the whole batch before nominating a successor.
+      if (self_retired_committed)
+      {
+        CCF_ASSERT(
+          state->membership_state == ccf::kv::MembershipState::Retired,
+          "Node is not retired, cannot become retired committed");
+        CCF_ASSERT(
+          state->retirement_phase == ccf::kv::RetirementPhase::Completed,
+          "Node is not retired, cannot become retired committed");
+        state->retired_committed_idx = seqno;
+        become_retired(seqno, ccf::kv::RetirementPhase::RetiredCommitted);
       }
     }
 
@@ -557,6 +566,16 @@ namespace aft
       CFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
+      // A configuration with no nodes has no quorum, so nothing could be
+      // committed once it is active. Refuse it on any node, before appending
+      // the entry or adopting it.
+      if (conf.empty())
+      {
+        CFT_FAIL_FMT("Refusing configuration at {}: it has no nodes", idx);
+        throw std::logic_error(
+          std::format("Configuration at {} has no nodes", idx));
+      }
+
       trace::add_configuration(*state, configurations, idx, conf, idx);
 
       // Detect when we are retired by observing a configuration
@@ -565,9 +584,8 @@ namespace aft
       // a final state, and node identities never being re-used.
       if (
         !configurations.empty() &&
-        configurations.back().nodes.find(state->node_id) !=
-          configurations.back().nodes.end() &&
-        conf.find(state->node_id) == conf.end())
+        configurations.back().nodes.contains(state->node_id) &&
+        !conf.contains(state->node_id))
       {
         become_retired(idx, ccf::kv::RetirementPhase::Ordered);
       }
@@ -1369,6 +1387,7 @@ namespace aft
       const ccf::NodeId& from,
       const AppendEntries& r)
     {
+      const auto initial_last_idx = state->last_idx;
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
@@ -1387,9 +1406,26 @@ namespace aft
         }
         state->last_idx = i;
 
-        for (auto& hook : ds->get_hooks())
+        try
         {
-          hook->call(this);
+          for (auto& hook : ds->get_hooks())
+          {
+            hook->call(this);
+          }
+        }
+        catch (const std::exception& e)
+        {
+          CFT_FAIL_FMT("Failed to run consensus hooks at {}: {}", i, e.what());
+          rollback(std::max(initial_last_idx, last_committable_index()));
+          send_append_entries_response_nack(from);
+          return;
+        }
+        catch (...)
+        {
+          CFT_FAIL_FMT("Failed to run consensus hooks at {}: unknown error", i);
+          rollback(std::max(initial_last_idx, last_committable_index()));
+          send_append_entries_response_nack(from);
+          return;
         }
 
         bool globally_committable =
@@ -1467,11 +1503,21 @@ namespace aft
       else
       {
         // The end of this append entries (r.idx) was not a signature, but may
-        // be in a new term. If it's a new term, this term started immediately
-        // after the previous signature we saw (lci, last committable index).
-        if (r.idx > lci)
+        // be in a new term. If we already know the term of r.idx, there is
+        // nothing to record. We may then still hold entries of a later term
+        // after r.idx, which the sender has yet to replace.
+        // Otherwise the new term starts at the first entry of this append
+        // entries, which holds entries of a single term, after an entry which
+        // we hold in an earlier term. That is immediately after the previous
+        // signature we saw (lci, last committable index), unless a primary
+        // kept transactions after its last signature when it was elected,
+        // which it only does if it has committed nothing.
+        static_assert(
+          max_terms_per_append_entries == 1,
+          "AppendEntries processing for term updates assumes single term");
+        if (r.idx > lci && get_term_internal(r.idx) != r.term_of_idx)
         {
-          state->view_history.update(lci + 1, r.term_of_idx);
+          state->view_history.update(r.prev_idx + 1, r.term_of_idx);
         }
       }
 
@@ -2241,7 +2287,7 @@ namespace aft
     {
       CFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
-        phase,
+        std::to_underlying(phase),
         state->leadership_state.load(),
         state->node_id,
         state->current_view,
@@ -2296,7 +2342,7 @@ namespace aft
       for (auto const& conf : configurations)
       {
         auto const& nodes = conf.nodes;
-        if (nodes.find(from) == nodes.end())
+        if (!nodes.contains(from))
         {
           // from node is no longer in any active configuration.
           continue;
@@ -2513,7 +2559,7 @@ namespace aft
     {
       if (idx > state->last_idx)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Tried to commit {} but last_idx is {}", idx, state->last_idx));
       }
 
@@ -2602,7 +2648,7 @@ namespace aft
       if (!configurations.empty())
       {
         auto current_nodes = configurations.back().nodes;
-        present = current_nodes.find(state->node_id) != current_nodes.end();
+        present = current_nodes.contains(state->node_id);
       }
       return present;
     }
@@ -2683,18 +2729,41 @@ namespace aft
 
       // Rollback configurations.
       bool changed = false;
+      std::set<ccf::NodeId> rolled_back_nodes;
 
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         CFT_DEBUG_FMT(
           "Configurations: rollback configuration at {}",
           configurations.back().idx);
+        for (const auto& [node_id, _] : configurations.back().nodes)
+        {
+          rolled_back_nodes.insert(node_id);
+        }
         configurations.pop_back();
         changed = true;
       }
 
       if (changed)
       {
+        // Forget the nodes which only the configurations rolled back named:
+        // no configuration is left to make them known. A node which retired
+        // from an earlier configuration is never named again, so it is not
+        // among them, and stays known until its retirement is confirmed.
+        const auto remaining_nodes = other_nodes_in_active_configs();
+        for (const auto& node_id : rolled_back_nodes)
+        {
+          if (
+            !remaining_nodes.contains(node_id) &&
+            all_other_nodes.erase(node_id) != 0)
+          {
+            CFT_INFO_FMT(
+              "Removed {} from nodes known to consensus: the configuration "
+              "which added it was rolled back",
+              node_id);
+          }
+        }
+
         create_and_remove_node_state();
       }
     }

@@ -4,7 +4,7 @@
 
 #include <charconv>
 #include <filesystem>
-#include <fmt/format.h>
+#include <format>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -28,7 +28,7 @@ namespace ccf::ledger
     auto pos = file_name.find(ledger_start_idx_delimiter);
     if (pos == std::string::npos)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Ledger file name {} does not contain a start seqno", file_name));
     }
 
@@ -131,7 +131,7 @@ namespace ccf::ledger
   static inline std::string get_ledger_committed_prefix_file_name(
     const CommittedLedgerPrefixRange& range)
   {
-    return fmt::format(
+    return std::format(
       "ledger{}{}{}{}{}",
       ledger_start_idx_delimiter,
       range.start_idx,

@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/endpoint_context.h"
 #include "ccf/endpoint_registry.h"
+#include "ccf/endpoints/endpoint_context.h"
 #include "ccf/receipt.h"
 #include "ccf/rpc_context.h"
+
+#include <format>
 
 namespace ccf::samples
 {
@@ -18,7 +20,7 @@ namespace ccf::samples
       info.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::TransactionInvalid,
-        fmt::format(
+        std::format(
           "While waiting for TxID {} to commit, it was invalidated",
           info.tx_id.to_str()));
     }
@@ -37,7 +39,7 @@ namespace ccf::samples
         info.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::TransactionInvalid,
-          fmt::format(
+          std::format(
             "While waiting for TxID {} to commit, it was invalidated",
             info.tx_id.to_str()));
         return;

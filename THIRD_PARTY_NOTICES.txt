@@ -18,7 +18,7 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 
 -------------------------------------------------------------------
 
-cliutils/cli11 92b8f6e3bfba72b19bb92b3daad4d0c6ff66fb8e - BSD-3-Clause
+cliutils/cli11 - BSD-3-Clause
 Copyright (c) 2012 - 2017, Lars Bilke
 Copyright (c) 2017-2018 University of Cincinnati
 
@@ -53,7 +53,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 -------------------------------------------------------------------
 
-doctest/doctest 2d0a9359a60c51affe2a9bebb1be1dca47868151 - MIT
+doctest/doctest - MIT
 Copyright 2012 Twitter, Inc
 Copyright Louis Dionne 2015
 Copyright (c) 2006 Google Inc.
@@ -90,7 +90,7 @@ SOFTWARE.
 
 -------------------------------------------------------------------
 
-nlohmann/json db53bdac1926d1baebcb459b685dcd2e4608c355 - MIT
+nlohmann/json - MIT
 (c) 2016
 (c) Y Seomi
 Copyright 2014
@@ -495,38 +495,7 @@ DEALINGS IN THE SOFTWARE.
 
 -------------------------------------------------------------------
 
-rpavlik/jenkins-ctest-plugin 22265f5786dd26e47c46329f1fc76fc08de777c5 - MIT
-Copyright (c) 2010 VersionOne, Inc.
-Copyright (c) 2011, 2014 Ryan Pavlik abiryan@ryand.net.
-
-Copyright (c) 2010 VersionOne, Inc.
-Copyright (c) 2011, 2014 Ryan Pavlik <abiryan@ryand.net.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-
-
--------------------------------------------------------------------
-
--------------------------------------------------------------------
-
-ibob/picobench 1fdd89f5f88885eb3c2a55f955f7ec46a4e841de - MIT
+ibob/picobench - MIT
 Copyright (c) 2017-2026 Borislav Stanimirov
 Copyright (c) 2017-2026 Borislav Stanimirov (http://github.com/iboB)
 
@@ -555,7 +524,7 @@ SOFTWARE.
 
 -------------------------------------------------------------------
 
-tristanpenman/valijson de232f2ac3798a3c8b2cc5f3b7ebf737e1c0dbd1 - BSD-2-Clause
+tristanpenman/valijson - BSD-2-Clause
 
 Copyright (c) 2016, Tristan Penman
 Copyright (c) 2016, Akamai Technologies, Inc.

@@ -1,8 +1,10 @@
+#!/usr/bin/env python3
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import datetime
 import json
 import os
+import platform
 import re
 import shutil
 
@@ -46,13 +48,45 @@ DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 FIRST_RELEASE_WITH_COSE_SNAPSHOT_RECEIPTS = "ccf-7.0.0"
 
 
+# Releases before 8.0 are only built for Azure Linux 3. They cannot run directly
+# on later Azure Linux versions, where the cross-platform LTS workflow runs them
+# in a matching container instead.
+FIRST_MAJOR_VERSION_BUILT_FOR_AZURE_LINUX_4 = 8
+
+
+def is_azure_linux_4_or_later():
+    try:
+        os_release = platform.freedesktop_os_release()
+    except OSError:
+        return False
+    if os_release.get("ID") != "azurelinux":
+        return False
+    major_version = os_release.get("VERSION_ID", "").split(".")[0]
+    return major_version.isdigit() and int(major_version) >= 4
+
+
+def can_run_release_natively(tag, on_azure_linux_4=None):
+    """
+    Whether the published binaries of release `tag` can be executed directly on
+    the distribution this test runs on, rather than in a container.
+    """
+    if on_azure_linux_4 is None:
+        on_azure_linux_4 = is_azure_linux_4_or_later()
+    if not on_azure_linux_4:
+        return True
+    return (
+        infra.github.get_version_from_tag_name(tag).major
+        >= FIRST_MAJOR_VERSION_BUILT_FOR_AZURE_LINUX_4
+    )
+
+
 def writes_cose_snapshot_receipts(version):
     return not infra.node.CCFVersion(version) < infra.node.CCFVersion(
         FIRST_RELEASE_WITH_COSE_SNAPSHOT_RECEIPTS
     )
 
 
-def validate_compatibility_report(report, branch):
+def validate_compatibility_report(report, branch, previous_lts_skipped=False):
     # A development branch can still point at a final release tag, but discovery
     # uses development-branch targets rather than release-validation targets.
     if not infra.github.is_release_branch(infra.github.sanitise_branch_name(branch)):
@@ -67,7 +101,7 @@ def validate_compatibility_report(report, branch):
     live_compatibility = report["live compatibility"]
 
     previous_lts = live_compatibility["with previous LTS"]
-    if current_major == 1:
+    if current_major == 1 or previous_lts_skipped:
         assert previous_lts is None, f"Expected no previous LTS, got {previous_lts}"
     else:
         previous_lts_match = FINAL_RELEASE_TAG.fullmatch(previous_lts or "")
@@ -431,6 +465,10 @@ def run_code_upgrade_from(
             new_constitution = get_new_constitution_for_install(args, to_install_path)
             network.consortium.set_constitution(primary, new_constitution)
 
+            LOG.info("Legacy enrollment still works on the old primary")
+            upgrade_user = network.create_user("upgrade_user", args.participants_curve)
+            network.consortium.add_user(primary, upgrade_user.local_id)
+
             new_measurement = infra.utils.get_measurement(
                 infra.platform_detection.get_platform(),
                 args.package,
@@ -626,8 +664,17 @@ def run_live_compatibility_with_latest(
     the local checkout.
     """
     if lts_install_path is None:
+        lts_branch = os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch)
+        lts_tag = repo.get_latest_released_tag_for_branch(
+            lts_branch, this_release_branch_only
+        )
+        if lts_tag and not can_run_release_natively(lts_tag):
+            LOG.warning(
+                f"Skipping live compatibility with {lts_tag}: it is not built for this distribution, and is covered by the cross-platform LTS workflow instead"
+            )
+            return None
         lts_version, lts_install_path = repo.install_latest_lts_for_branch(
-            os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
+            lts_branch,
             this_release_branch_only,
             platform=infra.platform_detection.get_platform(),
         )
@@ -1030,9 +1077,15 @@ if __name__ == "__main__":
             with open(
                 args.compatibility_report_file, encoding="utf-8"
             ) as compatibility_report_file:
+                lts_branch = os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch)
+                previous_lts_tag = repo.get_latest_released_tag_for_branch(
+                    lts_branch, this_release_branch_only=False
+                )
                 validate_compatibility_report(
                     json.load(compatibility_report_file),
-                    os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
+                    lts_branch,
+                    previous_lts_skipped=previous_lts_tag is not None
+                    and not can_run_release_natively(previous_lts_tag),
                 )
 
     LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")

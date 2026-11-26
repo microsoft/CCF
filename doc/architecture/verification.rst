@@ -42,7 +42,7 @@ Lean packages
      - CCF's externally visible consistency semantics, including :ref:`transaction status <use_apps/verify_tx:Checking for Commit>`, for a simple append-and-read application with forwarded reads, elections and invalidation.
        The primary guarantee is that committed writes serialize in transaction ID order, and that this order respects the real-time order of requests and their initial responses.
        There is no refinement proof connecting this model to the consensus model.
-     - ``consistency-replay`` replays client-observed request, response and transaction status traces from a multi-node e2e test.
+     - ``consistency-replay`` replays the consensus events of multi-node e2e tests, with the transaction statuses given to their clients.
    * - :ccf_repo:`disaster-recovery <lean/disaster-recovery/README.md>`
      - The :doc:`recovery decision protocol </operations/recovery>` (:ccf_repo:`src/node/recovery_decision_protocol.cpp`).
        Proved properties include that all quorum openings in a trace originate from one node and, under stated premises, that the opening node passes the consensus vote freshness check against a strict majority of the recovered ledgers.
@@ -62,12 +62,14 @@ Each replayer consumes traces produced by existing C++ tests:
 
 * **Consensus**: the ``cft_scenario_test`` test runs :ccf_repo:`tests/cft_scenarios_runner.py`, which executes each scenario in :ccf_repo:`tests/cft_scenarios/Scenarios/` with the ``cft_driver`` binary.
   The scenarios are Lean programs, which drive the implementation through the bindings in :ccf_repo:`tests/cft_scenarios/CftDriver.lean` and :ccf_repo:`src/consensus/aft/test/driver.cpp`; see :ccf_repo:`tests/cft_scenarios/README.md`.
-  The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as NDJSON traces to ``consensus/raw/`` in the build directory.
+  The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as MessagePack traces to ``consensus/raw/`` in the build directory; :ccf_repo:`scripts/dump-trace.py` dumps one as NDJSON.
+  The ``cft_model_test`` test, built with ``-DCFT_MODEL_DRIVER=ON``, runs the same scenarios with ``cft_model_driver``, which binds their commands to the model and not to the implementation, and writes what the model did to ``consensus/model/``, as the traces which the implementation would write; see :ccf_repo:`tests/cft_model/README.md`.
 * **KV**: building with ``-DCCF_KV_TRACING=ON`` enables test-only trace capture in ``kv_test``.
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.
   Tracing is disabled in normal builds.
-* **Consistency**: the ``consistency_trace_validation`` e2e test (:ccf_repo:`tests/consistency_trace_validation.py`) starts a three-node network running the :ccf_repo:`basic_tv <samples/apps/basic_tv/>` JavaScript application, and runs :ccf_repo:`tests/tvc.py` against it to record client requests, responses and transaction statuses to ``consistency/trace.ndjson``.
-  The test suspends the primary to cause an election during the recording.
+* **Consistency**: nodes export consensus events as Fluentd records with the ``ccf.cft`` tag, which :ccf_repo:`tests/infra/consistency_trace.py` collects, joins with the transaction statuses given to clients, and replays through ``consistency-replay``.
+  The ``consistency_trace_validation`` e2e test (:ccf_repo:`tests/consistency_trace_validation.py`) starts a three-node network running the :ccf_repo:`basic_tv <samples/apps/basic_tv/>` JavaScript application, runs :ccf_repo:`tests/tvc.py` against it, and suspends the primary to cause an election.
+  The partitions e2e test (:ccf_repo:`tests/partitions_test.py`) records and replays a trace for each of its networks.
 * **Disaster recovery**: nodes started with the ``CCF_RECOVERY_TRACE`` environment variable set log each step of the recovery decision protocol as an ``RDP_TRACE`` record.
   These scenarios only run in the SNP Genoa CI job, where :ccf_repo:`tests/infra/recovery_trace.py` replays the node logs of the quorum, failover and multiple-timeout scenarios in :ccf_repo:`tests/e2e_operations.py` through ``disaster-recovery-replay``.
 
@@ -80,10 +82,12 @@ The :ccf_repo:`Lean workflow <.github/workflows/lean.yml>` runs on pull requests
 
 * A package job for each of ``common``, ``consensus``, ``consistency``, ``disaster-recovery`` and ``kv`` runs the kernel and axiom check (``lake check``), import coverage and architecture checks, formatting and linting, and, where applicable, the package's replay fixtures.
 * Separate capture jobs build CCF and record consensus, KV and consistency traces from the tests described above.
-* Replay jobs build each replayer and validate every captured trace.
+  The consensus capture job also runs ``cft_model_test``, in which the assertions of each scenario must hold of the model.
+* Replay jobs build the consensus and KV replayers and validate every captured trace; the consistency capture job replays its own trace.
 * A final ``Lean models and proofs`` job succeeds only if all of the above succeed.
 
 The disaster recovery traces are replayed by the SNP Genoa job in the main CI workflow instead, since that is where the recovery scenarios run.
+The partitions tests replay their consistency traces in the main CI workflow for the same reason.
 
 A separate ``Lean Mathlib equivalence`` workflow proves that the replacements for Mathlib definitions in ``lean/common`` are equivalent to the Mathlib originals, and runs only when those definitions change; see :ccf_repo:`lean/mathlib-equivalence/README.md`.
 
@@ -92,7 +96,8 @@ Running locally
 
 Install Lean with `elan <https://lean-lang.org/install/>`__.
 The Lean toolchain is pinned by :ccf_repo:`lean/lean-toolchain`, and the models are independent of normal CCF builds.
-The only part of a CCF build which needs Lean is ``cft_driver``; without Lean, it is not built and ``cft_scenario_test`` is disabled.
+The only part of a default CCF build which needs Lean is ``cft_driver``; without Lean, it is not built and ``cft_scenario_test`` is disabled.
+``cft_model_driver`` also needs Lean, and is built only with ``-DCFT_MODEL_DRIVER=ON``.
 From a package directory under ``lean/``, the common checks are:
 
 .. code-block:: bash
@@ -109,8 +114,6 @@ The flag disables build isolation so the package can use the shared ``common`` m
 The consensus package recommends running it only in CI.
 Each package README lists its complete validation commands, including how to build its replayer, replay its fixtures, and generate and replay traces from a local CCF build.
 For the KV model, see also :ref:`build_apps/kv/semantics:Reproducing a run`.
-
-The :ref:`trace viewer <operations/recovery:Trace viewer>` steps through recovery decision protocol traces as the Lean model replays them.
 
 Background
 ----------

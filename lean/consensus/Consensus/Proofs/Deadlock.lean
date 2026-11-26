@@ -73,7 +73,10 @@ open Model.Node
 variable (self : NodeID)
 
 private theorem nominateSuccessor (state : NodeState) (primary : state.role = .primary)
-    : Total (Model.Node.nominateSuccessor (Capabilities.record self) state self) := by
+    (excluded : Finset NodeID := ∅)
+    : Total
+        (Model.Node.nominateSuccessor (Capabilities.record self) state self
+          excluded) := by
   unfold Model.Node.nominateSuccessor
   refine guard_bind primary ?_
   split
@@ -86,7 +89,7 @@ private theorem advanceCommit (state : NodeState)
   refine ite' (fun _ => pure' _) fun _ => ?_
   refine ite' (fun _ => ?_) fun _ => pure' _
   refine ite' (fun primary => ?_) fun _ => pure' _
-  exact bind' (nominateSuccessor self state primary) fun _ => pure' _
+  exact bind' (nominateSuccessor self state primary _) fun _ => pure' _
 
 private theorem broadcastToOthers (state : NodeState) (message : Message)
     : Total

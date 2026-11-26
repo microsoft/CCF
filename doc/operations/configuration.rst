@@ -50,6 +50,19 @@ This is useful when running CCF in a container, where the configuration file may
 .. include:: generated_config.rst
 
 
+Identity ID Format
+------------------
+
+Set ``node_certificate.id_format`` to ``"did:key"`` before starting a new node to use its public-key ``did:key`` as the node ID.
+This applies to start, join, and recovery nodes.
+Each initial member can independently supply ``"did_key": "<did:key>"`` instead of ``certificate_file`` in its ``command.start.members`` entry.
+Node IDs default to ``"sha256"``, and members enrolled with a certificate retain the legacy certificate fingerprint.
+
+These settings only select IDs for new identities; they do not rename existing ledger entries or change attestation hashes.
+A DID joiner requires the accepting node to confirm its ``did:key`` ID, and rejects a response that silently uses the legacy format.
+See :ref:`architecture/cryptography:Identity IDs` for upgrade prerequisites and migration limitations.
+
+
 For migration from deprecated ringbuffer-era configuration, see :doc:`/releases/migration_7_x_to_8_x`.
 
 .. _observability_export:
@@ -99,7 +112,7 @@ Messages emitted while logging or the exporter is being initialised or shut down
 Raw stdout writes and stderr are not captured.
 Configuration checks (``--check``) do not initialise the exporter.
 
-The Forward record uses the trace envelope (``process_id``, sequence number ``h_ts``, and ``msg``).
+The Forward record uses the trace envelope (process identifier ``pid``, sequence number ``m_ts``, and ``msg``).
 Its ``msg`` uses the JSON console schema, with string-valued fields: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
 Console and Fluentd timestamps are sampled separately and need not match; record ordering can also differ.
 
@@ -112,7 +125,7 @@ Optional ``queue_capacity`` on each array entry defaults to 4096 records per pro
 Unbound producers share one additional queue of the same capacity.
 Full queues drop new records under either policy; larger queues use more memory.
 
-Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
+Both policies retain one in-flight record for bounded send retries after disconnect, dropping it if repeated sends after reconnecting fail so subsequent records are not blocked; delivery is not guaranteed and retries can produce duplicates.
 Shutdown attempts to drain all collectors for up to two seconds, then drops remaining records; blocked console output can delay shutdown.
 
 
@@ -161,11 +174,7 @@ When a node is identified by an IPv6 literal, the matching ``node_certificate.su
 HTTP Interfaces
 ---------------
 
-All RPC interfaces for a given node (see :ref:`operations/configuration:``network.rpc_interfaces```) support HTTP/1.1.
-A specific RPC interface can also support HTTP/2 by setting the ``"app_protocol"`` configuration entry to ``"HTTP2"`` for that interface.
-
-.. warning:: HTTP/2 interfaces do not currently support client request forwarding.
-    Client requests that require forwarding to the primary node will return a `501 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/501>`_ HTTP error.
+All built-in HTTP RPC interfaces for a given node (see :ref:`operations/configuration:``network.rpc_interfaces```) support HTTP/1.1.
 
 Operators can cap the size of client HTTP requests (body and header) for each RPC interface in the :ref:`operations/configuration:``network.rpc_interfaces.[name].http_configuration``` configuration section.
 These configuration entries are optional and have sensible default values.

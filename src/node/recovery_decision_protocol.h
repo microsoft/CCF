@@ -5,10 +5,10 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/locking.h"
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/endpoint_context.h"
+#include "ccf/kv/tx.h"
 #include "ccf/node/configuration.h"
 #include "ccf/service/tables/self_healing_open.h"
-#include "ccf/tx.h"
 #include "ccf/tx_id.h"
 #include "tasks/task.h"
 

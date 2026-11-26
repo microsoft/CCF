@@ -15,6 +15,8 @@
 #include "snapshots/filenames.h"
 #include "snapshots/snapshot_writer.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <condition_variable>
 #include <cstring>
@@ -255,7 +257,7 @@ size_t read_entries_range_from_ledger(
   if (!entries.has_value())
   {
     throw std::logic_error(
-      fmt::format("Failed to read ledger entries from {} to {}", from, to));
+      std::format("Failed to read ledger entries from {} to {}", from, to));
   }
 
   verify_framed_entries_range(entries.value(), from, to);
@@ -285,7 +287,7 @@ std::string to_string(const LedgerDirCapture& capture)
   std::string s = "{\n";
   for (const auto& [filename, size, hash] : capture)
   {
-    s += fmt::format("    ({}, {}, {})\n", filename, size, hash.hex_str());
+    s += std::format("    ({}, {}, {})\n", filename, size, hash.hex_str());
   }
   s += "    }";
   return s;
@@ -1197,7 +1199,7 @@ TEST_CASE("Committed ledger prefix readers serve arbitrary byte ranges")
     {1, 5}, {2, 5}, {3, 3}};
   for (const auto& [from, to] : prefixes)
   {
-    INFO(fmt::format("Committed prefix {} to {}", from, to));
+    INFO(std::format("Committed prefix {} to {}", from, to));
     const auto reader = ledger.open_committed_ledger_prefix(from, to);
     REQUIRE(reader.has_value());
 
@@ -1428,8 +1430,8 @@ TEST_CASE("Committed ledger prefix files are not recovered")
     REQUIRE(ledger.get_last_idx() == 0);
   }
   REQUIRE_FALSE(fs::exists(prefix_path));
-  REQUIRE(
-    fs::exists(fmt::format("{}{}", prefix_path, ledger_ignored_file_suffix)));
+  REQUIRE(fs::exists(
+    std::format("{}{}", prefix_path.string(), ledger_ignored_file_suffix)));
 
   const auto read_only_prefix_path =
     fs::path(ledger_dir_read_only) / prefix_path.filename();
@@ -1681,9 +1683,9 @@ int get_open_fd_for_file(const fs::path& file)
 
   if (matching_fds.size() != 1)
   {
-    throw std::logic_error(fmt::format(
+    throw std::logic_error(std::format(
       "Expected exactly one open file descriptor for {}, found {}",
-      file,
+      file.string(),
       matching_fds.size()));
   }
 
@@ -1703,9 +1705,9 @@ void lock_open_file_description(const fs::path& file)
   if (flock(fd, LOCK_EX | LOCK_NB) != 0)
   {
     const auto lock_errno = errno;
-    throw std::logic_error(fmt::format(
+    throw std::logic_error(std::format(
       "Failed to lock open file {}: {}",
-      file,
+      file.string(),
       ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
   }
 }
@@ -1715,9 +1717,9 @@ void require_file_lock_released(const fs::path& file)
   const auto fd = files::open_fd(file, O_RDWR);
   if (fd == -1)
   {
-    throw std::logic_error(fmt::format(
+    throw std::logic_error(std::format(
       "Failed to open file {} to check its lock: {}",
-      file,
+      file.string(),
       ccf::nonstd::strerror(errno)));
   }
 
@@ -1730,17 +1732,17 @@ void require_file_lock_released(const fs::path& file)
 
   if (lock_rc != 0)
   {
-    throw std::logic_error(fmt::format(
+    throw std::logic_error(std::format(
       "Original open file description for {} was not closed: {}",
-      file,
+      file.string(),
       ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
   }
 
   if (close_rc != 0)
   {
-    throw std::logic_error(fmt::format(
+    throw std::logic_error(std::format(
       "Failed to close file descriptor for {}: {}",
-      file,
+      file.string(),
       ccf::nonstd::strerror(close_errno != 0 ? close_errno : EIO)));
   }
 }
@@ -2165,8 +2167,8 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
     size_t snapshot_idx = dist(rgen);
     size_t evidence_idx = snapshot_idx + 1;
 
-    auto snap = fmt::format("snapshot_{}_{}", snapshot_idx, evidence_idx);
-    auto snap_committed = fmt::format("{}.committed", snap);
+    auto snap = std::format("snapshot_{}_{}", snapshot_idx, evidence_idx);
+    auto snap_committed = std::format("{}.committed", snap);
 
     INFO("Identify snapshot files");
     {
@@ -2284,7 +2286,7 @@ TEST_CASE(
     snapshot_idx, evidence_idx, dummy_snapshot, dummy_receipt);
 
   const auto expected_path = fs::path(snapshot_dir) /
-    fmt::format("snapshot_{}_{}.committed", snapshot_idx, evidence_idx);
+    std::format("snapshot_{}_{}.committed", snapshot_idx, evidence_idx);
   REQUIRE(fs::exists(expected_path));
   CHECK(
     ccf::snapshots::find_latest_committed_snapshot_in_directory(snapshot_dir) ==
@@ -2490,7 +2492,7 @@ TEST_CASE("Recovery")
     REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
 
     const auto recovery_file = fs::path(ledger_dir) /
-      fmt::format("ledger_{}{}",
+      std::format("ledger_{}{}",
                   entry_submitter.get_last_idx(),
                   ledger_recovery_file_suffix);
     lock_open_file_description(recovery_file);
@@ -2529,7 +2531,7 @@ TEST_CASE("Recovery")
     REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
 
     const auto recovery_file = fs::path(ledger_dir) /
-      fmt::format("ledger_{}{}",
+      std::format("ledger_{}{}",
                   first_recovery_idx,
                   ledger_recovery_file_suffix);
     lock_open_file_description(recovery_file);

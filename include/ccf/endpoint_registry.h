@@ -3,14 +3,15 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
-#include "ccf/endpoint.h"
-#include "ccf/endpoint_context.h"
+#include "ccf/endpoints/endpoint.h"
+#include "ccf/endpoints/endpoint_context.h"
+#include "ccf/kv/tx.h"
 #include "ccf/receipt.h"
 #include "ccf/rpc_context.h"
-#include "ccf/tx.h"
 
 #include <atomic>
 #include <charconv>
+#include <format>
 #include <functional>
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
@@ -82,7 +83,7 @@ namespace ccf::endpoints
     const auto it = params.find(param_name);
     if (it == params.end())
     {
-      error = fmt::format("No parameter named '{}' in path", param_name);
+      error = std::format("No parameter named '{}' in path", param_name);
       return false;
     }
 
@@ -91,7 +92,7 @@ namespace ccf::endpoints
       std::from_chars(param_s.data(), param_s.data() + param_s.size(), value);
     if (ec != std::errc())
     {
-      error = fmt::format(
+      error = std::format(
         "Unable to parse path parameter '{}' as a {}", param_s, param_name);
       return false;
     }
@@ -109,7 +110,7 @@ namespace ccf::endpoints
     const auto it = params.find(param_name);
     if (it == params.end())
     {
-      error = fmt::format("No parameter named '{}' in path", param_name);
+      error = std::format("No parameter named '{}' in path", param_name);
       return false;
     }
 

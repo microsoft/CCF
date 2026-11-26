@@ -5,110 +5,107 @@ module
 
 public import Consensus.Replay.Interpreter
 
+import Std.Data.HashMap
+
 public section
 
 namespace Consensus.Replay
 
-open Lean
-
 def require (condition : Bool) (message : String) : Except String Unit :=
   unless condition do throw message
 
-def object (value : Json) : Except String (List (String × Json)) :=
-  (·.toList) <$> value.getObj?
-
-def field (value : Json) (key : String) : Except String Json :=
-  (value.getObjVal? key).mapError (fun error => s!"{key}: {error}")
-
-def optional (value : Json) (key : String) : Option Json :=
-  (value.getObjVal? key).toOption
-
-def text (value : Json) : Except String String :=
-  value.getStr?
-
-def natural : Json → Except String Nat
-  | .num { mantissa := .ofNat value, exponent := 0 } => pure value
-  | _ => throw "expected natural number"
-
-def string (value : Json) (key : String) : Except String String :=
-  field value key >>= text
-
-def nat (value : Json) (key : String) : Except String Nat :=
-  field value key >>= natural
-
-def boolean (value : Json) (key : String) : Except String Bool :=
-  field value key >>= Json.getBool?
-
-def configuration (value : Json) : Except String (List String) := do
-  let nodes ← object (← field value "nodes")
-  return nodes.map Prod.fst
-
 structure Record where
   file : String
+  /-- The number of the record among those of the trace, from 1. -/
   line : Nat
-  value : Json
+  ts : Option Nat
+  value : Emitted
 deriving Inhabited
 
 def Record.location (record : Record) : String := s!"{record.file}:{record.line}"
 
-/-- Read one JSON record per line without a schema pass. -/
-def parseLog (file input : String) : Except String (Array Record) := do
+/-- Read the `ccf.cft` records of a trace, skipping those of other tags. -/
+def parseLog (file : String) (input : ByteArray) : Except String (Array Record) := do
   let mut records := #[]
-  let lines := if input.isEmpty then [] else input.splitOn "\n"
-  let lines := if input.endsWith "\n" then lines.dropLast else lines
-  for raw in lines, line in [1:lines.length + 1] do
-    let raw := if raw.endsWith "\r" then raw.dropEnd 1 |>.toString else raw
-    let value ← (Json.parse raw).mapError (fun error => s!"{file}:{line}: {error}")
-    records := records.push { file, line, value }
+  let mut position : USize := 0
+  let mut line := 0
+  while position < input.usize do
+    line := line + 1
+    let (message, next) ←
+      (CCF.Msgpack.run readMessage input position).mapError (s!"{file}:{line}: " ++ ·)
+    position := next
+    if let some (ts, value) := message then
+      records := records.push { file, line, ts, value }
   return records
 
 def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
   let path ← IO.FS.realPath path
-  let bytes ← IO.FS.readBinFile path
-  let some input := String.fromUTF8? bytes
-  | return .error s!"{path}: invalid UTF-8"
-  return parseLog path.toString input
+  return parseLog path.toString (← IO.FS.readBinFile path)
 
 structure Event where
+  /-- The trace record the event was read from. -/
   record : Record
-  command : Option Record
+  /--
+  `m_ts`: a counter the emitting process (`pid`) increments for each record it emits, so its
+  order within a `pid` is the order of emission. Other tags share the counter, so it may
+  have gaps.
+  -/
+  m_ts : Nat
+  /--
+  `ts`: the wall-clock emission time in nanoseconds, when the trace records it. Clocks of
+  different processes may disagree, and one may step backwards.
+  -/
+  ts : Option Nat
+  /-- `msg.function`: the name of the event. -/
   function : String
+  /-- `msg.state.node_id`: the node the event is about. -/
   node : String
-  message : Json
-  state : Json
+  /-- `msg`: the event's own fields. -/
+  body : Body
+  /-- `msg.state`: the node's consensus state when the event was emitted. -/
+  state : StateSnapshot
 deriving Inhabited
 
 def Event.origin (event : Event) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
-/-- Project events, carry command provenance, and collect node identities. -/
+/--
+Order each process's records by `m_ts`, skip driver command records, split events into
+per-node streams sorted by node, and collect node identities.
+-/
 def prepareEvents (records : Array Record)
-    : Except String (Array Event × List String) := do
-  let mut events := #[]
-  let mut command : Option Record := none
+    : Except String (Array (Array Event) × List String) := do
+  let records :=
+    records.toList.mergeSort
+      fun a b =>
+        a.value.pid < b.value.pid
+        || (a.value.pid == b.value.pid && a.value.m_ts <= b.value.m_ts)
+  let mut events : Array Event := #[]
+  let mut previous : Option Record := none
+  let mut pids : Std.HashMap String String := {}
   let mut declared : List String := []
   for record in records do
-    try
-      let message ← field record.value "msg"
-      if (optional message "cmd").isSome then
-        command := some record
-      else
-        let function ← string message "function"
-        let state ←
-          if function == "retired_committed_tx" then
-            pure Json.null
-          else
-            field message "state"
-        let node ←
-          string (if function == "retired_committed_tx" then message else state) "node_id"
-        events := events.push { record, command, function, node, message, state }
-        declared := node :: declared
-        if function == "retired_committed_tx" then
-          declared := (← string message "retired_node_id") :: declared
-        if function == "add_configuration" then
-          declared := (← configuration message) ++ declared
-    catch error =>
-      throw s!"{record.location}: {error}"
-  return (events, declared.mergeSort.eraseDups)
+    let { pid, m_ts, msg } := record.value
+    if let some earlier := previous then
+      if earlier.value.pid == pid && earlier.value.m_ts == m_ts then
+        throw s!"{record.location}: m_ts {m_ts} of pid '{pid}' repeats {earlier.location}"
+    previous := some record
+    if let .event function body := msg then
+      let state := body.state
+      let node := state.node_id
+      if let some other := pids[node]? then
+        unless other == pid do
+          throw
+            s!"{record.location}: node '{node}' is traced by pids '{other}' and '{pid}'"
+      pids := pids.insert node pid
+      events := events.push { record, m_ts, ts := record.ts, function, node, body, state }
+      declared := node :: declared
+      match body with
+      | .retiredCommittedTx event => declared := event.retired_node_id :: declared
+      | .addConfiguration event => declared := event.nodes ++ declared
+      | _ => pure ()
+  let streams :=
+    pids.keys.mergeSort.toArray.map fun node => events.filter (·.node == node)
+  return (streams, declared.mergeSort.eraseDups)
 
 end Consensus.Replay

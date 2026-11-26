@@ -28,6 +28,10 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
 
         Add a new member to the consortium.
 
+    .. grid-item-card:: :fas:`arrows-rotate` :doc:`migrating_identity_ids`
+
+        Migrate existing users and members to ``did:key`` IDs.
+
     .. grid-item-card:: :fas:`key` :doc:`hsm_keys`
 
         Store member keys in an HSM.
@@ -47,7 +51,7 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
     accept_recovery
     common_member_operations
     adding_member
+    migrating_identity_ids
     hsm_keys
     member_rpc_api
-
 

@@ -1,17 +1,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
+import copy
 import functools
 import hashlib
 import http
+import itertools
 import json
 import os
 import pprint
 import random
 import re
+import shutil
 import time
 from collections import deque
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, IntEnum, auto
@@ -26,6 +29,7 @@ from loguru import logger as LOG
 import infra.consortium
 import infra.crypto
 import infra.e2e_args
+import infra.fluentd
 import infra.member
 import infra.node
 import infra.openapi
@@ -44,6 +48,10 @@ JOIN_TIMEOUT = 40
 DEFAULT_TIMEOUT_MULTIPLIER = 15
 
 COMMON_FOLDER = "common"
+
+_cleared_trace_folders = set()
+# More than any test network configures.
+TRACE_MAX_NODES = 256
 
 
 class NodeRole(Enum):
@@ -296,6 +304,10 @@ class Network:
         self.ignoring_shutdown_errors = False
         self.ignore_error_patterns = []
         self.nodes = []
+        # With --capture-trace, records the trace events of every node
+        # configured until stop_all_nodes.
+        self.trace = None
+        self.trace_recovery = False
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
@@ -364,6 +376,66 @@ class Network:
         node.openapi_validator = self.openapi_validator
         self.nodes.append(node)
         return node
+
+    def _add_trace_sink(self, node, args, node_args, recovery=False):
+        """With --capture-trace, add a sink for this network's trace
+        collector, which records events of every tag, to the node's
+        observability configuration, unless the network recovers a service,
+        which consensus trace replay does not model."""
+        self.trace_recovery |= recovery
+        if not args.capture_trace or self.trace_recovery:
+            return
+        if node.version is not None:
+            raise ValueError(
+                f"--capture-trace does not support node {node.local_node_id} "
+                f"with explicit version {node.version}"
+            )
+        if self.trace is None:
+            folder = os.path.join(args.workspace, f"{args.label}_trace")
+            # Remove an earlier run's captures, once per test process.
+            if folder not in _cleared_trace_folders:
+                _cleared_trace_folders.add(folder)
+                shutil.rmtree(folder, ignore_errors=True)
+            os.makedirs(folder, exist_ok=True)
+            self.trace = ExitStack()
+            # Networks that share a label each get a capture.
+            for index in itertools.count():
+                self.trace_path = os.path.join(folder, f"{index}.msgpack")
+                try:
+                    output = self.trace.enter_context(
+                        open(self.trace_path, "xb")  # noqa: SIM115
+                    )
+                    break
+                except FileExistsError:
+                    pass
+
+            # IPv6-only networks must not have IPv4 addresses in node configs.
+            collector = infra.fluentd.Collector(
+                TRACE_MAX_NODES,
+                host="::1" if self.ipv6 else "127.0.0.1",
+                frame_callback=output.write,
+            )
+            self.trace_endpoint = self.trace.enter_context(collector).endpoint
+        # Copied, as args are shared between nodes and networks.
+        observability = copy.deepcopy(node_args.get("observability")) or {}
+        observability.setdefault("fluentd", []).append(
+            {**self.trace_endpoint, "tag-prefix-allow-list": [""]}
+        )
+        node_args["observability"] = observability
+
+    def _finish_trace(self):
+        """Stop recording trace events, if started, and keep the capture
+        unless the collector failed."""
+        trace, self.trace = self.trace, None
+        if trace is None:
+            return
+        try:
+            trace.close()
+        except Exception as error:
+            os.remove(self.trace_path)
+            LOG.info(f"Discarded trace capture: {error}")
+        else:
+            LOG.info(f"Trace capture in {self.trace_path}")
 
     def _setup_node(
         self,
@@ -508,6 +580,7 @@ class Network:
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
+            self._add_trace_sink(node, args, forwarded_args_with_overrides, recovery)
             try:
                 if i == 0:
                     if not recovery:
@@ -653,6 +726,7 @@ class Network:
             self.share_script,
             gov_api_version=args.gov_api_version,
         )
+        member_id_format = kwargs.pop("member_id_format", "sha256")
 
         for i in range(mc):
             member_data = None
@@ -678,6 +752,7 @@ class Network:
                     curve=args.participants_curve,
                     recovery_role=recovery_role,
                     member_data=member_data,
+                    id_format=member_id_format,
                 )
             )
 
@@ -695,9 +770,6 @@ class Network:
 
     def open(self, args):
         def get_target_node(args, primary):
-            # HTTP/2 does not currently support forwarding
-            if args.http2:
-                return primary
             return self.find_random_node()
 
         primary, _ = self.find_primary()
@@ -788,31 +860,44 @@ class Network:
                     self.share_script,
                     gov_api_version=args.gov_api_version,
                 )
+                r = c.get("/gov/service/members")
+                assert r.status_code == http.HTTPStatus.OK, r
+                members = {
+                    member["memberId"]: member for member in r.body.json()["value"]
+                }
                 for f in os.listdir(self.common_dir):
-                    if re.search("member(.*)_cert.pem", f) is not None:
-                        local_id = f.split("_")[0]
-                        recovery_role = (
-                            infra.member.RecoveryRole.Participant
-                            if os.path.isfile(
-                                os.path.join(
-                                    self.common_dir, f"{local_id}_enc_privk.pem"
-                                )
+                    match = re.fullmatch(r"(member[^_]*)_privk\.pem", f)
+                    if match is not None:
+                        local_id = match.group(1)
+                        cert_path = os.path.join(
+                            self.common_dir, f"{local_id}_cert.pem"
+                        )
+                        id_format = "sha256"
+                        service_id = (
+                            infra.crypto.compute_cert_der_hash_hex_from_pem(
+                                slurp_file(cert_path)
                             )
-                            else infra.member.RecoveryRole.NonParticipant
+                            if os.path.isfile(cert_path)
+                            else None
                         )
-
+                        if service_id not in members:
+                            id_format = "did:key"
+                            service_id = infra.crypto.did_key_from_private_key(
+                                slurp_file(os.path.join(self.common_dir, f))
+                            )
+                        if service_id not in members:
+                            raise ValueError(
+                                f"Member {local_id} is not enrolled in the recovered service"
+                            )
+                        member_info = members[service_id]
+                        recovery_role = infra.member.RecoveryRole(
+                            member_info["recoveryRole"]
+                        )
                         new_member = self.consortium.generate_existing_member(
-                            local_id, recovery_role
+                            local_id, recovery_role, id_format=id_format
                         )
 
-                        r = c.get(f"/gov/service/members/{new_member.service_id}")
-                        assert r.status_code == 200
-                        member_info = r.body.json()
                         assert member_info["memberId"] == new_member.service_id
-                        assert (
-                            infra.member.RecoveryRole(member_info["recoveryRole"])
-                            == new_member.recovery_role
-                        )
                         new_member.member_data = member_info["memberData"]
                         if (
                             infra.member.MemberStatus(member_info["status"])
@@ -914,6 +999,9 @@ class Network:
 
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
+            self._add_trace_sink(
+                node, args, forwarded_args_with_overrides, recovery=True
+            )
             try:
                 node_kwargs = {
                     "lib_name": args.package,
@@ -1338,71 +1426,76 @@ class Network:
         skip_verify_chunking=None,
         **kwargs,
     ):
-        skip_verify_chunking = skip_verify_chunking or self.skip_verify_chunking
-        if not skip_verification and self.txs is not None:
-            LOG.info("Verifying that all committed txs can be read before shutdown")
-            log_capture = []
-            try:
-                self.txs.verify(network=self, log_capture=log_capture)
-                # verify_range walks the historical query subsystem across
-                # the full ledger, which is prohibitively slow under
-                # _GLIBCXX_DEBUG (debug-mode containers). Skip it in that
-                # case; the same coverage is exercised by Release CI.
-                if not os.getenv("CCF_GLIBCXX_DEBUG"):
-                    self.txs.verify_range(log_capture=log_capture)
-            except:
-                flush_info(log_capture, None)
-                raise
-            else:
-                if verbose_verification:
+        try:
+            skip_verify_chunking = skip_verify_chunking or self.skip_verify_chunking
+            if not skip_verification and self.txs is not None:
+                LOG.info("Verifying that all committed txs can be read before shutdown")
+                log_capture = []
+                try:
+                    self.txs.verify(network=self, log_capture=log_capture)
+                    # verify_range walks the historical query subsystem across
+                    # the full ledger, which is prohibitively slow under
+                    # _GLIBCXX_DEBUG (debug-mode containers). Skip it in that
+                    # case; the same coverage is exercised by Release CI.
+                    if not os.getenv("CCF_GLIBCXX_DEBUG"):
+                        self.txs.verify_range(log_capture=log_capture)
+                except:
                     flush_info(log_capture, None)
+                    raise
+                else:
+                    if verbose_verification:
+                        flush_info(log_capture, None)
 
-        if self.common_dir is not None:
-            self.openapi_validator.report(
-                os.path.join(self.common_dir, "openapi_coverage.json"),
-                os.path.join(self.args.workspace, "openapi_coverage.json"),
-            )
-
-        fatal_error_found = False
-
-        if len(self.ignore_error_patterns) > 0:
-            LOG.warning("Ignoring error patterns on shutdown:")
-            for pattern in self.ignore_error_patterns:
-                LOG.warning(f"  {pattern}")
-
-        node_errors = {}
-        for node in self.nodes:
-            node.stop()
-            out_path, err_path = node.get_logs()
-            if out_path is not None and err_path is not None:
-                _, fatal_errors = log_errors(
-                    out_path, err_path, ignore_error_patterns=self.ignore_error_patterns
-                )
-            else:
-                fatal_errors = []
-            node_errors[node.local_node_id] = fatal_errors
-            if fatal_errors:
-                fatal_error_found = True
-
-        LOG.info("All nodes stopped")
-        if check_file_invariants:
-            self.ledger_files_invariant(**kwargs)
-            self.snapshot_files_invariants(**kwargs)
-
-        if not skip_verify_chunking:
-            LOG.info("Verifying ledger chunk flags before shutdown")
-            self.check_ledger_files_chunk_flags()
-
-        if fatal_error_found:
-            if self.ignoring_shutdown_errors:
-                LOG.warning("Ignoring shutdown errors")
-            else:
-                raise NetworkShutdownError(
-                    "Fatal error found during node shutdown", node_errors
+            if self.common_dir is not None:
+                self.openapi_validator.report(
+                    os.path.join(self.common_dir, "openapi_coverage.json"),
+                    os.path.join(self.args.workspace, "openapi_coverage.json"),
                 )
 
-        if self.partitioner is not None:
-            self.partitioner.cleanup()
+            fatal_error_found = False
+
+            if len(self.ignore_error_patterns) > 0:
+                LOG.warning("Ignoring error patterns on shutdown:")
+                for pattern in self.ignore_error_patterns:
+                    LOG.warning(f"  {pattern}")
+
+            node_errors = {}
+            for node in self.nodes:
+                node.stop()
+                out_path, err_path = node.get_logs()
+                if out_path is not None and err_path is not None:
+                    _, fatal_errors = log_errors(
+                        out_path,
+                        err_path,
+                        ignore_error_patterns=self.ignore_error_patterns,
+                    )
+                else:
+                    fatal_errors = []
+                node_errors[node.local_node_id] = fatal_errors
+                if fatal_errors:
+                    fatal_error_found = True
+
+            LOG.info("All nodes stopped")
+            if check_file_invariants:
+                self.ledger_files_invariant(**kwargs)
+                self.snapshot_files_invariants(**kwargs)
+
+            if not skip_verify_chunking:
+                LOG.info("Verifying ledger chunk flags before shutdown")
+                self.check_ledger_files_chunk_flags()
+
+            if fatal_error_found:
+                if self.ignoring_shutdown_errors:
+                    LOG.warning("Ignoring shutdown errors")
+                else:
+                    raise NetworkShutdownError(
+                        "Fatal error found during node shutdown", node_errors
+                    )
+
+            if self.partitioner is not None:
+                self.partitioner.cleanup()
+        finally:
+            self._finish_trace()
 
     def setup_join_node(
         self,
@@ -1417,6 +1510,7 @@ class Network:
             for arg in infra.network.Network.node_args_to_forward
         }
         forwarded_args.update(kwargs)
+        self._add_trace_sink(node, args, forwarded_args)
         self._setup_node(node, lib_name, args, target_node, **forwarded_args)
 
     def run_join_node(
@@ -1635,7 +1729,7 @@ class Network:
         with open(cert_path, "w", encoding="utf-8") as f:
             f.write(cert_pem)
 
-        # node_id = hex(sha256(DER pubkey)); same hash report_data must carry.
+        # Attestation always binds SHA-256(DER pubkey), independently of ID format.
         pubkey_hash_hex = infra.crypto.compute_public_key_der_hash_hex_from_pem(
             cert_pem
         )
@@ -1774,21 +1868,30 @@ class Network:
             statistics["old_node_removal_committed"] = datetime.now(UTC).isoformat()
         self.nodes.remove(node_to_retire)
 
-    def create_user(self, local_user_id, curve, record=True):
+    def create_user(self, local_user_id, curve, record=True, id_format="sha256"):
+        identity_args = ["--public-key-only"] if id_format == "did:key" else []
         infra.proc.ccall(
             self.key_generator,
             "--name",
             local_user_id,
             "--curve",
             f"{curve.name}",
+            *identity_args,
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
 
         cert_path = os.path.join(self.common_dir, f"{local_user_id}_cert.pem")
-        with open(cert_path, encoding="utf-8") as c:
-            service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
         key_path = os.path.join(self.common_dir, f"{local_user_id}_privk.pem")
+        if id_format == "did:key":
+            service_user_id = infra.crypto.did_key_from_private_key(
+                slurp_file(key_path)
+            )
+        else:
+            with open(cert_path, encoding="utf-8") as c:
+                service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(
+                    c.read()
+                )
         new_user = UserInfo(local_user_id, service_user_id, cert_path, key_path)
         if record:
             self.users.append(new_user)
@@ -1873,12 +1976,13 @@ class Network:
         end_time = time.time() + timeout
         logs = []
         while time.time() < end_time:
-            # As an operator, query a well-known /app endpoint to find out
-            # if the app has been opened to users
+            # /node/ready/app reports whether this node's application frontend
+            # is open, including for applications that don't install the
+            # built-in /app endpoints
             with node.client() as c:
                 logs = []
-                r = c.get("/app/commit", log_capture=logs)
-                if r.status_code != http.HTTPStatus.NOT_FOUND.value:
+                r = c.get("/node/ready/app", log_capture=logs)
+                if r.status_code == http.HTTPStatus.NO_CONTENT.value:
                     flush_info(logs, None)
                     return
                 time.sleep(0.1)

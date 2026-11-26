@@ -40,6 +40,8 @@
 #include "node/signature_cache_subsystem.h"
 #include "tasks/worker.h"
 
+#include <utility>
+
 namespace ccf
 {
   class Enclave
@@ -105,6 +107,12 @@ namespace ccf
           "A ledger subsystem and node transport must be provided");
       }
 
+      // The host has already validated these patterns. Built before the node
+      // and its subsystems are created.
+      auto interface_regexes =
+        ccf::NodeConfigurationSubsystem::build_interface_regexes(
+          config.network.rpc_interfaces);
+
       LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
 
@@ -120,7 +128,8 @@ namespace ccf
         rpcsessions,
         config.node_certificate.curve_id,
         runtime_control,
-        this->ledger_subsystem);
+        this->ledger_subsystem,
+        config.node_certificate.id_format);
 
       LOG_TRACE_FMT("Creating context");
       context = std::make_unique<NodeContext>(node->get_node_id());
@@ -155,7 +164,8 @@ namespace ccf
           std::make_shared<ccf::TaskSchedulerImpl>()));
 
       context->install_subsystem(
-        std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
+        std::make_shared<ccf::NodeConfigurationSubsystem>(
+          *node, std::move(interface_regexes)));
 
       auto cpss = std::make_shared<ccf::CustomProtocolSubsystem>(*node);
       context->install_subsystem(cpss);

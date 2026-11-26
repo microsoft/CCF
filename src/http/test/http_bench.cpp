@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/ds/enum_formatter.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
 
@@ -17,8 +16,7 @@ struct NullRequestProcessor : public http::RequestProcessor
     llhttp_method,
     const std::string_view&,
     ccf::http::HeaderMap&&,
-    std::vector<uint8_t>&&,
-    int32_t) override
+    std::vector<uint8_t>&&) override
   {
     ++count;
   }

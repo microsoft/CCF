@@ -38,8 +38,8 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `cmake-format-checks.sh` | CMake files | gersemi | `-f` |
 | `release-notes-checks.sh` | `CHANGELOG.md`, `.changes/*.md` (also run prettier) | extract-release-notes.py | `-f` (changelog links only) |
 | `shellcheck-checks.sh` | Shell scripts outside `3rdparty/` | shellcheck | No |
-| `includes-checks.sh` | Public C++ headers and their uses | Public/private include and exported-header checks | No |
-| `copyright-checks.sh` | Source files | Copyright notices | No |
+| `includes-checks.sh` | C++ includes in `include/` and `src/` | Public/private include, exported-header, and component dependency checks | No |
+| `copyright-checks.sh` | Source files | Copyright notices and Python shebang/executable-bit consistency | No |
 | `openapi-checks.sh` | JSON under `doc/schemas/` | openapi-spec-validator | No |
 | `todo-checks.sh` | Tracked files | Disallowed comments | No |
 | `ascii-checks.sh` | Source/config files and agent-instruction Markdown | ASCII policy and grandfathered Unicode lines | No |

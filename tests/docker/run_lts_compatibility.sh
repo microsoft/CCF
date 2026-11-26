@@ -66,7 +66,7 @@ docker build \
 TO_VERSION=$(<"$TEMP_DIR/to/opt/ccf/share/VERSION_LONG")
 
 cd "$REPO_ROOT"
-python3 tests/lts_compatibility.py \
+tests/lts_compatibility.py \
   --ccf-version "$TO_VERSION" \
   --release-install-path "$TEMP_DIR/from/opt/ccf" \
   --release-install-image "$FROM_IMAGE" \

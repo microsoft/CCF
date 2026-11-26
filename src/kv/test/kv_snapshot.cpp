@@ -298,7 +298,7 @@ TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
       "AAAAEQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAAKAAAAAAAAAAFAAAAAAAAACJm"
       "b28iAAAADQAAAAAAAAABAAAAAAAAACJiYXIiAAAA";
   }
-  const auto raw_snapshot = ccf::crypto::raw_from_b64(raw_snapshot_b64);
+  const auto raw_snapshot = ccf::ds::raw_from_b64(raw_snapshot_b64);
 
   ccf::kv::Store new_store;
 
@@ -1064,11 +1064,11 @@ TEST_CASE(
       auto tx = store.create_tx();
       for (size_t i = 0; i < 100; ++i)
       {
-        tx.rw(string_map)->put(fmt::format("pub{}", i), std::string(i, 'p'));
+        tx.rw(string_map)->put(std::format("pub{}", i), std::string(i, 'p'));
         if (can_encrypt)
         {
           tx.rw(private_map)
-            ->put(fmt::format("priv{}", i), std::string(i, 's'));
+            ->put(std::format("priv{}", i), std::string(i, 's'));
         }
       }
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);

@@ -3,14 +3,13 @@
 
 #include "crypto/openssl/csr.h"
 
+#include "ccf/ds/join.h"
 #include "ccf/ds/nonstd.h"
 #include "crypto/openssl/x509_time.h"
 
-#define FMT_HEADER_ONLY
 #include <array>
 #include <climits>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
+#include <format>
 #include <map>
 #include <openssl/asn1.h>
 #include <openssl/objects.h>
@@ -58,7 +57,7 @@ namespace ccf::crypto::OpenSSL
       // The value length is passed as an int
       if (value.size() > INT_MAX)
       {
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "Subject name value for {} exceeds the maximum of {} bytes",
           field,
           INT_MAX));
@@ -84,7 +83,7 @@ namespace ccf::crypto::OpenSSL
       /*check_null=*/false);
     if (subject_name == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Subject name is not a DER-encoded X.501 Name: {}", first_error()));
     }
     if (p != der.data() + der.size())
@@ -133,7 +132,7 @@ namespace ccf::crypto::OpenSSL
           nullptr,
           nullptr,
           NID_subject_alt_name,
-          fmt::format("{}", fmt::join(subject_alt_names, ", ")).c_str()));
+          std::format("{}", ccf::ds::join(subject_alt_names, ", ")).c_str()));
       CHECKPOSITIVE(sk_X509_EXTENSION_push(exts, ext));
       CHECK1(X509_REQ_add_extensions(req, exts));
     }
@@ -204,7 +203,7 @@ namespace ccf::crypto::OpenSSL
     Unique_X509_TIME not_after(valid_to);
     if (!validate_chronological_times(not_before, not_after))
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Certificate cannot be created with not_before date {} > not_after "
         "date {}",
         to_x509_time_string(not_before),

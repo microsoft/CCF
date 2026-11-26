@@ -4,6 +4,9 @@
 
 #include "ccf/ds/json.h"
 
+#include <format>
+#include <utility>
+
 namespace ccf
 {
   enum class NodeStartupState : uint8_t
@@ -28,7 +31,16 @@ namespace ccf
      {ccf::NodeStartupState::readingPrivateLedger, "ReadingPrivateLedger"}});
 }
 
-// Used by fmtlib to render ccf::State
+template <>
+struct std::formatter<ccf::NodeStartupState> : std::formatter<uint8_t>
+{
+  template <typename FormatContext>
+  auto format(ccf::NodeStartupState state, FormatContext& ctx) const
+  {
+    return std::formatter<uint8_t>::format(std::to_underlying(state), ctx);
+  }
+};
+
 // NOLINTBEGIN(cert-dcl58-cpp)
 namespace std
 {

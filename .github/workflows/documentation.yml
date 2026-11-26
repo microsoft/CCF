@@ -42,9 +42,6 @@ jobs:
         with:
           python-requirements: doc/requirements.txt
 
-      - name: Install Lean
-        uses: ./.github/actions/install-lean
-
       - name: Build Documentation
         run: |
           set -euxo pipefail

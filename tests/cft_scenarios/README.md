@@ -32,6 +32,7 @@ Scenarios are ordinary Lean, so they can also use loops, conditions and definiti
 
 After each command which can alter state, the driver asserts that the commit index of every node is safe.
 After the last command, it confirms that the network can still make progress.
+To do so, it signs on the latest primary, and runs until the active nodes which that primary knows are in sync with it.
 
 ## Adding a scenario
 
@@ -57,7 +58,7 @@ build/cft_driver <name>
 ctest --test-dir build -VV -R '^cft_scenario_test$' --no-tests=error
 ```
 
-The runner prints each scenario as a Mermaid sequence diagram, and writes its trace to `consensus/raw/<name>.ndjson` in the build directory.
+The runner prints each scenario as a Mermaid sequence diagram, and writes its trace to `consensus/raw/<name>.msgpack` in the build directory.
 [`consensus-replay`](../../lean/consensus/replay/README.md) validates these traces against the Lean model of the protocol.
 
 ## Diagrams
@@ -65,7 +66,7 @@ The runner prints each scenario as a Mermaid sequence diagram, and writes its tr
 [`cft_scenarios_mermaid.py`](../cft_scenarios_mermaid.py) prints one scenario as a compact Mermaid sequence diagram:
 
 ```sh
-python3 tests/cft_scenarios_mermaid.py build/cft_driver tests/cft_scenarios/Scenarios/<name>.lean
+tests/cft_scenarios_mermaid.py build/cft_driver tests/cft_scenarios/Scenarios/<name>.lean
 ```
 
 Messages are arrows, which end in a cross when the message is dropped.
@@ -88,6 +89,9 @@ A reconfiguration is also followed by the nodes it removes and adds, such as `âš
 
 ## Bindings
 
-`lake` compiles the scenarios to a static library, which defines `main`.
+`lake` compiles the scenarios to a static library, which defines `main` in [`Main.lean`](Main.lean).
 `cft_driver` links it with [`driver.cpp`](../../src/consensus/aft/test/driver.cpp), which implements each command declared in `CftDriver.lean` by calling `CftDriver` in [`driver.h`](../../src/consensus/aft/test/driver.h), and with the Lean runtime.
 A trace records each command as a `cmd` record, naming the command and its arguments.
+
+Another program can import `Scenarios`, define its own `main`, and link another implementation of the commands.
+The [consensus model driver](../cft_model/README.md) does, to run the scenarios on the Lean model of the protocol, without `driver.cpp`.

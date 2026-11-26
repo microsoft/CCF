@@ -3,13 +3,15 @@
 
 #include "ccf/endpoint_registry.h"
 
-#include "ccf/common_auth_policies.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
+#include "ccf/endpoints/common_auth_policies.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "endpoints/rpc_context_impl.h"
 #include "http/http_parser.h"
 
+#include <format>
 #include <tuple>
 
 namespace ccf::endpoints
@@ -56,7 +58,7 @@ namespace ccf::endpoints
       // C) Concatenate the camel-cased verb and path. For example, this gives
       // us "PostAppLogPrivateRawTextId" for the verb POST and the path
       // "/app/log/private/raw_text/{id}".
-      path_op["operationId"] = fmt::format("{}{}", s, p);
+      path_op["operationId"] = std::format("{}{}", s, p);
 
       // Path Operation must contain at least one response - if none has been
       // defined, assume this can return 200
@@ -124,7 +126,7 @@ namespace ccf::endpoints
       }
 
       auto schema_ref_object = nlohmann::json::object();
-      schema_ref_object["$ref"] = fmt::format(
+      schema_ref_object["$ref"] = std::format(
         "#/components/x-ccf-forwarding/{}",
         endpoint->properties.forwarding_required);
       ds::openapi::extension(path_op, "x-ccf-forwarding") = schema_ref_object;
@@ -150,23 +152,25 @@ namespace ccf::endpoints
       template_end = regex_s.find_first_of('}', template_start);
       if (template_end == std::string::npos)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Invalid templated path - missing closing curly bracket: {}", uri));
       }
 
       // Default regex is "([^/]+)", aka "match everything until the next /"
       std::string regex_terminator = "/";
 
-      if (template_end < regex_s.size() - 1)
+      // If another template follows in the same path segment, the literal
+      // between them separates them, so this template stops at the first
+      // character of that literal.
+      // eg: "/{foo}:{bar}" => "/([^/:]+):([^/]+)"
+      // Otherwise a literal which follows the template is matched at the end
+      // of the segment, so the template may contain it.
+      // eg: "/{foo}:bar" => "/([^/]+):bar", where "/a:b:bar" has foo = "a:b"
+      const auto segment_end = regex_s.find('/', template_end);
+      const auto next_template = regex_s.find('{', template_end);
+      if (next_template < segment_end)
       {
-        const auto terminator_candidate = regex_s[template_end + 1];
-        if (terminator_candidate != '/')
-        {
-          // If there's some other character literal following the template,
-          // treat that as a terminator as well.
-          // eg: "/{foo}:bar" => "/(^[/:]):bar"
-          regex_terminator += terminator_candidate;
-        }
+        regex_terminator += regex_s[template_end + 1];
       }
 
       spec.template_component_names.push_back(
@@ -174,7 +178,7 @@ namespace ccf::endpoints
       regex_s.replace(
         template_start,
         template_end - template_start + 1,
-        fmt::format("([^{}]+)", regex_terminator));
+        std::format("([^{}]+)", regex_terminator));
 
       template_start = regex_s.find_first_of('{', template_start + 1);
     }
@@ -182,16 +186,16 @@ namespace ccf::endpoints
     auto& names = spec.template_component_names;
     if (std::unique(names.begin(), names.end()) != names.end())
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Invalid templated path - duplicated component names ({}): {}",
-        fmt::join(names, ", "),
+        ccf::ds::join(names, ", "),
         uri));
     }
 
     LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);
     LOG_TRACE_FMT(
       "Component names are: {}",
-      fmt::join(spec.template_component_names, ", "));
+      ccf::ds::join(spec.template_component_names, ", "));
     spec.template_regex = std::regex(regex_s);
 
     return spec;
@@ -216,10 +220,10 @@ namespace ccf::endpoints
     }
     else
     {
-      endpoint.dispatch.uri_path = fmt::format("/{}", method);
+      endpoint.dispatch.uri_path = std::format("/{}", method);
     }
     endpoint.full_uri_path =
-      fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
+      std::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
 
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
@@ -571,10 +575,10 @@ namespace ccf::endpoints
     LOG_FAIL_FMT("Found multiple potential templated matches for request path");
 
     auto error_string =
-      fmt::format("Multiple potential matches for path: {}", path);
+      std::format("Multiple potential matches for path: {}", path);
     for (const auto& match : matches)
     {
-      error_string += fmt::format("\n  {}", match->dispatch.uri_path);
+      error_string += std::format("\n  {}", match->dispatch.uri_path);
     }
     LOG_DEBUG_FMT("{}", error_string);
 

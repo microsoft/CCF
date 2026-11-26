@@ -16,7 +16,7 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 ## Lean
 
 The local composite action in `.github/actions/install-lean/action.yml` installs elan and the Lean toolchain pinned by `lean/lean-toolchain`.
-The jobs which run `cft_scenario_test` in `ci.yml`, `ci-al4.yml`, `coverage.yml`, `long-test.yml` and `lean.yml` use it, because `cft_driver` links the [consensus scenarios](../../tests/cft_scenarios/README.md), which are Lean programs.
+The jobs which run `cft_scenario_test` in `ci.yml`, `coverage.yml`, `long-test.yml` and `lean.yml` use it, because `cft_driver` links the [consensus scenarios](../../tests/cft_scenarios/README.md), which are Lean programs.
 Without Lean, CMake does not build `cft_driver` and disables that test.
 The release build in `release.yml` does not install Lean, so it does not run that test.
 
@@ -60,9 +60,22 @@ File: `copilot-setup-steps.yml`
 
 # Continuous Integration
 
-Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests. Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
+Main continuous integration job.
+Builds CCF on Azure Linux 4 for all target platforms, runs unit, end to end and partition tests.
+Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
+
+Each Azure Linux 4 job sets `PATH` on its container, because the image does not declare one and the runner would otherwise replace `PATH` with only the directories added through `GITHUB_PATH`, such as the one added by the Lean action.
+
+The `lts_compatibility` test only upgrades from releases built for the distribution it runs on, so on Azure Linux 4 it starts from the latest 8.x release.
+On development branches, where no final release of the version under development exists yet, that is its latest published pre-release.
+Upgrades from 7.x, which is only built for Azure Linux 3, are covered by [Cross-platform LTS](#cross-platform-lts).
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
+
+End to end tests record each network's trace events, of every tag, and upload the capture with their logs.
+The `Replay e2e consensus traces` job runs after the Virtual jobs complete (unless the workflow is cancelled), builds the Lean replayer, and replays the `ccf.cft` events of every capture from their logs against the Lean model with `tests/cft_trace_validation.py`.
+A capture may be incomplete, for example if a test killed a node, so the job replays with `--lenient`.
+It fails if the model disagrees with a capture, if replay consumes less than 90% of the events of one of a capture's nodes, or if there is no capture.
 
 File: `ci.yml`
 3rd party dependencies: elan
@@ -70,7 +83,7 @@ File: `ci.yml`
 ## Test failure annotations
 
 On GitHub Actions, `tests/tests.sh` automatically enables `tests/infra/test_reporting.py` to publish test failures as error annotations and a job-summary table.
-The Python SDK job invokes the reporter with `python ../tests/infra/test_reporting.py pytest`.
+The Python SDK job invokes the reporter with `../tests/infra/test_reporting.py pytest`.
 Each invocation publishes up to ten annotations and 100 summary rows.
 Full test output is available in the job logs, with node logs in the log artifacts.
 
@@ -91,20 +104,13 @@ Reporting options are managed by the wrapper and reporter.
 Intermediate results are stored per invocation under `build/test-results/` for CTest and `python/test-results/` for pytest; these directories are not uploaded.
 Local `./tests.sh ...` commands run CTest without XML reporting or GitHub annotations.
 
-# Continuous Integration AL4
-
-Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.
-
-Its Virtual A, B, and C jobs use the same pool distribution as the main continuous integration workflow.
-
-Each job sets `PATH` on its container, because the Azure Linux 4 image does not declare one and the runner would otherwise replace `PATH` with only the directories added through `GITHUB_PATH`, such as the one added by the Lean action.
-
-File: `ci-al4.yml`
-3rd party dependencies: elan
-
 # Cross-platform LTS
 
-Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
+Builds CCF install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner.
+By default, it upgrades from the latest stable 7.x release, built on Azure Linux 3, to the commit under test, built on Azure Linux 4; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml).
+Separate runtime images install only the required shared-library packages and copy in the matching install tree.
+Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking.
+Runs on PRs, merge queue runs, weekly and manually.
 
 Because the upgrade job runs directly on the runner rather than in a container, it first restores ownership of the workspace with `sudo chown`. VMSS runners are reused across jobs, and `--user root` container jobs, including the Azure Linux 3 build in the same run, can leave root-owned files in the shared workspace that would otherwise make `actions/checkout` fail with permission errors.
 
@@ -155,8 +161,9 @@ Each matrix job caches its third-party dependency checkouts and build outputs, l
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run.
 CCF consensus, KV, and consistency trace captures run in parallel with package checks.
-Three independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
-Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
+The CCF consensus capture job also builds the [consensus model driver](../../tests/cft_model/README.md) with `-DCFT_MODEL_DRIVER=ON`, and runs `cft_model_test`, which runs each scenario on the Lean model without the implementation.
+Two independent trace-validation jobs, for consensus and KV, each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
+Consistency capture reuses the existing `consistency_trace_validation` e2e test, which replays its own trace in the capture job.
 A final summary job requires every package and trace job to succeed.
 
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
@@ -176,7 +183,6 @@ Additional bundled checkers are not enabled.
 The disaster recovery job also checks the records of the recovery trace fixtures in `lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with `check-schema.py`.
 It runs `replayer/check-fixtures.sh` using the package's built `disaster-recovery-replay` executable.
 That replays the fixtures' quorum, failover and multiple-timeout traces, which must pass, and invalid and valid traces stored as diffs against them, which must fail and pass.
-It then runs the trace viewer's `viewer/build.py`, which fails if a dump the viewer shows is missing or disagrees with the replayer.
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
@@ -186,7 +192,7 @@ The dedicated replay job builds `kv-replay` separately to validate the captured 
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
-It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
+It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests and model driver, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
@@ -210,9 +216,19 @@ Verifies that files under `3rdparty/` match the Git commits or release artifacts
 File: `vendor-verification.yml`
 3rd party dependencies: None
 
+# Backport checks
+
+Checks that every `git cherry-pick -x` commit in a PR targeting `release/**` is an unchanged clean replay of a commit merged to `main`, by running `scripts/backport.py` and its tests. Triggered on pull requests and merge groups targeting `release/**`. Uses only git, not the GitHub API. See the [backporting skill](../skills/backporting/SKILL.md).
+
+File: `backport-checks.yml`
+3rd party dependencies: None
+
 # Release
 
-Produces CCF reference release artifacts, excluding the Python package. Triggered on tags matching `ccf-[567].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts, excluding the Python package.
+Triggered on tags matching `ccf-[78].*`, and manually with an optional dry run.
+The output of a non-dry-run job is a draft release, which needs to be published manually.
+Publishing triggers the downstream jobs listed below.
 
 Python packages are built and published separately by the [OneBranch pipeline](../../.pipelines/README.md), without attestations.
 
@@ -242,4 +258,4 @@ Pushes to `main` and manual runs on `main` publish to GitHub Pages at `/main/`, 
 The `github-pages` deployment environment should allow deployments only from `main`.
 
 File: `documentation.yml`
-3rd party dependencies: elan
+3rd party dependencies: None

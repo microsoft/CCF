@@ -127,6 +127,14 @@ opaque dispatchOne (node : @& NodeId) : IO Unit
 @[extern "cft_dispatch_single"]
 opaque dispatchSingle (source target : @& NodeId) : IO Unit
 
+/--
+The undelivered messages sent by `source` to `target`, oldest first.
+Each is the JSON of its packet, without spaces: the fields which a trace records for it, in
+that order.
+-/
+@[extern "cft_pending_messages"]
+opaque pendingMessages (source target : @& NodeId) : IO (Array String)
+
 /-- Deliver the messages already sent by every node, but not their responses. -/
 @[extern "cft_dispatch_all_once"]
 opaque dispatchAllOnce : IO Unit
@@ -208,7 +216,21 @@ opaque assertAbsentConfig (node : @& NodeId) (idx : UInt64) : IO Unit
 @[extern "cft_assert_last_txid"]
 opaque assertLastTxid (node : @& NodeId) (txid : @& String) : IO Unit
 
-/-- Sign on the latest primary, reconnect the active nodes and run until they are in sync. -/
+/-- Assert that the entry at `idx` in the ledger of `node` is in `view` (or `0` if absent). -/
+@[extern "cft_assert_view"]
+opaque assertView (node : @& NodeId) (idx : UInt64) (view : UInt64) : IO Unit
+
+/-- Assert that `count` undelivered messages are pending from `source` to `target`. -/
+def assertPending (source target : NodeId) (count : Nat) : IO Unit := do
+  let pending ← pendingMessages source target
+  let link := s!"from {source.text} to {target.text}"
+  unless pending.size == count do
+    throw (IO.userError s!"Expected {count} messages {link}, got {pending}")
+
+/--
+Sign on the latest primary, reconnect the active nodes which it knows, and run until they
+are in sync.
+-/
 @[extern "cft_loop_until_sync"]
 opaque loopUntilSync : IO Unit
 

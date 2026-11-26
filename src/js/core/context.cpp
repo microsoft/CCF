@@ -4,17 +4,18 @@
 #include "ccf/js/core/context.h"
 
 #include "ccf/ds/hex.h"
+#include "ccf/js/checks.h"
 #include "ccf/js/core/runtime.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/tx_access.h"
 #include "ds/internal_logger.h"
-#include "js/checks.h"
 #include "js/global_class_ids.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cstdarg>
+#include <format>
 #include <quickjs/quickjs.h>
 
 namespace ccf::js::core
@@ -135,7 +136,7 @@ namespace ccf::js::core
             CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
           }
 
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "Failed to resolve dependencies for module '{}': {}",
             module_name,
             reason));
@@ -265,7 +266,7 @@ namespace ccf::js::core
     if (val.is_undefined())
     {
       val = default_value;
-      JS_CHECK_OR_THROW(g.set(s, std::move(default_value)));
+      CCF_JS_CHECK_OR_THROW(g.set(s, std::move(default_value)));
     }
 
     return val;
@@ -304,7 +305,7 @@ namespace ccf::js::core
 
     if (module.is_exception())
     {
-      throw std::runtime_error(fmt::format("Failed to compile {}", path));
+      throw std::runtime_error(std::format("Failed to compile {}", path));
     }
 
     return get_exported_function(module, func, path);
@@ -345,7 +346,7 @@ namespace ccf::js::core
         CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
       }
       throw std::runtime_error(
-        fmt::format("Failed to execute {}: {}", path, reason));
+        std::format("Failed to execute {}: {}", path, reason));
     }
 
     // Get exported function from module via namespace object
@@ -356,7 +357,7 @@ namespace ccf::js::core
     if (JS_IsException(ns.val) != 0)
     {
       throw std::runtime_error(
-        fmt::format("Failed to get namespace for module '{}'", path));
+        std::format("Failed to get namespace for module '{}'", path));
     }
 
     auto func_atom = JS_NewAtom(ctx, func.c_str());
@@ -366,11 +367,11 @@ namespace ccf::js::core
     if (JS_IsUndefined(export_func.val) != 0)
     {
       throw std::runtime_error(
-        fmt::format("Failed to find export '{}' in module '{}'", func, path));
+        std::format("Failed to find export '{}' in module '{}'", func, path));
     }
     if (JS_IsFunction(ctx, export_func.val) == 0)
     {
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Export '{}' of module '{}' is not a function", func, path));
     }
     return export_func;
@@ -513,7 +514,7 @@ namespace ccf::js::core
       {
         extensions::ConsoleExtension::log_info_with_tag(
           inter->access,
-          fmt::format(
+          std::format(
             "JS execution has timed out after {}ms (max is {}ms)",
             elapsed_ms.count(),
             inter->max_execution_time.count()));

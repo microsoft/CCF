@@ -10,6 +10,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <format>
 #include <limits>
 
 namespace aft
@@ -263,10 +264,8 @@ namespace aft
 #pragma pack(pop)
 }
 
-FMT_BEGIN_NAMESPACE
-
 template <>
-struct formatter<aft::CftMsgType>
+struct std::formatter<aft::CftMsgType>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -282,43 +281,41 @@ struct formatter<aft::CftMsgType>
     {
       case (aft::CftMsgType::append_entries):
       {
-        return fmt::format_to(ctx.out(), "append_entries");
+        return std::format_to(ctx.out(), "append_entries");
       }
       case (aft::CftMsgType::append_entries_response):
       {
-        return fmt::format_to(ctx.out(), "append_entries_response");
+        return std::format_to(ctx.out(), "append_entries_response");
       }
       case (aft::CftMsgType::append_entries_signed_response):
       {
-        return fmt::format_to(ctx.out(), "append_entries_signed_response");
+        return std::format_to(ctx.out(), "append_entries_signed_response");
       }
       case (aft::CftMsgType::request_vote):
       {
-        return fmt::format_to(ctx.out(), "request_vote");
+        return std::format_to(ctx.out(), "request_vote");
       }
       case (aft::CftMsgType::request_vote_response):
       {
-        return fmt::format_to(ctx.out(), "request_vote_response");
+        return std::format_to(ctx.out(), "request_vote_response");
       }
       case (aft::CftMsgType::propose_request_vote):
       {
-        return fmt::format_to(ctx.out(), "propose_request_vote");
+        return std::format_to(ctx.out(), "propose_request_vote");
       }
       case (aft::CftMsgType::request_pre_vote):
       {
-        return fmt::format_to(ctx.out(), "request_pre_vote");
+        return std::format_to(ctx.out(), "request_pre_vote");
       }
       case (aft::CftMsgType::request_pre_vote_response):
       {
-        return fmt::format_to(ctx.out(), "request_pre_vote_response");
+        return std::format_to(ctx.out(), "request_pre_vote_response");
       }
       default:
       {
         throw std::runtime_error(
-          fmt::format("Unhandled CftMsgType: {}", uint64_t(msg_type)));
+          std::format("Unhandled CftMsgType: {}", uint64_t(msg_type)));
       }
     }
   }
 };
-
-FMT_END_NAMESPACE

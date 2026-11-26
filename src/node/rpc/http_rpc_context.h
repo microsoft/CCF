@@ -10,6 +10,8 @@
 #include "node/rpc/rpc_handler.h"
 #include "node/rpc/rpc_map.h"
 
+#include <format>
+
 namespace http
 {
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
@@ -65,7 +67,7 @@ namespace http
     {
       if (!serialised)
       {
-        const auto request_prefix = fmt::format(
+        const auto request_prefix = std::format(
           "{} {} HTTP/1.1\r\n"
           "{}"
           "\r\n",
@@ -93,13 +95,12 @@ namespace http
   public:
     HttpRpcContext(
       std::shared_ptr<ccf::SessionContext> s,
-      ccf::HttpVersion http_version,
       llhttp_method verb_,
       const std::string_view& url_,
       ccf::http::HeaderMap headers_,
       const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {}) :
-      RpcContextImpl(s, http_version),
+      RpcContextImpl(s),
       verb(verb_),
       url(url_),
       request_headers(std::move(headers_)),
@@ -376,7 +377,7 @@ namespace ccf
 
     if (processor.received.size() != 1)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Expected packed to contain a single complete HTTP message. Actually "
         "parsed {} messages",
         processor.received.size()));
@@ -385,13 +386,7 @@ namespace ccf
     const auto& msg = processor.received.front();
 
     return std::make_shared<::http::HttpRpcContext>(
-      s,
-      ccf::HttpVersion::HTTP1,
-      msg.method,
-      msg.url,
-      msg.headers,
-      msg.body,
-      packed);
+      s, msg.method, msg.url, msg.headers, msg.body, packed);
   }
 
   inline std::shared_ptr<::http::HttpRpcContext> make_fwd_rpc_context(
