@@ -4,7 +4,7 @@
 
 """Checks the RDP_TRACE records of node logs against trace.schema.json.
 
-python3 check-schema.py LOG...
+./check-schema.py LOG...
 """
 
 import collections

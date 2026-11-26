@@ -79,7 +79,7 @@ jobs:
           uv pip install -q pytest
           uv pip install -q -e python
           cd python
-          python ../tests/infra/test_reporting.py pytest
+          ../tests/infra/test_reporting.py pytest
         shell: bash
 
       - name: "Run Unit tests"
@@ -144,7 +144,7 @@ jobs:
       - name: "Confirm running on Virtual"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py virtual
+          tests/infra/platform_detection.py virtual
         shell: bash
 
       - name: "Build Debug"
@@ -295,7 +295,7 @@ jobs:
       - name: "Confirm running on SEV-SNP Genoa"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp genoa
+          tests/infra/platform_detection.py snp genoa
         shell: bash
 
       - name: "Build Lean recovery trace replayer"

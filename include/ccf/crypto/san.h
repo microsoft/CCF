@@ -5,8 +5,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <string>
 
 namespace ccf::crypto
@@ -38,7 +37,7 @@ namespace ccf::crypto
       return {str.substr(DNS_NAME_PREFIX.size()), false};
     }
 
-    throw std::logic_error(fmt::format(
+    throw std::logic_error(std::format(
       "SAN could not be parsed: {}, must be (iPAddress|dNSName):VALUE", str));
   }
 
@@ -55,10 +54,8 @@ namespace ccf::crypto
   }
 }
 
-FMT_BEGIN_NAMESPACE
-
 template <>
-struct formatter<ccf::crypto::SubjectAltName>
+struct std::formatter<ccf::crypto::SubjectAltName>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -79,8 +76,6 @@ struct formatter<ccf::crypto::SubjectAltName>
     {
       prefix = "DNS";
     }
-    return format_to(ctx.out(), "{}:{}", prefix, san.san);
+    return std::format_to(ctx.out(), "{}:{}", prefix, san.san);
   }
 };
-
-FMT_END_NAMESPACE

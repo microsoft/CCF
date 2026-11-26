@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <format>
 #include <memory>
 #include <new>
 #include <optional>
@@ -19,9 +20,6 @@
 #include <tav/cbor.hpp>
 #include <tuple>
 #include <utility>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace
 {
@@ -72,7 +70,7 @@ namespace
 
   [[noreturn]] void invalid(std::string_view reason)
   {
-    throw std::invalid_argument(fmt::format("Invalid COSE_Key: {}", reason));
+    throw std::invalid_argument(std::format("Invalid COSE_Key: {}", reason));
   }
 
   // FIPS 204 public key sizes, RFC 9964 Section 5
@@ -123,7 +121,7 @@ namespace
   {
     if (x.size() != ED25519_PUBLIC_KEY_SIZE)
     {
-      return fmt::format(
+      return std::format(
         "x must be {} bytes long for Ed25519", ED25519_PUBLIC_KEY_SIZE);
     }
     if (!ed25519_y_below_prime(x))
@@ -154,8 +152,8 @@ namespace
       case CurveID::X25519:
       default:
       {
-        throw std::runtime_error(
-          fmt::format("Curve {} has no COSE EC2 identifier", curve));
+        throw std::runtime_error(std::format(
+          "Curve {} has no COSE EC2 identifier", std::to_underlying(curve)));
       }
     }
   }
@@ -164,8 +162,9 @@ namespace
   {
     if (curve != CurveID::CURVE25519)
     {
-      throw std::runtime_error(
-        fmt::format("Curve {} is not a COSE OKP signature curve", curve));
+      throw std::runtime_error(std::format(
+        "Curve {} is not a COSE OKP signature curve",
+        std::to_underlying(curve)));
     }
     return CRV_ED25519;
   }
@@ -194,7 +193,7 @@ namespace
       }
       default:
       {
-        invalid(fmt::format("unsupported crv {}", crv));
+        invalid(std::format("unsupported crv {}", crv));
       }
     }
   }
@@ -362,7 +361,7 @@ namespace
   {
     if (value.kind() != Kind::SIGNED)
     {
-      invalid(fmt::format("{} must be an integer", name));
+      invalid(std::format("{} must be an integer", name));
     }
     return value.as_signed();
   }
@@ -373,11 +372,11 @@ namespace
     const auto value = find_label(map, label);
     if (!value.has_value())
     {
-      invalid(fmt::format("{} is missing", name));
+      invalid(std::format("{} is missing", name));
     }
     if (value.value().kind() != Kind::BYTES)
     {
-      invalid(fmt::format("{} must be a byte string", name));
+      invalid(std::format("{} must be a byte string", name));
     }
     const auto bytes = value.value().as_bytes();
     return {bytes.begin(), bytes.end()};
@@ -449,7 +448,7 @@ namespace
       parameters.x.size() != curve.coordinate_size ||
       parameters.y.size() != curve.coordinate_size)
     {
-      invalid(fmt::format(
+      invalid(std::format(
         "x and y must be {} bytes long for crv {}",
         curve.coordinate_size,
         parameters.crv));
@@ -472,7 +471,7 @@ namespace
     auto value = require_bytes(map, label, name);
     if (value.empty() || value.front() == 0)
     {
-      invalid(fmt::format(
+      invalid(std::format(
         "{} must be non-empty and have no leading zero octets", name));
     }
     return value;
@@ -494,7 +493,7 @@ namespace
       modulus_bits < RSA_MIN_MODULUS_BITS ||
       modulus_bits > RSA_MAX_MODULUS_BITS)
     {
-      return fmt::format(
+      return std::format(
         "n must be {} to {} bits long",
         RSA_MIN_MODULUS_BITS,
         RSA_MAX_MODULUS_BITS);
@@ -545,7 +544,7 @@ namespace
     const auto crv = require_int(crv_value.value(), "crv");
     if (crv != CRV_ED25519)
     {
-      invalid(fmt::format("unsupported crv {}", crv));
+      invalid(std::format("unsupported crv {}", crv));
     }
     const auto x = require_bytes(map, LABEL_OKP_X, "x");
     const auto error = okp_key_error(x);
@@ -576,14 +575,14 @@ namespace
       ccf::cose::parameter_set_for_algorithm(alg.value());
     if (!parameter_set.has_value())
     {
-      invalid(fmt::format("unsupported alg {} for AKP keys", alg.value()));
+      invalid(std::format("unsupported alg {} for AKP keys", alg.value()));
     }
     const auto pub = require_bytes(map, LABEL_AKP_PUB, "pub");
     const auto size = mldsa_public_key_size(parameter_set.value());
     if (pub.size() != size)
     {
       invalid(
-        fmt::format("pub must be {} bytes long for alg {}", size, alg.value()));
+        std::format("pub must be {} bytes long for alg {}", size, alg.value()));
     }
     try
     {
@@ -601,7 +600,7 @@ namespace
     if (!cose_algorithm_matches_key(alg, key))
     {
       throw std::runtime_error(
-        fmt::format("COSE algorithm {} does not match the key", alg));
+        std::format("COSE algorithm {} does not match the key", alg));
     }
   }
 }
@@ -625,7 +624,7 @@ namespace ccf::crypto
     if (error.has_value())
     {
       throw std::runtime_error(
-        fmt::format("Unsupported COSE RSA key: {}", error.value()));
+        std::format("Unsupported COSE RSA key: {}", error.value()));
     }
   }
 
@@ -638,7 +637,7 @@ namespace ccf::crypto
     if (error.has_value())
     {
       throw std::runtime_error(
-        fmt::format("Unsupported COSE OKP key: {}", error.value()));
+        std::format("Unsupported COSE OKP key: {}", error.value()));
     }
   }
 
@@ -685,7 +684,7 @@ namespace ccf::crypto
         }
         default:
         {
-          invalid(fmt::format("unsupported kty {}", kty_value));
+          invalid(std::format("unsupported kty {}", kty_value));
         }
       }
       COSEKey key(std::move(parsed), alg_value);
@@ -695,7 +694,7 @@ namespace ccf::crypto
         !cose_algorithm_matches_key(alg_value.value(), key))
       {
         invalid(
-          fmt::format("alg {} does not match the key", alg_value.value()));
+          std::format("alg {} does not match the key", alg_value.value()));
       }
       return key;
     }

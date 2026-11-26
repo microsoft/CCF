@@ -149,7 +149,7 @@ jobs:
         if: inputs.package == 'disaster-recovery'
         run: |
           set -euo pipefail
-          python3 lean/disaster-recovery/replayer/check-schema.py \
+          lean/disaster-recovery/replayer/check-schema.py \
             lean/disaster-recovery/replayer/fixtures/*/*.out
 
       - name: Check disaster recovery replay

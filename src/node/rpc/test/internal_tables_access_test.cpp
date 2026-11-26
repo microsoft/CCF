@@ -444,7 +444,7 @@ TEST_CASE("Inconsistent member recovery roles are rejected before writing")
     ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(identity.cert))
       .hex_str();
   NewMember member{identity.cert};
-  auto expected_error = fmt::format(
+  auto expected_error = std::format(
     "Member {} cannot be added as recovery_role has a value set but no "
     "encryption public key is specified",
     member_id.value());
@@ -461,10 +461,10 @@ TEST_CASE("Inconsistent member recovery roles are rejected before writing")
     member.recovery_role = MemberRecoveryRole::NonParticipant;
     member.encryption_pub_key =
       ccf::crypto::make_rsa_key_pair()->public_key_pem();
-    expected_error = fmt::format(
+    expected_error = std::format(
       "Recovery member {} cannot be added as with recovery role value of {}",
       member_id.value(),
-      MemberRecoveryRole::NonParticipant);
+      std::to_underlying(MemberRecoveryRole::NonParticipant));
   }
 
   const auto before = store.current_txid();
@@ -583,7 +583,7 @@ TEST_CASE("User admission rejects duplicates and removal preserves other users")
     REQUIRE_THROWS_WITH_AS(
       InternalTablesAccess::add_user(
         tx, {identity.cert, {{"role", "replacement"}}}),
-      fmt::format("Certificate already exists for user {}", expected_id.value())
+      std::format("Certificate already exists for user {}", expected_id.value())
         .c_str(),
       std::logic_error);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
@@ -640,7 +640,7 @@ TEST_CASE("Rejected user data conflicts do not commit a certificate")
     REQUIRE_THROWS_WITH_AS(
       InternalTablesAccess::add_user(
         tx, {identity.cert, {{"role", "replacement"}}}),
-      fmt::format("User data already exists for user {}", user_id.value())
+      std::format("User data already exists for user {}", user_id.value())
         .c_str(),
       std::logic_error);
   }

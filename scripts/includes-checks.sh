@@ -47,7 +47,7 @@ echo "Checking headers are included..."
 # 4. Component dependencies: enforce the declared source dependency policy,
 # and keep public header components acyclic
 echo "Checking source and public header component dependencies..."
-python3 "$SCRIPT_DIR/check-source-dependencies.py" \
+"$SCRIPT_DIR/check-source-dependencies.py" \
   --root "$ROOT_DIR" \
   --config "$SCRIPT_DIR/source-dependencies.json" || STATUS=1
 

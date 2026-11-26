@@ -3,6 +3,8 @@
 
 #include "ccf/receipt.h"
 
+#include <format>
+
 #define FROM_JSON_TRY_PARSE(TYPE, DOC, FIELD) \
   try \
   { \
@@ -19,7 +21,7 @@
     const auto it = j.find(#FIELD); \
     if (it == j.end()) \
     { \
-      throw ccf::JsonParseError(fmt::format( \
+      throw ccf::JsonParseError(std::format( \
         "Missing required field '" #FIELD "' in object:", j.dump())); \
     } \
     FROM_JSON_TRY_PARSE(TYPE, DOC, FIELD) \
@@ -53,7 +55,7 @@ namespace ccf
   {
     if (!j.is_object())
     {
-      throw ccf::JsonParseError(fmt::format(
+      throw ccf::JsonParseError(std::format(
         "Cannot parse Receipt LeafComponents: Expected object, got {}",
         j.dump()));
     }
@@ -120,7 +122,7 @@ namespace ccf
   {
     if (!j.is_object())
     {
-      throw ccf::JsonParseError(fmt::format(
+      throw ccf::JsonParseError(std::format(
         "Cannot parse Receipt Step: Expected object, got {}", j.dump()));
     }
 
@@ -128,7 +130,7 @@ namespace ccf
     const auto r_it = j.find("right");
     if ((l_it == j.end()) == (r_it == j.end()))
     {
-      throw ccf::JsonParseError(fmt::format(
+      throw ccf::JsonParseError(std::format(
         "Cannot parse Receipt Step: Expected either 'left' or 'right' field, "
         "got {}",
         j.dump()));
@@ -180,7 +182,7 @@ namespace ccf
     if (receipt == nullptr)
     {
       throw ccf::JsonParseError(
-        fmt::format("Cannot serialise Receipt to JSON: Got nullptr"));
+        std::format("Cannot serialise Receipt to JSON: Got nullptr"));
     }
 
     j = nlohmann::json::object();
@@ -212,7 +214,7 @@ namespace ccf
     if (!j.is_object())
     {
       throw ccf::JsonParseError(
-        fmt::format("Cannot parse Receipt: Expected object, got {}", j.dump()));
+        std::format("Cannot parse Receipt: Expected object, got {}", j.dump()));
     }
 
     const auto is_sig_it = j.find("is_signature_transaction");
@@ -232,7 +234,7 @@ namespace ccf
       }
       else
       {
-        throw ccf::JsonParseError(fmt::format(
+        throw ccf::JsonParseError(std::format(
           "Cannot parse Receipt: Expected 'leaf_components' and 'proof'"
           "fields, got {}",
           j.dump()));
@@ -277,7 +279,7 @@ namespace ccf
       }
       else
       {
-        throw ccf::JsonParseError(fmt::format(
+        throw ccf::JsonParseError(std::format(
           "Cannot parse v1 Receipt: Expected either 'leaf' or "
           "'leaf_components' "
           "field, got {}",

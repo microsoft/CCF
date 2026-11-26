@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
 #include "ccf/historical_queries_interface.h"
 #include "consensus/ledger_enclave_types.h"
@@ -16,6 +17,7 @@
 #include "service/tables/node_signature.h"
 #include "tasks/periodic_task_owner.h"
 
+#include <format>
 #include <list>
 #include <map>
 #include <memory>
@@ -40,10 +42,9 @@ namespace ccf::historical
   using CompoundHandle = std::pair<RequestNamespace, RequestHandle>;
 };
 
-FMT_BEGIN_NAMESPACE
-
 template <>
-struct formatter<ccf::historical::CompoundHandle>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on a CCF type.
+struct std::formatter<ccf::historical::CompoundHandle>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -55,7 +56,7 @@ struct formatter<ccf::historical::CompoundHandle>
   auto format(
     const ccf::historical::CompoundHandle& p, FormatContext& ctx) const
   {
-    return format_to(
+    return std::format_to(
       ctx.out(),
       "[{}|{}]",
       std::get<0>(p) == ccf::historical::RequestNamespace::Application ? "APP" :
@@ -63,8 +64,6 @@ struct formatter<ccf::historical::CompoundHandle>
       std::get<1>(p));
   }
 };
-
-FMT_END_NAMESPACE
 
 namespace ccf::historical
 {
@@ -136,7 +135,7 @@ namespace ccf::historical
       const auto parsed_txid = ccf::TxID::from_str(txid);
       if (!parsed_txid.has_value())
       {
-        throw std::logic_error(fmt::format("Cannot parse CCF TxID: {}", txid));
+        throw std::logic_error(std::format("Cannot parse CCF TxID: {}", txid));
       }
       return parsed_txid;
     }
@@ -576,9 +575,9 @@ namespace ccf::historical
 
         HISTORICAL_LOG(
           "Added seqnos: {}, removed seqnos: {}, supporting signatures: {}",
-          fmt::join(added, ","),
-          fmt::join(removed, ","),
-          fmt::join(std::views::keys(supporting_signatures), ","));
+          ccf::ds::join(added, ","),
+          ccf::ds::join(removed, ","),
+          ccf::ds::join(std::views::keys(supporting_signatures), ","));
 
         const bool any_diff = !removed.empty() || !added.empty();
 
@@ -754,7 +753,7 @@ namespace ccf::historical
 
                 if (!filled_this && my_stores.contains(new_seqno))
                 {
-                  throw std::logic_error(fmt::format(
+                  throw std::logic_error(std::format(
                     "Unexpected: Found a signature at {}, and contiguous range "
                     "of transactions from {}, yet signature does not cover "
                     "this seqno!",
@@ -1070,7 +1069,7 @@ namespace ccf::historical
         if (!erase_request(handle))
         {
           throw std::logic_error(
-            fmt::format("LRU entry {} has no matching request", handle));
+            std::format("LRU entry {} has no matching request", handle));
         }
       }
     }
@@ -1218,7 +1217,7 @@ namespace ccf::historical
         // Still need more secrets, fetch the next
         if (!previous_secret_stored_version.has_value())
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Earliest known ledger secret at {} has no earlier secret stored "
             "version ({})",
             earliest_ledger_secret_seqno,
@@ -1324,7 +1323,7 @@ namespace ccf::historical
         else
         {
           throw std::logic_error(
-            fmt::format("Seqno {} is a signature of an unknown type", seqno));
+            std::format("Seqno {} is a signature of an unknown type", seqno));
         }
       }
 
@@ -1464,7 +1463,7 @@ namespace ccf::historical
     {
       if (end_seqno < start_seqno)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Invalid range for historical query: end {} is before start {}",
           end_seqno,
           start_seqno));

@@ -6,6 +6,8 @@
 #include "ccf/indexing/strategies/visit_each_entry_in_map.h"
 #include "ccf/seq_no_collection.h"
 
+#include <format>
+
 namespace ccf::indexing::strategies
 {
   // A simple Strategy which stores one large map in-memory
@@ -53,7 +55,7 @@ namespace ccf::indexing::strategies
       if (to < from)
       {
         throw std::logic_error(
-          fmt::format("Range goes backwards: {} -> {}", from, to));
+          std::format("Range goes backwards: {} -> {}", from, to));
       }
 
       if (to > current_txid.seqno)

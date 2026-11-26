@@ -5,6 +5,8 @@
 
 #include "ccf/ds/hex.h"
 
+#include <format>
+
 namespace ccf::crypto
 {
   extern void default_sha256(const std::span<const uint8_t>& data, uint8_t* h);
@@ -94,7 +96,7 @@ namespace ccf::crypto
     }
     catch (const std::logic_error& e)
     {
-      throw ccf::JsonParseError(fmt::format(
+      throw ccf::JsonParseError(std::format(
         "Input string \"{}\" is not valid hex-encoded SHA-256: {}",
         value,
         e.what()));
@@ -116,7 +118,7 @@ namespace ccf::crypto
     // formats, even not those defined by the OpenAPI Specification"
     // https://swagger.io/docs/specification/data-models/data-types/#format
     schema["format"] = "hex";
-    schema["pattern"] = fmt::format("^[a-f0-9]{{{}}}$", Sha256Hash::SIZE);
+    schema["pattern"] = std::format("^[a-f0-9]{{{}}}$", Sha256Hash::SIZE);
   }
 
   bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs)

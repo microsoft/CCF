@@ -10,6 +10,7 @@
 #include "serialised_entry_format.h"
 
 #include <algorithm>
+#include <format>
 #include <optional>
 #include <span>
 
@@ -116,7 +117,7 @@ namespace ccf::kv
             entry_type,
             historical_hint))
       {
-        throw KvSerialiserException(fmt::format(
+        throw KvSerialiserException(std::format(
           "Could not serialise transaction at seqno {}", tx_id.seqno));
       }
     }
@@ -188,7 +189,7 @@ namespace ccf::kv
     {
       if (domain == SecurityDomain::PRIVATE && !crypto_util)
       {
-        throw KvSerialiserException(fmt::format(
+        throw KvSerialiserException(std::format(
           "Private map {} cannot be serialised without an encryptor", name));
       }
 
@@ -300,7 +301,7 @@ namespace ccf::kv
       const auto entry_size = serialised_entry_size(public_size, private_size);
       if (entry.size() != entry_size)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Entry of size {} does not match serialised size {}",
           entry.size(),
           entry_size));
@@ -497,7 +498,7 @@ namespace ccf::kv
 
       if (tx_header.size != size_)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Reported size in entry header {} does not match size of entry {}",
           tx_header.size,
           size_));
@@ -514,7 +515,7 @@ namespace ccf::kv
         }
         default:
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Cannot deserialise entry format {}", tx_header.version));
         }
       }
@@ -532,7 +533,7 @@ namespace ccf::kv
       const auto public_domain_length = serialized::read<size_t>(data_, size_);
       if (public_domain_length > size_)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Public domain length {} exceeds remaining entry size {}",
           public_domain_length,
           size_));

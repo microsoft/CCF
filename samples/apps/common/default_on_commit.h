@@ -7,6 +7,8 @@
 #include "ccf/receipt.h"
 #include "ccf/rpc_context.h"
 
+#include <format>
+
 namespace ccf::samples
 {
   // A simple ConsensusCommittedEndpointFunction that returns the original
@@ -18,7 +20,7 @@ namespace ccf::samples
       info.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::TransactionInvalid,
-        fmt::format(
+        std::format(
           "While waiting for TxID {} to commit, it was invalidated",
           info.tx_id.to_str()));
     }
@@ -37,7 +39,7 @@ namespace ccf::samples
         info.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::TransactionInvalid,
-          fmt::format(
+          std::format(
             "While waiting for TxID {} to commit, it was invalidated",
             info.tx_id.to_str()));
         return;
