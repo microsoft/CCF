@@ -727,13 +727,14 @@ private theorem recovered_distinct (config : Properties.ValidConfig)
 /-- A full gossip exchange followed by a quorum of genuine votes reaches a quorum opener. -/
 theorem quorum_open_preserves_commit_witness
     : ∀ config : Properties.ValidConfig,
-        ∃ (trace : Properties.GlobalTrace config) (openedState : Model.State),
+        ∃ (behaviour : Properties.Behaviour config) (openedState : Model.State),
         ∃ (opener : Location) (openerState : NodeState),
-          openedState ∈ trace
+          openedState ∈ behaviour
           ∧ (opener, openerState) ∈ openedState.nodes
           ∧ openerState.openKind = some .quorum
           ∧ (∀ voter,
-              voter ∈ openerState.votes → Properties.ReceivedOwnGossip trace voter) := by
+              voter ∈ openerState.votes
+              → Properties.ReceivedOwnGossip behaviour voter) := by
   intro config
   obtain ⟨winner, winnerMember, _, reachable⟩ := full_choice config
   let voters := config.val.protocol.expectedLocations.take (voteQuorum config.val.protocol)
@@ -746,8 +747,8 @@ theorem quorum_open_preserves_commit_witness
   obtain ⟨network, reachable⟩ := collect_votes config winner winnerMember reachable
     voters distinct subset (by omega)
   let globalState : Model.State := { nodes := table config states, network }
-  obtain ⟨trace, member⟩ := Execution.reachable_iff_behaviour.mp reachable
-  refine ⟨trace, globalState, winner, voted config winner voters, member, ?_, ?_, ?_⟩
+  obtain ⟨behaviour, member⟩ := Execution.reachable_iff_behaviour.mp reachable
+  refine ⟨behaviour, globalState, winner, voted config winner voters, member, ?_, ?_, ?_⟩
   · exact List.mem_map.mpr ⟨winner, winnerMember, by simp [states]⟩
   · simp [voted, length]
   · intro voter voterMember
@@ -826,15 +827,15 @@ private theorem failover_reachable (config : Properties.ValidConfig)
 theorem full_gossip_preserves_commit_witness
     : ∀ config : Properties.ValidConfig,
         2 ≤ config.val.protocol.expectedLocations.length
-        → ∃ (trace : Properties.GlobalTrace config)
+        → ∃ (behaviour : Properties.Behaviour config)
             (gossipedState openedState : Model.State),
           ∃ (opener : Location) (openerState : NodeState),
-            gossipedState ∈ trace
+            gossipedState ∈ behaviour
             ∧ (∀ node nodeState,
                 node ∈ config.val.protocol.expectedLocations
                 → (node, nodeState) ∈ gossipedState.nodes
                 → ∀ gossip, gossip ∈ nodeState.gossips ↔ gossip ∈ config.val.recovered)
-            ∧ openedState ∈ trace
+            ∧ openedState ∈ behaviour
             ∧ (opener, openerState) ∈ openedState.nodes
             ∧ openerState.openKind = some .failover := by
   intro config multiple
@@ -843,8 +844,8 @@ theorem full_gossip_preserves_commit_witness
     failover_reachable config multiple winner winnerMember reachable
   let states := Function.update (selected config winner) winner (failedOver config winner)
   let globalState : Model.State := { nodes := table config states, network }
-  obtain ⟨trace, member⟩ := Execution.reachable_iff_behaviour.mp reachable
-  refine ⟨trace, globalState, globalState, winner, failedOver config winner,
+  obtain ⟨behaviour, member⟩ := Execution.reachable_iff_behaviour.mp reachable
+  refine ⟨behaviour, globalState, globalState, winner, failedOver config winner,
     member, ?_, member, ?_, rfl⟩
   · intro node nodeState _ present gossip
     obtain ⟨key, _, pair⟩ := List.mem_map.mp present
@@ -907,8 +908,9 @@ private theorem notification_exists (config : Properties.ValidConfig)
           {}
         = some (after, outputs))
     (notified : Notification.opening .quorum ∈ outputs.notifications)
-    : ∃ (trace : Properties.GlobalTrace config) (index : Nat) (opener : Location),
-        Properties.Trace.NotificationAt config trace index opener (.opening .quorum) := by
+    : ∃ (behaviour : Properties.Behaviour config) (index : Nat) (opener : Location),
+        Properties.Behaviour.NotificationAt config behaviour index opener
+          (.opening .quorum) := by
   let beforeGlobal : Model.State := { nodes := table config states, network }
   let nextStates := Function.update states envelope.target after
   let afterGlobal : Model.State := {
@@ -918,9 +920,9 @@ private theorem notification_exists (config : Properties.ValidConfig)
       = some afterGlobal :=
     delivery_next config states network envelope member queued after outputs run
   obtain ⟨start, steps, initialized, valid, last⟩ := reachable_finite reachable
-  let trace := ofSteps start (steps ++ [(.deliver envelope, afterGlobal)]) initialized
+  let behaviour := ofSteps start (steps ++ [(.deliver envelope, afterGlobal)]) initialized
     (steps_snoc start beforeGlobal afterGlobal steps (.deliver envelope) valid last enabled)
-  refine ⟨trace, steps.length, envelope.target, beforeGlobal, afterGlobal,
+  refine ⟨behaviour, steps.length, envelope.target, beforeGlobal, afterGlobal,
     .deliver envelope, states envelope.target, after, outputs, ?_, ?_, ?_, rfl, ?_, ?_,
     run, notified⟩
   · rw [ofSteps_stateAt]
@@ -933,11 +935,11 @@ private theorem notification_exists (config : Properties.ValidConfig)
   · simpa [nextStates]
       using lookup_table config nextStates envelope.target member afterGlobal.network
 
-/-- The final vote of a quorum emits an opening notification in a valid finite trace. -/
+/-- The final vote of a quorum emits an opening notification in a valid finite behaviour. -/
 theorem quorum_opener_unique_witness
     : ∀ config : Properties.ValidConfig,
-        ∃ (trace : Properties.GlobalTrace config) (index : Nat) (opener : Location),
-          Properties.Trace.NotificationAt config trace index opener
+        ∃ (behaviour : Properties.Behaviour config) (index : Nat) (opener : Location),
+          Properties.Behaviour.NotificationAt config behaviour index opener
             (.opening .quorum) := by
   intro config
   obtain ⟨winner, winnerMember, _, reachable⟩ := full_choice config

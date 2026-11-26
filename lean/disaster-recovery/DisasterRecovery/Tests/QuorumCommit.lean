@@ -98,7 +98,7 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
   · simp [initial, Tests.initial, config]
   · simp [initial, Tests.initial, config, Model.protocol]
 
-private def trace : Properties.GlobalTrace config :=
+private def behaviour : Properties.Behaviour config :=
   ofSteps initial steps initialized
     (by
       simp only [StepsFrom, steps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
@@ -108,7 +108,7 @@ private def trace : Properties.GlobalTrace config :=
 private theorem opened : ("C", openedC) ∈ s11.nodes := by
   simp [s11, snapshot]
 
-private theorem final_in_trace : s11 ∈ trace :=
+private theorem final_in_behaviour : s11 ∈ behaviour :=
   Execution.Behaviour.stateAt_mem (n := 11) rfl
 
 private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
@@ -116,16 +116,16 @@ private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
   decide
 
 example
-    : s11 ∈ trace
+    : s11 ∈ behaviour
       /\ ("C", openedC) ∈ s11.nodes
       /\ openedC.openKind = some .quorum
       /\ Model.recoveredTxID config "C" = some low
       /\ ¬ Properties.UpToDateWithQuorum config low :=
-  ⟨final_in_trace, opened, rfl, rfl, stale⟩
+  ⟨final_in_behaviour, opened, rfl, rfl, stale⟩
 
-private theorem missing_own : ¬ Properties.ReceivedOwnGossip trace "A" := by
+private theorem missing_own : ¬ Properties.ReceivedOwnGossip behaviour "A" := by
   rintro ⟨state, member, current, txid, present, gossipPresent⟩
-  rw [trace, mem_ofSteps] at member
+  rw [behaviour, mem_ofSteps] at member
   have absent
       : forall snapshot, snapshot ∈ initial :: steps.map Prod.snd
         -> forall entry, entry ∈ snapshot.nodes
@@ -135,7 +135,7 @@ private theorem missing_own : ¬ Properties.ReceivedOwnGossip trace "A" := by
 
 example
     : ¬ (forall voter,
-          voter ∈ openedC.votes -> Properties.ReceivedOwnGossip trace voter) :=
+          voter ∈ openedC.votes -> Properties.ReceivedOwnGossip behaviour voter) :=
   fun own => missing_own (own "A" (by simp [openedC]))
 
 end DisasterRecovery.Tests.QuorumCommit

@@ -9,11 +9,11 @@ import DisasterRecovery.Proofs.Evaluation
 
 @[expose] public section
 
-namespace DisasterRecovery.Tests.Trace
+namespace DisasterRecovery.Tests.Behaviour
 
 open CCF CCF.Execution
 open Model.Local
-open Properties.Trace
+open Properties.Behaviour
 open Proofs.Evaluation
 
 private def config : Model.Config :=
@@ -59,7 +59,7 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
   · simp [initial, Tests.initial, config]
   · simp [initial, unused, Model.protocol]
 
-private def trace : Properties.GlobalTrace config :=
+private def behaviour : Properties.Behaviour config :=
   ofSteps initial steps initialized
     (by
       simp only [StepsFrom, steps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
@@ -67,7 +67,7 @@ private def trace : Properties.GlobalTrace config :=
       and_intros <;> rfl)
 
 private theorem observedOpening
-    : NotificationAt config trace 3 "A" (.opening .quorum) := by
+    : NotificationAt config behaviour 3 "A" (.opening .quorum) := by
   refine ⟨
     voteSent,
     opened,
@@ -88,15 +88,15 @@ private theorem observedOpening
   rfl
 
 example : (Model.transitionSystem config).Reachable opened :=
-  trace.reachable (Execution.Behaviour.stateAt_mem (n := 4) rfl)
+  behaviour.reachable (Execution.Behaviour.stateAt_mem (n := 4) rfl)
 
-example : NotificationAt config trace 3 "A" (.opening .quorum) := observedOpening
+example : NotificationAt config behaviour 3 "A" (.opening .quorum) := observedOpening
 
 example
     : exists openerTxID,
         Model.recoveredTxID config "A" = some openerTxID
         /\ Properties.UpToDateWithQuorum config openerTxID := by
-  apply Properties.full_gossip_preserves_commit config trace ready opened "A" opening
+  apply Properties.full_gossip_preserves_commit config behaviour ready opened "A" opening
   refine ⟨
     Execution.Behaviour.stateAt_mem (n := 2) rfl,
     ?_,
@@ -112,25 +112,25 @@ example
   rfl
 
 example (notification : Notification)
-    : ¬ NotificationAt config trace 4 "A" notification := by
+    : ¬ NotificationAt config behaviour 4 "A" notification := by
   rintro ⟨_, _, _, _, _, _, _, after, _⟩
-  rw [trace, ofSteps_stateAt] at after
+  rw [behaviour, ofSteps_stateAt] at after
   simp [steps] at after
 
 example (notification : Notification)
-    : ¬ NotificationAt config trace 3 "missing-node" notification := by
+    : ¬ NotificationAt config behaviour 3 "missing-node" notification := by
   rintro ⟨before, _, _, _, _, _, first, _, _, _, found, _⟩
-  rw [trace, ofSteps_stateAt] at first
+  rw [behaviour, ofSteps_stateAt] at first
   have same : before = voteSent := by simpa [steps] using first.symm
   subst before
   simp [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState] at found
 
 -- Notifications come from the recorded action, not an arbitrary local run.
-example : ¬ NotificationAt config trace 2 "A" (.opening .quorum) := by
+example : ¬ NotificationAt config behaviour 2 "A" (.opening .quorum) := by
   rintro ⟨before, _, action, nodeBefore, nodeAfter, outputs,
     first, _, chosen, _, foundBefore, _, run, notified⟩
-  rw [trace, ofSteps_actionAt] at chosen
-  rw [trace, ofSteps_stateAt] at first
+  rw [behaviour, ofSteps_actionAt] at chosen
+  rw [behaviour, ofSteps_stateAt] at first
   have actionEq : action = .local "A" .retry := by simpa [steps] using chosen.symm
   have stateEq : before = ready := by simpa [steps] using first.symm
   subst action before
@@ -174,7 +174,7 @@ example
       /\ .opening .quorum ∈ quorumTimeout.effects.notifications :=
   Properties.quorum_advance_opens config quorumTimeout ⟨rfl, Or.inl rfl, rfl, by decide⟩
 
-example (candidate : Properties.GlobalTrace config)
+example (candidate : Properties.Behaviour config)
     (states : candidate.states = CCF.Seq.ofList [ready, voteSent])
     : False := by
   obtain ⟨start, first, _, _, _, _, nodes⟩ := candidate.valid_init
@@ -184,4 +184,4 @@ example (candidate : Properties.GlobalTrace config)
   have phase := congrArg NodeState.phase invalid
   cases phase
 
-end DisasterRecovery.Tests.Trace
+end DisasterRecovery.Tests.Behaviour

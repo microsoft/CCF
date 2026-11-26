@@ -9,13 +9,13 @@ public import DisasterRecovery.Proofs.Safety
 public import DisasterRecovery.Proofs.Witnesses
 public import DisasterRecovery.Properties
 public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Tests.Behaviour
 public import DisasterRecovery.Tests.CanonicalTests
 public import DisasterRecovery.Tests.Execution
 public import DisasterRecovery.Tests.Initial
 public import DisasterRecovery.Tests.Network
 public import DisasterRecovery.Tests.QuorumCommit
 public import DisasterRecovery.Tests.ConsensusFreshness
-public import DisasterRecovery.Tests.Trace
 public import DisasterRecovery.Tests.Witnesses
 public import DisasterRecovery.TraceValidation
 public import DisasterRecovery.TraceValidation.Records

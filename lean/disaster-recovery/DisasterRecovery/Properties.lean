@@ -26,68 +26,71 @@ theorem deadlock_free_witness
           (Model.transitionSystem config).Reachable state := by
   exact Proofs.Deadlock.deadlock_free_witness
 
--- Global invariants for all valid traces and corresponding witness
+-- Global invariants for all valid behaviours and corresponding witness
 
-/-- In a valid trace, all `opening quorum` notifications are emitted by the same
+/-- In a valid behaviour, all `opening quorum` notifications are emitted by the same
 node. -/
 theorem quorum_opener_unique
-    : forall (config : Model.Config) (trace : GlobalTrace config),
+    : forall (config : Model.Config) (behaviour : Behaviour config),
       forall (firstStep secondStep : Nat) (firstOpener secondOpener : Location),
-        (Trace.NotificationAt config trace firstStep firstOpener (.opening .quorum)
-          /\ Trace.NotificationAt config trace secondStep secondOpener (.opening .quorum))
+        (Behaviour.NotificationAt config behaviour firstStep firstOpener
+            (.opening .quorum)
+          /\ Behaviour.NotificationAt config behaviour secondStep secondOpener
+              (.opening .quorum))
         -> firstOpener = secondOpener := by
   exact Proofs.Model.quorum_opener_unique
 
-/-- Witness: for every valid configuration, a valid trace exists with a step emitting
+/-- Witness: for every valid configuration, a valid behaviour exists with a step emitting
 `opening quorum`. -/
 theorem quorum_opener_unique_witness
     : forall (config : ValidConfig),
-        exists (trace : GlobalTrace config),
+        exists (behaviour : Behaviour config),
         exists (step : Nat) (opener : Location),
-          Trace.NotificationAt config trace step opener (.opening .quorum) := by
+          Behaviour.NotificationAt config behaviour step opener (.opening .quorum) := by
   exact Proofs.GlobalWitnesses.quorum_opener_unique_witness
 
 /-- A quorum opener whose voters received their own gossip is up to date with a
 quorum of recovered ledgers. -/
 theorem quorum_open_preserves_commit
-    : forall (config : Model.Config) (trace : GlobalTrace config)
+    : forall (config : Model.Config) (behaviour : Behaviour config)
               (openedState : Model.State),
       forall (opener : Location) (openerState : NodeState),
-        (openedState ∈ trace
+        (openedState ∈ behaviour
           /\ (opener, openerState) ∈ openedState.nodes
           /\ openerState.openKind = some .quorum
-          /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter))
+          /\ (forall voter,
+                voter ∈ openerState.votes -> ReceivedOwnGossip behaviour voter))
         -> exists openerTxID,
             Model.recoveredTxID config opener = some openerTxID
             /\ UpToDateWithQuorum config openerTxID := by
   exact Proofs.Gossip.quorum_open_preserves_commit
 
-/-- Witness: for every valid configuration, a valid trace and a state in it with a node with
+/-- Witness: for every valid configuration, a valid behaviour and a state in it with a node with
 `openKind = quorum` whose voters all satisfy `ReceivedOwnGossip` exist. -/
 theorem quorum_open_preserves_commit_witness
     : forall (config : ValidConfig),
-        exists (trace : GlobalTrace config) (openedState : Model.State),
+        exists (behaviour : Behaviour config) (openedState : Model.State),
         exists (opener : Location) (openerState : NodeState),
-          openedState ∈ trace
+          openedState ∈ behaviour
           /\ (opener, openerState) ∈ openedState.nodes
           /\ openerState.openKind = some .quorum
           /\ (forall voter,
-                voter ∈ openerState.votes -> ReceivedOwnGossip trace voter) := by
+                voter ∈ openerState.votes -> ReceivedOwnGossip behaviour voter) := by
   exact Proofs.GlobalWitnesses.quorum_open_preserves_commit_witness
 
-/-- If every configured location has full gossip somewhere in a valid trace, every opener,
+/-- If every configured location has full gossip somewhere in a valid behaviour, every opener,
 including failover openers, is up to date with a quorum of recovered ledgers. -/
 theorem full_gossip_preserves_commit
-    : forall (config : Model.Config) (trace : GlobalTrace config)
+    : forall (config : Model.Config) (behaviour : Behaviour config)
               (gossipedState openedState : Model.State),
       forall (opener : Location) (openerState : NodeState),
-        (gossipedState ∈ trace
+        (gossipedState ∈ behaviour
           /\ (forall node nodeState,
                 node ∈ config.protocol.expectedLocations
                 -> (node, nodeState) ∈ gossipedState.nodes
                 -> forall gossip,
                     gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
-          /\ openedState ∈ trace
+          /\ openedState ∈ behaviour
           /\ (opener, openerState) ∈ openedState.nodes
           /\ openerState.openKind.isSome = true)
         -> exists openerTxID,
@@ -95,21 +98,21 @@ theorem full_gossip_preserves_commit
             /\ UpToDateWithQuorum config openerTxID := by
   exact Proofs.Gossip.full_gossip_preserves_commit
 
-/-- Witness: for every valid configuration with at least two locations, a valid trace with a
+/-- Witness: for every valid configuration with at least two locations, a valid behaviour with a
 full-gossip state and a state in it with a node with `openKind = failover` exist. -/
 theorem full_gossip_preserves_commit_witness
     : forall (config : ValidConfig),
         2 <= config.val.protocol.expectedLocations.length
-        -> exists (trace : GlobalTrace config),
+        -> exists (behaviour : Behaviour config),
         exists (gossipedState openedState : Model.State),
         exists (opener : Location) (openerState : NodeState),
-          gossipedState ∈ trace
+          gossipedState ∈ behaviour
           /\ (forall node nodeState,
                 node ∈ config.val.protocol.expectedLocations
                 -> (node, nodeState) ∈ gossipedState.nodes
                 -> forall gossip,
                     gossip ∈ nodeState.gossips <-> gossip ∈ config.val.recovered)
-          /\ openedState ∈ trace
+          /\ openedState ∈ behaviour
           /\ (opener, openerState) ∈ openedState.nodes
           /\ openerState.openKind = some .failover := by
   exact Proofs.GlobalWitnesses.full_gossip_preserves_commit_witness

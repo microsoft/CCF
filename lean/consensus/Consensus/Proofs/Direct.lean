@@ -1204,15 +1204,17 @@ private theorem commitFrontier_invariant [Config.InitialConfiguration]
 public theorem committed_frontier_is_signature
     : forall (config : Finset NodeID),
       forall (nodes : List NodeID)
-              (trace : CCF.Execution.Behaviour (Model.transitionSystem config nodes))
+              (behaviour : CCF.Execution.Behaviour (Model.transitionSystem config nodes))
               (state : Model.State),
       forall (node : NodeID) (nodeState : NodeState),
-        (state ∈ trace /\ (node, nodeState) ∈ state.nodes /\ 0 < nodeState.commitIndex)
+        (state ∈ behaviour
+          /\ (node, nodeState) ∈ state.nodes
+          /\ 0 < nodeState.commitIndex)
         -> isSignatureAt nodeState.log nodeState.commitIndex = true := by
-  intro config nodes trace state node nodeState ⟨member, listed, positive⟩
+  intro config nodes behaviour state node nodeState ⟨member, listed, positive⟩
   let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
   exact (Proofs.Direct.commitFrontier_invariant.reachable
-          (trace.reachable member) node nodeState listed).2
+          (behaviour.reachable member) node nodeState listed).2
     positive
 
 end Consensus.Proofs.Direct

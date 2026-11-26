@@ -700,15 +700,15 @@ theorem primary_nominates (node : NodeID) (state : NodeState)
       simp [step, act, nominateSuccessor, leading, successor, Capabilities.record, StateT.run]
       rfl
 
-theorem reachable_trace_of_tail {system : TransitionSystem} {state : system.State}
+theorem reachable_behaviour_of_tail {system : TransitionSystem} {state : system.State}
     (reachable : system.Reachable state) (states : Nat -> system.State)
     (actions : Nat -> system.Action) (first : states 0 = state)
     (enabled : forall n, system.step (states n) (actions n) = some (states (n + 1)))
     (index : Nat)
-    : exists trace : Execution.Behaviour system, states index ∈ trace := by
+    : exists behaviour : Execution.Behaviour system, states index ∈ behaviour := by
   induction reachable generalizing states actions index with
   | initial initialized =>
-      let trace : Execution.Behaviour system := ⟨{
+      let behaviour : Execution.Behaviour system := ⟨{
         init := states 0
         steps := CCF.Seq.ofStream fun n => (actions n, states (n + 1))
       }, by
@@ -720,7 +720,10 @@ theorem reachable_trace_of_tail {system : TransitionSystem} {state : system.Stat
         subst before
         subst action
         exact enabled n⟩
-      exact ⟨trace, Execution.Behaviour.stateAt_mem (n := index) (by cases index <;> rfl)⟩
+      exact ⟨
+        behaviour,
+        Execution.Behaviour.stateAt_mem (n := index) (by cases index <;> rfl)
+      ⟩
   | @step before after action reachable stepped ih =>
       let extended : Nat -> system.State
         | 0 => before
@@ -737,14 +740,14 @@ theorem reachable_trace_of_tail {system : TransitionSystem} {state : system.Stat
       exact ih extended choices rfl valid (index + 1)
 
 /-- Continue forever by nominating successors, leaving their packets undelivered. -/
-theorem at_trace {config : Config} {states : NodeID -> NodeState}
+theorem at_behaviour {config : Config} {states : NodeID -> NodeState}
     (reachable : At config states) (node : NodeID) (member : node ∈ config.val)
     (leading : (states node).role = .primary)
-    : exists (trace
+    : exists (behaviour
               : Execution.Behaviour
                   (Model.transitionSystem config (ids config))) (network
                                                                   : List Model.Envelope),
-        { nodes := table config states, network } ∈ trace := by
+        { nodes := table config states, network } ∈ behaviour := by
   obtain ⟨network, reachable⟩ := reachable
   obtain ⟨outputs, run⟩ := primary_nominates node (states node) leading
   let continuation : Nat -> Model.State := fun n => {
@@ -760,8 +763,8 @@ theorem at_trace {config : Config} {states : NodeID -> NodeState}
         (network ++ (List.range n).flatMap (fun _ => outputs.outgoing)) node member
         .nominateSuccessor (states node) outputs
         (by intro entries; exact Input.noConfusion) run
-  obtain ⟨trace, present⟩ := reachable_trace_of_tail reachable continuation
+  obtain ⟨behaviour, present⟩ := reachable_behaviour_of_tail reachable continuation
     (fun _ => .local node .nominateSuccessor) (by simp [continuation]) enabled 0
-  exact ⟨trace, network, by simpa [continuation] using present⟩
+  exact ⟨behaviour, network, by simpa [continuation] using present⟩
 
 end Consensus.Proofs.GenericWitnesses

@@ -17,7 +17,7 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 | Supporting proofs and executions       | [`Proofs/`](Consensus/Proofs)                                                                                                  |
 | Action-trace tests                     | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                           |
 
-Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
+Transition systems, behaviours, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
 Production starts with singleton voting membership; the model also accepts multi-node initial configurations supported by the consensus testing infrastructure.

@@ -34,44 +34,44 @@ structure BehaviourImpl (system : TransitionSystem) where
   steps : CCF.Seq (system.Action × system.State)
 
 /-- The initial state is allowed and each recorded action reaches its paired state. -/
-def BehaviourImpl.Valid {system : TransitionSystem} (trace : BehaviourImpl system)
+def BehaviourImpl.Valid {system : TransitionSystem} (behaviour : BehaviourImpl system)
     : Prop :=
-  system.init trace.init
+  system.init behaviour.init
   /\ forall n before action,
-      (CCF.Seq.cons trace.init (trace.steps.map Prod.snd)).get? n = some before
-      -> (trace.steps.map Prod.fst).get? n = some action
-      -> system.step before action = (trace.steps.map Prod.snd).get? n
+      (CCF.Seq.cons behaviour.init (behaviour.steps.map Prod.snd)).get? n = some before
+      -> (behaviour.steps.map Prod.fst).get? n = some action
+      -> system.step before action = (behaviour.steps.map Prod.snd).get? n
 
 /-- A nonempty, valid finite or infinite execution. -/
 abbrev Behaviour (system : TransitionSystem) :=
-  {trace : BehaviourImpl system // trace.Valid}
+  {behaviour : BehaviourImpl system // behaviour.Valid}
 
 namespace Behaviour
 
 /-- The visited states, initial state first. -/
-def states {system : TransitionSystem} (trace : Behaviour system)
+def states {system : TransitionSystem} (behaviour : Behaviour system)
     : CCF.Seq system.State :=
-  CCF.Seq.cons trace.val.init (trace.val.steps.map Prod.snd)
+  CCF.Seq.cons behaviour.val.init (behaviour.val.steps.map Prod.snd)
 
 /-- The actions recorded by the execution. -/
-def actions {system : TransitionSystem} (trace : Behaviour system)
+def actions {system : TransitionSystem} (behaviour : Behaviour system)
     : CCF.Seq system.Action :=
-  trace.val.steps.map Prod.fst
+  behaviour.val.steps.map Prod.fst
 
 /-- The state at an index, or `none` beyond a finite behaviour. -/
 @[simp]
-def stateAt {system : TransitionSystem} (trace : Behaviour system) (n : Nat)
+def stateAt {system : TransitionSystem} (behaviour : Behaviour system) (n : Nat)
     : Option system.State :=
-  trace.states.get? n
+  behaviour.states.get? n
 
 /-- The action at an index, or `none` beyond a finite behaviour. -/
 @[simp]
-def actionAt {system : TransitionSystem} (trace : Behaviour system) (n : Nat)
+def actionAt {system : TransitionSystem} (behaviour : Behaviour system) (n : Nat)
     : Option system.Action :=
-  trace.actions.get? n
+  behaviour.actions.get? n
 
 instance {system : TransitionSystem} : Membership system.State (Behaviour system) :=
-  ⟨fun trace state => state ∈ trace.states⟩
+  ⟨fun behaviour state => state ∈ behaviour.states⟩
 
 end Behaviour
 

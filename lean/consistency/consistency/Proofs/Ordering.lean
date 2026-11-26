@@ -866,15 +866,15 @@ private theorem snapshots_reachable {state : State}
         (anchored_reachable reachable) ih transition
 
 theorem unique_txs
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ left ∈ responsesOf state.history .rw,
           ∀ right ∈ responsesOf state.history .rw,
             left.2.txid = right.2.txid → left.2.tx = right.2.tx := by
-  intro trace state member left first right second same
+  intro behaviour state member left first right second same
   obtain ⟨leftKind, firstLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp first
   obtain ⟨rightKind, secondLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp second
-  have snapshots := snapshots_reachable (trace.reachable member)
+  have snapshots := snapshots_reachable (behaviour.reachable member)
   obtain ⟨firstLedger, firstFound, _, firstEntry, firstAt, _, firstTx⟩ :=
     snapshots _ _ _ _ _ firstLookup
   obtain ⟨secondLedger, secondFound, _, secondEntry, secondAt, _, secondTx⟩ :=
@@ -886,13 +886,13 @@ theorem unique_txs
   exact Option.some.inj ((firstTx leftKind).symm.trans (secondTx rightKind))
 
 theorem same_observations
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ left ∈ responses state.history,
           ∀ right ∈ responses state.history,
             left.2.txid = right.2.txid → left.2.observed = right.2.observed := by
-  intro trace state member left first right second same
-  have snapshots := snapshots_reachable (trace.reachable member)
+  intro behaviour state member left first right second same
+  have snapshots := snapshots_reachable (behaviour.reachable member)
   obtain ⟨firstLedger, firstFound, firstObs, _⟩ :=
     snapshots _ _ _ _ _ ((History.mem_responses_iff _ _).mp first)
   obtain ⟨secondLedger, secondFound, secondObs, _⟩ :=
@@ -1141,13 +1141,13 @@ private theorem committed_snapshot {state : State}
   exact ⟨ledger, found, obs, entry, atEntry, txMatches kind⟩
 
 theorem unique_seq_nums_committed
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ left ∈ committedResponses state.history .rw,
           ∀ right ∈ committedResponses state.history .rw,
             left.2.txid.seqno = right.2.txid.seqno → left.2.tx = right.2.tx := by
-  intro trace state member left first right second same
-  have reachable := trace.reachable member
+  intro behaviour state member left first right second same
+  have reachable := behaviour.reachable member
   obtain ⟨leftLedger, leftFound, _, leftEntry, leftAt, leftTx⟩ :=
     committed_snapshot reachable first
   obtain ⟨rightLedger, rightFound, _, rightEntry, rightAt, rightTx⟩ :=
@@ -1159,14 +1159,14 @@ theorem unique_seq_nums_committed
   exact Option.some.inj (leftTx.symm.trans rightTx)
 
 theorem committed_rw_serializable
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ left ∈ committedResponses state.history .rw,
           ∀ right ∈ committedResponses state.history .rw,
             left.2.observed <+: right.2.observed
             ∨ right.2.observed <+: left.2.observed := by
-  intro trace state member left first right second
-  have reachable := trace.reachable member
+  intro behaviour state member left first right second
+  have reachable := behaviour.reachable member
   obtain ⟨leftLedger, leftFound, leftObs, _⟩ := committed_snapshot reachable first
   obtain ⟨rightLedger, rightFound, rightObs, _⟩ := committed_snapshot reachable second
   rw [leftFound] at rightFound
@@ -1342,16 +1342,16 @@ private theorem committed_sequence_order {state : State}
   exact Nat.lt_asymm prior beforeRequest
 
 theorem all_committed_observed
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ earlier ∈ committedResponses state.history .rw,
           ∀ request ∈ committedRequests state.history .rw,
           ∀ later ∈ committedResponses state.history .rw,
             later.2.tx = request.2.2
             → earlier.1 < request.1
             → earlier.2.tx ∈ later.2.observed := by
-  intro trace state member earlier first request sent later second same before
-  have reachable := trace.reachable member
+  intro behaviour state member earlier first request sent later second same before
+  have reachable := behaviour.reachable member
   have bound := committed_sequence_order reachable first second
     (List.mem_filter.mp sent).1 same before
   obtain ⟨leftLedger, leftFound, _, leftEntry, leftAt, leftTx⟩ :=
@@ -1363,16 +1363,16 @@ theorem all_committed_observed
   exact write_in_prefix leftAt leftTx (Nat.le_of_lt bound)
 
 theorem committed_rw_ordered_real_time
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ earlier ∈ committedResponses state.history .rw,
           ∀ request ∈ committedRequests state.history .rw,
           ∀ later ∈ committedResponses state.history .rw,
             later.2.tx = request.2.2
             → earlier.1 < request.1
             → txIDStrictlyLessThan earlier.2.txid later.2.txid := by
-  intro trace state member earlier first request sent later second same before
-  have reachable := trace.reachable member
+  intro behaviour state member earlier first request sent later second same before
+  have reachable := behaviour.reachable member
   have seqno := committed_sequence_order reachable first second
     (List.mem_filter.mp sent).1 same before
   have earlierKnown : earlier.2.txid ∈ statusIDs state.history .committed := by
@@ -1483,8 +1483,8 @@ private theorem adjacent (history : List Event) {pair : Response × Response}
   ⟩
 
 theorem committed_rw_ordered_serializable
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ pair ∈
             (committedRwResponses state.history).zip
               (committedRwResponses state.history).tail,
@@ -1542,8 +1542,8 @@ theorem committed_rw_ordered_serializable
       rw [through, List.length_append, List.length_singleton]
       exact Nat.lt_succ_of_le length
     · simp only [through, List.getLast?_append, List.getLast?_singleton, Option.some_or]
-  intro trace state member pair listed
-  have reachable := trace.reachable member
+  intro behaviour state member pair listed
+  have reachable := behaviour.reachable member
   obtain ⟨firstListed, secondListed, different, ordered⟩ := adjacent state.history listed
   obtain ⟨first, firstMember, firstPayload⟩ := mem_ordered state.history firstListed
   obtain ⟨second, secondMember, secondPayload⟩ := mem_ordered state.history secondListed
@@ -1551,9 +1551,9 @@ theorem committed_rw_ordered_serializable
     intro same
     have firstResponse := (List.mem_filter.mp firstMember).1
     have secondResponse := (List.mem_filter.mp secondMember).1
-    have tx := LedgerIdentity.unique_txs trace state member
+    have tx := LedgerIdentity.unique_txs behaviour state member
       first firstResponse second secondResponse same
-    have obs := LedgerIdentity.same_observations trace state member
+    have obs := LedgerIdentity.same_observations behaviour state member
       first (List.mem_filter.mp firstResponse).1
       second (List.mem_filter.mp secondResponse).1 same
     have firstKind := ((History.mem_responsesOf_iff _ _ _).mp firstResponse).1

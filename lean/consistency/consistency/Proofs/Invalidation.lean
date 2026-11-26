@@ -1113,25 +1113,25 @@ private theorem mem_statuses_iff (history : List Event) (txid : TxID) (status : 
     | _ => cases mapped
 
 theorem committed_or_invalid
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ txid ∈ statusIDs state.history .committed,
             txid ∉ statusIDs state.history .invalid := by
-  intro trace state member txid committed invalid
-  have impossible := separated_reachable (trace.reachable member)
+  intro behaviour state member txid committed invalid
+  have impossible := separated_reachable (behaviour.reachable member)
     txid committed txid invalid rfl
   exact Nat.lt_irrefl _ impossible
 
 theorem once_committed_prev_committed
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .committed
             → left.1.view = right.1.view
             → right.1.seqno ≤ left.1.seqno
             → right.2 = .committed := by
-  intro trace state member left first right second leftCommitted sameView bound
+  intro behaviour state member left first right second leftCommitted sameView bound
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftCommitted] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
@@ -1139,48 +1139,48 @@ theorem once_committed_prev_committed
   | committed => rfl
   | invalid =>
       rw [value] at secondKnown
-      have impossible := separated_reachable (trace.reachable member)
+      have impossible := separated_reachable (behaviour.reachable member)
         left.1 firstKnown right.1 secondKnown sameView.symm
       exact absurd bound (Nat.not_le.mpr impossible)
 
 theorem once_invalid_next_invalid
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .invalid
             → left.1.view = right.1.view
             → left.1.seqno ≤ right.1.seqno
             → right.2 = .invalid := by
-  intro trace state member left first right second leftInvalid sameView bound
+  intro behaviour state member left first right second leftInvalid sameView bound
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftInvalid] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
   cases value : right.2 with
   | committed =>
       rw [value] at secondKnown
-      have impossible := separated_reachable (trace.reachable member)
+      have impossible := separated_reachable (behaviour.reachable member)
         right.1 secondKnown left.1 firstKnown sameView
       exact absurd bound (Nat.not_le.mpr impossible)
   | invalid => rfl
 
 theorem once_committed_next_invalid
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .committed
             → left.1.seqno ≤ right.1.seqno
             → right.1.view < left.1.view
             → right.2 = .invalid := by
-  intro trace state member left first right second leftCommitted bound older
+  intro behaviour state member left first right second leftCommitted bound older
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftCommitted] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
   cases value : right.2 with
   | committed =>
       rw [value] at secondKnown
-      have impossible := ViewOrder.committed_views (trace.reachable member)
+      have impossible := ViewOrder.committed_views (behaviour.reachable member)
         firstKnown secondKnown bound
       exact absurd impossible (Nat.not_le.mpr older)
   | invalid => rfl
@@ -1501,15 +1501,15 @@ private theorem clean_reachable {state : State}
         (current_reachable reachable) transition
 
 theorem invalid_not_observed_by_committed
-    : forall (trace : CCF.Execution.Behaviour transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ invalid ∈ responsesOf state.history .rw,
           ∀ observer ∈ committedResponses state.history .rw,
             invalid.1 ≠ observer.1
             → invalid.2.txid ∈ statusIDs state.history .invalid
             → invalid.2.tx ∉ observer.2.observed := by
-  intro trace state member invalid first observer second _ invalidKnown observed
-  have reachable := trace.reachable member
+  intro behaviour state member invalid first observer second _ invalidKnown observed
+  have reachable := behaviour.reachable member
   have snapshots := snapshots_reachable reachable
   obtain ⟨invalidKind, invalidLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp first
   obtain ⟨invalidOrigin, invalidFound, _, invalidEntry, invalidAt, invalidView, invalidTx⟩ :=
