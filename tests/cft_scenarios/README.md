@@ -32,6 +32,7 @@ Scenarios are ordinary Lean, so they can also use loops, conditions and definiti
 
 After each command which can alter state, the driver asserts that the commit index of every node is safe.
 After the last command, it confirms that the network can still make progress.
+To do so, it signs on the latest primary, and runs until the active nodes which that primary knows are in sync with it.
 
 ## Adding a scenario
 
@@ -65,7 +66,7 @@ The runner prints each scenario as a Mermaid sequence diagram, and writes its tr
 [`cft_scenarios_mermaid.py`](../cft_scenarios_mermaid.py) prints one scenario as a compact Mermaid sequence diagram:
 
 ```sh
-python3 tests/cft_scenarios_mermaid.py build/cft_driver tests/cft_scenarios/Scenarios/<name>.lean
+tests/cft_scenarios_mermaid.py build/cft_driver tests/cft_scenarios/Scenarios/<name>.lean
 ```
 
 Messages are arrows, which end in a cross when the message is dropped.

@@ -42,7 +42,7 @@ def serialStep (base : DB M K V) (ws : Writes M K V) (op : NormalOp M K V)
   | .previous a observed =>
       if previousAt base a = observed then some ws else none
   | .scan m observed =>
-      if scanAt base ws m = observed then some ws else none
+      if (scanAt base ws m).Perm observed then some ws else none
   | .write a value => some (set ws a value)
 
 /-- Runs operations in order with `serialStep`. -/

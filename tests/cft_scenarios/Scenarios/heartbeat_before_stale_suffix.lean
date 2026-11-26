@@ -4,12 +4,6 @@ import CftDriver
 
 open CftDriver
 
-private def assertPending (source target : NodeId) (count : Nat) : IO Unit := do
-  let pending ← pendingMessages source target
-  let link := s!"from {source.text} to {target.text}"
-  unless pending.size == count do
-    throw (IO.userError s!"Expected {count} messages {link}, got {pending}")
-
 -- A follower acknowledges a heartbeat which ends before an entry of a later
 -- term that it still holds. Nothing is committed, so a node which is elected
 -- keeps the transaction after its last signature. Node 1 appends an entry in

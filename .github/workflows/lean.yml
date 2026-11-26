@@ -133,10 +133,10 @@ jobs:
       - name: Generate KV captures
         run: |
           set -euo pipefail
-          python3 tests/kv_trace_validation_test.py
+          tests/kv_trace_validation_test.py
           # RUNNER_TEMP can persist between jobs on reused self-hosted runners; drop files from earlier runs.
           rm -rf "$RUNNER_TEMP/ccf-kv-build/kv-traces"
-          python3 tests/kv_trace_validation.py \
+          tests/kv_trace_validation.py \
             --binary "$RUNNER_TEMP/ccf-kv-build/kv_test" --capture-only \
             --output "$RUNNER_TEMP/ccf-kv-build/kv-traces" --seeds 8 --timeout 900
 

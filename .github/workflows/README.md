@@ -78,7 +78,7 @@ File: `ci.yml`
 ## Test failure annotations
 
 On GitHub Actions, `tests/tests.sh` automatically enables `tests/infra/test_reporting.py` to publish test failures as error annotations and a job-summary table.
-The Python SDK job invokes the reporter with `python ../tests/infra/test_reporting.py pytest`.
+The Python SDK job invokes the reporter with `../tests/infra/test_reporting.py pytest`.
 Each invocation publishes up to ten annotations and 100 summary rows.
 Full test output is available in the job logs, with node logs in the log artifacts.
 

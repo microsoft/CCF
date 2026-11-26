@@ -30,6 +30,7 @@
 #include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
 #include "json_schema.h"
+#include "node/node_configuration_subsystem.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
 #include "runtime_control.h"
@@ -735,6 +736,10 @@ namespace ccf
     try
     {
       validate_ledger_transaction_size(config);
+      // Throws if an accepted_endpoints pattern isn't a valid regular
+      // expression.
+      ccf::NodeConfigurationSubsystem::build_interface_regexes(
+        config.network.rpc_interfaces);
       for (const auto& endpoint : config.observability.fluentd)
       {
         ccf::tracing::FluentdSink::validate(
