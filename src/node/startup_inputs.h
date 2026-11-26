@@ -4,9 +4,9 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
-#include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
 #include "ds/internal_logger.h"
+#include "node/configuration.h"
 #include "node/rpc/node_call_types.h"
 
 #include <filesystem>

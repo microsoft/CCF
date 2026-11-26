@@ -3,7 +3,6 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/js/core/context.h"
-#include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
@@ -18,6 +17,7 @@
 #include "kv/ledger_chunker.h"
 #include "node/commit_callback_subsystem.h"
 #include "node/commit_point_subsystem.h"
+#include "node/configuration.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_inbound_message.h"

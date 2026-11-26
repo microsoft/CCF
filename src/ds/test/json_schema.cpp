@@ -3,8 +3,8 @@
 #include "host/json_schema.h"
 
 #include "ccf/ds/json.h"
-#include "ccf/node/configuration.h"
 #include "host/config_schema.h"
+#include "node/configuration.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <algorithm>

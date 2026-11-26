@@ -2,24 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node/configuration.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/service/node_info_network.h"
 
-#include <map>
-#include <regex>
+#include <nlohmann/json.hpp>
 
 namespace ccf
 {
-  struct NodeConfigurationState
-  {
-    const ccf::CCFConfig& node_config;
-    const nlohmann::json& node_data;
-    std::map<NodeInfoNetwork::RpcInterfaceID, std::vector<std::regex>>
-      rpc_interface_regexes;
-    bool initialized = false;
-  };
-
   class NodeConfigurationInterface : public AbstractNodeSubSystem
   {
   public:
@@ -30,6 +18,8 @@ namespace ccf
       return "NodeConfiguration";
     }
 
-    virtual const NodeConfigurationState& get() = 0;
+    /// Returns the free-form node data supplied by the operator in the node
+    /// configuration, or null if none was provided.
+    virtual const nlohmann::json& get_node_data() = 0;
   };
 }

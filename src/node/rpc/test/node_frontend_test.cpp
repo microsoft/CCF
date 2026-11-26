@@ -4,7 +4,6 @@
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/node/node_configuration_interface.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/mldsa_support.h"
@@ -14,6 +13,7 @@
 #include "nlohmann/json.hpp"
 #include "node/http_node_client.h"
 #include "node/internal_tables_access.h"
+#include "node/node_configuration_state.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/self_cert_auth.h"
 #include "node/startup_inputs.h"
@@ -82,7 +82,7 @@ public:
   }
 };
 
-class StubNodeConfiguration : public NodeConfigurationInterface
+class StubNodeConfiguration : public NodeConfigurationStateInterface
 {
 public:
   CCFConfig config = {};
