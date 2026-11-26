@@ -17,6 +17,8 @@
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 
+#include <format>
+
 namespace ccf
 {
   struct GetCommit
@@ -69,7 +71,7 @@ namespace ccf
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidQueryParameterValue,
-          fmt::format(
+          std::format(
             "Query string must contain a '{}' parameter", tx_id_param_key));
         return std::nullopt;
       }
@@ -82,7 +84,7 @@ namespace ccf
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidQueryParameterValue,
-          fmt::format(
+          std::format(
             "The value '{}' passed as '{}' could not be "
             "converted to a valid Tx ID.",
             txid_str,
@@ -112,7 +114,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+          std::format("Error code: {}", ccf::api_result_to_str(result)));
       }
 
       GetCommit::Out out;
@@ -146,7 +148,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            fmt::format(
+            std::format(
               "Invalid value for {}, must be in range [1, current_term]",
               view_history_since_param_key));
         }
@@ -156,7 +158,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::InvalidQueryParameterValue,
-            fmt::format(
+            std::format(
               "Invalid value for {}, must be in range [1, current_term]",
               view_history_since_param_key));
         }
@@ -166,7 +168,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+            std::format("Error code: {}", ccf::api_result_to_str(result)));
         }
         out.view_history = history;
       }
@@ -194,7 +196,7 @@ namespace ccf
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+              std::format("Error code: {}", ccf::api_result_to_str(result)));
           }
           out.view_history = history;
         }
@@ -207,7 +209,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            fmt::format(
+            std::format(
               "Invalid value for {}, must be one of [true, false] when "
               "present",
               view_history_param_key));
@@ -250,7 +252,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidQueryParameterValue,
-          fmt::format(
+          std::format(
             "The value '{}' passed as query parameter '{}' could not be "
             "converted to a valid Transaction ID.",
             tx_id_str,
@@ -268,7 +270,7 @@ namespace ccf
       return make_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
-        fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        std::format("Error code: {}", ccf::api_result_to_str(result)));
     };
     make_command_endpoint(
       "/tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
@@ -390,7 +392,7 @@ namespace ccf
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
-        fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        std::format("Error code: {}", ccf::api_result_to_str(result)));
     }
   }
 }

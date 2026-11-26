@@ -12,6 +12,7 @@
 #include "tasks/ordered_tasks.h"
 
 #include <atomic>
+#include <format>
 #include <functional>
 #include <memory>
 #include <set>
@@ -92,7 +93,7 @@ namespace ccf
       }
       default:
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unknown node message type: {}", std::to_underlying(msg_type)));
       }
     }

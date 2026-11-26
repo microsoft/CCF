@@ -6,6 +6,9 @@ edition = "2024"
 [lib]
 crate-type = ["staticlib"]
 
+[lints.rust]
+warnings = "deny"
+
 [dependencies]
 tav-ffi = { package = "tee-attestation-verification-ffi", path = "../../3rdparty/internal/tee-attestation-verification/ffi", default-features = false, features = ["crypto_openssl"] }
 

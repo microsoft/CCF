@@ -4,12 +4,6 @@ import CftDriver
 
 open CftDriver
 
-private def assertPending (source target : NodeId) (count : Nat) : IO Unit := do
-  let pending ← pendingMessages source target
-  let link := s!"from {source.text} to {target.text}"
-  unless pending.size == count do
-    throw (IO.userError s!"Expected {count} messages {link}, got {pending}")
-
 -- A node forgets the node which a configuration added, when it rolls that
 -- configuration back. Node 0 replaces itself with node 2 in a configuration
 -- which no signature follows. It hears nothing from node 2, and needs its vote

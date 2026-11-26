@@ -164,7 +164,7 @@ jobs:
           set -ex
           cd build
           if [[ -f coverage_report.txt ]]; then
-            python3 ../scripts/coverage_summary.py coverage_report.txt coverage_history \
+            ../scripts/coverage_summary.py coverage_report.txt coverage_history \
               >> "$GITHUB_STEP_SUMMARY" || true
             {
               echo '## Code Coverage'
@@ -230,7 +230,7 @@ jobs:
       - name: "Confirm running on SEV-SNP Genoa"
         run: |
           set -ex
-          python3 tests/infra/platform_detection.py snp genoa
+          tests/infra/platform_detection.py snp genoa
         shell: bash
 
       - name: "Discover THIM endpoint"

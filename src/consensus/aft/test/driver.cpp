@@ -12,6 +12,7 @@
 
 #include "tracing/fluentd_sink.h"
 
+#include <format>
 #include <lean/lean.h>
 #include <memory>
 #include <stdexcept>
@@ -62,7 +63,7 @@ namespace
   {
     std::vector<std::string> items;
     (append(items, args), ...);
-    return fmt::format("{}", fmt::join(items, ","));
+    return std::format("{}", ccf::ds::join(items, ","));
   }
 
   // Lean cannot unwind C++ exceptions, so return them as IO errors, which fail
@@ -103,7 +104,7 @@ namespace
     catch (const std::exception& e)
     {
       throw std::runtime_error(
-        fmt::format("Step {} ({}) failed: {}", step_count, cmd, e.what()));
+        std::format("Step {} ({}) failed: {}", step_count, cmd, e.what()));
     }
   }
 
@@ -196,7 +197,7 @@ extern "C"
       if (dropped != 0)
       {
         throw std::runtime_error(
-          fmt::format("cft trace exporter dropped {} events", dropped));
+          std::format("cft trace exporter dropped {} events", dropped));
       }
     });
   }
@@ -539,6 +540,15 @@ extern "C"
     return step(
       command("assert_last_txid", id, expected),
       [&]() { driver->assert_last_txid(id, expected); },
+      Invariants::SKIP);
+  }
+
+  lean_obj_res cft_assert_view(b_lean_obj_arg node, uint64_t idx, uint64_t view)
+  {
+    const auto id = text(node);
+    return step(
+      command("assert_view", id, idx, view),
+      [&]() { driver->assert_view(id, idx, view); },
       Invariants::SKIP);
   }
 

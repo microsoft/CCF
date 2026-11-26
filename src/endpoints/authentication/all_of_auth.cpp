@@ -5,6 +5,8 @@
 
 #include "ccf/ds/nonstd.h"
 
+#include <format>
+
 namespace ccf
 {
   std::string AllOfAuthnIdentity::get_conjoined_name() const
@@ -54,7 +56,7 @@ namespace ccf
 
       if (!ib.second)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "AND authentication policy contains duplicate policies identified "
           "by {} (policy = {})",
           policy_name,
@@ -81,7 +83,7 @@ namespace ccf
           result->identities.try_emplace(policy_name, std::move(ident));
         if (!ib.second)
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "AND authentication policy contains duplicate policies identified "
             "by {} (policy = {})",
             policy_name,
@@ -92,7 +94,7 @@ namespace ccf
       {
         // Bury the failing policy's name in the error reason, so we can ask it
         // to populate the unauthenticated error later
-        error_reason = fmt::format("{}:{}", policy_name, error_reason);
+        error_reason = std::format("{}:{}", policy_name, error_reason);
         return nullptr;
       }
     }
@@ -109,7 +111,7 @@ namespace ccf
     auto it = policies.find(policy_name);
     if (it == policies.end())
     {
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "AND authentication asked to construct error for sub-policy {}, which "
         "is not a recognised member (policy = {})",
         policy_name,

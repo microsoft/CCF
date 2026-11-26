@@ -16,6 +16,7 @@ from shutil import copy, rmtree
 import ccf.ledger
 import ccf.signatures
 import infra.clients
+import infra.commit
 import infra.crypto
 import infra.e2e_args
 import infra.logging_app as app
@@ -23,6 +24,7 @@ import infra.net
 import infra.network
 import infra.platform_detection
 import infra.proc
+import infra.proposal
 import infra.utils
 import suite.test_requirements as reqs
 from governance_history import check_signatures
@@ -1463,6 +1465,101 @@ def run_join_no_snapshot_against_original_primary(const_args, ipv6=False):
             assert (
                 body["startup_seqno"] > 0
             ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"
+
+
+def run_remove_last_node(const_args):
+    # A service which removed its last trusted node could commit nothing
+    # afterwards. The primary refuses the transaction which does so before it
+    # writes it to its ledger, and stops, as it does for any transaction which
+    # it has applied and cannot replicate.
+    args = deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_remove_last_node"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+        primary, backups = network.find_nodes()
+        assert not backups, backups
+
+        proposal_body, careful_vote = network.consortium.make_proposal(
+            "remove_node",
+            node_id=primary.node_id,
+        )
+        active_members = network.consortium.get_active_members()
+        majority_count = len(active_members) // 2 + 1
+        proposal = active_members[0].propose(primary, proposal_body)
+        assert (
+            proposal.state == infra.proposal.ProposalState.OPEN
+        ), f"Expected open proposal before votes, got {proposal.state}"
+        last_view, last_seqno = proposal.view, proposal.seqno
+
+        for member in active_members[: majority_count - 1]:
+            response = member.vote(primary, proposal, careful_vote)
+            assert response.status_code == http.HTTPStatus.OK.value, response
+            body = response.body.json()
+            proposal_state = infra.proposal.ProposalState(
+                body.get("state", body.get("proposalState"))
+            )
+            assert (
+                proposal_state == infra.proposal.ProposalState.OPEN
+            ), f"Expected open proposal before deciding vote, got {proposal_state}"
+            last_view, last_seqno = response.view, response.seqno
+
+        # Wait for the proposal and non-deciding votes to commit and be
+        # flushed to disk via their covering signature before the deciding
+        # vote aborts the process. Otherwise buffered non-committable entries
+        # may be left truncated on disk after abort().
+        with primary.client() as c:
+            infra.commit.wait_for_commit(c, last_seqno, last_view)
+        primary.get_receipt(last_view, last_seqno, timeout=10)
+
+        # The node reports a fatal error as it stops
+        deciding_voter = active_members[majority_count - 1]
+        network.ignore_errors_on_shutdown()
+        try:
+            deciding_voter.vote(primary, proposal, careful_vote)
+        except (
+            infra.clients.CCFConnectionException,
+            infra.clients.CCFIOException,
+            TimeoutError,
+        ):
+            LOG.info("The node did not answer the vote which removes it")
+        else:
+            raise AssertionError("The last trusted node of the service was removed")
+
+        assert primary.remote.check_done(timeout=30), "The node is still running"
+
+        out_path, _ = primary.get_logs()
+        refusal_re = re.compile(r"Refusing configuration at (\d+): it has no nodes")
+        refused_seqno = None
+        with open(out_path, encoding="utf-8") as out:
+            for line in out:
+                if match := refusal_re.search(line):
+                    refused_seqno = int(match.group(1))
+                    break
+        assert (
+            refused_seqno is not None
+        ), f"Expected configuration refusal log in {out_path}"
+
+        ledger_paths = primary.remote.ledger_paths()
+        assert ledger_paths, "Expected persisted ledger directory"
+        ledger = ccf.ledger.Ledger(
+            ledger_paths,
+            committed_only=False,
+            verification_level=ccf.ledger.VerificationLevel.OFFSETS,
+        )
+        seqnos = [
+            tx.get_public_domain().get_seqno() for chunk in ledger for tx in chunk
+        ]
+        assert seqnos, "Expected persisted ledger entries before refusal"
+        assert (
+            max(seqnos) < refused_seqno
+        ), f"Persisted ledger contains seqno {max(seqnos)} >= refused {refused_seqno}"
 
 
 def _assert_ipv6_available():

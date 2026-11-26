@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
@@ -16,7 +17,7 @@ import httpx
 
 2. Run tvc.py
 
-~/CCF/tests$ python3 tvc.py -t https://127.0.0.1:8000 -t https://127.0.0.1:8001 --ca ../build/workspace/sandbox_common/service_cert.pem
+~/CCF/tests$ ./tvc.py -t https://127.0.0.1:8000 -t https://127.0.0.1:8001 --ca ../build/workspace/sandbox_common/service_cert.pem
 
 3. The final status given for each write is printed to stdout, with the time
    at which it was received in nanoseconds since the epoch

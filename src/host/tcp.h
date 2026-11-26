@@ -11,10 +11,12 @@
 #include "socket.h"
 #include "uv/proxy.h"
 
+#include <format>
 #include <netinet/in.h>
 #include <optional>
 #include <tuple>
 #include <unistd.h>
+#include <utility>
 
 namespace asynchost
 {
@@ -82,14 +84,14 @@ namespace asynchost
     [[nodiscard]] std::string get_address_name() const
     {
       const std::string port_suffix =
-        port_assigned() ? fmt::format(":{}", port) : "";
+        port_assigned() ? std::format(":{}", port) : "";
 
       if (addr_current != nullptr && addr_current->ai_family == AF_INET6)
       {
-        return fmt::format("[{}]{}", host, port_suffix);
+        return std::format("[{}]{}", host, port_suffix);
       }
 
-      return fmt::format("{}{}", host, port_suffix);
+      return std::format("{}{}", host, port_suffix);
     }
 
     TCPImpl(
@@ -305,7 +307,9 @@ namespace asynchost
           // here, so queuing it would just leak it. Discard it and report
           // failure instead.
           LOG_DEBUG_FMT(
-            "Ignoring write of size {} in terminal status {}", len, status);
+            "Ignoring write of size {} in terminal status {}",
+            len,
+            std::to_underlying(status));
           free_write(req);
           return false;
         }
@@ -317,8 +321,8 @@ namespace asynchost
         default:
         {
           free_write(req);
-          throw std::logic_error(
-            fmt::format("Unexpected status during write: {}", status));
+          throw std::logic_error(std::format(
+            "Unexpected status during write: {}", std::to_underlying(status)));
         }
       }
 
@@ -661,11 +665,11 @@ namespace asynchost
     {
       if (status != from)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Trying to transition from {} to {} but current status is {}",
-          from,
-          to,
-          status));
+          std::to_underlying(from),
+          std::to_underlying(to),
+          std::to_underlying(status)));
       }
 
       status = to;
@@ -764,8 +768,9 @@ namespace asynchost
           case RECONNECTING:
           default:
           {
-            throw std::logic_error(
-              fmt::format("Unexpected status during on_resolved: {}", status));
+            throw std::logic_error(std::format(
+              "Unexpected status during on_resolved: {}",
+              std::to_underlying(status)));
           }
         }
       }

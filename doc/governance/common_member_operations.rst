@@ -21,6 +21,10 @@ The operator can establish if it is safe to remove a node by calling :http:GET:`
 
 .. note:: If the now-retired node was the primary node, once the proposal successfully completes, an election will take place to elect a new primary.
 
+.. warning::
+   Do not remove the last trusted node of a service.
+   Nothing could be committed once no trusted node is left, so the primary refuses the transaction which removes it, and stops with a fatal error before it writes that transaction to its ledger.
+
 
 Updating Code Version
 ---------------------

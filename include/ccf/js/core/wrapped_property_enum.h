@@ -5,6 +5,7 @@
 #include "ccf/js/core/context.h"
 #include "ccf/js/core/wrapped_value.h"
 
+#include <format>
 #include <quickjs/quickjs.h>
 
 namespace ccf::js::core
@@ -18,7 +19,7 @@ namespace ccf::js::core
       if (!value.is_obj())
       {
         throw std::logic_error(
-          fmt::format("object value required for property enum"));
+          std::format("object value required for property enum"));
       }
 
       if (
@@ -30,7 +31,7 @@ namespace ccf::js::core
           JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == -1)
       {
         throw std::logic_error(
-          fmt::format("Could not extract property names of enum"));
+          std::format("Could not extract property names of enum"));
       }
     }
 

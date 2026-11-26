@@ -40,6 +40,8 @@ There are no fixed bounds on map/key/transaction counts.
 `Unique` (in `Properties/Programs.lean`), `publish_unique` and `publish_lookup` describe the finite-map representation.
 Empty bytes and absence are distinct: `""` denotes a present zero-byte value, `null` denotes absence, and a missing required `value` field is an invalid trace.
 
+Association-list order is an internal representation choice; staged writes, normal scans, and whole-map dependencies are compared up to permutation of their complete entries.
+
 `Kv/Model/Transitions.lean` implements model operations and environment inputs, without a trace envelope.
 `Kv/Model.lean` assembles it as `Model.transitionSystem`.
 The [observation contract](../../doc/build_apps/kv/semantics.rst#observation-contract), [snapshot and global-view semantics](../../doc/build_apps/kv/semantics.rst#current-and-globally-committed-views), and [application, compaction and rollback rules](../../doc/build_apps/kv/semantics.rst#local-application-commitment-and-rollback) are documented in the KV guide.

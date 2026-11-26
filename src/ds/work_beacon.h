@@ -4,8 +4,6 @@
 
 #include "ccf/ds/locking.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 #include <iostream>
 #include <memory>
 

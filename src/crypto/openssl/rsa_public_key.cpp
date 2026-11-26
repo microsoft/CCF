@@ -8,6 +8,7 @@
 #include "ds/internal_logger.h"
 
 #include <climits>
+#include <format>
 #include <openssl/core_names.h>
 #include <openssl/encoder.h>
 
@@ -229,7 +230,7 @@ namespace ccf::crypto
     {
       if (salt_length > INT_MAX)
       {
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "salt_length {} exceeds maximum ({})", salt_length, INT_MAX));
       }
       CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
@@ -300,7 +301,7 @@ namespace ccf::crypto
     // The label length is passed as an int
     if (label_size > INT_MAX)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "OAEP label size {} exceeds the maximum of {} bytes",
         label_size,
         INT_MAX));

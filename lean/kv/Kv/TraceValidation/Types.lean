@@ -172,7 +172,7 @@ def observes {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
     : NormalOp M K V → Bool
   | .read a v => decide (valueAt db ws a = v)
   | .previous a v => decide (previousAt db a = v)
-  | .scan m vs => decide (scanAt db ws m = vs)
+  | .scan m vs => decide ((scanAt db ws m).Perm vs)
   | .write _ _ => true
 
 end Kv.TraceValidation

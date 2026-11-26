@@ -20,7 +20,7 @@ private def observes {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq
     : NormalOp M K V → Bool
   | .read a v => decide (valueAt db ws a = v)
   | .previous a v => decide (previousAt db a = v)
-  | .scan m vs => decide (scanAt db ws m = vs)
+  | .scan m vs => decide ((scanAt db ws m).Perm vs)
   | .write _ _ => true
 
 /-- Validates reports before using the dependency/write recorder. -/
@@ -451,7 +451,21 @@ private theorem publish_unique (db : DB M K V) (version : Nat) (ws : Writes M K 
 
 end Generic
 section Generic
-variable [DecidableEq M] [DecidableEq K] [DecidableEq V]
+variable [DecidableEq M] [DecidableEq K]
+
+private theorem writeValues_perm (a b : Assoc K V) (ws : Assoc K (Option V))
+    (h : a.Perm b)
+    : (writeValues a ws).Perm (writeValues b ws) := by
+  induction ws with
+  | nil => exact h
+  | cons entry ws ih =>
+      rcases entry with ⟨key, value⟩
+      cases value with
+      | none => exact ih.filter _
+      | some value => exact (ih.filter _).cons _
+
+variable [DecidableEq V]
+
 private theorem validates_append (db : DB M K V) (a b : List (Dependency M K V))
     : validates db (a ++ b) = (validates db a && validates db b) := by
   simp [validates]
@@ -479,10 +493,12 @@ private theorem dependency_rebase (snapshot current : DB M K V) (ws : Writes M K
       apply decide_eq_decide.mpr
       simp only [previousAt, heq]
   | scan m vs =>
-      have heq : image current m = image snapshot m := by
+      have heq : (image current m).Perm (image snapshot m) := by
         simpa [needs, validates, Dependency.holds] using hv
+      have hp : (scanAt current ws m).Perm (scanAt snapshot ws m) :=
+        writeValues_perm _ _ _ (heq.map _)
       apply decide_eq_decide.mpr
-      simp only [scanAt, heq]
+      exact ⟨fun h => hp.trans h, fun h => hp.symm.trans h⟩
   | write _ _ => rfl
 
 private theorem normalStep_prefix_valid (snapshot current : DB M K V)

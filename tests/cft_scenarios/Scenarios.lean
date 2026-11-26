@@ -53,6 +53,7 @@ import Scenarios.retired_committed_delayed_nomination
 import Scenarios.retired_node_delayed_responses
 import Scenarios.retirement_commit_below_signature
 import Scenarios.retirement_nominates_most_replicated
+import Scenarios.retirement_nominates_surviving_node
 import Scenarios.retirement_rollback
 import Scenarios.rollback_forgets_added_node
 import Scenarios.rollback_safety
@@ -63,6 +64,7 @@ import Scenarios.suffix_collision_1
 import Scenarios.suffix_collision_2
 import Scenarios.suffix_collision_3
 import Scenarios.swap_single_node
+import Scenarios.unsigned_entry_replaces_stale_suffix
 
 /-!
 Every scenario. Importing this module registers them, for `Main` and for other programs

@@ -6,8 +6,7 @@
 
 #include <charconv>
 #include <cstdint>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -104,13 +103,13 @@ namespace ccf
     if (!j.is_string())
     {
       throw ccf::JsonParseError(
-        fmt::format("Cannot parse TxID: Expected string, got {}", j.dump()));
+        std::format("Cannot parse TxID: Expected string, got {}", j.dump()));
     }
 
     const auto opt = TxID::from_str(j.get<std::string>());
     if (!opt.has_value())
     {
-      throw ccf::JsonParseError(fmt::format("Cannot parse TxID: {}", j.dump()));
+      throw ccf::JsonParseError(std::format("Cannot parse TxID: {}", j.dump()));
     }
 
     tx_id = opt.value();

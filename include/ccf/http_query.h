@@ -5,10 +5,9 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/nonstd.h"
 
-#define FMT_HEADER_ONLY
 #include <cctype>
 #include <charconv>
-#include <fmt/format.h>
+#include <format>
 #include <map>
 #include <optional>
 #include <string>
@@ -103,7 +102,7 @@ namespace ccf::http
 
     if (it == pq.end())
     {
-      error_reason = fmt::format("Missing query parameter '{}'", param_key);
+      error_reason = std::format("Missing query parameter '{}'", param_key);
       return false;
     }
 
@@ -128,7 +127,7 @@ namespace ccf::http
         return true;
       }
 
-      error_reason = fmt::format(
+      error_reason = std::format(
         "Unable to parse value '{}' as bool in parameter '{}'",
         param_val,
         param_key);
@@ -142,7 +141,7 @@ namespace ccf::http
       const auto [p, ec] = std::from_chars(param_val.data(), end, val);
       if (ec != std::errc() || p != end)
       {
-        error_reason = fmt::format(
+        error_reason = std::format(
           "Unable to parse value '{}' in parameter '{}'", param_val, param_key);
         return false;
       }

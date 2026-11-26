@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <format>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <span>
@@ -45,7 +46,7 @@ namespace ccf::crypto
       // the input, is then within INT_MAX as well.
       if (size > INT_MAX)
       {
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "OSSL: Base64 input of {} bytes is too large to decode", size));
       }
 
@@ -68,7 +69,7 @@ namespace ccf::crypto
       if (rc < 0)
       {
         auto err_str = OpenSSL::first_error();
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "OSSL: Could not decode update from base64 string: {} [{} bytes out "
           "of {}, chunk_len = {}]",
           err_str,
@@ -82,7 +83,7 @@ namespace ccf::crypto
       if (rc != 1)
       {
         auto err_str = OpenSSL::first_error();
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "OSSL: Could not decode final from base64 string: {} [{} bytes out "
           "of {}, chunk_len = {}]",
           err_str,
@@ -144,7 +145,7 @@ namespace ccf::crypto
         if (rc != 1)
         {
           auto err_str = OpenSSL::first_error();
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "OSSL: Could not encode update to base64 string: {} [{} bytes out "
             "of {}, chunk_len = {}]",
             err_str,
@@ -162,7 +163,7 @@ namespace ccf::crypto
       if (ERR_peek_error() != 0)
       {
         auto err_str = OpenSSL::first_error();
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "OSSL: Could not encode final to base64 string: {} [{} bytes out of "
           "{}, chunk_len = {}]",
           err_str,

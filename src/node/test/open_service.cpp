@@ -18,6 +18,8 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
+#include <format>
+#include <utility>
 
 namespace
 {
@@ -327,8 +329,9 @@ TEST_CASE("Opening a recovered service happens at most once")
     REQUIRE_THROWS_WITH_AS(
       ccf::open_recovered_service(
         tx, share_manager, *ts.service_key, ts.pq_service_key),
-      fmt::format(
-        "Error in open_recovered_service: current service status is {}", status)
+      std::format(
+        "Error in open_recovered_service: current service status is {}",
+        std::to_underlying(status))
         .c_str(),
       std::logic_error);
     REQUIRE_FALSE(tx.tx_flag_enabled(

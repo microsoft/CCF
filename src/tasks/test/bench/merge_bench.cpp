@@ -10,10 +10,6 @@
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
 
-#define FMT_HEADER_ONLY
-#include <fmt/chrono.h>
-#include <fmt/format.h>
-
 static inline std::vector<int> get_merge_sort_data(size_t n)
 {
   static std::random_device rd;

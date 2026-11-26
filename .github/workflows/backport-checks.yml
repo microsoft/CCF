@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
 
       - name: Test backport checker
-        run: python3 scripts/tests/backport_test.py
+        run: scripts/tests/backport_test.py
 
       # Merge groups hold squash commits without cherry-pick trailers, so they
       # pass; this lets the check be required.
@@ -41,4 +41,4 @@ jobs:
         env:
           BASE: ${{ github.event.merge_group.base_sha || format('origin/{0}', github.base_ref) }}
           HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
-        run: python3 scripts/backport.py --base "$BASE" --head "$HEAD"
+        run: scripts/backport.py --base "$BASE" --head "$HEAD"

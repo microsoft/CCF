@@ -3,6 +3,7 @@
 
 #include "crypto/openssl/hash.h"
 
+#include <format>
 #include <limits>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
@@ -158,19 +159,19 @@ namespace ccf::crypto
     int rc = EVP_MD_CTX_copy_ex(mdctx, basectx);
     if (rc != 1)
     {
-      throw std::logic_error(fmt::format("EVP_MD_CTX_copy_ex failed: {}", rc));
+      throw std::logic_error(std::format("EVP_MD_CTX_copy_ex failed: {}", rc));
     }
 
     rc = EVP_DigestUpdate(mdctx, data.data(), data.size());
     if (rc != 1)
     {
-      throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
+      throw std::logic_error(std::format("EVP_DigestUpdate failed: {}", rc));
     }
 
     rc = EVP_DigestFinal_ex(mdctx, h, nullptr);
     if (rc != 1)
     {
-      throw std::logic_error(fmt::format("EVP_DigestFinal_ex failed: {}", rc));
+      throw std::logic_error(std::format("EVP_DigestFinal_ex failed: {}", rc));
     }
   }
 
@@ -184,7 +185,7 @@ namespace ccf::crypto
     int rc = EVP_DigestInit(ctx, md);
     if (rc != 1)
     {
-      throw std::logic_error(fmt::format("EVP_DigestInit failed: {}", rc));
+      throw std::logic_error(std::format("EVP_DigestInit failed: {}", rc));
     }
   }
 
@@ -206,7 +207,7 @@ namespace ccf::crypto
     int rc = EVP_DigestUpdate(ctx, data.data(), data.size());
     if (rc != 1)
     {
-      throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
+      throw std::logic_error(std::format("EVP_DigestUpdate failed: {}", rc));
     }
   }
 
@@ -222,7 +223,7 @@ namespace ccf::crypto
     if (rc != 1)
     {
       EVP_MD_CTX_free(ctx);
-      throw std::logic_error(fmt::format("EVP_DigestFinal failed: {}", rc));
+      throw std::logic_error(std::format("EVP_DigestFinal failed: {}", rc));
     }
     EVP_MD_CTX_free(ctx);
     ctx = nullptr;
