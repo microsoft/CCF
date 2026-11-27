@@ -18,6 +18,7 @@ TRACE_CASES = {
     "Recovery trace voting zero votes timeout failover": (
         "voting_zero_votes_timeout_failover"
     ),
+    "Recovery trace protocol rejections": "protocol_rejections",
 }
 
 REQUIRED_SCENARIO_EVENTS = {
@@ -45,6 +46,19 @@ REQUIRED_SCENARIO_EVENTS = {
         "open_kind:Failover",
         "restart:true",
         "timeout:Voting_zero_votes_noop",
+        "transition:Opening->Open",
+        "timeout:Open->Open",
+    },
+    "protocol_rejections": {
+        "start",
+        "send:gossip",
+        "send:vote",
+        "send:iamopen",
+        "gossip_accepted",
+        "vote_accepted",
+        "iamopen_accepted",
+        "open_kind:Quorum",
+        "restart:true",
         "transition:Opening->Open",
         "timeout:Open->Open",
     },
@@ -153,7 +167,9 @@ def validate_scenario(
     meta_path = scenario_dir / "scenario.json"
     if not meta_path.is_file():
         raise RuntimeError(f"Missing scenario metadata: {meta_path}")
-    participants = int(json.loads(meta_path.read_text(encoding="utf-8"))["participants"])
+    participants = int(
+        json.loads(meta_path.read_text(encoding="utf-8"))["participants"]
+    )
     logs = sorted(scenario_dir.glob("*.out"))
     if len(logs) != participants:
         raise RuntimeError(

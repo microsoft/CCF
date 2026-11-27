@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "node/recovery_decision_protocol.h"
+
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
@@ -21,7 +23,6 @@
 #include "kv/test/stub_consensus.h"
 #include "node/node_configuration_subsystem.h"
 #include "node/node_state.h"
-#include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
 #include "node/rpc/test/node_stub.h"
@@ -289,7 +290,8 @@ namespace
         drain_main_job_board();
       }
 
-      network.tables->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+      network.tables->set_encryptor(
+        std::make_shared<ccf::kv::NullTxEncryptor>());
       consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
       network.tables->set_consensus(consensus);
       network.identity = make_network_identity();
@@ -334,8 +336,8 @@ namespace
       cfg.sealing_recovery = std::move(sr_cfg);
       RecoveryDecisionProtocolTestAccess::set_config(*node_state, cfg);
 
-      prev_service_cert =
-        make_self_signed_cert(ccf::crypto::make_ec_key_pair(), "CN=PrevService");
+      prev_service_cert = make_self_signed_cert(
+        ccf::crypto::make_ec_key_pair(), "CN=PrevService");
       dummy_enc_pubk = ccf::crypto::make_rsa_key_pair()->public_key_pem();
     }
 
@@ -395,10 +397,12 @@ namespace
     }
 
     void commit_sm_state(
-      StateMachine sm_state, StateMachine timeout_state = StateMachine::GOSSIPING)
+      StateMachine sm_state,
+      StateMachine timeout_state = StateMachine::GOSSIPING)
     {
       auto tx = network.tables->create_tx();
-      tx.rw<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)->put(sm_state);
+      tx.rw<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
+        ->put(sm_state);
       tx.rw<TimeoutSMState>(Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE)
         ->put(timeout_state);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
@@ -427,7 +431,8 @@ namespace
       RequestNodeInfo info;
       info.quote_info.format = QuoteFormat::insecure_virtual;
       info.location = {name, address};
-      info.service_cert_der = ccf::crypto::cert_pem_to_der(network.identity->cert);
+      info.service_cert_der =
+        ccf::crypto::cert_pem_to_der(network.identity->cert);
       return info;
     }
 
@@ -678,10 +683,9 @@ TEST_CASE("Handlers reject invalid quotes and changed sender certificates")
   }
   {
     auto ro = fix.network.tables->create_read_only_tx();
-    CHECK_FALSE(
-      ro.ro<NodeInfoMap>(Tables::RECOVERY_DECISION_PROTOCOL_NODES)
-        ->get("node1")
-        .has_value());
+    CHECK_FALSE(ro.ro<NodeInfoMap>(Tables::RECOVERY_DECISION_PROTOCOL_NODES)
+                  ->get("node1")
+                  .has_value());
   }
 
   INFO("First valid message binds location name to caller public key");
@@ -785,7 +789,8 @@ TEST_CASE("Timeout handler enforces primary origin and catches logic_error")
   }
 }
 
-TEST_CASE("Wrapped handlers catch advance() logic_error and unset iamopen state")
+TEST_CASE(
+  "Wrapped handlers catch advance() logic_error and unset iamopen state")
 {
   RecoveryDecisionProtocolFixture fix;
   fix.commit_service_and_self_node();
@@ -801,7 +806,8 @@ TEST_CASE("Wrapped handlers catch advance() logic_error and unset iamopen state"
   const auto peer_kp = ccf::crypto::make_ec_key_pair();
   const auto peer_cert = make_self_signed_cert(peer_kp, "CN=Peer");
 
-  INFO("gossip and vote catch std::logic_error from advance() when SMState unset");
+  INFO(
+    "gossip and vote catch std::logic_error from advance() when SMState unset");
   for (const auto& [path, body] :
        std::vector<std::pair<std::string, nlohmann::json>>{
          {"/recovery_decision_protocol/gossip",
@@ -829,7 +835,9 @@ TEST_CASE("Wrapped handlers catch advance() logic_error and unset iamopen state"
     CHECK(err["code"] == ccf::errors::InternalError);
   }
 
-  INFO("iamopen catches std::logic_error from advance() when TimeoutSMState unset");
+  INFO(
+    "iamopen catches std::logic_error from advance() when TimeoutSMState "
+    "unset");
   {
     auto tx = fix.network.tables->create_tx();
     tx.rw<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
@@ -878,8 +886,8 @@ TEST_CASE("Wrapped handlers catch advance() logic_error and unset iamopen state"
       ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)->get() ==
       StateMachine::JOINING);
     CHECK(
-      ro.ro<ChosenNode>(Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)->get() ==
-      "node1");
+      ro.ro<ChosenNode>(Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
+        ->get() == "node1");
   }
 
   INFO("gossip is rejected once chosen node is already set");
@@ -896,7 +904,8 @@ TEST_CASE("Wrapped handlers catch advance() logic_error and unset iamopen state"
   }
 }
 
-TEST_CASE("Protocol advance() covers voting safety, open, and timeout transitions")
+TEST_CASE(
+  "Protocol advance() covers voting safety, open, and timeout transitions")
 {
   RecoveryDecisionProtocolFixture fix;
   fix.commit_service_and_self_node();
@@ -949,10 +958,9 @@ TEST_CASE("Protocol advance() covers voting safety, open, and timeout transition
     CHECK(
       tx.ro<TimeoutSMState>(Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE)
         ->get() == StateMachine::VOTING);
-    CHECK_FALSE(
-      tx.ro<OpenKind>(Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
-        ->get()
-        .has_value());
+    CHECK_FALSE(tx.ro<OpenKind>(Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
+                  ->get()
+                  .has_value());
   }
 
   SUBCASE("VOTING timeout with quorum still records QUORUM open kind")
@@ -1011,7 +1019,8 @@ TEST_CASE("Protocol advance() covers voting safety, open, and timeout transition
     }
   }
 
-  SUBCASE("Timeout state machine handles GOSSIPING, VOTING, OPENING, JOINING, OPEN")
+  SUBCASE(
+    "Timeout state machine handles GOSSIPING, VOTING, OPENING, JOINING, OPEN")
   {
     for (const auto [initial_timeout, expected_timeout] :
          std::vector<std::pair<StateMachine, StateMachine>>{
@@ -1136,10 +1145,9 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       fix.rdp().try_start(tx, false);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       auto ro = fix.network.tables->create_read_only_tx();
-      CHECK_FALSE(
-        ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
-          ->get()
-          .has_value());
+      CHECK_FALSE(ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
+                    ->get()
+                    .has_value());
     }
     RecoveryDecisionProtocolTestAccess::clear_rdp_config(*fix.node_state);
     {
@@ -1147,10 +1155,9 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       fix.rdp().try_start(tx, true);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       auto ro = fix.network.tables->create_read_only_tx();
-      CHECK_FALSE(
-        ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
-          ->get()
-          .has_value());
+      CHECK_FALSE(ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
+                    ->get()
+                    .has_value());
     }
     RecoveryDecisionProtocolTestAccess::clear_sealing_recovery(*fix.node_state);
     {
@@ -1158,10 +1165,9 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       fix.rdp().try_start(tx, true);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       auto ro = fix.network.tables->create_read_only_tx();
-      CHECK_FALSE(
-        ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
-          ->get()
-          .has_value());
+      CHECK_FALSE(ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
+                    ->get()
+                    .has_value());
     }
   }
 
@@ -1182,7 +1188,8 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       fix.network.tables->compact(tx.commit_version());
     }
 
-    // Committing a non-GOSSIPING write exercises the hook false branch on value.
+    // Committing a non-GOSSIPING write exercises the hook false branch on
+    // value.
     fix.commit_sm_state(StateMachine::JOINING, StateMachine::GOSSIPING);
 
     ccf::tasks::tick(100ms);
@@ -1199,7 +1206,8 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       CHECK(task->is_cancelled());
     }
 
-    // Clearing SMState via reset_state exercises the hook false branch on empty write.
+    // Clearing SMState via reset_state exercises the hook false branch on empty
+    // write.
     {
       auto tx = fix.network.tables->create_tx();
       fix.rdp().reset_state(tx);
@@ -1233,7 +1241,8 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
     CHECK(retry_task->is_cancelled());
   }
 
-  SUBCASE("retry_task defensive guards on missing config, state, and voting metadata")
+  SUBCASE(
+    "retry_task defensive guards on missing config, state, and voting metadata")
   {
     RecoveryDecisionProtocolFixture fix(
       {{"node0", "127.0.0.1:8000"}, {"node1", "127.0.0.1:8001"}},
@@ -1260,7 +1269,8 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       "Recovery-decision-protocol chosen node not set, cannot vote",
       std::logic_error);
 
-    INFO("VOTING with ChosenNode absent from NodeInfoMap throws std::logic_error");
+    INFO(
+      "VOTING with ChosenNode absent from NodeInfoMap throws std::logic_error");
     {
       auto tx = fix.network.tables->create_tx();
       tx.rw<ChosenNode>(Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
@@ -1297,12 +1307,12 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
     retry_task->cancel_task();
   }
 
-  SUBCASE("failover_task handles missing config, missing state, active send, and OPEN")
+  SUBCASE(
+    "failover_task handles missing config, missing state, active send, and "
+    "OPEN")
   {
     RecoveryDecisionProtocolFixture fix(
-      {{"node0", "127.0.0.1:1"}, {"node1", "127.0.0.1:1"}},
-      "500ms",
-      "50ms");
+      {{"node0", "127.0.0.1:1"}, {"node1", "127.0.0.1:1"}}, "500ms", "50ms");
     fix.commit_service_and_self_node();
 
     {
@@ -1385,7 +1395,8 @@ TEST_CASE("get_iamopen_request and metadata helpers report missing state")
   {
     RecoveryDecisionProtocolFixture fix;
     fix.commit_service_and_self_node();
-    // View history has no entry for seqno 0, so get_view(0) returns VIEW_UNKNOWN.
+    // View history has no entry for seqno 0, so get_view(0) returns
+    // VIEW_UNKNOWN.
     RecoveryDecisionProtocolTestAccess::set_last_recovered_signed_idx(
       *fix.node_state, 0);
     auto ro = fix.network.tables->create_read_only_tx();
@@ -1502,18 +1513,20 @@ namespace
     std::shared_ptr<ConfigurableNodeOperation> node_op;
     std::unique_ptr<NodeRpcFrontend> frontend;
     ccf::tasks::Task retry_task;
+    ccf::tasks::Task failover_task;
 
     VirtualRecoveryNode(
       const std::vector<sealing_recovery::Location>& expected_locations,
       size_t self_index,
       ccf::TxID recovered_txid_,
-      const ccf::crypto::Pem& shared_prev_service_cert) :
+      const ccf::crypto::Pem& shared_prev_service_cert,
+      std::string failover_timeout = "60000ms") :
       location(expected_locations.at(self_index)),
       recovered_txid(recovered_txid_),
       fix(
         expected_locations,
         "60000ms",
-        "60000ms",
+        std::move(failover_timeout),
         self_index,
         recovered_txid_.seqno,
         false),
@@ -1538,11 +1551,16 @@ namespace
       {
         retry_task->cancel_task();
       }
+      if (failover_task != nullptr)
+      {
+        failover_task->cancel_task();
+      }
     }
 
     void start()
     {
       auto tx = fix.network.tables->create_tx();
+      fix.rdp().reset_state(tx);
       fix.rdp().try_start(tx, true);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       fix.network.tables->compact(tx.commit_version());
@@ -1551,6 +1569,24 @@ namespace
       auto ready = collect_ready_tasks();
       retry_task = take_named_task(ready, "RecoveryDecisionProtocolRetry");
       REQUIRE(retry_task != nullptr);
+    }
+
+    void run_failover_task(std::chrono::milliseconds tick_ms = 30000ms)
+    {
+      if (failover_task == nullptr)
+      {
+        ccf::tasks::tick(tick_ms);
+        auto ready = collect_ready_tasks();
+        failover_task =
+          take_named_task(ready, "RecoveryDecisionProtocolFailover");
+      }
+      REQUIRE(failover_task != nullptr);
+      {
+        ccf::http_client::CurlmLibuvContextSingleton singleton(
+          uv_default_loop());
+        failover_task->do_task();
+      }
+      uv_run(uv_default_loop(), UV_RUN_DEFAULT);
     }
 
     void run_retry()
@@ -1641,8 +1677,11 @@ TEST_CASE("Recovery trace quorum open complete")
     make_self_signed_cert(ccf::crypto::make_ec_key_pair(), "CN=PrevService");
 
   VirtualRecoveryNode n0(locations, 0, ccf::TxID{2, 5}, prev_cert);
-  VirtualRecoveryNode n1(locations, 1, ccf::TxID{2, 5}, prev_cert);
-  VirtualRecoveryNode n2(locations, 2, ccf::TxID{2, 5}, prev_cert);
+  // Configure node1 with failover_timeout = 0ms so the traced quorum scenario
+  // also exercises start_failover_timers() skip and stop_timers() with a null
+  // failover_task when node1 stops timers in JOINING.
+  VirtualRecoveryNode n1(locations, 1, ccf::TxID{2, 5}, prev_cert, "0ms");
+  VirtualRecoveryNode n2(locations, 2, ccf::TxID{2, 5}, prev_cert, "30000ms");
   std::vector<VirtualRecoveryNode*> nodes = {&n0, &n1, &n2};
 
   for (auto* node : nodes)
@@ -1655,6 +1694,9 @@ TEST_CASE("Recovery trace quorum open complete")
   {
     node->run_retry();
   }
+  // Exercise failover_task firing while GOSSIPING (dispatches timeout via
+  // curl).
+  n2.run_failover_task();
   CHECK(n0.receive_gossip(n0).status == HTTP_STATUS_NO_CONTENT);
   // Second retry from n0 sends another gossip copy so duplicate delivery is
   // causally justified in the Lean trace model.
@@ -1709,7 +1751,8 @@ TEST_CASE("Recovery trace quorum open complete")
   CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
   CHECK(n2.current_sm_state() == StateMachine::OPEN);
 
-  n2.run_retry();
+  n2.run_failover_task();
+  CHECK(n2.failover_task->is_cancelled());
   CHECK(n2.retry_task->is_cancelled());
 }
 
@@ -1784,6 +1827,169 @@ TEST_CASE("Recovery trace voting zero votes timeout failover")
   CHECK(n1.current_sm_state() == StateMachine::OPEN);
   n1.run_retry();
   CHECK(n1.retry_task->is_cancelled());
+}
+
+TEST_CASE("Recovery trace protocol rejections")
+{
+  drain_main_job_board();
+  ScopedRdpTraceCapture trace_capture("protocol_rejections", 3);
+
+  const std::vector<sealing_recovery::Location> locations = {
+    {"node0", "127.0.0.1:1"},
+    {"node1", "127.0.0.1:1"},
+    {"node2", "127.0.0.1:1"}};
+  const auto prev_cert =
+    make_self_signed_cert(ccf::crypto::make_ec_key_pair(), "CN=PrevService");
+
+  VirtualRecoveryNode n0(locations, 0, ccf::TxID{2, 5}, prev_cert);
+  VirtualRecoveryNode n1(locations, 1, ccf::TxID{2, 5}, prev_cert);
+  VirtualRecoveryNode n2(locations, 2, ccf::TxID{2, 5}, prev_cert);
+  std::vector<VirtualRecoveryNode*> nodes = {&n0, &n1, &n2};
+
+  const auto other_trusted_cert =
+    make_self_signed_cert(ccf::crypto::make_ec_key_pair(), "CN=OtherTrusted");
+  const auto other_trusted_id = n0.fix.add_trusted_node(other_trusted_cert);
+  const auto rogue_cert =
+    make_self_signed_cert(ccf::crypto::make_ec_key_pair(), "CN=RoguePeer");
+
+  for (auto* node : nodes)
+  {
+    node->start();
+  }
+
+  // Empty-gossip GOSSIPING timeout throws std::logic_error (L298-301), caught
+  // by /timeout (L387-395) without committing or corrupting the trace.
+  {
+    const auto resp = n0.receive_timeout();
+    CHECK(resp.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    const auto err = parse_error_json(resp)["error"];
+    CHECK(err["code"] == ccf::errors::InternalError);
+    CHECK(err["message"].get<std::string>().contains(
+      "No gossip addresses provided yet"));
+  }
+
+  // Invalid quote rejections (L70-80) on gossip, vote, and iamopen do not
+  // commit or perturb the trace.
+  n0.node_op->verify_quote_override =
+    QuoteVerificationResult::FailedInvalidQuotedPublicKey;
+  {
+    CHECK(n0.receive_gossip(n1).status == HTTP_STATUS_UNAUTHORIZED);
+    CHECK(n0.receive_vote(n1).status == HTTP_STATUS_UNAUTHORIZED);
+    CHECK(n0.receive_iamopen(n1).status == HTTP_STATUS_UNAUTHORIZED);
+  }
+  n0.node_op->verify_quote_override = QuoteVerificationResult::Verified;
+
+  // Unknown-primary (L358-365) and non-primary (L368-377) /timeout rejections
+  // do not commit or perturb the trace.
+  {
+    n0.node_op->primary_override = std::optional<ccf::NodeId>(std::nullopt);
+    CHECK(n0.receive_timeout().status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+    n0.node_op->primary_override =
+      std::optional<ccf::NodeId>(n0.fix.node_state->get_node_id());
+    CHECK(
+      send_node_request(
+        *n0.frontend,
+        "/recovery_decision_protocol/timeout",
+        nullptr,
+        other_trusted_cert)
+        .status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK(other_trusted_id != n0.fix.node_state->get_node_id());
+  }
+
+  // Round 1: gossip broadcast; deliver n1's gossip to n0, then verify changed
+  // sender public key for "node1" is rejected on gossip, vote, and iamopen
+  // (L99-109) without affecting the trace.
+  for (auto* node : nodes)
+  {
+    node->run_retry();
+  }
+  CHECK(n0.receive_gossip(n1).status == HTTP_STATUS_NO_CONTENT);
+  {
+    GossipRequest bad_gossip;
+    bad_gossip.info = n1.request_info();
+    bad_gossip.txid = n1.recovered_txid;
+    CHECK(
+      send_node_request(
+        *n0.frontend,
+        "/recovery_decision_protocol/gossip",
+        nlohmann::json(bad_gossip),
+        rogue_cert)
+        .status == HTTP_STATUS_BAD_REQUEST);
+
+    TaggedWithNodeInfo bad_vote;
+    bad_vote.info = n1.request_info();
+    CHECK(
+      send_node_request(
+        *n0.frontend,
+        "/recovery_decision_protocol/vote",
+        nlohmann::json(bad_vote),
+        rogue_cert)
+        .status == HTTP_STATUS_BAD_REQUEST);
+
+    auto ro = n1.fix.network.tables->create_read_only_tx();
+    const auto& bad_iamopen = n1.fix.rdp().get_iamopen_request(ro);
+    CHECK(
+      send_node_request(
+        *n0.frontend,
+        "/recovery_decision_protocol/iamopen",
+        nlohmann::json(bad_iamopen),
+        rogue_cert)
+        .status == HTTP_STATUS_BAD_REQUEST);
+  }
+
+  for (auto* receiver : nodes)
+  {
+    for (auto* sender : nodes)
+    {
+      if (receiver == &n0 && sender == &n1)
+      {
+        continue;
+      }
+      CHECK(receiver->receive_gossip(*sender).status == HTTP_STATUS_NO_CONTENT);
+    }
+    CHECK(receiver->current_sm_state() == StateMachine::VOTING);
+  }
+  // Compact n0's VOTING write so the global SMState hook also runs for a
+  // non-GOSSIPING value inside the traced scenario (L215).
+  n0.fix.network.tables->compact(n0.fix.network.tables->current_version());
+
+  // Post-vote gossip rejection on n0 (L195-205) leaves trace intact.
+  CHECK(n0.receive_gossip(n1).status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+  // Round 2: voting -> node2 opens via Quorum.
+  for (auto* node : nodes)
+  {
+    node->run_retry();
+  }
+  CHECK(n2.receive_vote(n0).status == HTTP_STATUS_NO_CONTENT);
+  CHECK(n2.receive_vote(n1).status == HTTP_STATUS_NO_CONTENT);
+  CHECK(n2.current_sm_state() == StateMachine::OPENING);
+
+  // Already-open IAmOpen rejection while OPENING (L266-298) leaves trace
+  // intact.
+  CHECK(n2.receive_iamopen(n1).status == HTTP_STATUS_BAD_REQUEST);
+
+  // Round 3: node2 broadcasts IAmOpen; node0 and node1 join and stop timers.
+  n2.run_retry();
+  CHECK(n0.receive_iamopen(n2).status == HTTP_STATUS_NO_CONTENT);
+  CHECK(n1.receive_iamopen(n2).status == HTTP_STATUS_NO_CONTENT);
+  n0.run_retry();
+  n1.run_retry();
+  CHECK(n0.retry_task->is_cancelled());
+  CHECK(n1.retry_task->is_cancelled());
+
+  // Round 4: node2 advances OPENING -> OPEN, rejects IAmOpen while OPEN
+  // (L266-298), then handles OPEN timeout and stops timers.
+  CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
+  CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
+  CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
+  CHECK(n2.current_sm_state() == StateMachine::OPEN);
+  CHECK(n2.receive_iamopen(n1).status == HTTP_STATUS_BAD_REQUEST);
+  CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
+  CHECK(n2.current_sm_state() == StateMachine::OPEN);
+  n2.run_retry();
+  CHECK(n2.retry_task->is_cancelled());
 }
 
 int main(int argc, char** argv)
