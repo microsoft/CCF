@@ -1,0 +1,148 @@
+{
+  "spec": "consensus",
+  "description": "Line-range masks selecting the C++ implementation sections modeled by lean/consensus. Mapped files default to fully included; listed ranges exclude mechanisms explicitly outside lean/consensus (periodic task registration, uncommitted-transaction and ledger-backlog backpressure, batch-size byte heuristics, periodic signature disposition, recovery-only force_become_primary/remove_deleted_nodes/enable_all_domains, external RPC/snapshot view-history queries, diagnostic status queries, commit_observer callbacks, trace-capture helpers, the KV Store/Adaptor bridge, and std::formatter logging boilerplate). Aft::periodic (CheckQuorum and election dispatch), recv_message error arms, and ConfigurationChangeHook remain included.",
+  "files": {
+    "src/consensus/aft/cft.h": {
+      "exclude": [
+        {
+          "start": 220,
+          "end": 228,
+          "start_anchor": "void register_periodic_tasks(",
+          "end_anchor": "}",
+          "reason": "JobBoard periodic task registration is unmodeled (lean/consensus models no wall clock)"
+        },
+        {
+          "start": 266,
+          "end": 278,
+          "start_anchor": "bool should_apply_backpressure() override",
+          "end_anchor": "}",
+          "reason": "Ledger-backlog and uncommitted-transaction backpressure are unmodeled"
+        },
+        {
+          "start": 280,
+          "end": 292,
+          "start_anchor": "Consensus::SignatureDisposition get_signature_disposition() override",
+          "end_anchor": "}",
+          "reason": "Periodic signature scheduling (should_sign / SignatureDisposition) is unmodeled"
+        },
+        {
+          "start": 316,
+          "end": 324,
+          "start_anchor": "void trace_retired_committed_tx(",
+          "end_anchor": "}",
+          "reason": "Trace-capture-only helper emitting ccf.cft retired_committed_tx events is unmodeled"
+        },
+        {
+          "start": 361,
+          "end": 395,
+          "start_anchor": "void remove_deleted_nodes(",
+          "end_anchor": "}",
+          "reason": "Disaster-recovery node deletion without retirement and node-identity reuse are out of scope of lean/consensus"
+        },
+        {
+          "start": 431,
+          "end": 437,
+          "start_anchor": "void enable_all_domains() override",
+          "end_anchor": "}",
+          "reason": "Recovery-only public/private security-domain deserialisation toggle is unmodeled"
+        },
+        {
+          "start": 454,
+          "end": 476,
+          "start_anchor": "void force_become_primary(",
+          "end_anchor": "}",
+          "reason": "Disaster-recovery four-argument force_become_primary overload is unmodeled (bootstrap zero-argument overload remains included)"
+        },
+        {
+          "start": 530,
+          "end": 540,
+          "start_anchor": "std::vector<Index> get_view_history(Index idx) override",
+          "end_anchor": "}",
+          "reason": "External RPC/snapshot view-history query accessors are unused by consensus transitions"
+        },
+        {
+          "start": 635,
+          "end": 659,
+          "start_anchor": "ccf::kv::ConsensusDetails get_details() override",
+          "end_anchor": "}",
+          "reason": "Read-only diagnostic/telemetry status snapshot is unmodeled"
+        },
+        {
+          "start": 787,
+          "end": 798,
+          "start_anchor": "if (ledger->is_backlogged())",
+          "end_anchor": "}",
+          "reason": "Ledger I/O backlog message dropping is unmodeled (message loss is modeled non-deterministically by the network queue)"
+        },
+        {
+          "start": 982,
+          "end": 996,
+          "start_anchor": "void update_batch_size()",
+          "end_anchor": "}",
+          "reason": "Byte-size moving-window AppendEntries batching heuristic is unmodeled"
+        },
+        {
+          "start": 1015,
+          "end": 1020,
+          "start_anchor": "bool can_sign_unsafe()",
+          "end_anchor": "}",
+          "reason": "Helper used only by unmodeled get_signature_disposition"
+        },
+        {
+          "start": 2598,
+          "end": 2602,
+          "start_anchor": "if (commit_observer != nullptr)",
+          "end_anchor": "}",
+          "reason": "External CommitObserver callback notification is unmodeled"
+        },
+        {
+          "start": 2748,
+          "end": 2751,
+          "start_anchor": "const State& get_state_for_trace() const",
+          "end_anchor": "}",
+          "reason": "Trace-capture state accessor is unmodeled"
+        }
+      ]
+    },
+    "src/consensus/aft/impl/state.h": {
+      "exclude": [
+        {
+          "start": 110,
+          "end": 125,
+          "start_anchor": "[[nodiscard]] std::vector<ccf::kv::Version> get_history_until(",
+          "end_anchor": "}",
+          "reason": "External RPC/snapshot view-history slice queries (get_history_until, get_history_since) are unused by consensus transitions"
+        }
+      ]
+    },
+    "src/consensus/aft/cft_types.h": {
+      "exclude": [
+        {
+          "start": 24,
+          "end": 86,
+          "start_anchor": "class Store",
+          "end_anchor": "};",
+          "reason": "KV Store interface and weak-pointer Adaptor bridge are abstracted away by NodeState.log in lean/consensus"
+        },
+        {
+          "start": 267,
+          "end": 321,
+          "start_anchor": "template <>\nstruct std::formatter<aft::CftMsgType>",
+          "end_anchor": "};",
+          "reason": "std::formatter<aft::CftMsgType> logging formatter is unmodeled"
+        }
+      ]
+    },
+    "src/node/hooks.h": {
+      "exclude": [
+        {
+          "start": 90,
+          "end": 93,
+          "start_anchor": "if (!retired_committed.empty())",
+          "end_anchor": "}",
+          "reason": "Trace-capture-only retired_committed_tx emission is unmodeled"
+        }
+      ]
+    }
+  }
+}

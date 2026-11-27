@@ -1,0 +1,116 @@
+{
+  "spec": "disaster-recovery",
+  "description": "Line-range masks selecting the C++ implementation sections modeled by lean/disaster-recovery. Mapped files default to fully included (include/ccf/service/tables/self_healing_open.h is included whole without a mask); listed ranges exclude only RDP_TRACE instrumentation (and AdvanceTrace), wall-clock failover timer scheduling with cURL self-HTTP dispatch (start_failover_timers), and cURL HTTP/TLS message transport (dispatch_authenticated_message). All endpoint admission guards, quote/certificate pinning checks, /timeout primary-certificate authentication, retry phase dispatch, and message builders remain included.",
+  "files": {
+    "src/node/recovery_decision_protocol.cpp": {
+      "exclude": [
+        {
+          "start": 28,
+          "end": 81,
+          "start_anchor": "namespace\n{\nconstexpr auto recovery_trace_marker",
+          "end_anchor": "}",
+          "reason": "RDP_TRACE environment check, thread-local batch/version state, and trace_safely helper are unmodeled trace instrumentation"
+        },
+        {
+          "start": 88,
+          "end": 154,
+          "start_anchor": "void RecoveryDecisionProtocolSubsystem::emit_trace(nlohmann::json&& record)",
+          "end_anchor": "}",
+          "reason": "emit_trace, record_trace_send, prepare_trace_step, and trace_committed_step are unmodeled RDP_TRACE instrumentation"
+        },
+        {
+          "start": 218,
+          "end": 228,
+          "start_anchor": "trace_safely([&]() {",
+          "end_anchor": "});",
+          "reason": "RDP_TRACE start-event emission inside try_start global hook is unmodeled trace instrumentation"
+        },
+        {
+          "start": 496,
+          "end": 501,
+          "start_anchor": "trace_safely([&]() {",
+          "end_anchor": "});",
+          "reason": "RDP_TRACE retry batch/pre_version recording inside start_message_retry_timers is unmodeled trace instrumentation"
+        },
+        {
+          "start": 572,
+          "end": 656,
+          "start_anchor": "void RecoveryDecisionProtocolSubsystem::start_failover_timers()",
+          "end_anchor": "}",
+          "reason": "Wall-clock periodic failover timer scheduling and cURL self-HTTP timeout delivery are abstracted as Input.timeout in DisasterRecovery/Model.lean"
+        },
+        {
+          "start": 672,
+          "end": 739,
+          "start_anchor": "void RecoveryDecisionProtocolSubsystem::dispatch_authenticated_message(",
+          "end_anchor": "}",
+          "reason": "cURL HTTP/TLS client transport and record_trace_send are abstracted away by CCF.MultiNodeTransitionSystem"
+        }
+      ]
+    },
+    "src/node/recovery_decision_protocol.h": {
+      "exclude": [
+        {
+          "start": 45,
+          "end": 60,
+          "start_anchor": "// What one execution of advance() read, wrote and requested. Trace only.",
+          "end_anchor": "DECLARE_JSON_OPTIONAL_FIELDS(AdvanceTrace, chosen, open_kind, restart);",
+          "reason": "AdvanceTrace struct and JSON serialisation are trace-only instrumentation"
+        },
+        {
+          "start": 95,
+          "end": 105,
+          "start_anchor": "// A handler execution is recorded here, and logged by trace_committed_step",
+          "end_anchor": "const ccf::TxID& txid) noexcept;",
+          "reason": "Declarations of unmodeled RDP_TRACE step helpers"
+        },
+        {
+          "start": 110,
+          "end": 110,
+          "start_anchor": "void start_failover_timers();",
+          "end_anchor": "void start_failover_timers();",
+          "reason": "Declaration of unmodeled wall-clock failover timer scheduler"
+        },
+        {
+          "start": 123,
+          "end": 129,
+          "start_anchor": "// Records the send in the trace, then dispatches it",
+          "end_anchor": "const crypto::Pem& privkey_pem);",
+          "reason": "Declaration of unmodeled cURL HTTP/TLS message dispatcher"
+        },
+        {
+          "start": 135,
+          "end": 139,
+          "start_anchor": "void record_trace_send(",
+          "end_anchor": "void emit_trace(nlohmann::json&& record);",
+          "reason": "Declarations of unmodeled RDP_TRACE helpers"
+        }
+      ]
+    },
+    "src/node/rpc/self_healing_open_handlers.h": {
+      "exclude": [
+        {
+          "start": 149,
+          "end": 157,
+          "start_anchor": "std::optional<ccf::TxID> trace_txid = std::nullopt;",
+          "end_anchor": "*args.rpc_ctx, trace_kind, in.info.location.name, trace_txid, trace);",
+          "reason": "RDP_TRACE prepare_trace_step hook is unmodeled trace instrumentation"
+        },
+        {
+          "start": 166,
+          "end": 178,
+          "start_anchor": "// Logs each successful execution once its transaction commits, with the",
+          "end_anchor": "};",
+          "reason": "RDP_TRACE commit callback (trace_on_commit) is unmodeled trace instrumentation"
+        },
+        {
+          "start": 396,
+          "end": 397,
+          "start_anchor": "node_operation->recovery_decision_protocol().prepare_trace_step(",
+          "end_anchor": "*args.rpc_ctx, \"timeout\", {}, std::nullopt, trace);",
+          "reason": "RDP_TRACE prepare_trace_step hook on /timeout is unmodeled trace instrumentation"
+        }
+      ]
+    }
+  }
+}

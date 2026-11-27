@@ -21,26 +21,22 @@ class LeanCoverageReportTest(unittest.TestCase):
 
 ## Alpha (`lean/alpha`)
 
-### Core implementation files
+### In-scope implementation files
 
 - [`src/a/one.h`](../src/a/one.h): core file mentioning `src/ignored/in_prose.h`.
 - [`src/a/two.cpp`](../src/a/two.cpp) and [`include/ccf/a.h`](../include/ccf/a.h): paired files.
 
-### Questionable or partial inclusions
+### Out-of-scope subsystems and abstractions
 
-- **Partial coverage within [`src/a/one.h`](../src/a/one.h)**: commentary only.
-- [`src/a/extra.h`](../src/a/extra.h): optional wrapper.
-- **Explicitly excluded files**:
-  - [`src/a/excluded.h`](../src/a/excluded.h).
+- [`src/a/excluded.h`](../src/a/excluded.h): explicitly out of scope.
 """
         mappings = lean_coverage_report.parse_coverage_mapping(doc)
         self.assertEqual(len(mappings), 1)
         self.assertEqual(mappings[0].name, "alpha")
         self.assertEqual(
-            mappings[0].core_files,
+            mappings[0].files,
             ["src/a/one.h", "src/a/two.cpp", "include/ccf/a.h"],
         )
-        self.assertEqual(mappings[0].questionable_files, ["src/a/extra.h"])
 
     def test_count_cpp_loc(self) -> None:
         code = """
@@ -96,13 +92,11 @@ def g : Nat := 1
             mappings = [
                 lean_coverage_report.SpecMapping(
                     name="alpha",
-                    core_files=["src/a/core.h", "src/a/types.h"],
-                    questionable_files=[],
+                    files=["src/a/core.h", "src/a/types.h"],
                 ),
                 lean_coverage_report.SpecMapping(
                     name="beta",
-                    core_files=["src/a/core.h"],
-                    questionable_files=[],
+                    files=["src/a/core.h"],
                 ),
             ]
             cov_files = [
@@ -180,6 +174,54 @@ def g : Nat := 1
             with self.assertRaises(ValueError):
                 lean_coverage_report.load_spec_mask(root, "kv", ["src/kv/a.h"])
 
+            # Weak punctuation-only start_anchor must raise ValueError.
+            (root / "src/kv/a.h").write_text(
+                "int keep();\n{\n  int x = 1;\n}\nint also_keep();\n",
+                encoding="utf-8",
+            )
+            mask["files"]["src/kv/a.h"]["exclude"][0]["start_anchor"] = "{"
+            mask_path.write_text(json.dumps(mask), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                lean_coverage_report.load_spec_mask(root, "kv", ["src/kv/a.h"])
+
+            # Multi-line start_anchor with identifier context passes.
+            mask["files"]["src/kv/a.h"]["exclude"][0]["start_anchor"] = "{\nint x = 1;"
+            mask_path.write_text(json.dumps(mask), encoding="utf-8")
+            loaded_multi = lean_coverage_report.load_spec_mask(
+                root, "kv", ["src/kv/a.h"]
+            )
+            self.assertEqual(loaded_multi, {"src/kv/a.h": {1, 5}})
+
+            # Unbalanced braces in range must raise ValueError.
+            mask["files"]["src/kv/a.h"]["exclude"][0]["end"] = 3
+            mask["files"]["src/kv/a.h"]["exclude"][0]["end_anchor"] = "int x = 1;"
+            mask_path.write_text(json.dumps(mask), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                lean_coverage_report.load_spec_mask(root, "kv", ["src/kv/a.h"])
+
+    def test_validate_disjoint_specs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src/a").mkdir(parents=True)
+            (root / "src/a/f.h").write_text("int a;\nint b;\n", encoding="utf-8")
+            mappings = [
+                lean_coverage_report.SpecMapping(name="s1", files=["src/a/f.h"]),
+                lean_coverage_report.SpecMapping(name="s2", files=["src/a/f.h"]),
+            ]
+            # Disjoint masks pass.
+            lean_coverage_report.validate_disjoint_specs(
+                root,
+                mappings,
+                {"s1": {"src/a/f.h": {1}}, "s2": {"src/a/f.h": {2}}},
+            )
+            # Overlapping masks fail.
+            with self.assertRaises(ValueError):
+                lean_coverage_report.validate_disjoint_specs(
+                    root,
+                    mappings,
+                    {"s1": {"src/a/f.h": {1, 2}}, "s2": {"src/a/f.h": {2}}},
+                )
+
     def test_parse_html_ignores_nested_expansion_tables(self) -> None:
         html = (
             "<table>"
@@ -240,9 +282,7 @@ def g : Nat := 1
 
             details = lean_coverage_report.load_export_json(gz_path)
             mappings = [
-                lean_coverage_report.SpecMapping(
-                    name="kv", core_files=["src/kv/a.h"], questionable_files=[]
-                )
+                lean_coverage_report.SpecMapping(name="kv", files=["src/kv/a.h"])
             ]
             # Mask includes lines 1-3, excludes line 4.
             per_spec, total, _ = lean_coverage_report.compute_metrics(
@@ -262,26 +302,70 @@ def g : Nat := 1
             self.assertEqual((kv.branches, kv.missed_branches), (2, 0))
             self.assertEqual((total.lines, total.branches), (2, 2))
 
-    def test_repo_kv_coverage_mask_is_valid(self) -> None:
+            rem_per_spec, rem_total = lean_coverage_report.compute_removed_metrics(
+                repo_root=root,
+                mappings=mappings,
+                coverage_files=[],
+                spec_masks={"kv": {"src/kv/a.h": {1, 2, 3}}},
+                detailed_coverage=details,
+            )
+            self.assertEqual(rem_per_spec[0].code_loc, 1)
+            self.assertEqual(
+                (rem_per_spec[0].lines, rem_per_spec[0].missed_lines), (1, 1)
+            )
+            self.assertEqual(
+                (rem_per_spec[0].branches, rem_per_spec[0].missed_branches), (2, 2)
+            )
+            self.assertEqual((rem_total.lines, rem_total.branches), (1, 2))
+
+    def test_repo_coverage_masks_are_valid(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         mappings = lean_coverage_report.parse_coverage_mapping(
             (repo_root / "lean/COVERAGE_MAPPING.md").read_text(encoding="utf-8")
         )
-        kv_mapping = next(m for m in mappings if m.name == "kv")
-        loaded = lean_coverage_report.load_spec_mask(
-            repo_root, "kv", kv_mapping.core_files
-        )
-        self.assertEqual(
-            set(loaded.keys()),
-            {
+        expected_masked_files = {
+            "consensus": {
+                "src/consensus/aft/cft.h",
+                "src/consensus/aft/impl/state.h",
+                "src/consensus/aft/cft_types.h",
+                "src/node/hooks.h",
+            },
+            "consistency": {
+                "src/endpoints/base_endpoint_registry.cpp",
+                "src/endpoints/common_endpoint_registry.cpp",
+                "src/endpoints/endpoint_registry.cpp",
+                "src/node/rpc/frontend.h",
+            },
+            "disaster-recovery": {
+                "src/node/recovery_decision_protocol.cpp",
+                "src/node/recovery_decision_protocol.h",
+                "src/node/rpc/self_healing_open_handlers.h",
+            },
+            "kv": {
                 "src/kv/store.h",
                 "src/kv/untyped_map.h",
                 "src/kv/untyped_change_set.h",
+                "src/kv/untyped_map_handle.cpp",
                 "src/kv/apply_changes.h",
+                "src/kv/tx.cpp",
+                "src/kv/tx_pimpl.h",
                 "include/ccf/kv/tx.h",
                 "src/kv/committable_tx.h",
             },
-        )
+        }
+        self.assertEqual({m.name for m in mappings}, set(expected_masked_files.keys()))
+        all_masks: dict[str, dict[str, set[int]]] = {}
+        for mapping in mappings:
+            loaded = lean_coverage_report.load_spec_mask(
+                repo_root, mapping.name, mapping.files
+            )
+            self.assertEqual(
+                set(loaded.keys()),
+                expected_masked_files[mapping.name],
+                msg=f"Unexpected masked files for {mapping.name}",
+            )
+            all_masks[mapping.name] = loaded
+        lean_coverage_report.validate_disjoint_specs(repo_root, mappings, all_masks)
 
 
 if __name__ == "__main__":

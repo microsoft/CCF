@@ -1,6 +1,6 @@
 {
   "spec": "kv",
-  "description": "Line-range masks selecting the C++ implementation sections modeled by lean/kv. Mapped core files default to fully included; listed ranges exclude mechanisms explicitly outside lean/kv (snapshots, ledger serialisation/deserialisation, ReservedTx, TxFlag, hooks, encryption/history/chunker plumbing, TxDiff, StoreState::clear, Map::clear, swap_private_maps).",
+  "description": "Line-range masks selecting the C++ implementation sections modeled by lean/kv. Mapped files default to fully included; listed ranges exclude mechanisms explicitly outside lean/kv (snapshots, ledger serialisation/deserialisation, ReservedTx, TxFlag, hooks, encryption/history/chunker plumbing, TxDiff/MapDiff, WriteSetObserver, StoreState::clear, Map::clear, swap_private_maps, and opt-in #ifdef CCF_KV_TRACING instrumentation blocks).",
   "files": {
     "src/kv/store.h": {
       "exclude": [
@@ -12,9 +12,9 @@
           "reason": "Node readiness state machine is unmodeled"
         },
         {
-          "start": 74,
+          "start": 75,
           "end": 93,
-          "start_anchor": "public:",
+          "start_anchor": "void clear()",
           "end_anchor": "}",
           "reason": "StoreState::clear is unmodeled (trace::unsupported: store clear)"
         },
@@ -42,7 +42,7 @@
         {
           "start": 407,
           "end": 420,
-          "start_anchor": "{",
+          "start_anchor": "{\n// If we have any hooks for the given map name, set them on this new map",
           "end_anchor": "}",
           "reason": "Map and global hook attachment on dynamic map creation is unmodeled"
         },
@@ -54,6 +54,13 @@
           "reason": "Snapshot creation, serialisation, SnapshotPublicMaps, and snapshot import/deserialisation are unmodeled (trace::unsupported: snapshot import)"
         },
         {
+          "start": 823,
+          "end": 825,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Environment trace_environment;",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING instrumentation is unmodeled"
+        },
+        {
           "start": 830,
           "end": 840,
           "start_anchor": "if (snapshotter)",
@@ -61,11 +68,39 @@
           "reason": "Snapshotter and ledger chunker compaction callbacks are unmodeled"
         },
         {
+          "start": 846,
+          "end": 859,
+          "start_anchor": "#ifdef CCF_KV_TRACING\nif (trace::enabled())",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING instrumentation is unmodeled"
+        },
+        {
           "start": 886,
-          "end": 897,
+          "end": 890,
           "start_anchor": "auto h = get_history();",
           "end_anchor": "}",
-          "reason": "TxHistory compaction and global post_compact hooks are unmodeled"
+          "reason": "TxHistory compaction notification is unmodeled"
+        },
+        {
+          "start": 893,
+          "end": 897,
+          "start_anchor": "for (auto& it : maps)",
+          "end_anchor": "}",
+          "reason": "Global post_compact hooks are unmodeled"
+        },
+        {
+          "start": 902,
+          "end": 904,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Environment trace_environment;",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING instrumentation is unmodeled"
+        },
+        {
+          "start": 911,
+          "end": 913,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Rollback trace_rollback(this);",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING instrumentation is unmodeled"
         },
         {
           "start": 930,
@@ -80,13 +115,6 @@
           "start_anchor": "if (snapshotter)",
           "end_anchor": "}",
           "reason": "Snapshotter and chunker rollback notifications (no-op rollback branch) are unmodeled"
-        },
-        {
-          "start": 962,
-          "end": 963,
-          "start_anchor": "last_committable = std::min(",
-          "end_anchor": "unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);",
-          "reason": "Signature last_committable tracking and snapshot store flags are unmodeled"
         },
         {
           "start": 966,
@@ -161,6 +189,13 @@
           "start_anchor": "static State deserialize_map_snapshot(",
           "end_anchor": "}",
           "reason": "Map snapshot deserialisation is unmodeled"
+        },
+        {
+          "start": 236,
+          "end": 241,
+          "start_anchor": "else if (track_deletes_on_missing_keys)",
+          "end_anchor": "}",
+          "reason": "MapDiff delete-tracking branch in HandleCommitter::commit is unmodeled"
         },
         {
           "start": 252,
@@ -258,6 +293,13 @@
     "src/kv/untyped_change_set.h": {
       "exclude": [
         {
+          "start": 40,
+          "end": 42,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::MapMetadata trace_metadata;",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING metadata field is unmodeled"
+        },
+        {
           "start": 75,
           "end": 94,
           "start_anchor": "// This is a container for a snapshot.",
@@ -270,6 +312,38 @@
           "start_anchor": "namespace map",
           "end_anchor": "}",
           "reason": "Snapshot/map wire serialisation helpers are unmodeled"
+        }
+      ]
+    },
+    "src/kv/untyped_map_handle.cpp": {
+      "exclude": [
+        {
+          "start": 11,
+          "end": 59,
+          "start_anchor": "#ifdef CCF_KV_TRACING\nnamespace",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING traced_foreach helper is unmodeled"
+        },
+        {
+          "start": 265,
+          "end": 267,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Suppress trace_suppress(tx_changes.trace_metadata);",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING suppression guard is unmodeled"
+        },
+        {
+          "start": 291,
+          "end": 293,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Suppress trace_suppress(tx_changes.trace_metadata);",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING suppression guard is unmodeled"
+        },
+        {
+          "start": 310,
+          "end": 328,
+          "start_anchor": "#ifdef CCF_KV_TRACING\n// Records the bounds and the collected entries",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING range-iteration logging is unmodeled"
         }
       ]
     },
@@ -288,6 +362,28 @@
           "start_anchor": "// Collect ConsensusHooks",
           "end_anchor": "}",
           "reason": "ConsensusHook collection via post_commit is unmodeled"
+        }
+      ]
+    },
+    "src/kv/tx.cpp": {
+      "exclude": [
+        {
+          "start": 55,
+          "end": 57,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Context trace_context(pimpl->trace_attempt.id);",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING context guard is unmodeled"
+        }
+      ]
+    },
+    "src/kv/tx_pimpl.h": {
+      "exclude": [
+        {
+          "start": 13,
+          "end": 15,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Attempt trace_attempt;",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING attempt state is unmodeled"
         }
       ]
     },
@@ -333,18 +429,25 @@
           "reason": "Transaction size limit projection and serialisation are unmodeled"
         },
         {
-          "start": 216,
-          "end": 231,
-          "start_anchor": "std::optional<size_t> projected_entry_size = std::nullopt;",
-          "end_anchor": "}",
-          "reason": "MaxTransactionSizeExceeded pre-check is unmodeled"
+          "start": 205,
+          "end": 207,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Commit trace_commit(pimpl->trace_attempt.id);",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING commit guard is unmodeled"
         },
         {
-          "start": 310,
-          "end": 313,
-          "start_anchor": "const auto force_ledger_chunk =",
-          "end_anchor": "tx_flag_enabled(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);",
-          "reason": "Ledger chunk / snapshot TxFlag reads are unmodeled"
+          "start": 245,
+          "end": 261,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Json trace_writes;",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING write-set capture is unmodeled"
+        },
+        {
+          "start": 264,
+          "end": 267,
+          "start_anchor": "#ifdef CCF_KV_TRACING\ntrace::Context trace_context(",
+          "end_anchor": "#endif",
+          "reason": "Opt-in CCF_KV_TRACING context guard is unmodeled"
         },
         {
           "start": 320,
@@ -361,18 +464,11 @@
           "reason": "Ledger chunk / snapshot TxFlag application is unmodeled"
         },
         {
-          "start": 357,
+          "start": 371,
           "end": 376,
-          "start_anchor": "ccf::crypto::Sha256Hash commit_evidence_digest;",
+          "start_anchor": "if (write_set_observer != nullptr)",
           "end_anchor": "}",
-          "reason": "Post-apply serialisation, size assert, and write_set_observer are unmodeled"
-        },
-        {
-          "start": 395,
-          "end": 406,
-          "start_anchor": "catch (const std::exception& e)",
-          "end_anchor": "}",
-          "reason": "Serialisation exception re-throw (KvSerialiserException) is unmodeled"
+          "reason": "WriteSetObserver callback is unmodeled (trace::unsupported: write set observer)"
         },
         {
           "start": 477,

@@ -1,0 +1,120 @@
+{
+  "spec": "consistency",
+  "description": "Positive whole-function include masks selecting the C++ implementation sections modeled by lean/consistency inside multi-purpose RPC and endpoint files (include/ccf/tx_status.h is included whole without a mask). Selects transaction status evaluation (/tx and get_status_for_txid_v1), initial x-ms-ccf-transaction-id header emission and default forwarding policies (endpoint_registry.cpp), and the RpcFrontend execution, forwarding, session-consistency, and commit/retry loop (frontend.h, including exception handlers).",
+  "files": {
+    "src/endpoints/base_endpoint_registry.cpp": {
+      "include": [
+        {
+          "start": 67,
+          "end": 89,
+          "start_anchor": "ApiResult BaseEndpointRegistry::get_status_for_txid_v1(",
+          "end_anchor": "}",
+          "reason": "Delegates transaction status evaluation to consensus (implements Event.status reporting)"
+        }
+      ]
+    },
+    "src/endpoints/common_endpoint_registry.cpp": {
+      "include": [
+        {
+          "start": 35,
+          "end": 42,
+          "start_anchor": "struct GetTxStatus",
+          "end_anchor": "};",
+          "reason": "Response payload type for /tx status observations"
+        },
+        {
+          "start": 53,
+          "end": 56,
+          "start_anchor": "DECLARE_JSON_TYPE(GetTxStatus::Out);",
+          "end_anchor": "static constexpr auto tx_id_param_key = \"transaction_id\";",
+          "reason": "JSON serialisation and query-parameter key for /tx status observations"
+        },
+        {
+          "start": 233,
+          "end": 283,
+          "start_anchor": "auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {",
+          "end_anchor": ".install();",
+          "reason": "/tx client endpoint handler and registration reporting Committed/Invalid/Pending/Unknown status"
+        }
+      ]
+    },
+    "src/endpoints/endpoint_registry.cpp": {
+      "include": [
+        {
+          "start": 204,
+          "end": 274,
+          "start_anchor": "void default_locally_committed_func(",
+          "end_anchor": "}",
+          "reason": "Populates x-ms-ccf-transaction-id on initial responses and sets default ForwardingRequired policies for write, read-only, and command endpoints"
+        },
+        {
+          "start": 491,
+          "end": 531,
+          "start_anchor": "void EndpointRegistry::execute_command_endpoint(",
+          "end_anchor": "}",
+          "reason": "Executes endpoint handlers and locally committed TxID response callbacks"
+        },
+        {
+          "start": 594,
+          "end": 597,
+          "start_anchor": "void EndpointRegistry::set_consensus(ccf::kv::Consensus* c)",
+          "end_anchor": "}",
+          "reason": "Binds consensus instance used by status evaluation"
+        }
+      ]
+    },
+    "src/node/rpc/frontend.h": {
+      "include": [
+        {
+          "start": 440,
+          "end": 475,
+          "start_anchor": "bool check_session_consistency(",
+          "end_anchor": "}",
+          "reason": "Pins session active view and aborts requests on view change to preserve session consistency"
+        },
+        {
+          "start": 552,
+          "end": 620,
+          "start_anchor": "void forward(",
+          "end_anchor": "}",
+          "reason": "Forwards backup requests to the primary, prevents daisy-chain forwarding, and marks sessions as forwarding"
+        },
+        {
+          "start": 739,
+          "end": 800,
+          "start_anchor": "bool redirect_or_forward(",
+          "end_anchor": "}",
+          "reason": "Dispatches backup forwarding according to endpoint ForwardingRequired policy and session forwarding state"
+        },
+        {
+          "start": 802,
+          "end": 922,
+          "start_anchor": "enum class CommitAction : uint8_t",
+          "end_anchor": "}",
+          "reason": "Commits transactions, invokes locally_committed_func to emit TxIDs, and handles conflict retry and replication failure"
+        },
+        {
+          "start": 924,
+          "end": 1128,
+          "start_anchor": "void process_command_inner(",
+          "end_anchor": "}",
+          "reason": "Main RPC execution, forwarding, session-consistency check, commit/retry loop, and error cleanup preventing false TxIDs"
+        },
+        {
+          "start": 1200,
+          "end": 1205,
+          "start_anchor": "void process(std::shared_ptr<ccf::RpcContextImpl> ctx) override",
+          "end_anchor": "}",
+          "reason": "Client request entrypoint"
+        },
+        {
+          "start": 1211,
+          "end": 1226,
+          "start_anchor": "void process_forwarded(std::shared_ptr<ccf::RpcContextImpl> ctx) override",
+          "end_anchor": "}",
+          "reason": "Forwarded request entrypoint enforcing single-hop forwarding invariants"
+        }
+      ]
+    }
+  }
+}

@@ -50,11 +50,32 @@ _NON_MAPPING_BULLET_PREFIXES = (
     "- **Explicitly excluded",
 )
 
+# Bare punctuation or context-free keywords that are too weak as standalone
+# single-line start_anchor values.
+_WEAK_START_ANCHORS = frozenset(
+    {
+        "{",
+        "}",
+        "namespace",
+        "public:",
+        "private:",
+        "protected:",
+        "if",
+        "if (",
+        "else",
+        "try",
+        "catch",
+        "template <>",
+        "struct",
+        "class",
+        "default:",
+    }
+)
+
 
 class SpecMapping(NamedTuple):
     name: str
-    core_files: list[str]
-    questionable_files: list[str]
+    files: list[str]
 
 
 class SpecMetrics(NamedTuple):
@@ -69,6 +90,35 @@ class SpecMetrics(NamedTuple):
     branches: int
     missed_branches: int
     masked: bool = False
+    branches_available: bool = True
+
+    @property
+    def lines_hit(self) -> int:
+        return self.lines - self.missed_lines
+
+    @property
+    def branches_hit(self) -> int:
+        return self.branches - self.missed_branches
+
+    @property
+    def line_coverage(self) -> float | None:
+        return _percentage(self.lines, self.missed_lines)
+
+    @property
+    def branch_coverage(self) -> float | None:
+        if not self.branches_available:
+            return None
+        return _percentage(self.branches, self.missed_branches)
+
+
+class RemovedMetrics(NamedTuple):
+    name: str
+    masked_files: int
+    code_loc: int
+    lines: int
+    missed_lines: int
+    branches: int
+    missed_branches: int
     branches_available: bool = True
 
     @property
@@ -157,23 +207,15 @@ def parse_coverage_mapping(text: str) -> list[SpecMapping]:
     """Parse ``lean/COVERAGE_MAPPING.md`` into per-specification file lists."""
     mappings: list[SpecMapping] = []
     current_name: str | None = None
-    current_core: list[str] = []
-    current_questionable: list[str] = []
-    section: str | None = None
+    current_files: list[str] = []
+    in_scope_section = False
 
     def flush() -> None:
-        nonlocal current_name, current_core, current_questionable
+        nonlocal current_name, current_files
         if current_name is not None:
-            mappings.append(
-                SpecMapping(
-                    name=current_name,
-                    core_files=current_core,
-                    questionable_files=current_questionable,
-                )
-            )
+            mappings.append(SpecMapping(name=current_name, files=current_files))
         current_name = None
-        current_core = []
-        current_questionable = []
+        current_files = []
 
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
@@ -181,7 +223,7 @@ def parse_coverage_mapping(text: str) -> list[SpecMapping]:
         if spec_match:
             flush()
             current_name = spec_match.group(1)
-            section = None
+            in_scope_section = False
             continue
 
         if current_name is None:
@@ -190,24 +232,20 @@ def parse_coverage_mapping(text: str) -> list[SpecMapping]:
         sub_match = _SUBSECTION_RE.match(line)
         if sub_match:
             heading = sub_match.group(1).lower()
-            if heading.startswith("core implementation"):
-                section = "core"
-            elif heading.startswith("questionable"):
-                section = "questionable"
-            else:
-                section = None
+            in_scope_section = heading.startswith(
+                ("in-scope implementation", "core implementation")
+            )
             continue
 
-        if section is None or not line.startswith("- "):
+        if not in_scope_section or not line.startswith("- "):
             continue
 
         if any(line.startswith(prefix) for prefix in _NON_MAPPING_BULLET_PREFIXES):
             continue
 
-        target = current_core if section == "core" else current_questionable
         for path in _extract_bullet_paths(line):
-            if path not in target:
-                target.append(path)
+            if path not in current_files:
+                current_files.append(path)
 
     flush()
     return mappings
@@ -525,6 +563,156 @@ def fetch_ci_coverage_report(
     )
 
 
+def _validate_start_anchor(
+    mask_path: Path,
+    rel_path: str,
+    source_lines: Sequence[str],
+    start: int,
+    start_anchor: Any,
+) -> None:
+    if not isinstance(start_anchor, str) or not start_anchor.strip():
+        raise ValueError(
+            f"{mask_path}: {rel_path}:{start} start_anchor must be a non-empty string"
+        )
+    anchor_lines = start_anchor.splitlines()
+    if len(anchor_lines) == 1:
+        stripped = anchor_lines[0].strip()
+        if stripped in _WEAK_START_ANCHORS or not re.search(r"[A-Za-z_]", stripped):
+            raise ValueError(
+                f"{mask_path}: {rel_path}:{start} start_anchor {start_anchor!r} "
+                "is too weak (use an identifier-bearing anchor or multi-line anchor)"
+            )
+    else:
+        if not any(
+            line.strip() not in _WEAK_START_ANCHORS and re.search(r"[A-Za-z_]", line)
+            for line in anchor_lines
+        ):
+            raise ValueError(
+                f"{mask_path}: {rel_path}:{start} start_anchor {start_anchor!r} "
+                "contains no meaningful identifier context"
+            )
+    if start - 1 + len(anchor_lines) > len(source_lines):
+        raise ValueError(
+            f"{mask_path}: {rel_path}:{start} multi-line start_anchor extends past EOF"
+        )
+    for offset, expected in enumerate(anchor_lines):
+        actual = source_lines[start - 1 + offset]
+        if expected not in actual:
+            raise ValueError(
+                f"{mask_path}: {rel_path}:{start + offset} start_anchor "
+                f"{expected!r} not found in {actual!r}"
+            )
+
+
+def _check_cpp_brace_balance(
+    mask_path: Path,
+    rel_path: str,
+    source_lines: Sequence[str],
+    start: int,
+    end: int,
+    kind: str,
+) -> None:
+    """Verify lexical '{' / '}' balance across lines ``[start, end]``."""
+    in_block_comment = False
+    raw_delim: str | None = None
+    brace_depth = 0
+
+    for line_no in range(1, end + 1):
+        line = source_lines[line_no - 1]
+        in_range = line_no >= start
+        i = 0
+        n = len(line)
+        in_string = False
+        in_char = False
+
+        while i < n:
+            if raw_delim is not None:
+                end_marker = ")" + raw_delim + '"'
+                pos = line.find(end_marker, i)
+                if pos == -1:
+                    i = n
+                else:
+                    i = pos + len(end_marker)
+                    raw_delim = None
+                continue
+
+            if in_block_comment:
+                end_pos = line.find("*/", i)
+                if end_pos == -1:
+                    i = n
+                else:
+                    i = end_pos + 2
+                    in_block_comment = False
+                continue
+
+            ch = line[i]
+            if in_string:
+                if ch == "\\" and i + 1 < n:
+                    i += 2
+                elif ch == '"':
+                    in_string = False
+                    i += 1
+                else:
+                    i += 1
+                continue
+
+            if in_char:
+                if ch == "\\" and i + 1 < n:
+                    i += 2
+                elif ch == "'":
+                    in_char = False
+                    i += 1
+                else:
+                    i += 1
+                continue
+
+            if ch == "/" and i + 1 < n:
+                nxt = line[i + 1]
+                if nxt == "/":
+                    break
+                if nxt == "*":
+                    in_block_comment = True
+                    i += 2
+                    continue
+
+            if ch == "R" and i + 1 < n and line[i + 1] == '"':
+                paren = line.find("(", i + 2)
+                if paren != -1:
+                    candidate = line[i + 2 : paren]
+                    if all(c not in " \t()\\" for c in candidate):
+                        raw_delim = candidate
+                        i = paren + 1
+                        continue
+
+            if ch == '"':
+                in_string = True
+                i += 1
+                continue
+
+            if ch == "'":
+                in_char = True
+                i += 1
+                continue
+
+            if in_range:
+                if ch == "{":
+                    brace_depth += 1
+                elif ch == "}":
+                    brace_depth -= 1
+                    if brace_depth < 0:
+                        raise ValueError(
+                            f"{mask_path}: {rel_path} {kind} range {start}-{end} "
+                            f"has unbalanced '}}' at line {line_no}"
+                        )
+            i += 1
+
+    if brace_depth != 0:
+        raise ValueError(
+            f"{mask_path}: {rel_path} {kind} range {start}-{end} "
+            f"has unbalanced braces (net depth {brace_depth})"
+        )
+
+
 def _expand_mask_ranges(
     mask_path: Path,
     rel_path: str,
@@ -542,20 +730,58 @@ def _expand_mask_ranges(
                 f"{mask_path}: {rel_path} {kind} range {start}-{end} "
                 f"is out of bounds (file has {num_lines} lines)"
             )
-        start_anchor = entry.get("start_anchor")
-        if start_anchor and start_anchor not in source_lines[start - 1]:
-            raise ValueError(
-                f"{mask_path}: {rel_path}:{start} start_anchor "
-                f"{start_anchor!r} not found in {source_lines[start - 1]!r}"
-            )
+        _validate_start_anchor(
+            mask_path, rel_path, source_lines, start, entry.get("start_anchor")
+        )
         end_anchor = entry.get("end_anchor")
         if end_anchor and end_anchor not in source_lines[end - 1]:
             raise ValueError(
                 f"{mask_path}: {rel_path}:{end} end_anchor "
                 f"{end_anchor!r} not found in {source_lines[end - 1]!r}"
             )
-        selected.update(range(start, end + 1))
+        _check_cpp_brace_balance(mask_path, rel_path, source_lines, start, end, kind)
+        line_range = set(range(start, end + 1))
+        overlap = selected & line_range
+        if overlap:
+            raise ValueError(
+                f"{mask_path}: {rel_path} {kind} range {start}-{end} overlaps "
+                f"an earlier range at line {min(overlap)}"
+            )
+        selected.update(line_range)
     return selected
+
+
+def validate_disjoint_specs(
+    repo_root: Path,
+    mappings: Sequence[SpecMapping],
+    spec_masks: dict[str, dict[str, set[int]]] | None = None,
+) -> None:
+    """Verify that no source line is mapped to more than one specification."""
+    claimed: dict[str, dict[int, str]] = {}
+    line_count_cache: dict[str, int] = {}
+
+    for mapping in mappings:
+        mask = (spec_masks or {}).get(mapping.name, {})
+        for rel_path in mapping.files:
+            if rel_path not in line_count_cache:
+                line_count_cache[rel_path] = len(
+                    (repo_root / rel_path).read_text(encoding="utf-8").splitlines()
+                )
+            included = mask.get(rel_path)
+            lines = (
+                included
+                if included is not None
+                else set(range(1, line_count_cache[rel_path] + 1))
+            )
+            file_claims = claimed.setdefault(rel_path, {})
+            for line_no in sorted(lines):
+                prev = file_claims.get(line_no)
+                if prev is not None and prev != mapping.name:
+                    raise ValueError(
+                        f"Disjointness violation: {rel_path}:{line_no} is mapped "
+                        f"to both '{prev}' and '{mapping.name}'"
+                    )
+                file_claims[line_no] = mapping.name
 
 
 def load_spec_mask(
@@ -919,13 +1145,20 @@ def _file_metrics(
     by_path: dict[str, FileCoverage],
     detailed_by_path: dict[str, DetailedFileCoverage] | None,
 ) -> tuple[int, int, int, int, bool, bool]:
-    """Return ``(lines, missed_lines, branches, missed_branches, branches_ok, present)``."""
+    """Return ``(lines, missed_lines, branches, missed_branches, branches_ok, present)``.
+
+    When detailed coverage with branch data (``llvm-cov export`` JSON) is
+    available, use it uniformly for both masked and unmasked files so masked,
+    whole-file, and removed-region comparisons share identical branch
+    deduplication semantics.
+    """
+    detail = (
+        _lookup_detailed_coverage(path, detailed_by_path)
+        if detailed_by_path is not None
+        else None
+    )
+
     if included_lines is not None:
-        detail = (
-            _lookup_detailed_coverage(path, detailed_by_path)
-            if detailed_by_path is not None
-            else None
-        )
         if detail is None:
             if _lookup_coverage(path, by_path) is None:
                 return 0, 0, 0, 0, True, False
@@ -935,6 +1168,12 @@ def _file_metrics(
             )
         lines, missed_lines, branches, missed_branches, branches_ok = (
             _summarize_detailed(detail, included_lines)
+        )
+        return lines, missed_lines, branches, missed_branches, branches_ok, True
+
+    if detail is not None and detail.branches is not None:
+        lines, missed_lines, branches, missed_branches, branches_ok = (
+            _summarize_detailed(detail, None)
         )
         return lines, missed_lines, branches, missed_branches, branches_ok, True
 
@@ -949,13 +1188,11 @@ def _file_metrics(
             True,
         )
 
-    if detailed_by_path is not None:
-        detail = _lookup_detailed_coverage(path, detailed_by_path)
-        if detail is not None:
-            lines, missed_lines, branches, missed_branches, branches_ok = (
-                _summarize_detailed(detail, None)
-            )
-            return lines, missed_lines, branches, missed_branches, branches_ok, True
+    if detail is not None:
+        lines, missed_lines, branches, missed_branches, branches_ok = (
+            _summarize_detailed(detail, None)
+        )
+        return lines, missed_lines, branches, missed_branches, branches_ok, True
 
     return 0, 0, 0, 0, True, False
 
@@ -964,7 +1201,6 @@ def compute_metrics(
     repo_root: Path,
     mappings: Sequence[SpecMapping],
     coverage_files: Sequence[FileCoverage],
-    include_questionable: bool = False,
     spec_masks: dict[str, dict[str, set[int]]] | None = None,
     detailed_coverage: dict[str, DetailedFileCoverage] | None = None,
 ) -> tuple[list[SpecMetrics], SpecMetrics, int]:
@@ -987,11 +1223,7 @@ def compute_metrics(
     merged_masks: dict[str, set[int] | None] = {}
 
     for mapping in mappings:
-        files = list(mapping.core_files)
-        if include_questionable:
-            for path in mapping.questionable_files:
-                if path not in files:
-                    files.append(path)
+        files = list(mapping.files)
 
         mask = (spec_masks or {}).get(mapping.name, {})
         spec_is_masked = any(path in mask for path in files)
@@ -1091,6 +1323,82 @@ def compute_metrics(
     return per_spec, total_metrics, common_lean_loc
 
 
+def compute_removed_metrics(
+    repo_root: Path,
+    mappings: Sequence[SpecMapping],
+    coverage_files: Sequence[FileCoverage],
+    spec_masks: dict[str, dict[str, set[int]]],
+    detailed_coverage: dict[str, DetailedFileCoverage] | None,
+) -> tuple[list[RemovedMetrics], RemovedMetrics]:
+    """Compute LoC and coverage over lines excluded by masks for each spec."""
+    by_path: dict[str, FileCoverage] = {entry.path: entry for entry in coverage_files}
+    per_spec: list[RemovedMetrics] = []
+    tot_files = 0
+    tot_loc = tot_lines = tot_missed_lines = tot_br = tot_missed_br = 0
+    tot_br_ok = True
+
+    for mapping in mappings:
+        mask = spec_masks.get(mapping.name, {})
+        masked_count = 0
+        loc = lines = missed_lines = branches = missed_branches = 0
+        branches_ok = True
+
+        for path in mapping.files:
+            included = mask.get(path)
+            if included is None:
+                continue
+            masked_count += 1
+            text = (repo_root / path).read_text(encoding="utf-8")
+            num_lines = len(text.splitlines())
+            excluded = set(range(1, num_lines + 1)) - included
+            loc += count_cpp_loc(text, excluded)
+            f_lines, f_missed, f_br, f_br_missed, f_br_ok, present = _file_metrics(
+                path, excluded, by_path, detailed_coverage
+            )
+            if present:
+                lines += f_lines
+                missed_lines += f_missed
+                if f_br_ok:
+                    branches += f_br
+                    missed_branches += f_br_missed
+                else:
+                    branches_ok = False
+
+        per_spec.append(
+            RemovedMetrics(
+                name=mapping.name,
+                masked_files=masked_count,
+                code_loc=loc,
+                lines=lines,
+                missed_lines=missed_lines,
+                branches=branches,
+                missed_branches=missed_branches,
+                branches_available=branches_ok,
+            )
+        )
+        tot_files += masked_count
+        tot_loc += loc
+        tot_lines += lines
+        tot_missed_lines += missed_lines
+        if branches_ok:
+            tot_br += branches
+            tot_missed_br += missed_branches
+        else:
+            tot_br_ok = False
+
+    total = RemovedMetrics(
+        name="Total",
+        masked_files=tot_files,
+        code_loc=tot_loc,
+        lines=tot_lines,
+        missed_lines=tot_missed_lines,
+        branches=tot_br,
+        missed_branches=tot_missed_br,
+        branches_available=tot_br_ok,
+    )
+    return per_spec, total
+
+
 def _format_table(
     headers: Sequence[str],
     rows: Sequence[Sequence[str]],
@@ -1135,13 +1443,14 @@ def render_report(
     total: SpecMetrics,
     common_lean_loc: int,
     source: ReportSource,
-    include_questionable: bool,
     per_file: bool,
     coverage_files: Sequence[FileCoverage],
     repo_root: Path,
     markdown: bool = True,
     spec_masks: dict[str, dict[str, set[int]]] | None = None,
     detailed_coverage: dict[str, DetailedFileCoverage] | None = None,
+    removed_per_spec: Sequence[RemovedMetrics] | None = None,
+    removed_total: RemovedMetrics | None = None,
 ) -> str:
     headers = [
         "Item",
@@ -1183,14 +1492,13 @@ def render_report(
 
     out: list[str] = [_format_table(headers, rows, right_align, markdown)]
 
-    scope = "core + questionable" if include_questionable else "core only"
     detail_note = (
-        f"; masked line/branch source: {source.detail_description}"
+        f"; per-line/branch source: {source.detail_description}"
         if source.detail_description
         else ""
     )
     notes = [
-        f"Coverage source: {source.description} (scope: {scope}{detail_note}).",
+        f"Coverage source: {source.description} (in-scope files{detail_note}).",
         (
             "Code LoC counts non-blank, non-comment C/C++ lines; "
             "Spec LoC counts non-blank, non-comment Lean lines in Model and Properties; "
@@ -1225,6 +1533,39 @@ def render_report(
 
     out.append("")
     out.extend(notes)
+
+    if removed_per_spec is not None and removed_total is not None:
+        rem_headers = [
+            "Removed regions",
+            "Masked Files",
+            "Excluded LoC",
+            "Lines (Hit/Total)",
+            "Line Cov",
+            "Branches (Hit/Total)",
+            "Branch Cov",
+        ]
+        rem_align = [False, True, True, True, True, True, True]
+        rem_rows: list[list[str]] = []
+        for rem in [*removed_per_spec, removed_total]:
+            label = f"**{rem.name}**" if markdown and rem is removed_total else rem.name
+            branch_pair = (
+                f"{rem.branches_hit:,}/{rem.branches:,}"
+                if rem.branches_available
+                else "-"
+            )
+            rem_rows.append(
+                [
+                    label,
+                    str(rem.masked_files),
+                    f"{rem.code_loc:,}",
+                    f"{rem.lines_hit:,}/{rem.lines:,}",
+                    _format_percentage(rem.line_coverage),
+                    branch_pair,
+                    _format_percentage(rem.branch_coverage),
+                ]
+            )
+        out.append("")
+        out.append(_format_table(rem_headers, rem_rows, rem_align, markdown))
 
     if per_file:
         by_path = {entry.path: entry for entry in coverage_files}
@@ -1321,7 +1662,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help=(
             "Path to a local llvm-cov export JSON (.json or .json.gz) for "
-            "masked line and branch coverage."
+            "uniform per-line and deduplicated per-branch coverage."
         ),
     )
     parser.add_argument(
@@ -1338,9 +1679,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Ignore lean/<spec>/coverage_mask.json files and report whole-file numbers.",
     )
     parser.add_argument(
-        "--include-questionable",
+        "--show-removed",
         action="store_true",
-        help="Include questionable/partial files alongside core implementation files.",
+        help="Also print a summary table of LoC and coverage over mask-excluded regions.",
     )
     parser.add_argument(
         "--per-file",
@@ -1368,20 +1709,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     spec_masks: dict[str, dict[str, set[int]]] = {}
     if not args.no_masks:
         for mapping in mappings:
-            allowed_files = list(mapping.core_files) + list(mapping.questionable_files)
-            mask = load_spec_mask(repo_root, mapping.name, allowed_files)
+            mask = load_spec_mask(repo_root, mapping.name, mapping.files)
             if mask:
                 spec_masks[mapping.name] = mask
 
-    masked_files: list[str] = []
+    validate_disjoint_specs(repo_root, mappings, spec_masks)
+
+    all_mapped_files: list[str] = []
     for mapping in mappings:
-        mask = spec_masks.get(mapping.name, {})
-        active = list(mapping.core_files)
-        if args.include_questionable:
-            active.extend(mapping.questionable_files)
-        for path in active:
-            if path in mask and path not in masked_files:
-                masked_files.append(path)
+        for path in mapping.files:
+            if path not in all_mapped_files:
+                all_mapped_files.append(path)
 
     detailed_coverage: dict[str, DetailedFileCoverage] | None = None
     detail_description: str | None = None
@@ -1414,11 +1752,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             detail_description = str(export_path)
         elif args.html_dir is not None:
             html_path = Path(args.html_dir)
-            detailed_coverage = load_html_coverage_dir(html_path, masked_files)
+            detailed_coverage = load_html_coverage_dir(html_path, all_mapped_files)
             detail_description = str(html_path)
-        elif masked_files and source.run_id is not None:
+        elif source.run_id is not None:
             detailed_coverage, artifact_used = fetch_ci_detailed_coverage(
-                args.repo, source.run_id, masked_files
+                args.repo, source.run_id, all_mapped_files
             )
             detail_description = f"artifact `{artifact_used}`"
 
@@ -1433,10 +1771,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         repo_root=repo_root,
         mappings=mappings,
         coverage_files=coverage_files,
-        include_questionable=args.include_questionable,
         spec_masks=spec_masks,
         detailed_coverage=detailed_coverage,
     )
+
+    removed_per_spec = removed_total = None
+    if args.show_removed and spec_masks:
+        removed_per_spec, removed_total = compute_removed_metrics(
+            repo_root=repo_root,
+            mappings=mappings,
+            coverage_files=coverage_files,
+            spec_masks=spec_masks,
+            detailed_coverage=detailed_coverage,
+        )
 
     print(
         render_report(
@@ -1444,13 +1791,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             total=total,
             common_lean_loc=common_lean_loc,
             source=source,
-            include_questionable=args.include_questionable,
             per_file=args.per_file,
             coverage_files=coverage_files,
             repo_root=repo_root,
             markdown=(args.format == "markdown"),
             spec_masks=spec_masks,
             detailed_coverage=detailed_coverage,
+            removed_per_spec=removed_per_spec,
+            removed_total=removed_total,
         )
     )
     return 0
