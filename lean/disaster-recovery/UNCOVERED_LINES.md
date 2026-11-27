@@ -1,37 +1,27 @@
 # Disaster Recovery (`lean/disaster-recovery`) Uncovered Lines Analysis
 
-This document inventories every uncovered line in the core implementation files mapped to `lean/disaster-recovery` in [`lean/COVERAGE_MAPPING.md`](../COVERAGE_MAPPING.md), explains why each block is not executed in CI, and recommends tests where coverage is actionable.
+This document inventories every uncovered line in the masked in-scope implementation files mapped to `lean/disaster-recovery` in [`lean/COVERAGE_MAPPING.md`](../COVERAGE_MAPPING.md) and [`lean/disaster-recovery/coverage_mask.json`](coverage_mask.json), explains why each block is not executed in CI, and recommends tests where coverage is actionable.
 
-Coverage data comes from `microsoft/CCF` Coverage run #988 (ID `45850573035`, artifacts `coverage-history-main` and `coverage-report-html` on `main`), which merges virtual unit/e2e/partition tests with SNP Genoa coverage.
+Coverage data comes from `microsoft/CCF` Coverage run #997 (ID `45962731034`, `main` commit `6a9d9d870`, artifact `coverage-export-json`), which merges virtual unit/e2e/partition tests with SNP Genoa coverage and deduplicates branches per source location.
 
 ## Summary
 
-| File                                                                                                     | Missed Lines | Total Lines |   Line Cov | Notes                                                                                                              |
-| -------------------------------------------------------------------------------------------------------- | -----------: | ----------: | ---------: | ------------------------------------------------------------------------------------------------------------------ |
-| [`src/node/recovery_decision_protocol.cpp`](../../src/node/recovery_decision_protocol.cpp)               |          186 |         715 |     73.99% | 72 lines are `RDP_TRACE` (disabled in `coverage.yml`); rest are `OPEN` phase, 0-vote timeout, and defensive guards |
-| [`src/node/rpc/self_healing_open_handlers.h`](../../src/node/rpc/self_healing_open_handlers.h)           |           82 |         329 |     75.08% | Security/auth error paths (bad quote, cert change, non-primary timeout, unconfigured node)                         |
-| [`include/ccf/service/tables/self_healing_open.h`](../../include/ccf/service/tables/self_healing_open.h) |            1 |           6 |     83.33% | Unused `Location::operator==`                                                                                      |
-| [`src/node/recovery_decision_protocol.h`](../../src/node/recovery_decision_protocol.h)                   |            0 |           0 |          - | Declarations/types only (0 instrumented lines)                                                                     |
-| **Total**                                                                                                |      **269** |   **1,050** | **74.38%** |                                                                                                                    |
+| File                                                                                                     | Missed Lines | Total Lines |   Line Cov | Missed Branches | Total Branches | Branch Cov | Notes                                                                                 |
+| -------------------------------------------------------------------------------------------------------- | -----------: | ----------: | ---------: | --------------: | -------------: | ---------: | ------------------------------------------------------------------------------------- |
+| [`src/node/recovery_decision_protocol.cpp`](../../src/node/recovery_decision_protocol.cpp)               |           95 |         499 |     80.96% |              31 |            130 |     76.15% | 0-vote voting timeout, `OPEN`/`JOINING` handling, and defensive missing-state guards  |
+| [`src/node/rpc/self_healing_open_handlers.h`](../../src/node/rpc/self_healing_open_handlers.h)           |           82 |         309 |     73.46% |              13 |             38 |     65.79% | Security/auth error paths (bad quote, cert change, non-primary timeout, unconfigured) |
+| [`include/ccf/service/tables/self_healing_open.h`](../../include/ccf/service/tables/self_healing_open.h) |            1 |           6 |     83.33% |               0 |              0 |          - | Unused `Location::operator==`                                                         |
+| [`src/node/recovery_decision_protocol.h`](../../src/node/recovery_decision_protocol.h)                   |            0 |           0 |          - |               0 |              0 |          - | Declarations/types only (0 instrumented lines)                                        |
+| **Total (in-scope masked)**                                                                              |      **178** |     **814** | **78.13%** |          **44** |        **168** | **73.81%** |                                                                                       |
 
-Three high-value takeaways stand out:
+Note: the 72 disabled `RDP_TRACE` lines (`CCF_RECOVERY_TRACE` is unset in `.github/workflows/coverage.yml`) and `start_failover_timers` are excluded by [`lean/disaster-recovery/coverage_mask.json`](coverage_mask.json) as trace instrumentation and wall-clock/cURL transport.
+Two high-value in-scope takeaways stand out:
 
-1. **CI configuration gap (72 lines)**: `.github/workflows/coverage.yml`'s `coverage_snp_genoa` job does not set `CCF_RECOVERY_TRACE=1`, unlike the regular SNP Genoa CI job, leaving the entire `RDP_TRACE` instrumentation layer in `recovery_decision_protocol.cpp` at 0% coverage.
-2. **Protocol state-machine gaps (~30 lines)**: the existing SNP e2e scenarios (`tests/e2e_operations.py`) do not exercise reaching `StateMachine::OPEN` (stopping timers on `OPEN`/`JOINING`), the voting-timeout-with-zero-votes safety branch (`valid_timeout && votes->size() == 0`), or `failover_timeout == 0`.
-3. **Security and error-handling gaps (~64 lines in `self_healing_open_handlers.h`)**: none of the invalid-quote, changed-certificate-key, non-primary timeout, or unconfigured-node rejection paths are exercised by tests.
-   Most of these can be covered cheaply with C++ unit tests against `NodeFrontend` / `self_healing_open_handlers.h` without needing SNP hardware!
+1. **Security and error-handling gaps (82 lines in `self_healing_open_handlers.h`)**: none of the invalid-quote, changed-certificate-key, non-primary `/timeout`, unconfigured-node, or `advance()` `std::logic_error` rejection paths are exercised by tests.
+   All of these can be covered cheaply with virtual C++ unit tests against `NodeFrontend` / `self_healing_open_handlers.h` without needing SNP hardware.
+2. **Protocol state-machine gaps (~22 lines in `recovery_decision_protocol.cpp`)**: existing SNP e2e scenarios (`tests/e2e_operations.py`) do not exercise the voting-timeout-with-zero-votes safety branch (`valid_timeout && votes->size() == 0`), reaching `StateMachine::OPEN` in `advance()`, stopping retry timers on `JOINING`/`OPEN`, or `GOSSIPING` timeout with empty gossips.
 
-## `src/node/recovery_decision_protocol.cpp` (186 uncovered lines)
-
-### `RDP_TRACE` tracing machinery (L63-80, L89-94, L102-114, L125-137, L144-153, L219-228, L497-501)
-
-- **Uncovered lines**: `63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 89, 90, 91, 92, 93, 94, 102, 103, 104, 105, 106, 107, 109, 110, 111, 112, 113, 114, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 144, 145, 146, 147, 148, 151, 152, 153, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 497, 498, 499, 500, 501` (72 lines).
-- **What it does**: `trace_safely(...)`, `emit_trace(...)`, `record_trace_send(...)`, `prepare_trace_step(...)`, `trace_committed_step(...)`, start-event emission in `try_start`'s commit hook, and retry-batch tracking in `start_message_retry_timers`.
-- **Why not covered**: `tracing_enabled()` checks `std::getenv("CCF_RECOVERY_TRACE")`.
-  In `.github/workflows/coverage.yml`, `coverage_snp_genoa` runs `tests/e2e_operations.py` without `CCF_RECOVERY_TRACE=1`, so `trace_safely` always returns early at line 61.
-  The exception handlers inside `trace_safely` (`L67-79`) and the `record == nullptr` check (`L145-148`) are additional defensive paths.
-- **Suggested test**: Set `CCF_RECOVERY_TRACE: "1"` in the `Tests` step of `coverage_snp_genoa` in `.github/workflows/coverage.yml` (immediately covering ~57 of these 72 lines).
-  For the remaining defensive error paths (`L67-79`, `L145-148`), optionally add a C++ unit test invoking `trace_committed_step` without a prior `prepare_trace_step`.
+## `src/node/recovery_decision_protocol.cpp` (95 uncovered lines, 31 missed branch outcomes)
 
 ### `advance()` voting timeout with zero votes for self (L335, L339-344)
 
@@ -39,32 +29,23 @@ Three high-value takeaways stand out:
 - **What it does**: In `StateMachine::VOTING`, when `valid_timeout && votes->size() == 0`, logs a failure and returns early without opening the service (and without advancing `timeout_state`).
 - **Why not covered**: This is a key protocol safety branch (a node that voted for a more up-to-date peer must not failover-open with 0 votes).
   In existing SNP tests (`tests/e2e_operations.py`), either the quorum or failover opener receives votes and broadcasts `IAmOpen` (moving peers to `JOINING`) before a non-chosen peer's voting timeout fires.
-- **Suggested test**: Add a test scenario in `tests/e2e_operations.py` (or a C++ unit test driving `RecoveryDecisionProtocolSubsystem::advance`) where a node in `VOTING` has received 0 votes for itself (having voted for an unreachable peer with a higher `TxID`) and receives a `timeout`, asserting it remains in `VOTING`, does not open, and does not advance `timeout_state`.
+- **Suggested test**: Add a virtual C++ unit test driving `RecoveryDecisionProtocolSubsystem::advance` (or a test scenario in `tests/e2e_operations.py`) where a node in `VOTING` has received 0 votes for itself and receives a `timeout`, asserting it remains in `VOTING`, does not open, and does not advance `timeout_state`.
 
-### `advance()` and timers reaching `StateMachine::OPEN` / stopping on `JOINING` or `OPEN` (L423-424, L426, L550-555, L606-611)
+### `advance()` and retry timer reaching `StateMachine::OPEN` / stopping on `JOINING` or `OPEN` (L423-426, L550-555)
 
-- **Uncovered lines**: `423, 424, 426, 550, 551, 552, 553, 554, 555, 606, 607, 608, 609, 610, 611` (15 lines).
+- **Uncovered lines**: `423, 424, 426, 550, 551, 552, 553, 554, 555` (9 lines).
 - **What it does**:
   - `L423-426`: `StateMachine::OPEN` case in `advance()` (no-op once open).
   - `L550-555`: `JOINING` and `OPEN` cases inside `retry_task`, calling `stop_timers()` and returning.
-  - `L606-611`: `sm_state == OPEN` check inside `failover_task`, logging completion and calling `stop_timers()`.
-- **Why not covered**: As noted in `lean/disaster-recovery/replayer/README.md`, existing e2e scenarios stop checking as soon as the chosen node enters `OPENING` and joining nodes request restart, without waiting for the `OPENING -> OPEN` failover timeout or subsequent retry/failover ticks.
+- **Why not covered**: As noted in `lean/disaster-recovery/replayer/README.md`, existing e2e scenarios stop checking as soon as the chosen node enters `OPENING` and joining nodes request restart, without waiting for the `OPENING -> OPEN` failover timeout or subsequent retry ticks.
   Note that inside `retry_task`, line 504 already returns early when `sm_state == OPEN`, making the `OPEN` label at `L551` redundant with the earlier `if (sm_state == OPEN)` check.
-- **Suggested test**: Extend one SNP recovery scenario in `tests/e2e_operations.py` (or add a C++ unit test with short timeouts) to wait past the `OPENING -> OPEN` failover timeout and one subsequent tick so `OPEN` handling in `advance()` and `failover_task` (`stop_timers()`) execute, and let a `JOINING` node's retry timer tick once before restart to cover `L550, L552-555`.
-  Consider removing the unreachable `case StateMachine::OPEN:` at `L551` (already handled at line 504).
+- **Suggested test**: Cover `advance()` in `StateMachine::OPEN` and a `JOINING` retry tick calling `stop_timers()` in a virtual C++ unit test (or extend one SNP scenario in `tests/e2e_operations.py`), and consider removing the unreachable `case StateMachine::OPEN:` at `L551`.
 
-### `start_failover_timers()` disabled when `failover_timeout == 0` (L577-582)
+### Defensive state/configuration `std::logic_error` guards in `advance()`, retry timer, and helpers (L251-254, L299-301, L316-318, L363-367, L387-390, L395-399, L428-432, L473-477, L481-483, L491-494, L528-531, L535-539, L556-561, L754-757, L831-835, L883-885, L889-891, L898-900, L911-915)
 
-- **Uncovered lines**: `577, 578, 579, 580, 581, 582` (6 lines).
-- **What it does**: Skips scheduling `failover_task` when `config.failover_timeout.count_ms() == 0`.
-- **Why not covered**: Every SNP recovery test configures a non-zero `failover_timeout`.
-- **Suggested test**: Add a quorum-only test case in `tests/e2e_operations.py` (or a C++ unit test) with `failover_timeout: "0ms"` to confirm failover timers are disabled and quorum opening still succeeds.
-
-### Defensive state/configuration `std::logic_error` guards in `advance()`, timers, and helpers (L251-254, L299-301, L316-318, L363-367, L387-390, L395-399, L428-432, L473-477, L481-483, L491-494, L528-531, L535-539, L556-561, L600-603, L754-757, L831-835, L883-885, L889-891, L898-900, L911-915)
-
-- **Uncovered lines**: `251, 252, 253, 254, 299, 300, 301, 316, 317, 318, 363, 364, 365, 366, 367, 387, 388, 389, 390, 395, 396, 397, 398, 399, 428, 429, 430, 431, 432, 473, 474, 475, 476, 477, 481, 482, 483, 491, 492, 493, 494, 528, 529, 530, 531, 535, 536, 537, 538, 539, 556, 557, 558, 559, 560, 561, 600, 601, 602, 603, 754, 755, 756, 757, 831, 832, 833, 834, 835, 883, 884, 885, 889, 890, 891, 898, 899, 900, 911, 912, 913, 914, 915` (83 lines).
+- **Uncovered lines**: `251, 252, 253, 254, 299, 300, 301, 316, 317, 318, 363, 364, 365, 366, 367, 387, 388, 389, 390, 395, 396, 397, 398, 399, 428, 429, 430, 431, 432, 473, 474, 475, 476, 477, 481, 482, 483, 491, 492, 493, 494, 528, 529, 530, 531, 535, 536, 537, 538, 539, 556, 557, 558, 559, 560, 561, 754, 755, 756, 757, 831, 832, 833, 834, 835, 883, 884, 885, 889, 890, 891, 898, 899, 900, 911, 912, 913, 914, 915` (79 lines).
 - **What it does**:
-  - `L251-254`, `L491-494`, `L600-603`: throws if `SMState` or `TimeoutSMState` table entry is missing.
+  - `L251-254`, `L491-494`: throws if `SMState` or `TimeoutSMState` table entry is missing.
   - `L299-301`, `L316-318`: throws in `GOSSIPING` if `valid_timeout` fires before any gossip (even self-gossip) has arrived (`L316-318` is strictly redundant with `L299-301`).
   - `L363-367`: throws if `Tables::SERVICE` is missing when opening.
   - `L387-390`, `L395-399`, `L528-531`, `L535-539`: throws if `ChosenNode` or its `NodeInfoMap` entry is missing in `JOINING` or `VOTING`.
@@ -75,14 +56,7 @@ Three high-value takeaways stand out:
 - **Suggested test**: Add a C++ unit test (e.g., a new `src/node/test/recovery_decision_protocol.cpp`) driving `RecoveryDecisionProtocolSubsystem::advance` directly on an in-memory KV store to cover `L299-301` (gossiping timeout with empty gossips, which also exercises the `catch (const std::logic_error&)` handler in `self_healing_open_handlers.h`), plus key missing-state error checks (`L251-254`, `L387-390`, `L395-399`).
   Consider removing the unreachable duplicate check at `L316-318`.
 
-### Closing braces after `break;` in `switch` statements (L446, L452, L518)
-
-- **Uncovered lines**: `446, 452, 518` (3 lines).
-- **What it does**: Closing braces `}` immediately after `break;` in `advance()`'s timeout switch and `retry_task`'s `GOSSIPING` case.
-- **Why not covered**: LLVM source-based coverage artifact on braced `case { ... break; }` blocks.
-- **Suggested test**: None needed.
-
-## `src/node/rpc/self_healing_open_handlers.h` (82 uncovered lines)
+## `src/node/rpc/self_healing_open_handlers.h` (82 uncovered lines, 13 missed branch outcomes)
 
 ### Missing subsystems or unconfigured node rejections (L40-45, L52-57, L335-340, L347-352)
 
@@ -121,7 +95,7 @@ Three high-value takeaways stand out:
 - **Why not covered**: In single-node recovery clusters during SNP tests, every timeout request is self-sent by the sole primary node.
 - **Suggested test**: Add unit tests in `src/node/rpc/test/node_frontend_test.cpp` calling `/recovery_decision_protocol/timeout` (1) when `get_primary()` returns `std::nullopt`, and (2) when the caller node certificate belongs to a non-primary node ID, verifying both are rejected without advancing state.
 
-## `include/ccf/service/tables/self_healing_open.h` (1 uncovered line)
+## `include/ccf/service/tables/self_healing_open.h` (1 uncovered line, 0 missed branch outcomes)
 
 ### `Location::operator==` (L26)
 

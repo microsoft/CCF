@@ -96,8 +96,8 @@
           "reason": "External CommitObserver callback notification is unmodeled"
         },
         {
-          "start": 2748,
-          "end": 2751,
+          "start": 2771,
+          "end": 2774,
           "start_anchor": "const State& get_state_for_trace() const",
           "end_anchor": "}",
           "reason": "Trace-capture state accessor is unmodeled"

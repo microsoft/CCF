@@ -30,7 +30,7 @@ The following kinds of C++ code are excluded uniformly across all four specifica
 2. **Network transport, persistence framing, and host task scheduling**: node-to-node channels, `Forwarder` transport, `libcurl` HTTP/TLS clients (`dispatch_authenticated_message`, `start_failover_timers`), ledger enclave framing, `JobBoard` periodic registration, and backpressure/batch-size heuristics.
 3. **Cryptography, attestation internals, sealing, and Merkle receipts**: quote verification internals (`quote.cpp`), SNP local sealing, KV encryption/claims, `TxHistory`, `/receipt`, and `/receipt/cose`.
 4. **Explicitly unmodeled features**: snapshots and snapshot import, ledger deserialization, `ReservedTx`, `TxFlag`, `TxDiff`/`MapDiff`, KV hooks, disaster-recovery-only consensus hooks (`remove_deleted_nodes`, 4-arg `force_become_primary`, `enable_all_domains`), HTTP 307 redirection, `/commit`, OpenAPI generation, URI path-template routing, client authentication policies, and request metrics.
-5. **Cross-cutting containers, callers, wrappers, and generic libraries**: node lifecycle (`node_state.h`, `node_frontend.h`), shared interface/primitive headers (`kv_types.h`, `tx_id.h`, `consensus_types.h`, `configuration.h`), typed C++ serializer wrappers, QuickJS bindings, governance wrappers, `champ_map.h`, and `dl_list.h`.
+5. **Cross-cutting containers, callers, wrappers, and generic libraries**: node lifecycle (`node_state.h`, `node_frontend.h`), shared interface/primitive headers (`kv_types.h`, `tx_id.h`, `consensus_types.h`, `src/node/configuration.h`), typed C++ serializer wrappers, QuickJS bindings, governance wrappers, `champ_map.h`, and `dl_list.h`.
 
 ### Masking discipline
 
@@ -50,45 +50,44 @@ The following kinds of C++ code are excluded uniformly across all four specifica
 ## Current coverage summary
 
 Generated with [`scripts/lean_coverage_report.py`](../scripts/lean_coverage_report.py) against `microsoft/CCF` Coverage run #997 (ID `45962731034`, `main` commit `6a9d9d870`, artifacts `coverage-history-main` and `coverage-export-json`).
-All three tables below (in-scope masked, whole-file unmasked, and removed regions) use the same `coverage-export-json` artifact so line counts and template-deduplicated branch counts are directly comparable.
+All three tables below (in-scope masked, whole-file unmasked, and removed regions) use the same `coverage-export-json` artifact so line counts and template-deduplicated branch counts are directly comparable and kept plus removed totals sum exactly to the whole-file totals.
 
 ### In-scope modeled sections (masked)
 
 | Item                       | Files | Code LoC | Spec LoC | Total Lean LoC | Lines (Hit/Total) | Line Cov | Branches (Hit/Total) | Branch Cov |
 | -------------------------- | ----: | -------: | -------: | -------------: | ----------------: | -------: | -------------------: | ---------: |
-| consensus (masked)         |     4 |    2,400 |      955 |         12,792 |       1,851/1,932 |   95.81% |              465/502 |     92.63% |
-| consistency (masked)       |     5 |      682 |      594 |          4,986 |           470/571 |   82.31% |              119/138 |     86.23% |
-| disaster-recovery (masked) |     4 |    1,061 |      473 |          8,299 |           636/814 |   78.13% |              124/168 |     73.81% |
+| consensus (masked)         |     4 |    2,418 |      957 |         12,914 |       1,865/1,946 |   95.84% |              467/504 |     92.66% |
+| consistency (masked)       |     5 |      682 |      594 |          5,000 |           470/571 |   82.31% |              119/138 |     86.23% |
+| disaster-recovery (masked) |     4 |    1,061 |      476 |          8,313 |           636/814 |   78.13% |              124/168 |     73.81% |
 | kv (masked)                |    13 |    1,642 |    1,071 |          4,648 |       1,087/1,129 |   96.28% |              233/246 |     94.72% |
-| **Total (unique)**         |    26 |    5,785 |    3,093 |         30,725 |       4,044/4,446 |   90.96% |            941/1,054 |     89.28% |
+| **Total (unique)**         |    26 |    5,803 |    3,098 |         30,875 |       4,058/4,460 |   90.99% |            943/1,056 |     89.30% |
 
 ### Whole-file unmasked comparison (`--no-masks`, same export)
 
 | Item               | Files | Code LoC | Spec LoC | Total Lean LoC | Lines (Hit/Total) | Line Cov | Branches (Hit/Total) | Branch Cov |
 | ------------------ | ----: | -------: | -------: | -------------: | ----------------: | -------: | -------------------: | ---------: |
-| consensus          |     4 |    2,693 |      955 |         12,792 |       2,086/2,171 |   96.08% |              531/574 |     92.51% |
-| consistency        |     5 |    2,242 |      594 |          4,986 |       1,582/1,891 |   83.66% |              354/422 |     83.89% |
-| disaster-recovery  |     4 |    1,361 |      473 |          8,299 |         780/1,046 |   74.57% |              130/192 |     67.71% |
+| consensus          |     4 |    2,711 |      957 |         12,914 |       2,086/2,171 |   96.08% |              531/574 |     92.51% |
+| consistency        |     5 |    2,242 |      594 |          5,000 |       1,582/1,891 |   83.66% |              354/422 |     83.89% |
+| disaster-recovery  |     4 |    1,361 |      476 |          8,313 |         780/1,046 |   74.57% |              130/192 |     67.71% |
 | kv                 |    13 |    3,294 |    1,071 |          4,648 |       2,286/2,397 |   95.37% |              501/544 |     92.10% |
-| **Total (unique)** |    26 |    9,590 |    3,093 |         30,725 |       6,734/7,505 |   89.73% |          1,516/1,732 |     87.53% |
+| **Total (unique)** |    26 |    9,608 |    3,098 |         30,875 |       6,734/7,505 |   89.73% |          1,516/1,732 |     87.53% |
 
 ### Mask-excluded regions (`--show-removed`, same export)
 
 | Removed regions   | Masked Files | Excluded LoC | Lines (Hit/Total) | Line Cov | Branches (Hit/Total) | Branch Cov |
 | ----------------- | -----------: | -----------: | ----------------: | -------: | -------------------: | ---------: |
-| consensus         |            4 |          293 |           219/223 |   98.21% |                64/70 |     91.43% |
+| consensus         |            4 |          293 |           221/225 |   98.22% |                64/70 |     91.43% |
 | consistency       |            4 |        1,560 |       1,112/1,320 |   84.24% |              235/284 |     82.75% |
 | disaster-recovery |            3 |          300 |           144/232 |   62.07% |                 6/24 |     25.00% |
 | kv                |            9 |        1,652 |       1,199/1,268 |   94.56% |              268/298 |     89.93% |
-| **Total**         |           20 |        3,805 |       2,674/3,043 |   87.87% |              573/676 |     84.76% |
+| **Total**         |           20 |        3,805 |       2,676/3,045 |   87.88% |              573/676 |     84.76% |
 
 Code LoC counts non-blank, non-comment C/C++ lines.
 Spec LoC counts non-blank, non-comment Lean lines in `Model` and `Properties`.
-Total Lean LoC includes `Proofs`, `TraceValidation`/`Replay`, and `Tests` (shared `lean/common` adds 939 LoC).
+Total Lean LoC includes `Proofs`, `TraceValidation`/`Replay`, and `Tests` (shared `lean/common` adds 1,331 LoC).
 Line-range masks applied: [`lean/consensus/coverage_mask.json`](consensus/coverage_mask.json), [`lean/consistency/coverage_mask.json`](consistency/coverage_mask.json), [`lean/disaster-recovery/coverage_mask.json`](disaster-recovery/coverage_mask.json), and [`lean/kv/coverage_mask.json`](kv/coverage_mask.json).
-Removed-region line coverage is higher than or within 2 percentage points of kept-region coverage for `consensus` (98.21% vs 95.81%), `consistency` (84.24% vs 82.31%), and `kv` (94.56% vs 96.28%); the lower removed-region coverage in `disaster-recovery` (62.07% vs 78.13%) comes from the 72 disabled `RDP_TRACE` lines (`CCF_RECOVERY_TRACE` is unset in `coverage.yml`) and `start_failover_timers`.
+Removed-region line coverage is higher than or within 2 percentage points of kept-region coverage for `consensus` (98.22% vs 95.84%), `consistency` (84.24% vs 82.31%), and `kv` (94.56% vs 96.28%); the lower removed-region coverage in `disaster-recovery` (62.07% vs 78.13%) comes from the 72 disabled `RDP_TRACE` lines (`CCF_RECOVERY_TRACE` is unset in `coverage.yml`) and `start_failover_timers`.
 Mapped files with 0 instrumented lines in `llvm-cov` (still counted in Code LoC): `src/node/recovery_decision_protocol.h`, `include/ccf/kv/untyped_map_handle.h`, `src/kv/tx_pimpl.h`, `include/ccf/kv/version.h` (plus `src/consensus/aft/cft_types.h` once its unmodeled `aft::Store`/`Adaptor` bridge and `std::formatter` are masked out).
-Provenance note: run #997 (`6a9d9d870`) includes 23 additional lines in `src/consensus/aft/cft.h` (inside `Aft::rollback`) relative to this branch's base commit `a2cea642a`, accounting for the 16-line tail difference between kept+removed (`2,155`) and whole-file (`2,171`) in `consensus`; rebasing onto `main` will align `cft.h` line numbers identically.
 
 ## Consensus (`lean/consensus`)
 
@@ -162,7 +161,7 @@ Models CCF's self-healing open recovery decision protocol: per-node phases (`Gos
   - Wall-clock failover timer scheduling with cURL self-HTTP dispatch (`start_failover_timers`) and cURL HTTP/TLS message transport (`dispatch_authenticated_message`): timeouts and network delivery are abstracted as `Input.timeout` and `CCF.MultiNodeTransitionSystem` envelopes in `DisasterRecovery/Model.lean`.
 - **Excluded external files**:
   - TEE attestation cryptography and SNP local sealing (`src/node/quote.cpp`, `include/ccf/node/quote.h`, `src/node/rpc/node_frontend_utils.h`, `src/node/local_sealing.h`, `src/node/local_sealing.cpp`, `src/service/tables/local_sealing.h`, `include/ccf/service/local_sealing.h`): `Local.lean` abstracts quote cryptography as `Validation.accepted | .rejected` and does not model key sealing.
-  - Downstream service opening, process restart, and host lifecycle wiring (`src/node/node_state.h`, `src/node/rpc/node_frontend.h`, `src/node/rpc/node_interface.h`, `src/node/rpc/node_operation.h`, `src/node/rpc/node_operation_interface.h`, `src/node/open_service.h`, `src/node/recovered_service_opening_task.h`, `src/node/runtime_control.h`, `include/ccf/node/configuration.h`): `Local.step` stops at emitting `Notification.opening` and `Notification.restart`.
+  - Downstream service opening, process restart, and host lifecycle wiring (`src/node/node_state.h`, `src/node/rpc/node_frontend.h`, `src/node/rpc/node_interface.h`, `src/node/rpc/node_operation.h`, `src/node/rpc/node_operation_interface.h`, `src/node/open_service.h`, `src/node/recovered_service_opening_task.h`, `src/node/runtime_control.h`, `src/node/configuration.h`): `Local.step` stops at emitting `Notification.opening` and `Notification.restart`.
   - HTTP/TLS client transport and shared primitive types (`src/http_client/curl.h`, `include/ccf/tx_id.h`).
 
 ## Key-Value Store (`lean/kv`)
