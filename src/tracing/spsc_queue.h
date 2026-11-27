@@ -54,9 +54,11 @@ namespace ccf::tracing
     static constexpr uint64_t UNLIMITED_BYTES =
       std::numeric_limits<uint64_t>::max();
 
-    // The record count is a hard limit. The byte limit is soft: a record of
-    // any size is admitted while fewer than max_bytes are queued, and charged
-    // once enqueued, so a producer can test for space before sizing a record.
+    // The record count is a hard limit. The byte limit is soft across records
+    // and caps each record: a record up to max_bytes is admitted while fewer
+    // than max_bytes are queued, and charged once enqueued, so a queue stays
+    // under 2 * max_bytes while letting a producer test for space before sizing
+    // a record.
     explicit SPSCQueue(
       size_t capacity = 4096, uint64_t max_bytes = UNLIMITED_BYTES) :
       max_bytes(max_bytes)
@@ -88,7 +90,7 @@ namespace ccf::tracing
     // cannot be allocated.
     bool push(std::span<const uint8_t> bytes)
     {
-      if (!has_space())
+      if (bytes.size() > max_bytes || !has_space())
       {
         return false;
       }

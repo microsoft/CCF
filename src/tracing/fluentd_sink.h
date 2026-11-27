@@ -885,6 +885,19 @@ namespace ccf::tracing
 
     static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
     {
+      if (!is_configured())
+      {
+        return false;
+      }
+      if (!accepts(tag))
+      {
+        return true;
+      }
+      if (emitting())
+      {
+        record_drop(tag);
+        return false;
+      }
       return with_slot(
         [&](size_t slot) { return push_at_slot(tag, bytes, slot); });
     }

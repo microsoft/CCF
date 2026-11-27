@@ -37,7 +37,7 @@
                 "type": "integer",
                 "minimum": 1,
                 "default": 4194304,
-                "description": "Soft limit on queued record bytes per node thread for this sink. A record of any size is accepted while fewer bytes than this are queued, so a queue can exceed this limit by one record. Memory use grows with this limit, thread count and sink count"
+                "description": "Soft limit on queued record bytes per node thread for this sink, and maximum size of a single encoded record. A record up to this size is accepted while fewer bytes than this are queued, so a queue stays under twice this limit. Memory use grows with this limit, thread count and sink count"
               },
               "delivery": {
                 "type": "string",

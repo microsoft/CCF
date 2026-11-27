@@ -261,8 +261,12 @@ TEST_CASE("SPSC queue bounds queued bytes with one record of overshoot")
   allocation_failure = allocations + 1;
   CHECK_THROWS_AS(queue.push(payload), std::bad_alloc);
   allocation_failure = 0;
-  std::vector<uint8_t> large(4096);
-  REQUIRE(queue.push(large));
+  std::vector<uint8_t> oversized(101);
+  const auto before_oversized = allocations;
+  CHECK_FALSE(queue.push(oversized));
+  CHECK(allocations == before_oversized);
+  std::vector<uint8_t> at_limit(100);
+  REQUIRE(queue.push(at_limit));
   CHECK_FALSE(queue.push({}));
   REQUIRE(queue.pop() != nullptr);
   // The record count still bounds records too small to reach the byte limit.
@@ -424,6 +428,54 @@ TEST_CASE("SPSC concurrent FIFO records outlive reused slots and the queue")
   }
 }
 
+TEST_CASE("SPSC concurrent byte limit blocks and resumes after draining")
+{
+  // 64 slots leave plenty of slot headroom so backpressure comes solely from
+  // the 74-byte limit (2 x 37-byte records).
+  ccf::tracing::SPSCQueue queue(64, 74);
+  constexpr uint64_t count = 10000;
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  std::atomic<size_t> blocked = 0;
+  std::thread writer([&] {
+    std::array<uint8_t, 37> payload = {};
+    for (uint64_t i = 0; i < count; ++i)
+    {
+      payload.fill(static_cast<uint8_t>(i % 251));
+      std::memcpy(payload.data(), &i, sizeof(i));
+      while (!queue.push(payload))
+      {
+        blocked.fetch_add(1, std::memory_order_relaxed);
+        if (std::chrono::steady_clock::now() >= deadline)
+          return;
+        std::this_thread::yield();
+      }
+    }
+  });
+  uint64_t expected = 0;
+  while (expected < count && std::chrono::steady_clock::now() < deadline)
+  {
+    auto record = queue.pop();
+    if (record)
+    {
+      REQUIRE(record->size() == 37);
+      uint64_t sequence = 0;
+      std::memcpy(&sequence, record->data(), sizeof(sequence));
+      CHECK(sequence == expected);
+      for (size_t i = sizeof(sequence); i < record->size(); ++i)
+        CHECK((*record)[i] == expected % 251);
+      ++expected;
+    }
+    else
+      std::this_thread::yield();
+  }
+  writer.join();
+  CHECK(expected == count);
+  CHECK(blocked.load(std::memory_order_relaxed) > 0);
+  CHECK(queue.size() == 0);
+  CHECK(queue.pop() == nullptr);
+}
+
 TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
 {
   using Sink = ccf::tracing::FluentdSink;
@@ -459,9 +511,14 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(getsockname(listener, (sockaddr*)&address, &size) == 0);
   Sink::Endpoint endpoint{"127.0.0.1", std::to_string(ntohs(address.sin_port))};
   endpoint.queue_capacity = 3;
-  endpoint.queue_capacity_bytes = 8192;
+  endpoint.queue_capacity_bytes = size_t{32} * 1024;
   endpoint.tag_prefix_allow_list = {
-    "ccf.sho", "ccf.request", "ccf.request.child", "ccf.request", "ccf.log"};
+    "ccf.sho",
+    "ccf.request",
+    "ccf.request.child",
+    "ccf.request",
+    "ccf.log",
+    "ccf.shared"};
   const int excluded_listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(excluded_listener >= 0);
   address.sin_port = 0;
@@ -470,7 +527,8 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(listen(excluded_listener, 1) == 0);
   Sink::Endpoint excluded_endpoint{
     "127.0.0.1", std::to_string(ntohs(address.sin_port))};
-  excluded_endpoint.tag_prefix_allow_list = {"ccf.kv", "ccf.unused"};
+  excluded_endpoint.tag_prefix_allow_list = {
+    "ccf.kv", "ccf.unused", "ccf.shared"};
   auto logger = std::make_unique<DropLogger>();
   auto* logs = logger.get();
   ccf::logger::config::loggers().emplace_back(
@@ -929,15 +987,33 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     CHECK(after == before);
     CHECK(Sink::dropped_count() == drops_before_bound_log + 3);
   }
-  // A queue with free slots is full once it holds its byte capacity.
+  // Partial space: endpoint's queue is full while excluded_endpoint has space.
+  {
+    size_t partial_serialisations = 0;
+    const auto drops_before_partial = Sink::dropped_count();
+    const auto partial =
+      Sink::submit("ccf.shared", [&](std::vector<uint8_t>& out) {
+        ++partial_serialisations;
+        out = {'p', 'a', 'r', 't', 'i', 'a', 'l'};
+      });
+    CHECK_FALSE(partial);
+    CHECK(partial_serialisations == 1);
+    CHECK(Sink::dropped_count() == drops_before_partial + 1);
+  }
+  // A queue with free slots rejects records larger than queue_capacity_bytes
+  // and is full once it holds its byte capacity.
   std::thread third([&] {
     Sink::bind_producer(2);
+    const std::vector<uint8_t> oversized(endpoint.queue_capacity_bytes + 1);
+    const auto before_oversized = allocations;
+    CHECK_FALSE(Sink::enqueue("ccf.request", oversized));
+    CHECK(allocations == before_oversized);
     const std::vector<uint8_t> large(endpoint.queue_capacity_bytes);
     CHECK(Sink::enqueue("ccf.request", large));
     CHECK_FALSE(Sink::enqueue("ccf.request", {}));
   });
   third.join();
-  CHECK(Sink::dropped_count() == drops_before_bound_log + 4);
+  CHECK(Sink::dropped_count() == drops_before_bound_log + 6);
   forbid_allocation = true;
   bool allocation_failed = false;
   try
@@ -963,18 +1039,24 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   const auto drops_before_unbound = Sink::dropped_count();
   bool unbound_pushed = false;
   bool unbound_full_pushed = true;
+  bool unbound_reentrant_enqueue = true;
   size_t unbound_allocations = 0;
   std::thread unbound([&] {
-    unbound_pushed = Sink::enqueue("ccf.request", payload);
+    unbound_pushed =
+      Sink::submit("ccf.request", [&](std::vector<uint8_t>& out) {
+        unbound_reentrant_enqueue = Sink::enqueue("ccf.request", payload);
+        out.assign(payload.begin(), payload.end());
+      });
     const auto before = allocations;
     unbound_full_pushed = Sink::enqueue("ccf.request", payload);
     unbound_allocations = allocations - before;
   });
   unbound.join();
   CHECK(unbound_pushed);
+  CHECK_FALSE(unbound_reentrant_enqueue);
   CHECK_FALSE(unbound_full_pushed);
   CHECK(unbound_allocations == 0);
-  CHECK(Sink::dropped_count() == drops_before_unbound + 1);
+  CHECK(Sink::dropped_count() == drops_before_unbound + 2);
   const auto drops_before_shutdown = Sink::dropped_count();
   const auto closes_before_shutdown = close_calls.load();
   fail_next_close = true;
@@ -985,7 +1067,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(logs->close_errors == 1);
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 8);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 9);
   CHECK(logs->shutdown_reports == 2);
   CHECK(
     logs->shutdown_messages[0] ==
@@ -994,7 +1076,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
       drops_before_shutdown + 8));
   CHECK(
     logs->shutdown_messages[1] ==
-    "Fluentd exporter shutdown: 0 dropped events");
+    "Fluentd exporter shutdown: 1 dropped events");
   Sink::shutdown();
   CHECK(logs->shutdown_reports == 2);
   // Use the empty queue so a full queue cannot mask shutdown rejection.
@@ -1005,7 +1087,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK_FALSE(shutdown_pushed);
   CHECK(
     allocations_after_shutdown_enqueue == allocations_before_shutdown_enqueue);
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 9);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 10);
   CHECK(logs->reports == 2);
   CHECK_FALSE(wrong_thread);
   close(peer);
