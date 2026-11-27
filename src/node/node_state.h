@@ -157,6 +157,7 @@ namespace ccf
                     public std::enable_shared_from_this<NodeState>
   {
     friend class RecoveryDecisionProtocolSubsystem;
+    friend struct RecoveryDecisionProtocolTestAccess;
 
     struct FetchSnapshot : public ccf::tasks::BaseTask
     {

@@ -996,6 +996,49 @@ if(BUILD_TESTS)
     )
     target_link_libraries(open_service_test PRIVATE ccf_kv)
     add_unit_test(
+      recovery_decision_protocol_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/recovery_decision_protocol.cpp
+      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/pal/uvm_endorsements.cpp
+      ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
+    )
+    target_link_libraries(
+      recovery_decision_protocol_test
+      PRIVATE
+        ${CMAKE_THREAD_LIBS_INIT}
+        http_parser
+        ccf_js
+        ccf_endpoints
+        ccfcrypto
+        ccf_kv
+        ccf_pal
+        uv
+        curl
+        ccf_tasks
+    )
+    set(
+      CCF_DISASTER_RECOVERY_TRACE_CHECKER
+      ""
+      CACHE FILEPATH
+      "Existing Lean disaster-recovery-replay trace checker executable"
+    )
+    if(CCF_DISASTER_RECOVERY_TRACE_CHECKER)
+      add_test(
+        NAME disaster_recovery_trace_validation
+        COMMAND
+          ${PYTHON}
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/disaster_recovery_trace_validation.py
+          --binary $<TARGET_FILE:recovery_decision_protocol_test> --checker
+          ${CCF_DISASTER_RECOVERY_TRACE_CHECKER} --output
+          ${CMAKE_CURRENT_BINARY_DIR}/disaster-recovery-traces
+      )
+      add_test_target(
+        disaster_recovery_trace_validation
+        recovery_decision_protocol_test
+      )
+      add_test_label(disaster_recovery_trace_validation disaster_recovery_trace)
+    endif()
+    add_unit_test(
       network_identity_subsystem_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/network_identity_subsystem.cpp
     )
