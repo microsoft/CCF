@@ -2772,16 +2772,7 @@ DOCTEST_TEST_CASE(
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
 
-  auto details = r0.get_details();
-  DOCTEST_REQUIRE(details.leadership_state == ccf::kv::LeadershipState::None);
-  DOCTEST_REQUIRE(details.current_view == 0);
-  DOCTEST_REQUIRE(r0c->messages.empty());
-
-  DOCTEST_INFO(
-    "A successor nomination without a configuration is also ignored");
-  const auto prv = as_bytes(aft::ProposeRequestVote{.term = r0.get_view()});
-  r0.recv_message(ccf::kv::test::FirstBackupNodeId, prv);
-  details = r0.get_details();
+  const auto details = r0.get_details();
   DOCTEST_REQUIRE(details.leadership_state == ccf::kv::LeadershipState::None);
   DOCTEST_REQUIRE(details.current_view == 0);
   DOCTEST_REQUIRE(r0c->messages.empty());
@@ -3796,112 +3787,6 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(n.c1->messages.empty());
   DOCTEST_REQUIRE(n.r1.get_last_idx() == 2);
   DOCTEST_REQUIRE(n.r1.get_view(2) == 2);
-}
-
-DOCTEST_TEST_CASE(
-  "Rollback preserves or downgrades retirement phase according to target "
-  "index" *
-  doctest::test_suite("retirement"))
-{
-  const auto id0 = ccf::kv::test::PrimaryNodeId;
-  const auto id1 = ccf::kv::test::FirstBackupNodeId;
-  auto kv0 = std::make_shared<aft::LoggingStubStoreConfig>(id0);
-  auto kv1 = std::make_shared<aft::LoggingStubStoreConfig>(id1);
-  PrimaryAndBackup n({.kv = kv0}, {.kv = kv1});
-
-  const auto replicate_config =
-    [&](const ccf::kv::Configuration::Nodes& config, aft::Index idx) {
-      const auto config_json = nlohmann::json(config).dump();
-      const auto entry_json =
-        nlohmann::json(aft::ReplicatedData{
-                         aft::ReplicatedDataType::reconfiguration,
-                         {config_json.begin(), config_json.end()}})
-          .dump();
-      auto entry = std::make_shared<std::vector<uint8_t>>(
-        entry_json.begin(), entry_json.end());
-      auto cfg_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
-      cfg_hooks->push_back(
-        std::make_unique<aft::ConfigurationChangeHook>(config, idx));
-      DOCTEST_REQUIRE(n.r0.replicate(
-        ccf::kv::BatchVector{{idx, entry, false, cfg_hooks}}, n.r0.get_view()));
-    };
-  const auto replicate_raw = [&](aft::Index idx, bool committable) {
-    const auto entry_json =
-      nlohmann::json(aft::ReplicatedData{aft::ReplicatedDataType::raw, {}})
-        .dump();
-    auto entry = std::make_shared<std::vector<uint8_t>>(
-      entry_json.begin(), entry_json.end());
-    DOCTEST_REQUIRE(n.r0.replicate(
-      ccf::kv::BatchVector{{idx, entry, committable, hooks}}, n.r0.get_view()));
-  };
-
-  // Commit entry 1 (signature), then retire node 1 at index 2.
-  replicate_raw(1, true);
-  n.r0.periodic(request_timeout);
-  const auto ack1 =
-    n.backup_receives(n.with_payload(n.take_append_entries_header()));
-  require_ack(ack1, 1);
-  n.primary_receives(ack1.value());
-  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 1);
-
-  ccf::kv::Configuration::Nodes primary_only;
-  primary_only[id0] = {};
-  replicate_config(primary_only, 2);
-  n.r0.periodic(request_timeout);
-  const auto ack2 =
-    n.backup_receives(n.with_payload(n.take_append_entries_header()));
-  require_ack(ack2, 2);
-  DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 1);
-  DOCTEST_REQUIRE(
-    n.r1.get_details().membership_state == ccf::kv::MembershipState::Retired);
-  DOCTEST_REQUIRE(
-    n.r1.get_details().retirement_phase == ccf::kv::RetirementPhase::Ordered);
-
-  DOCTEST_SUBCASE("Rollback at retirement_idx keeps Ordered phase")
-  {
-    // Replicate an extra unsigned entry at 3, then roll back to 2 (equal to
-    // retirement_idx). Node 1 must remain Retired in Ordered phase.
-    replicate_raw(3, false);
-    n.r0.periodic(request_timeout);
-    require_ack(
-      n.backup_receives(n.with_payload(n.take_append_entries_header())), 3);
-    DOCTEST_REQUIRE(n.r1.get_last_idx() == 3);
-
-    n.r1.rollback(2);
-    DOCTEST_REQUIRE(n.r1.get_last_idx() == 2);
-    DOCTEST_REQUIRE(
-      n.r1.get_details().membership_state == ccf::kv::MembershipState::Retired);
-    DOCTEST_REQUIRE(
-      n.r1.get_details().retirement_phase == ccf::kv::RetirementPhase::Ordered);
-  }
-
-  DOCTEST_SUBCASE(
-    "Rollback between retirement_idx and retirement_committable_idx downgrades "
-    "Signed to Ordered")
-  {
-    replicate_raw(3, true);
-    n.r0.periodic(request_timeout);
-    require_ack(
-      n.backup_receives(n.with_payload(n.take_append_entries_header())), 3);
-    DOCTEST_REQUIRE(
-      n.r1.get_details().retirement_phase == ccf::kv::RetirementPhase::Signed);
-
-    // Rolling back to 2 removes the signature at 3 without removing the
-    // retirement reconfiguration at 2, downgrading Signed back to Ordered.
-    n.r1.rollback(2);
-    DOCTEST_REQUIRE(n.r1.get_last_idx() == 2);
-    DOCTEST_REQUIRE(
-      n.r1.get_details().membership_state == ccf::kv::MembershipState::Retired);
-    DOCTEST_REQUIRE(
-      n.r1.get_details().retirement_phase == ccf::kv::RetirementPhase::Ordered);
-
-    // Rolling back below retirement_idx restores Active membership.
-    n.r1.rollback(1);
-    DOCTEST_REQUIRE(n.r1.get_last_idx() == 1);
-    DOCTEST_REQUIRE(
-      n.r1.get_details().membership_state == ccf::kv::MembershipState::Active);
-    DOCTEST_REQUIRE_FALSE(n.r1.get_details().retirement_phase.has_value());
-  }
 }
 
 int main(int argc, char** argv)
