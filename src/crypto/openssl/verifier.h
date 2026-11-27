@@ -44,5 +44,7 @@ namespace ccf::crypto
     std::string subject() const override;
 
     std::vector<uint8_t> subject_der() const override;
+
+    std::vector<uint8_t> issuer_der() const override;
   };
 }
