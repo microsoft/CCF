@@ -1,3 +1,6 @@
 [workspace]
 members = ["caci", "attestation", "cbor", "cose", "crypto", "ffi"]
 resolver = "2"
+
+[workspace.lints.rust]
+warnings = "deny"

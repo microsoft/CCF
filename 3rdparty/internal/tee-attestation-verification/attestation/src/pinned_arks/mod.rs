@@ -6,8 +6,8 @@
 //! These certificates are embedded at compile time and used for offline verification
 //! without requiring network access to AMD's KDS.
 
-use crate::crypto::{Certificate, CertificateBackend, Crypto};
 use crate::snp::model::Generation;
+use crypto::{Certificate, CertificateBackend, Crypto};
 
 const MILAN_ARK_PEM: &[u8] = include_bytes!("milan_ark.pem");
 const GENOA_ARK_PEM: &[u8] = include_bytes!("genoa_ark.pem");

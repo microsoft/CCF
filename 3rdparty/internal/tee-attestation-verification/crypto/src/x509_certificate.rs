@@ -69,17 +69,23 @@ impl Certificate {
             .to_der()?)
     }
 
-    pub fn get_extension_value_by_oid(&self, oid: &str) -> Result<Option<Vec<u8>>> {
+    fn extension(&self, oid: &str) -> Result<Option<&x509_cert::ext::Extension>> {
         let oid = ObjectIdentifier::new(oid)?;
+        let extensions = self.inner.tbs_certificate().extensions();
+        let mut matching = extensions
+            .into_iter()
+            .flatten()
+            .filter(|extension| extension.extn_id == oid);
+        let extension = matching.next();
+        if matching.next().is_some() {
+            return Err(crate::DUPLICATE_EXTENSION.into());
+        }
+        Ok(extension)
+    }
 
-        let extensions = match self.inner.tbs_certificate().extensions() {
-            Some(extensions) => extensions,
-            None => return Ok(None),
-        };
-
-        Ok(extensions
-            .iter()
-            .find(|extension| extension.extn_id == oid)
+    pub fn get_extension_value_by_oid(&self, oid: &str) -> Result<Option<Vec<u8>>> {
+        Ok(self
+            .extension(oid)?
             .map(|extension| extension.extn_value.as_bytes().to_vec()))
     }
 
@@ -143,17 +149,7 @@ impl Certificate {
     }
 
     pub fn extension_criticality(&self, oid: &str) -> Result<Option<bool>> {
-        let oid = ObjectIdentifier::new(oid)?;
-
-        Ok(self
-            .inner
-            .tbs_certificate()
-            .extensions()
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-            .iter()
-            .find(|extension| extension.extn_id == oid)
-            .map(|extension| extension.critical))
+        Ok(self.extension(oid)?.map(|extension| extension.critical))
     }
 
     pub fn critical_extension_oids(&self) -> Vec<String> {
@@ -163,7 +159,8 @@ impl Certificate {
             .map(Vec::as_slice)
             .unwrap_or(&[])
             .iter()
-            .filter_map(|extension| extension.critical.then(|| extension.extn_id.to_string()))
+            .filter(|extension| extension.critical)
+            .map(|extension| extension.extn_id.to_string())
             .collect()
     }
 }

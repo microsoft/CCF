@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.0.2]
+
+[2.0.2]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-2.0.2
+
+### Fixed
+
+- Remove build time warnings. (#190)
+
+## [2.0.1]
+
+[2.0.1]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-2.0.1
+
+### Added
+
+- `CertificateBackend::extended_key_usage`, returning a certificate's extended key usage OIDs. (#188)
+- GitHub releases include the packaged Rust crates (`.crate` files) for the crypto, CBOR, COSE, attestation and CACI crates. (#181)
+
+### Fixed
+
+- `get_extension_value_by_oid` and `extension_criticality` return an error for a certificate that repeats the extension, instead of using the first. (#188)
+- CACI `verify_uvm_endorsement` enforces the `eku` predicate of the trusted `did:x509`, which is now required. (#188)
+
 ## [2.0.0]
 
 [2.0.0]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-2.0.0

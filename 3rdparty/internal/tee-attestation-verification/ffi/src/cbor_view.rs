@@ -22,6 +22,7 @@ pub struct CborView {
 
 impl CborView {
     /// Detaches `value` from any input buffer, which a view outlives.
+    #[cfg(target_family = "wasm")]
     pub(crate) fn new(value: CborValue<'_>) -> Self {
         Self::from_native(value.into_owned())
     }
@@ -58,6 +59,7 @@ impl CborView {
     ///
     /// An unshared root moves without cloning. Shared roots and projections
     /// clone the selected subtree while preserving borrowed payloads.
+    #[cfg(any(not(target_family = "wasm"), test))]
     pub(crate) fn into_native(self) -> NativeCborValue {
         let Self { document, node } = self;
         if node == Arc::as_ptr(&document) {

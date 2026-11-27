@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 #![deny(unsafe_op_in_unsafe_fn)]
+#![doc(test(attr(deny(warnings), allow(dead_code))))]
 
 //! External C and WebAssembly bindings for TEE attestation verification.
 //!
@@ -188,7 +189,7 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 #[cfg(not(target_family = "wasm"))]
 mod c_ffi;
 mod cbor_view;
-#[cfg(any(target_family = "wasm", test))]
+#[cfg(target_family = "wasm")]
 mod wasm_ffi;
 
 #[cfg(test)]
@@ -366,6 +367,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     #[test]
     fn into_result_catches_panics_instead_of_propagating() {
         let error = into_result(|| panic!("boom"));
@@ -375,6 +377,7 @@ mod tests {
         assert!(error.message().contains("boom"));
     }
 
+    #[cfg(not(target_family = "wasm"))]
     #[test]
     fn into_result_passes_through_ok() {
         assert!(into_result(|| Ok(())).is_null());

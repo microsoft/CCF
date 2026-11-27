@@ -1,6 +1,6 @@
 [package]
 name = "tee-attestation-verification-cbor"
-version = "2.0.0"
+version = "2.0.2"
 edition = "2021"
 rust-version = "1.77"
 repository = "https://github.com/microsoft/TEE-Attestation-Verification"
@@ -8,3 +8,6 @@ keywords = ["cbor", "confidentiality"]
 description = "CBOR values backed by deterministic and non-deterministic EverCBOR"
 authors = ["Max Tropets", "Chris Jensen"]
 license = "MIT AND Apache-2.0"
+
+[lints]
+workspace = true

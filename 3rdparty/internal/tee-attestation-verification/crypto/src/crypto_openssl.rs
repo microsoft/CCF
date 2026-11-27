@@ -155,6 +155,9 @@ impl CertificateBackend for Crypto {
             if index == -1 {
                 return Ok(None);
             }
+            if X509_get_ext_by_OBJ(cert.as_ptr(), oid.as_ptr(), index) != -1 {
+                return Err(super::DUPLICATE_EXTENSION.into());
+            }
 
             let extension = X509_get_ext(cert.as_ptr(), index);
             if extension.is_null() {
@@ -255,6 +258,9 @@ impl CertificateBackend for Crypto {
             let index = X509_get_ext_by_OBJ(cert.as_ptr(), oid.as_ptr(), -1);
             if index == -1 {
                 return Ok(None);
+            }
+            if X509_get_ext_by_OBJ(cert.as_ptr(), oid.as_ptr(), index) != -1 {
+                return Err(super::DUPLICATE_EXTENSION.into());
             }
 
             let extension = X509_get_ext(cert.as_ptr(), index);

@@ -59,8 +59,8 @@
 //! # }
 //! ```
 
-use crate::crypto::{Certificate, CertificateBackend, Crypto};
 use crate::{snp, snp::utils::Oid, AttestationReport};
+use crypto::{Certificate, CertificateBackend, Crypto};
 
 /// Error returned when SEV-SNP attestation verification fails.
 #[derive(Debug)]
@@ -116,8 +116,8 @@ pub enum ChainVerification<'a> {
 #[cfg(sync_crypto)]
 /// Synchronous SEV-SNP attestation verification.
 pub mod sync {
-    use crate::crypto::{Certificate, Crypto, CryptoBackend};
     use crate::{snp, AttestationReport};
+    use crypto::{Certificate, Crypto, CryptoBackend};
 
     use super::{pinned_ark_matching, verify_tcb_values, ChainVerification, VerificationError};
 
@@ -176,8 +176,8 @@ pub mod sync {
 #[cfg(async_crypto)]
 /// Asynchronous SEV-SNP attestation verification.
 pub mod asynchronous {
-    use crate::crypto::{AsyncCryptoBackend, Certificate, Crypto};
     use crate::{snp, AttestationReport};
+    use crypto::{AsyncCryptoBackend, Certificate, Crypto};
 
     use super::{pinned_ark_matching, verify_tcb_values, ChainVerification, VerificationError};
 
@@ -413,8 +413,8 @@ pub(crate) fn verify_tcb_values(
 mod tests {
     use zerocopy::TryFromBytes;
 
-    use crate::crypto::{Certificate, CertificateBackend, Crypto};
     use crate::AttestationReport;
+    use crypto::{Certificate, CertificateBackend, Crypto};
 
     use super::{
         check_signing_key, hwid_extension_matches, tcb_extension_matches, verify_tcb_values,
@@ -457,13 +457,11 @@ mod tests {
     fn milan_report() -> AttestationReport {
         AttestationReport::try_read_from_bytes(MILAN_REPORT)
             .expect("Milan report fixture should parse")
-            .clone()
     }
 
     fn turin_report() -> AttestationReport {
         AttestationReport::try_read_from_bytes(TURIN_REPORT)
             .expect("Turin report fixture should parse")
-            .clone()
     }
 
     fn cert_from_der(der: &[u8]) -> Certificate {

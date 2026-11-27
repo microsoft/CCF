@@ -1,6 +1,6 @@
 [package]
 name = "tee-attestation-verification-crypto"
-version = "2.0.0"
+version = "2.0.2"
 edition = "2021"
 rust-version = "1.85"
 repository = "https://github.com/microsoft/TEE-Attestation-Verification"
@@ -43,3 +43,6 @@ wasm-bindgen-test = ">=0.3, <0.4"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 tokio = { version = ">=1, <2", features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
