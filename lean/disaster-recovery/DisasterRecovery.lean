@@ -14,6 +14,7 @@ public import DisasterRecovery.Tests.CanonicalTests
 public import DisasterRecovery.Tests.Execution
 public import DisasterRecovery.Tests.Initial
 public import DisasterRecovery.Tests.Network
+public import DisasterRecovery.Tests.OpenerRestart
 public import DisasterRecovery.Tests.QuorumCommit
 public import DisasterRecovery.Tests.ConsensusFreshness
 public import DisasterRecovery.Tests.Witnesses
