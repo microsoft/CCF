@@ -642,6 +642,60 @@ TEST_CASE("Every COSE signature is verified with the identity of its type")
     });
     REQUIRE(f.emit_signature() == ccf::kv::ApplyResult::FAIL);
   }
+
+  SUBCASE("A PQ certificate requires a published PQ identity")
+  {
+    f.commit([&](ccf::kv::Tx& tx) {
+      tx.wo<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+        ->remove(ccf::IdentityType::PQ);
+    });
+
+    SUBCASE("With both signatures")
+    {
+      REQUIRE(f.emit_signature() == ccf::kv::ApplyResult::FAIL);
+    }
+
+    SUBCASE("With a CLASSICAL signature alone")
+    {
+      REQUIRE(
+        f.emit_signature([&](auto& tx, const auto& txid, const auto& root) {
+          sign_with(tx, txid, root, false);
+        }) == ccf::kv::ApplyResult::FAIL);
+    }
+  }
+}
+
+TEST_CASE("An unknown identity type fails signature verification")
+{
+  SigningFixture f;
+  f.publish_service_keys();
+  REQUIRE(f.emit_signature() == ccf::kv::ApplyResult::PASS_SIGNATURE);
+
+  constexpr uint64_t unknown_identity_type = 2;
+
+  SUBCASE("Among the signing identities")
+  {
+    f.commit([&](ccf::kv::Tx& tx) {
+      tx.wo<ccf::ServiceMap<uint64_t, ccf::Identity>>(
+          ccf::Tables::SIGNING_IDENTITIES)
+        ->put(
+          unknown_identity_type,
+          ccf::signing_identity_from_cert(f.service_cert));
+    });
+    REQUIRE(f.emit_signature() == ccf::kv::ApplyResult::FAIL);
+  }
+
+  SUBCASE("Among the COSE signatures")
+  {
+    REQUIRE(f.emit_signature([&](auto& tx, const auto& txid, const auto& root) {
+      const auto signature = sign_root(*f.service_kp, txid, root);
+      tx.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+        ->put(ccf::IdentityType::CLASSICAL, signature);
+      tx.template wo<ccf::ServiceMap<uint64_t, ccf::CoseSignature>>(
+          ccf::Tables::COSE_SIGNATURES)
+        ->put(unknown_identity_type, signature);
+    }) == ccf::kv::ApplyResult::FAIL);
+  }
 }
 
 TEST_CASE("A published CLASSICAL identity requires a CLASSICAL COSE signature")

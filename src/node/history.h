@@ -990,6 +990,22 @@ namespace ccf
             published.push_back(identity_type);
             return true;
           });
+
+        // A PQ certificate without its signing identity would otherwise let
+        // a CLASSICAL signature alone pass
+        const auto service_info =
+          tx.template ro<ccf::Service>(ccf::Tables::SERVICE)->get();
+        if (
+          service_info.has_value() && service_info->pq_cert.has_value() &&
+          std::ranges::find(published, ccf::IdentityType::PQ) ==
+            published.end())
+        {
+          LOG_FAIL_FMT(
+            "Cannot verify transaction {}: the service has a PQ certificate "
+            "but no PQ service signing identity is published",
+            version);
+          return false;
+        }
       }
       catch (const std::exception& e)
       {
