@@ -599,7 +599,8 @@ mod tests {
         fn critical_extension_oids(cert: &Self::Certificate) -> Vec<String> {
             cert.extensions
                 .iter()
-                .filter_map(|(oid, critical)| critical.then(|| oid.clone()))
+                .filter(|(_, critical)| **critical)
+                .map(|(oid, _)| oid.clone())
                 .collect()
         }
     }

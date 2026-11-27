@@ -74,9 +74,9 @@ pub fn cose_sign1<'a, 'b>(document: &'a CborValue<'b>) -> Result<&'a CborValue<'
 /// ECDSA algorithm identifiers are from RFC 9053. RSA-PSS algorithm
 /// identifiers are from RFC 8230. All are registered in the IANA COSE
 /// Algorithms registry:
-/// - RFC 9053: https://www.rfc-editor.org/rfc/rfc9053.html
-/// - RFC 8230, Section 2: https://www.rfc-editor.org/rfc/rfc8230.html#section-2
-/// - IANA: https://www.iana.org/assignments/cose/cose.xhtml#algorithms
+/// - RFC 9053: <https://www.rfc-editor.org/rfc/rfc9053.html>
+/// - RFC 8230, Section 2: <https://www.rfc-editor.org/rfc/rfc8230.html#section-2>
+/// - IANA: <https://www.iana.org/assignments/cose/cose.xhtml#algorithms>
 ///
 /// RSA keys are compatible across the RSA-PSS hash variants; the COSE
 /// signature algorithm controls the digest and salt length used for
@@ -176,7 +176,7 @@ pub fn cose_verify1(
 
 /// Verify a COSE_Sign1 signature with the active asynchronous crypto backend.
 ///
-/// This is the async equivalent of [`cose_verify1`]. Use it with backends such
+/// This is the async equivalent of `cose_verify1`. Use it with backends such
 /// as WebCrypto, where signature verification is asynchronous.
 #[cfg(async_crypto)]
 pub async fn cose_verify1_async(
@@ -256,17 +256,20 @@ fn signature_from_cose_bytes(
             <crypto::Signature as SignatureBackend>::from_bytes(sig, algorithm)
                 .map_err(|e| e.to_string())
         }
-        _ => Err(format!("Unsupported signature type {:?}", algorithm).into()),
+        _ => Err(format!("Unsupported signature type {:?}", algorithm)),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(sync_crypto)]
     use crypto::KeyBackend;
 
+    #[cfg(sync_crypto)]
     const PAYLOAD: &[u8] = b"verification-only COSE vector";
 
+    #[cfg(sync_crypto)]
     const P256_SPKI: &[u8] = &[
         48, 89, 48, 19, 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7, 3,
         66, 0, 4, 201, 171, 117, 35, 159, 13, 22, 69, 184, 252, 18, 119, 177, 246, 18, 133, 248,
@@ -274,7 +277,9 @@ mod tests {
         106, 253, 83, 32, 139, 158, 31, 51, 72, 167, 32, 114, 51, 92, 109, 60, 158, 23, 216, 2, 11,
         126, 11, 242, 186, 211, 205,
     ];
+    #[cfg(sync_crypto)]
     const P256_PHDR: &[u8] = &[161, 1, 38];
+    #[cfg(sync_crypto)]
     const P256_SIG: &[u8] = &[
         90, 37, 149, 163, 211, 129, 174, 167, 177, 116, 232, 19, 137, 13, 86, 18, 47, 248, 221,
         245, 81, 132, 222, 25, 6, 230, 131, 70, 41, 27, 154, 74, 57, 92, 210, 184, 112, 104, 224,
@@ -282,6 +287,7 @@ mod tests {
         233, 88, 189, 169, 103, 151,
     ];
 
+    #[cfg(sync_crypto)]
     const RSA_PSS_SPKI: &[u8] = &[
         48, 130, 1, 34, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0, 3, 130, 1, 15, 0,
         48, 130, 1, 10, 2, 130, 1, 1, 0, 175, 27, 158, 101, 168, 58, 209, 97, 4, 179, 2, 172, 30,
@@ -299,7 +305,9 @@ mod tests {
         39, 151, 236, 217, 183, 36, 127, 133, 46, 223, 36, 67, 243, 223, 28, 140, 48, 12, 181, 139,
         149, 2, 123, 87, 198, 151, 2, 3, 1, 0, 1,
     ];
+    #[cfg(sync_crypto)]
     const RSA_PSS_PHDR: &[u8] = &[161, 1, 56, 36];
+    #[cfg(sync_crypto)]
     const RSA_PSS_SIG: &[u8] = &[
         120, 140, 34, 185, 178, 240, 162, 3, 67, 154, 48, 48, 123, 75, 49, 28, 172, 121, 157, 121,
         60, 52, 179, 5, 70, 143, 108, 198, 170, 32, 22, 182, 48, 38, 77, 207, 86, 34, 184, 15, 147,
@@ -367,6 +375,7 @@ mod tests {
         );
     }
 
+    #[cfg(sync_crypto)]
     fn key(
         spki: &[u8],
         algorithm: SignatureKeyAlgorithm,

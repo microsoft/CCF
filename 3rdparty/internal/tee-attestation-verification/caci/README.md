@@ -42,5 +42,8 @@ let verified_report_data = tav::verify_caci_attestation(
 )?;
 ```
 
+`trusted_didx509` must be `did:x509:0:sha256:<root fingerprint>::eku:<oid>` and
+equal the endorsement's issuer. Other did:x509 forms are not supported yet.
+
 `verify_uvm_endorsement` parses the endorsement before anything authenticates
 it, and its size is unchecked: bound untrusted input before calling.

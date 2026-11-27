@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 #![forbid(unsafe_code)]
+#![doc(test(attr(deny(warnings), allow(dead_code))))]
 
 //! Portable TEE attestation verification library.
 //!
@@ -50,7 +51,6 @@
 //! ```
 //!
 
-pub(crate) use crypto;
 pub mod pinned_arks;
 pub mod snp;
 
@@ -78,18 +78,18 @@ pub fn certificate_from_der(der: &[u8]) -> Result<Certificate, Box<dyn std::erro
 
 #[cfg(test)]
 mod tests {
-    use crate::crypto::CertificateBackend;
+    use crypto::CertificateBackend;
 
     const MILAN_VCEK: &[u8] = include_bytes!("../tests/test_data/milan_vcek.pem");
 
     #[test]
     fn certificate_from_der_parses_der_encoded_certificate() {
         let cert = crate::certificate_from_pem(MILAN_VCEK).expect("PEM certificate should parse");
-        let der = crate::crypto::Crypto::to_der(&cert).expect("DER encoding should succeed");
+        let der = crypto::Crypto::to_der(&cert).expect("DER encoding should succeed");
         let reparsed = crate::certificate_from_der(&der).expect("DER certificate should parse");
 
         assert_eq!(
-            crate::crypto::Crypto::to_der(&reparsed).expect("Reparsed DER should encode"),
+            crypto::Crypto::to_der(&reparsed).expect("Reparsed DER should encode"),
             der
         );
     }

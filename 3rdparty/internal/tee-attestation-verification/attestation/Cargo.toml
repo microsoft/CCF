@@ -1,6 +1,6 @@
 [package]
 name = "tee-attestation-verification-lib"
-version = "2.0.0"
+version = "2.0.2"
 edition = "2021"
 rust-version = "1.85"
 repository = "https://github.com/microsoft/TEE-Attestation-Verification"
@@ -35,5 +35,8 @@ log = { version = ">=0.4, <0.5" }
 wasm-logger = { version = ">=0.2, <0.3" }
 
 [dependencies]
-crypto = { package = "tee-attestation-verification-crypto", version = "2.0.0", path = "../crypto", default-features = false }
+crypto = { package = "tee-attestation-verification-crypto", version = "2.0.2", path = "../crypto", default-features = false }
 zerocopy = { version = ">=0.8, <0.9", features = ["derive"] }
+
+[lints]
+workspace = true

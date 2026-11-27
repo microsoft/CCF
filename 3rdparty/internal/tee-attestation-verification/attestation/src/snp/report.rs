@@ -634,7 +634,7 @@ pub(crate) async fn verify_report_signature_async(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crypto::{CertificateBackend, Crypto};
+    use crypto::{CertificateBackend, Crypto};
     use std::mem::size_of;
 
     const MILAN_VCEK: &[u8] = include_bytes!("../../tests/test_data/milan_vcek.pem");
@@ -649,7 +649,6 @@ mod tests {
     fn report() -> AttestationReport {
         AttestationReport::try_read_from_bytes(MILAN_REPORT)
             .expect("Failed to parse attestation report")
-            .clone()
     }
 
     #[test]
@@ -843,7 +842,8 @@ mod tests {
 
     #[test]
     fn guest_policy_each_bit_individually() {
-        let bit_accessors: &[(u64, fn(&GuestPolicy) -> bool)] = &[
+        type PolicyBitAccessor = fn(&GuestPolicy) -> bool;
+        let bit_accessors: &[(u64, PolicyBitAccessor)] = &[
             (1 << 16, GuestPolicy::smt),
             (1 << 18, GuestPolicy::migrate_ma),
             (1 << 19, GuestPolicy::debug),
@@ -918,6 +918,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::neg_cmp_op_on_partial_ord)] // Deliberately tests `>=` and `<=` on incomparable values.
     fn milan_genoa_tcb_versions_compare_component_wise() {
         let baseline = milan_genoa_tcb(1, 2, 3, 4);
         let higher = milan_genoa_tcb(2, 2, 4, 4);
@@ -935,6 +936,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::neg_cmp_op_on_partial_ord)] // Deliberately tests `>=` and `<=` on incomparable values.
     fn turin_tcb_versions_compare_component_wise() {
         let baseline = turin_tcb(1, 2, 3, 4, 5);
         let higher = turin_tcb(1, 3, 3, 5, 5);
