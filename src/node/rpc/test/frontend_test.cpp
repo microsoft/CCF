@@ -1710,6 +1710,490 @@ TEST_CASE("Forwarding timeout" * doctest::test_suite("forwarding"))
     "after 50ms");
 }
 
+TEST_CASE(
+  "Forwarding error paths and session consistency" *
+  doctest::test_suite("forwarding"))
+{
+  struct StubForwarder : public AbstractForwarder
+  {
+    bool should_succeed = true;
+    size_t calls = 0;
+    std::optional<NodeId> last_target = std::nullopt;
+
+    bool forward_command(
+      std::shared_ptr<ccf::RpcContextImpl>,
+      const ccf::NodeId& to,
+      const std::vector<uint8_t>&,
+      const std::chrono::milliseconds&) override
+    {
+      ++calls;
+      last_target = to;
+      return should_succeed;
+    }
+  };
+
+  struct ConfigurableBackupConsensus : public ccf::kv::test::BackupStubConsensus
+  {
+    std::optional<NodeId> primary_node = ccf::kv::test::PrimaryNodeId;
+
+    std::optional<NodeId> primary() override
+    {
+      return primary_node;
+    }
+  };
+
+  NetworkState network;
+  prepare_callers(network);
+
+  auto consensus = std::make_shared<ConfigurableBackupConsensus>();
+  consensus->current_view = 3;
+  network.tables->set_consensus(consensus);
+
+  BaseTestFrontend frontend(*network.tables);
+  size_t executed = 0;
+  auto handler = [&executed](auto& ctx) {
+    ++executed;
+    ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+  };
+  frontend.make_endpoint("/always", HTTP_POST, handler)
+    .set_forwarding_required(endpoints::ForwardingRequired::Always)
+    .install();
+  frontend.make_endpoint("/sometimes", HTTP_GET, handler)
+    .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
+    .install();
+  frontend.make_endpoint("/never", HTTP_GET, handler)
+    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+    .install();
+  frontend.open();
+  publish_frontend_state(frontend, network);
+
+  auto make_ctx = [](
+                    const std::shared_ptr<ccf::SessionContext>& session,
+                    const std::string& path,
+                    llhttp_method verb) {
+    ::http::Request req(path, verb);
+    return ccf::make_rpc_context(session, req.build_request());
+  };
+
+  SUBCASE("No command forwarder installed")
+  {
+    auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, anonymous_caller_der);
+    auto ctx = make_ctx(session, "/always", HTTP_POST);
+    frontend.process(ctx);
+
+    CHECK_FALSE(ctx->response_is_pending);
+    CHECK_FALSE(session->is_forwarding);
+    CHECK(executed == 0);
+    const auto response = parse_response(ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::InternalError},
+        {"message", "No consensus or forwarder to forward request."}});
+  }
+
+  auto forwarder = std::make_shared<StubForwarder>();
+  frontend.set_cmd_forwarder(forwarder);
+
+  SUBCASE("Already forwarded request prevents daisy chaining")
+  {
+    auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, anonymous_caller_der);
+    session->is_forwarded = true;
+    auto ctx = make_ctx(session, "/always", HTTP_POST);
+    frontend.process_forwarded(ctx);
+
+    CHECK_FALSE(ctx->response_is_pending);
+    CHECK(forwarder->calls == 0);
+    CHECK(executed == 0);
+    const auto response = parse_response(ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::RequestAlreadyForwarded},
+        {"message", "RPC was already forwarded."}});
+  }
+
+  SUBCASE("View change detected before forwarding terminates session")
+  {
+    auto session =
+      std::make_shared<ccf::SessionContext>(7, anonymous_caller_der);
+    session->active_view = 2;
+    auto ctx = make_ctx(session, "/always", HTTP_POST);
+    frontend.process(ctx);
+
+    CHECK_FALSE(ctx->response_is_pending);
+    CHECK(ctx->terminate_session);
+    CHECK_FALSE(session->is_forwarding);
+    CHECK(forwarder->calls == 0);
+    CHECK(executed == 0);
+    const auto response = parse_response(ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"]["code"] ==
+      ccf::errors::SessionConsistencyLost);
+  }
+
+  SUBCASE("Unknown primary returns service unavailable")
+  {
+    consensus->primary_node = std::nullopt;
+    auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, anonymous_caller_der);
+    auto ctx = make_ctx(session, "/always", HTTP_POST);
+    frontend.process(ctx);
+
+    CHECK_FALSE(ctx->response_is_pending);
+    CHECK_FALSE(session->is_forwarding);
+    CHECK(forwarder->calls == 0);
+    CHECK(executed == 0);
+    const auto response = parse_response(ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::InternalError},
+        {"message", "RPC could not be forwarded to unknown primary."}});
+  }
+
+  SUBCASE("Forwarder channel failure returns service unavailable")
+  {
+    forwarder->should_succeed = false;
+    auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, anonymous_caller_der);
+    auto ctx = make_ctx(session, "/always", HTTP_POST);
+    frontend.process(ctx);
+
+    CHECK_FALSE(ctx->response_is_pending);
+    CHECK_FALSE(session->is_forwarding);
+    CHECK(forwarder->calls == 1);
+    CHECK(executed == 0);
+    const auto response = parse_response(ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::InternalError},
+        {"message", "Unable to establish channel to forward to primary."}});
+  }
+
+  SUBCASE("Successful forwarding pins subsequent Sometimes requests")
+  {
+    auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, anonymous_caller_der);
+
+    auto read_before = make_ctx(session, "/sometimes", HTTP_GET);
+    frontend.process(read_before);
+    CHECK_FALSE(read_before->response_is_pending);
+    CHECK_FALSE(session->is_forwarding);
+    CHECK(
+      parse_response(read_before->serialise_response()).status ==
+      HTTP_STATUS_OK);
+    CHECK(executed == 1);
+    CHECK(forwarder->calls == 0);
+
+    auto write_ctx = make_ctx(session, "/always", HTTP_POST);
+    frontend.process(write_ctx);
+    CHECK(write_ctx->response_is_pending);
+    CHECK(session->is_forwarding);
+    CHECK(forwarder->calls == 1);
+    CHECK(forwarder->last_target == ccf::kv::test::PrimaryNodeId);
+    CHECK(executed == 1);
+
+    auto read_after = make_ctx(session, "/sometimes", HTTP_GET);
+    frontend.process(read_after);
+    CHECK(read_after->response_is_pending);
+    CHECK(forwarder->calls == 2);
+    CHECK(executed == 1);
+
+    auto local_read = make_ctx(session, "/never", HTTP_GET);
+    frontend.process(local_read);
+    CHECK_FALSE(local_read->response_is_pending);
+    CHECK(
+      parse_response(local_read->serialise_response()).status ==
+      HTTP_STATUS_OK);
+    CHECK(forwarder->calls == 2);
+    CHECK(executed == 2);
+  }
+}
+
+TEST_CASE(
+  "Forwarded RPC context invariants" * doctest::test_suite("forwarding"))
+{
+  NetworkState network;
+  prepare_callers(network);
+
+  BaseTestFrontend frontend(*network.tables);
+  frontend
+    .make_endpoint(
+      "/ok",
+      HTTP_POST,
+      [](auto& ctx) { ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK); })
+    .install();
+  frontend
+    .make_endpoint(
+      "/pending",
+      HTTP_POST,
+      [](auto& ctx) {
+        static_cast<ccf::RpcContextImpl*>(ctx.rpc_ctx.get())
+          ->response_is_pending = true;
+      })
+    .install();
+  frontend.open();
+  publish_frontend_state(frontend, network);
+
+  SUBCASE("Rejects non-forwarded session context")
+  {
+    auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, anonymous_caller_der);
+    auto ctx = ccf::make_rpc_context(
+      session, create_simple_request("/ok").build_request());
+    // frontend_test_infra.h defines
+    // DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS, which compiles out
+    // CHECK_THROWS_AS, so catch explicitly.
+    bool threw = false;
+    try
+    {
+      frontend.process_forwarded(ctx);
+    }
+    catch (const std::logic_error& e)
+    {
+      threw = true;
+      CHECK(
+        std::string_view(e.what()) ==
+        "Processing forwarded command with unitialised forwarded context");
+    }
+    CHECK(threw);
+  }
+
+  SUBCASE("Rejects forwarded request that leaves response pending")
+  {
+    auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, anonymous_caller_der);
+    session->is_forwarded = true;
+    auto ctx = ccf::make_rpc_context(
+      session, create_simple_request("/pending").build_request());
+    bool threw = false;
+    try
+    {
+      frontend.process_forwarded(ctx);
+    }
+    catch (const std::logic_error& e)
+    {
+      threw = true;
+      CHECK(std::string_view(e.what()) == "Forwarded RPC cannot be forwarded");
+    }
+    CHECK(threw);
+  }
+
+  SUBCASE("Accepts valid forwarded request on primary")
+  {
+    auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, anonymous_caller_der);
+    session->is_forwarded = true;
+    auto ctx = ccf::make_rpc_context(
+      session, create_simple_request("/ok").build_request());
+    frontend.process_forwarded(ctx);
+    CHECK_FALSE(ctx->response_is_pending);
+    CHECK(parse_response(ctx->serialise_response()).status == HTTP_STATUS_OK);
+  }
+}
+
+TEST_CASE(
+  "Frontend handles pending responses, stolen transactions, and JSON errors")
+{
+  NetworkState network;
+  prepare_callers(network);
+
+  ccf::kv::Map<size_t, size_t> values("test_frontend_errors");
+  BaseTestFrontend frontend(*network.tables);
+  frontend
+    .make_endpoint(
+      "/pending",
+      HTTP_POST,
+      [&values](auto& ctx) {
+        ctx.tx.rw(values)->put(0, 99);
+        static_cast<ccf::RpcContextImpl*>(ctx.rpc_ctx.get())
+          ->response_is_pending = true;
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      })
+    .install();
+  frontend
+    .make_endpoint(
+      "/steal_tx",
+      HTTP_POST,
+      [](auto& ctx) {
+        ctx.rpc_ctx->set_response_header("test-stolen", "true");
+        auto* impl = dynamic_cast<ccf::EndpointContextImpl*>(&ctx);
+        REQUIRE(impl != nullptr);
+        auto stolen = std::move(impl->owned_tx);
+        REQUIRE(stolen != nullptr);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      })
+    .install();
+  frontend
+    .make_endpoint(
+      "/json_parse_error",
+      HTTP_POST,
+      [](auto& ctx) {
+        ctx.rpc_ctx->set_response_header("test-json-parse-error", "true");
+        std::ignore =
+          nlohmann::json::object().get<ccf::endpoints::EndpointKey>();
+      })
+    .install();
+  frontend
+    .make_endpoint(
+      "/nlohmann_json_error",
+      HTTP_POST,
+      [](auto& ctx) {
+        ctx.rpc_ctx->set_response_header("test-nlohmann-error", "true");
+        std::ignore = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+      })
+    .install();
+  frontend.open();
+  publish_frontend_state(frontend, network);
+
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der);
+
+  SUBCASE("Pending response skips transaction commit")
+  {
+    auto ctx = ccf::make_rpc_context(
+      session, create_simple_request("/pending").build_request());
+    frontend.process(ctx);
+    CHECK(ctx->response_is_pending);
+
+    auto tx = network.tables->create_read_only_tx();
+    CHECK_FALSE(tx.ro(values)->get(0).has_value());
+  }
+
+  SUBCASE("Stolen owned_tx returns internal error and clears headers")
+  {
+    auto ctx = ccf::make_rpc_context(
+      session, create_simple_request("/steal_tx").build_request());
+    frontend.process(ctx);
+    CHECK_FALSE(ctx->response_is_pending);
+
+    const auto response = parse_response(ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK_FALSE(response.headers.contains("test-stolen"));
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::InternalError},
+        {"message", "Illegal endpoint implementation"}});
+  }
+
+  SUBCASE("ccf::JsonParseError returns 400 InvalidInput and clears headers")
+  {
+    auto ctx = ccf::make_rpc_context(
+      session, create_simple_request("/json_parse_error").build_request());
+    frontend.process(ctx);
+    CHECK_FALSE(ctx->response_is_pending);
+
+    const auto response = parse_response(ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_BAD_REQUEST);
+    CHECK_FALSE(response.headers.contains("test-json-parse-error"));
+    const auto error = nlohmann::json::parse(response.body)["error"];
+    CHECK(error["code"] == ccf::errors::InvalidInput);
+    CHECK_FALSE(error["message"].get<std::string>().empty());
+  }
+
+  SUBCASE(
+    "nlohmann::json::exception returns 400 InvalidInput and clears headers")
+  {
+    auto req = create_simple_request("/nlohmann_json_error");
+    req.set_body("{not valid json");
+    auto ctx = ccf::make_rpc_context(session, req.build_request());
+    frontend.process(ctx);
+    CHECK_FALSE(ctx->response_is_pending);
+
+    const auto response = parse_response(ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_BAD_REQUEST);
+    CHECK_FALSE(response.headers.contains("test-nlohmann-error"));
+    const auto error = nlohmann::json::parse(response.body)["error"];
+    CHECK(error["code"] == ccf::errors::InvalidInput);
+    CHECK_FALSE(error["message"].get<std::string>().empty());
+  }
+}
+
+TEST_CASE(
+  "GET /tx handles missing parameter, unpublished consensus, and consensus "
+  "errors")
+{
+  struct ThrowingStatusConsensus : public ccf::kv::test::PrimaryStubConsensus
+  {
+    ccf::View get_view(ccf::SeqNo) override
+    {
+      throw std::runtime_error("consensus status lookup failed");
+    }
+  };
+
+  NetworkState network;
+  prepare_callers(network);
+
+  BaseTestFrontend frontend(*network.tables);
+  frontend.open();
+
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der);
+  auto call_tx = [&](const std::optional<std::string>& tx_id) {
+    ::http::Request req("/tx", HTTP_GET);
+    if (tx_id.has_value())
+    {
+      req.set_query_param("transaction_id", *tx_id);
+    }
+    auto ctx = ccf::make_rpc_context(session, req.build_request());
+    frontend.process(ctx);
+    CHECK_FALSE(ctx->response_is_pending);
+    return parse_response(ctx->serialise_response());
+  };
+
+  SUBCASE("Missing transaction_id query parameter returns 400")
+  {
+    const auto response = call_tx(std::nullopt);
+    CHECK(response.status == HTTP_STATUS_BAD_REQUEST);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"]["code"] ==
+      ccf::errors::InvalidQueryParameterValue);
+  }
+
+  SUBCASE("Malformed transaction_id query parameter returns 400")
+  {
+    const auto response = call_tx("not-a-txid");
+    CHECK(response.status == HTTP_STATUS_BAD_REQUEST);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"]["code"] ==
+      ccf::errors::InvalidQueryParameterValue);
+  }
+
+  SUBCASE("Unpublished consensus reports TxStatus::Unknown")
+  {
+    frontend.set_consensus_and_history(nullptr, nullptr);
+    const auto response = call_tx("1.1");
+    CHECK(response.status == HTTP_STATUS_OK);
+    const auto body = nlohmann::json::parse(response.body);
+    CHECK(body["status"] == "Unknown");
+    CHECK(body["transaction_id"] == "1.1");
+  }
+
+  SUBCASE("Exception in consensus status evaluation returns 500")
+  {
+    auto throwing_consensus = std::make_shared<ThrowingStatusConsensus>();
+    frontend.set_consensus_and_history(throwing_consensus.get(), nullptr);
+
+    const auto response = call_tx("1.1");
+    CHECK(response.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::InternalError},
+        {"message", "Error code: InternalError"}});
+  }
+}
+
 class TestConflictFrontend : public BaseTestFrontend
 {
 public:
