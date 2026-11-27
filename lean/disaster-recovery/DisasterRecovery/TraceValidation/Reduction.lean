@@ -149,21 +149,19 @@ private def Item.instructions : Item → Array Instruction
               timeoutState := recorded.postTimeout
               chosen := recorded.chosen
               openKind := recorded.openKind
-              restartRequested := if recorded.restart then some true else none
             }
           -- Nodes do not log notifications, which follow from what advance() wrote.
           let notifications : List Notification :=
-            if let some kind := recorded.openKind then
-              [.opening kind]
-            else if recorded.restart then
-              (recorded.chosen.map .restart).toList
-            else if recorded.pre == .opening && recorded.post == .open then
-              [.completed]
-            else
-              []
+            (recorded.openKind.map .opening).toList
+            ++ (if recorded.restart then (recorded.chosen.map .restart).toList else [])
+            ++ (if recorded.pre == .opening && recorded.post == .open then
+                  [.completed]
+                else
+                  [])
           #[
             .state event.node pre [event.origin "commit-order-pre"],
-            .action action [event.origin "commit-order"],
+            .action action [event.origin "commit-order-run"],
+            .action (.local event.node (.commit 0)) [event.origin "commit-order"],
             .outputs event.node [] notifications [event.origin "commit-order-outputs"],
             .state event.node post [event.origin "commit-order-post"]
           ]

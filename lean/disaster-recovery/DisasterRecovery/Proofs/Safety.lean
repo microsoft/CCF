@@ -4,6 +4,7 @@ public import DisasterRecovery.Properties.Utils
 public import CCF.Proofs.Execution
 public import DisasterRecovery.Model
 
+import DisasterRecovery.Proofs.Operations
 import all Init.Control.State
 
 @[expose] public section
@@ -37,7 +38,7 @@ namespace DisasterRecovery.Proofs.Execution.Local
 
 open CCF (TransitionSystem)
 
-export DisasterRecovery.Model.Local (
+export DisasterRecovery.Proofs.Atomic (
   Location TxID Phase OpenKind Validation Config NodeState Event
   initialNode voteQuorum validTimeout txScoreGreater
   selectMaximum maximumGossip insertGossip insertVote advanceTimeoutState
@@ -134,7 +135,7 @@ private def advance (config : Config) (state : NodeState) (timeout : Bool)
       | some chosen =>
           some
             {
-              state := advanceTimeoutLane { state with restartRequested := true } timeout
+              state := advanceTimeoutLane state timeout
               effects := [.restart chosen]
             }
   | .opening =>
@@ -281,7 +282,7 @@ private structure Opening where
 private structure State where
   /-- Current local states of the stored recovery nodes. -/
   system : SystemState
-  /-- Messages still queued for delivery. -/
+  /-- Sent envelopes available to justify a commit, even after its corresponding run. -/
   network : List Envelope := []
   /-- All messages emitted so far, retaining their send-time snapshots. -/
   sent : List Envelope := []
@@ -336,12 +337,6 @@ private def eventFor (envelope : Envelope) : Event :=
   | .vote => .receiveVote envelope.source .accepted
   | .iAmOpen => .receiveIAmOpen envelope.source .accepted
 
-/-- Removes one queued copy of a value, preserving any other identical copies. -/
-private def removeOne {α : Type _} [BEq α] (value : α) : List α -> List α
-  | [] => []
-  | head :: tail =>
-      if head == value then tail else head :: removeOne value tail
-
 /-- Adds a terminal notification to its proof-only history. -/
 private def recordEffect (node : Location) (nodeState : NodeState) (state : State)
     : Effect -> State
@@ -386,12 +381,7 @@ private def next (config : Config) (state : State) : Action -> Option State
       guard (recoveredTxID config envelope.target).isSome
       let (system, output) <- systemStep config.protocol state.system envelope.target
                                 (eventFor envelope)
-      let delivered :=
-        {
-          state with
-            system
-            network := removeOne envelope state.network
-        }
+      let delivered := { state with system }
       pure (recordEffects envelope.target output.state output.effects delivered)
   | .timeout target => do
       guard (recoveredTxID config target).isSome
@@ -584,12 +574,26 @@ open Execution.Global Predicates
 open DisasterRecovery.Proofs.Invariants
 attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
 
+/-- Joining is absorbing, as is the pair of phases opening and open. -/
+private def TerminalPreserved (before after : Phase) : Prop :=
+  (before = .joining → after = .joining)
+  ∧ (before = .opening ∨ before = .open → after = .opening ∨ after = .open)
+
+private theorem terminal_refl (phase : Phase) : TerminalPreserved phase phase := ⟨id, id⟩
+
+private theorem terminal_trans {a b c : Phase} (ab : TerminalPreserved a b)
+    (bc : TerminalPreserved b c)
+    : TerminalPreserved a c :=
+  ⟨fun h => bc.1 (ab.1 h), fun h => bc.2 (ab.2 h)⟩
+
 /-- The facts about one successful `advance` used by the quorum invariants. -/
 private structure AdvanceSpec
     (config : Execution.Local.Config) (input : NodeState) (out : StepOutput)
     : Prop where
   votes : out.state.votes = input.votes
   gossips : out.state.gossips = input.gossips
+  terminal : TerminalPreserved input.phase out.state.phase
+  restart : ∀ chosen, .restart chosen ∈ out.effects → out.state.phase = .joining
   nonGossiping : input.phase ≠ .gossiping -> out.state.phase ≠ .gossiping
   voting
     : out.state.phase = .voting
@@ -605,6 +609,7 @@ private structure AdvanceSpec
 /-- How an accepted event's pre-advance state relates to the original state. -/
 private structure Received (state : NodeState) (event : Event) (received : NodeState)
     : Prop where
+  terminal : TerminalPreserved state.phase received.phase
   gossiping : received.phase = .gossiping -> state.phase = .gossiping
   voting
     : received.phase = .voting
@@ -621,7 +626,9 @@ private structure Received (state : NodeState) (event : Event) (received : NodeS
 private def StepSpec (config : Execution.Local.Config) (state : NodeState) (event : Event)
     (out : StepOutput)
     : Prop :=
-  (out.state = state /\ forall kind, .opening kind ∉ out.effects)
+  (out.state = state
+    /\ (forall kind, .opening kind ∉ out.effects)
+    /\ forall chosen, .restart chosen ∉ out.effects)
   \/ exists received timeout,
       Received state event received /\ advance config received timeout = some out
 
@@ -633,7 +640,7 @@ end DisasterRecovery.Proofs.Local
 namespace DisasterRecovery.Proofs.Lifting
 
 open CCF
-open DisasterRecovery.Model.Local
+open DisasterRecovery.Proofs.Atomic
 open Execution.Local (messages)
 open DisasterRecovery.Proofs.Local
 attribute [local simp] StateT.run
@@ -653,15 +660,59 @@ private def capture (run : NodeState × Outputs Location Message Notification) :
 private def eraseEnvelope (envelope : Execution.Global.Envelope) : Model.Envelope :=
   { source := envelope.source, target := envelope.target, payload := envelope.payload }
 
-/-- Removes send snapshots and histories to recover the executable network state. -/
-private def erase (state : Execution.Global.State) : Model.State :=
+/-- Drops snapshots and histories from the serialized, overapproximated network. -/
+private abbrev AtomicState := MultiNodeTransitionSystem.State Location NodeState Message
+
+private def erase (state : Execution.Global.State) : AtomicState :=
   { nodes := state.system.nodes, network := state.network.map eraseEnvelope }
 
-/-- Translates a decorated action into its executable model counterpart. -/
-private def eraseAction : Execution.Global.Action -> Model.Action
-  | .retry source => .local source .retry
-  | .timeout target => .local target .timeout
-  | .deliver envelope => .deliver (eraseEnvelope envelope)
+/-- A serialized commit or retry. Delivery is allowed to reuse a sent envelope:
+only its provenance, not the number of queued copies, matters for the invariants. -/
+private inductive AtomicAction where
+  | retry (node : Location)
+  | timeout (node : Location)
+  | deliver (envelope : Model.Envelope)
+
+private def schedule (config : Model.Config) (before : AtomicState) (node : Location)
+    (event : Event)
+    : Option AtomicState := do
+  let current ← MultiNodeTransitionSystem.nodeState before node
+  let recovered ← Model.recoveredTxID config node
+  let (next, effects) ←
+    (step (Capabilities.record node) config.protocol recovered current event).run {}
+  return {
+    nodes :=
+      before.nodes.map fun entry => if entry.1 == node then (node, next) else entry,
+    network := before.network ++ effects.outgoing
+  }
+
+private def atomic (config : Model.Config) (state : AtomicState)
+    : AtomicAction → Option AtomicState
+  | .retry node => schedule config state node .retry
+  | .timeout node => schedule config state node .timeout
+  | .deliver env => do
+      guard (env ∈ state.network)
+      schedule config state env.target (Model.receive env.source env.payload)
+
+private abbrev strip (s : Model.Local.NodeState) := Atomic.project s
+
+private abbrev stripEntry (entry : Location × Model.Local.NodeState) :=
+  (entry.1, strip entry.2)
+
+private structure Linked (state : Model.State) (ghost : Execution.Global.State)
+    : Prop where
+  nodes : (erase ghost).nodes = state.nodes.map stripEntry
+  queued : state.network ⊆ (erase ghost).network
+  pending
+    : ∀ node localState,
+        (node, localState) ∈ state.nodes
+        → ∀ e ∈ localState.pending,
+            e.event = .timeout
+            ∨ ∃ env ∈ (erase ghost).network,
+                env.target = node ∧ Model.receive env.source env.payload = e.event
+  represented
+    : ∀ n st,
+        (n,st) ∈ state.nodes → Atomic.Represents (CCF.OCC.values st.store) (strip st)
 
 /-- Retains a decorated local step's state and notifications, ignoring send effects. -/
 private def eraseOutput (output : Execution.Local.StepOutput) : Result :=
@@ -689,32 +740,18 @@ namespace DisasterRecovery.Proofs.History
 open CCF
 open Lifting
 
-/-- Decorated steps whose erased successor states form the given model-state list. -/
-private inductive Decoration (config : Model.Config)
-    : Execution.Global.State -> List Model.State -> Execution.Global.State -> Prop where
-  /-- An empty decoration leaves the instrumented state unchanged. -/
-  | nil (state) : Decoration config state [] state
-  /-- Prepend an instrumented step and its erased successor. -/
-  | cons {before middle after tail} {action}
-    (step : Execution.Global.next config before action = some middle)
-    (rest : Decoration config middle tail after)
-    : Decoration config before (erase middle :: tail) after
-
-/-- A reachable decorated state with a model execution suffix from every behaviour state
-up to `bound`. -/
 private structure Correspondence (config : Model.Config)
     (behaviour : Properties.Behaviour config) (bound : Nat)
     (ghost : Execution.Global.State)
     : Prop where
-  /-- The instrumented state is reachable under the same recovery configuration. -/
   reachable : Execution.Global.Reachable config ghost
-  /-- Every behaviour state up to `bound` has a model path to the erased ghost state. -/
   suffix
     : forall i state,
         i <= bound
         -> behaviour.stateAt i = some state
-        -> exists tail,
-            Behaviour.Path (Model.transitionSystem config) state tail (erase ghost)
+        -> exists tail final,
+            Behaviour.Path (Model.transitionSystem config) state tail final
+            ∧ Linked final ghost
 
 end DisasterRecovery.Proofs.History
 
@@ -760,6 +797,9 @@ private structure Evolves (before after : NodeState) : Prop where
   frozen
     : before.chosen.isSome = true
       -> after.chosen.isSome = true /\ after.gossips = before.gossips
+
+  /-- Terminal phases remain on their respective paths. -/
+  terminal : TerminalPreserved before.phase after.phase
 
 private abbrev Frame (before after : NodeState) : Prop :=
   after.gossips = before.gossips
@@ -1292,7 +1332,7 @@ private theorem deliver_cases
           systemStep config.protocol before.system envelope.target (eventFor envelope)
             = some (system, output)
           /\ recordEffects envelope.target output.state output.effects
-                { before with system, network := removeOne envelope before.network }
+                { before with system }
               = after := by
   simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
     Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some,
@@ -1333,17 +1373,6 @@ private theorem deliver_preserves_well_formed
     (wellFormed : WellFormed config before)
     (transition : next config before (.deliver envelope) = some after)
     : WellFormed config after := by
-  have mem_of_mem_removeOne {α : Type _} [BEq α] (value member : α) (values : List α)
-      : member ∈ removeOne value values -> member ∈ values := by
-    induction values with
-    | nil => simp [removeOne]
-    | cons head tail ih =>
-        simp only [removeOne]
-        split
-        · exact List.mem_cons_of_mem head
-        · intro membership
-          rw [List.mem_cons] at membership ⊢
-          exact membership.imp_right ih
   obtain ⟨_, targetRecovered, system, output, systemStep, stateEq⟩ := deliver_cases transition
   rw [←stateEq]
   constructor
@@ -1366,7 +1395,7 @@ private theorem deliver_preserves_well_formed
     rw [recordEffects_network] at membership
     rw [recordEffects_sent]
     exact wellFormed.networkSent pending
-      (mem_of_mem_removeOne envelope pending before.network membership)
+      membership
   · apply recordEffects_preserves_histories_configured
     · constructor
       · simpa using wellFormed.historiesConfigured.openings
@@ -1551,6 +1580,8 @@ private theorem AdvanceSpec.lane {config : Execution.Local.Config} {input : Node
   gossips := by simp [stateEq]
   nonGossiping := by simp [stateEq]
   voting voting := Or.inl ⟨by simpa [stateEq] using voting, by simp [stateEq]⟩
+  terminal := by simpa [stateEq] using terminal_refl input.phase
+  restart := by simp [effectsEq]
   opening := by simp [effectsEq]
 
 /-- Characterizes every successful phase advance once, so callers avoid re-unfolding it. -/
@@ -1567,6 +1598,8 @@ private theorem advance_spec {config : Execution.Local.Config} {input : NodeStat
         exact {
           votes := by simp
           gossips := by simp
+          terminal := by simp [TerminalPreserved, phase]
+          restart := by simp
           nonGossiping := fun pastGossip => absurd phase pastGossip
           voting := fun _ => Or.inr ⟨phase, by simp [NodeVotingSelection, found]⟩
           opening := by simp }
@@ -1581,6 +1614,8 @@ private theorem advance_spec {config : Execution.Local.Config} {input : NodeStat
         exact {
           votes := by simp
           gossips := by simp
+          terminal := by simp [TerminalPreserved, phase]
+          restart := by simp
           nonGossiping := by simp
           voting := by simp
           opening := by
@@ -1598,6 +1633,8 @@ private theorem advance_spec {config : Execution.Local.Config} {input : NodeStat
       exact {
         votes := by simp
         gossips := by simp
+        terminal := by simp [TerminalPreserved, phase]
+        restart := by simp
         nonGossiping := by simp
         voting := by simp
         opening := by simp }
@@ -1609,6 +1646,8 @@ private theorem advance_spec {config : Execution.Local.Config} {input : NodeStat
       exact {
         votes := by simp
         gossips := by simp
+        terminal := by simp [TerminalPreserved, phase]
+        restart := by simp [phase]
         nonGossiping := by simp [phase]
         voting := by simp [phase]
         opening := by simp }
@@ -1637,7 +1676,8 @@ private theorem step_spec (config : Execution.Local.Config) (state : NodeState)
       · by_cases chosen : state.chosen = none
         · simp only [step, Execution.Local.transitionSystem, guard, chosen]
           exact advance_getD_spec _
-            { gossiping := id
+            { terminal := terminal_refl _
+              gossiping := id
               voting := fun voting => ⟨voting, chosen.symm, Or.inr chosen⟩
               votes := Or.inl rfl }
         · simp only [step, Execution.Local.transitionSystem, guard, chosen]
@@ -1646,7 +1686,8 @@ private theorem step_spec (config : Execution.Local.Config) (state : NodeState)
   | receiveVote source validation =>
       cases validation
       · exact advance_getD_spec _
-          { gossiping := id
+          { terminal := terminal_refl _
+            gossiping := id
             voting := fun voting => ⟨voting, rfl, Or.inl rfl⟩
             votes := Or.inr ⟨source, rfl, rfl⟩ }
       · exact rejected_spec _
@@ -1656,13 +1697,16 @@ private theorem step_spec (config : Execution.Local.Config) (state : NodeState)
         · obtain ⟨notOpening, notOpen⟩ := active
           simp only [step, Execution.Local.transitionSystem, guard, ne_eq, notOpening, notOpen,
             not_false_eq_true, and_self, ↓reduceIte, pure_bind]
-          refine advance_getD_spec _ ⟨?_, ?_, Or.inl rfl⟩ <;> intro joining <;> cases joining
+          refine advance_getD_spec _ ⟨⟨fun _ => rfl, ?_⟩, ?_, ?_, Or.inl rfl⟩
+          · exact fun h => False.elim (h.elim notOpening notOpen)
+          all_goals intro joining; cases joining
         · simp only [step, Execution.Local.transitionSystem, guard, active, ↓reduceIte]
           exact rejected_spec _
       · exact rejected_spec _
   | timeout =>
       exact advance_getD_spec _
-        { gossiping := id
+        { terminal := terminal_refl _
+          gossiping := id
           voting := fun voting => ⟨voting, rfl, Or.inl rfl⟩
           votes := Or.inl rfl }
   | retry =>
@@ -1714,7 +1758,7 @@ private theorem opening_effect_state
     (opening : .opening kind ∈ (step config state event).effects)
     : (step config state event).state.phase = .opening
       /\ (step config state event).state.openKind = some kind := by
-  rcases step_spec config state event with ⟨_, noOpening⟩ | ⟨received, _, _, advanced⟩
+  rcases step_spec config state event with ⟨_, noOpening, _⟩ | ⟨received, _, _, advanced⟩
   · exact absurd opening (noOpening kind)
   · obtain ⟨phase, openKind, _⟩ := (advance_spec advanced).opening kind opening
     exact ⟨phase, openKind⟩
@@ -1837,13 +1881,7 @@ private theorem systemStep_preserves_votes_nodup
     : forall entry, entry ∈ after.nodes -> entry.2.votes.Nodup := by
   have insertVote_nodup (source : Location) {votes : List Location} (nodup : votes.Nodup)
       : (insertVote source votes).Nodup := by
-    unfold insertVote
-    split
-    · exact nodup
-    · rename_i absent
-      apply (List.mergeSort_perm _ _).symm.nodup
-      rw [List.nodup_cons]
-      exact ⟨fun member => absent (List.contains_iff_mem.mpr member), nodup⟩
+    exact List.nodup_cons.mpr ⟨nodup.not_mem_erase,nodup.erase _⟩
   have step_preserves_votes_nodup
       (config : Execution.Local.Config)
       (state : NodeState)
@@ -1999,7 +2037,7 @@ private theorem systemStep_quorum_effect_has_threshold
       (event : Event)
       (opening : .opening .quorum ∈ (step config state event).effects)
       : voteQuorum config <= (step config state event).state.votes.length := by
-    rcases step_spec config state event with ⟨_, noOpening⟩ | ⟨received, _, _, advanced⟩
+    rcases step_spec config state event with ⟨_, noOpening, _⟩ | ⟨received, _, _, advanced⟩
     · exact absurd opening (noOpening .quorum)
     · have spec := advance_spec advanced
       rw [spec.votes]
@@ -2034,13 +2072,7 @@ private theorem systemStep_preserves_node_votes_sent
       {votes : List Location}
       (membership : member ∈ insertVote source votes)
       : member ∈ votes \/ member = source := by
-    unfold insertVote at membership
-    split at membership
-    · exact Or.inl membership
-    · have unsorted :=
-        (List.mergeSort_perm _ _).mem_iff.mp membership
-      rw [List.mem_cons] at unsorted
-      exact unsorted.symm
+    exact (List.mem_cons.mp membership).elim Or.inr (fun h => Or.inl (List.mem_of_mem_erase h))
   have step_votes_shape
       (config : Execution.Local.Config)
       (state : NodeState)
@@ -2202,7 +2234,7 @@ private theorem next_deliver_inv
         /\ systemStep config.protocol before.system envelope.target (eventFor envelope)
             = some (system, output)
         /\ recordEffects envelope.target output.state output.effects
-              { before with system, network := removeOne envelope before.network }
+              { before with system }
             = after := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with ⟨inNetwork, _, system, output, stepped, stateEq⟩
@@ -2270,7 +2302,6 @@ private theorem deliver_preserves_node_votes_sent
       {
         before with
         system
-        network := removeOne envelope before.network
       }
   have carry :
       forall oldVoter oldTarget,
@@ -2358,7 +2389,6 @@ private theorem deliver_preserves_openings_valid
   let delivered : State := {
     before with
     system
-    network := removeOne envelope before.network
   }
   apply recordEffects_preserves_openings_valid
   · intro opening membership
@@ -2941,7 +2971,7 @@ end DisasterRecovery.Proofs.Quorum
 namespace DisasterRecovery.Proofs.Local
 
 open CCF
-open Model.Local
+open DisasterRecovery.Model.Local
 
 @[simp]
 private theorem effect_pure {S A : Type} (a : A) (s : S)
@@ -2983,11 +3013,12 @@ private theorem effect_alternative {S A : Type} (a b : StateT S Option A) (s : S
 
 private theorem validStep_run {config : Model.Config}
     {s
-      : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification}
+      : MultiNodeTransitionSystem.LocalStep Location NodeState Operation Message
+          Notification}
     (valid : (Model.protocol config).ValidStep s)
     : exists recovered,
         Model.recoveredTxID config s.node = some recovered
-        /\ (step (Capabilities.record s.node) config.protocol recovered s.before
+        /\ (perform (Capabilities.record s.node) config.protocol recovered s.before
               s.action).run
               {}
             = some (s.after, s.effects) := by
@@ -3001,7 +3032,7 @@ end DisasterRecovery.Proofs.Local
 namespace DisasterRecovery.Proofs.Lifting
 
 open CCF
-open DisasterRecovery.Model.Local
+open DisasterRecovery.Proofs.Atomic
 open Execution.Local (messages)
 open DisasterRecovery.Proofs.Local
 attribute [local simp] StateT.run
@@ -3030,7 +3061,7 @@ private theorem advance_run (config : Config) (source : Location) (recovered : T
     (state : NodeState) (timeout : Bool)
     : advance (Capabilities.record source) config state timeout {}
       = (Execution.Local.advance config state timeout).map (toRun source recovered) := by
-  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind, restart⟩
+  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind⟩
   unfold advance Execution.Local.advance
   cases phase <;> dsimp only
   case gossiping =>
@@ -3053,7 +3084,7 @@ private theorem advance_output (config : Config) (state : NodeState) (timeout : 
     (source : Location) (recovered : TxID)
     : output.accepted = true /\ messages source recovered output.effects = [] := by
   revert h
-  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind, restart⟩
+  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind⟩
   unfold Execution.Local.advance
   cases phase <;> dsimp only
   case gossiping =>
@@ -3087,7 +3118,7 @@ private theorem receive_run (config : Config) (source : Location) (recovered : T
             (toRun source recovered
               (result.getD (Execution.Local.rejected state reason))) := by
     cases result <;> rfl
-  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind, restart⟩
+  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind⟩
   unfold StateT.run
   cases event with
   | retry | timeout => contradiction
@@ -3175,15 +3206,13 @@ private theorem retry_recorded (config : Config) (source : Location) (recovered 
     | cons head tail ih =>
         simp only [List.forIn_cons, effect_bind, effect_modify, Option.bind_some, effect_pure, ih,
           List.map_cons, List.append_assoc, List.singleton_append]
-  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind, restart⟩
+  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind⟩
   rcases config with ⟨instanceId, targets⟩
   cases phase
   case gossiping =>
     cases targets <;>
-      simp only [StateT.run, step, effect_bind, effect_guard, Capabilities.record,
-        show (Phase.gossiping == Phase.voting) = false from rfl, Bool.false_eq_true, reduceIte,
-        Option.bind_some, effect_pure,
-        send_all_run source recovered (.gossip recovered) .sendGossip (fun _ => rfl)]
+      simp +decide only [StateT.run, step, effect_bind, effect_guard, Capabilities.record,
+        reduceIte, Option.bind_some, effect_pure, send_all_run source recovered (.gossip recovered) .sendGossip (fun _ => rfl)]
     all_goals rfl
   case voting =>
     cases chosen <;> cases targets <;>
@@ -3217,7 +3246,7 @@ private theorem step_erases (config : Config) (recovered : TxID) (state : NodeSt
       : (Execution.Local.step config state .retry).effects.filterMap
           Execution.Local.Effect.diagnostic
         = [] := by
-    rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind, restart⟩
+    rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind⟩
     cases phase
     case voting =>
       cases chosen
@@ -3245,37 +3274,6 @@ private theorem step_erases (config : Config) (recovered : TxID) (state : NodeSt
       rfl
     all_goals nofun
 
-/-- Erasing snapshots can merge envelopes. Select before removing, using projected equality. -/
-private theorem first_matching_envelope
-    (envelopes : List Execution.Global.Envelope) (envelope : Model.Envelope)
-    (present : envelope ∈ envelopes.map eraseEnvelope)
-    : exists decorated,
-        decorated ∈ envelopes
-        /\ eraseEnvelope decorated = envelope
-        /\ (Execution.Global.removeOne decorated envelopes).map eraseEnvelope
-            = MultiNodeTransitionSystem.removeOne envelope (envelopes.map eraseEnvelope)
-        /\ envelopes.find? (fun candidate => eraseEnvelope candidate == envelope)
-            = some decorated := by
-  induction envelopes with
-  | nil => simp at present
-  | cons head tail ih =>
-      by_cases first : eraseEnvelope head = envelope
-      · refine ⟨head, by simp, first, ?_, ?_⟩
-        · simp [Execution.Global.removeOne, MultiNodeTransitionSystem.removeOne, first]
-        · simp [first]
-      · have member : envelope ∈ tail.map eraseEnvelope := by
-          rcases List.mem_cons.mp present with same | member
-          · exact False.elim (first same.symm)
-          · exact member
-        rcases ih member with ⟨decorated, member, projected, removed, selected⟩
-        have different : head ≠ decorated := by
-          intro same
-          exact first (same ▸ projected)
-        refine ⟨decorated, by simp [member], projected, ?_, ?_⟩
-        · simp [Execution.Global.removeOne, MultiNodeTransitionSystem.removeOne, first,
-            different, removed]
-        · simp [first, selected]
-
 private theorem transition_messages_empty (config : Config) (state : NodeState)
     (event : Event) (source : Location) (recovered : TxID)
     (notRetry : event ≠ .retry)
@@ -3291,7 +3289,7 @@ private theorem transition_messages_empty (config : Config) (state : NodeState)
     | none => exact empty
     | some output =>
         exact (advance_output config state timeout output h source recovered).2
-  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind, restart⟩
+  rcases state with ⟨location, phase, timeoutState, gossips, votes, chosen, openKind⟩
   cases event with
   | retry => contradiction
   | timeout =>
@@ -3316,7 +3314,7 @@ private theorem transition_messages_empty (config : Config) (state : NodeState)
         all_goals
           refine advance_messages config
             { location, phase := .joining, timeoutState, gossips, votes, chosen := some sender,
-              openKind, restartRequested := restart }
+              openKind }
             false source recovered _ ?_
           rfl
       · rfl
@@ -3373,23 +3371,9 @@ private theorem local_step_run (config : Config) (source : Location) (recovered 
     · rfl
     all_goals nofun
 
-private theorem scheduled_step_some (config : Model.Config) (before after : Model.State)
+private theorem scheduled_step_some (config : Model.Config) (before after : AtomicState)
     (node : Location) (event : Event)
-    (h
-      : (do
-          let current <- MultiNodeTransitionSystem.nodeState before node
-          let (next, effects) <- ((Model.protocol config).step (Capabilities.record node)
-                                    node current event).run
-                                  {}
-          pure
-            {
-              before with
-                nodes :=
-                  before.nodes.map
-                    fun entry => if entry.1 == node then (node, next) else entry
-                network := before.network ++ effects.outgoing
-            })
-        = some after)
+    (h : schedule config before node event = some after)
     : exists state output recovered,
         MultiNodeTransitionSystem.nodeState before node = some state
         /\ ((step (Capabilities.record node) config.protocol recovered state event).run
@@ -3412,20 +3396,10 @@ private theorem scheduled_step_some (config : Model.Config) (before after : Mode
                   ++ messages node recovered
                       (Execution.Local.step config.protocol state event).effects
             } := by
-  have protocol_run (config : Model.Config) (node : Location) (state : NodeState)
-      (event : Event)
-      : ((Model.protocol config).step (Capabilities.record node) node state event).run {}
-        = (Model.recoveredTxID config node).bind
-            fun recovered =>
-              (step (Capabilities.record node) config.protocol recovered state event).run
-                {} := by
-    simp only [Model.protocol, StateT.run, effect_bind, effect_lift]
-    cases Model.recoveredTxID config node <;> rfl
   obtain ⟨state, found, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨recovered, recoveredFound, h⟩ := Option.bind_eq_some_iff.mp h
   obtain ⟨⟨next, sent⟩, run, h⟩ := Option.bind_eq_some_iff.mp h
   cases h
-  rw [protocol_run] at run
-  obtain ⟨recovered, recoveredFound, run⟩ := Option.bind_eq_some_iff.mp run
   rw [local_step_run] at run
   obtain ⟨output, localEnabled, rest⟩ := Option.bind_eq_some_iff.mp run
   refine ⟨state, output, recovered, found, localEnabled, recoveredFound, ?_⟩
@@ -3554,19 +3528,40 @@ end DisasterRecovery.Proofs.Committed
 namespace DisasterRecovery.Proofs.Lifting
 
 open CCF
-open DisasterRecovery.Model.Local
+open DisasterRecovery.Proofs.Atomic
 open Execution.Local (messages)
 open DisasterRecovery.Proofs.Local
 attribute [local simp] StateT.run
 
-private theorem step_lifts (config : Model.Config)
-    (before : Execution.Global.State) (action : Model.Action) (after : Model.State)
+private theorem replace_found
+    (nodes : List (Location × NodeState)) (node : Location) (state : NodeState)
+    (nodup : (nodes.map Prod.fst).Nodup)
+    (found : (nodes.find? fun entry => entry.1 == node).map Prod.snd = some state)
+    : (nodes.map fun entry => if entry.1 == node then (node, state) else entry)
+      = nodes := by
+  rcases Option.map_eq_some_iff.mp found with ⟨entry, selected, value⟩
+  have member := List.mem_of_find?_eq_some selected
+  have key : entry.1 = node := beq_iff_eq.mp
+    (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) selected)
+  conv => rhs; rw [← List.map_id nodes]
+  apply List.map_congr_left
+  intro other membership
+  split
+  · rename_i same
+    have eq : other = entry :=
+      Quorum.eq_of_key_eq nodup membership member
+        ((beq_iff_eq.mp same).trans key.symm)
+    subst other
+    exact Prod.ext key.symm value.symm
+  · rfl
+
+private theorem atomic_lifts (config : Model.Config)
+    (before : Execution.Global.State) (action : AtomicAction) (after : AtomicState)
     (nodup : (before.system.nodes.map Prod.fst).Nodup)
-    (h : (Model.transitionSystem config).step (erase before) action = some after)
-    : exists decoratedAction decoratedAfter,
-        eraseAction decoratedAction = action
-        /\ Execution.Global.next config before decoratedAction = some decoratedAfter
-        /\ erase decoratedAfter = after := by
+    (h : atomic config (erase before) action = some after)
+    : ∃ decoratedAction decoratedAfter,
+        Execution.Global.next config before decoratedAction = some decoratedAfter
+        ∧ erase decoratedAfter = after := by
   have advance_accepted (config : Config) (state : NodeState) (timeout : Bool)
       (output : Execution.Local.StepOutput)
       (h : Execution.Local.advance config state timeout = some output)
@@ -3585,27 +3580,6 @@ private theorem step_lifts (config : Model.Config)
     show ((Execution.Local.advance config state true).getD _).accepted = true
     rw [advanced]
     exact advance_accepted config state true _ advanced
-  have replace_found
-      (nodes : List (Location × NodeState)) (node : Location) (state : NodeState)
-      (nodup : (nodes.map Prod.fst).Nodup)
-      (found : (nodes.find? fun entry => entry.1 == node).map Prod.snd = some state)
-      : (nodes.map fun entry => if entry.1 == node then (node, state) else entry)
-        = nodes := by
-    rcases Option.map_eq_some_iff.mp found with ⟨entry, selected, value⟩
-    have member := List.mem_of_find?_eq_some selected
-    have key : entry.1 = node := beq_iff_eq.mp
-      (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) selected)
-    conv => rhs; rw [← List.map_id nodes]
-    apply List.map_congr_left
-    intro other membership
-    split
-    · rename_i same
-      have eq : other = entry :=
-        Quorum.eq_of_key_eq nodup membership member
-          ((beq_iff_eq.mp same).trans key.symm)
-      subst other
-      exact Prod.ext key.symm value.symm
-    · rfl
   have systemStep_of_result (config : Model.Config)
       (before : Execution.Global.State) (node : Location) (event : Event)
       (recovered : TxID) (state : NodeState) (output : Result)
@@ -3633,67 +3607,64 @@ private theorem step_lifts (config : Model.Config)
     simp [Execution.Local.systemStep, found, states,
       Execution.Local.replaceNode]
   cases action with
-  | «local» node input =>
-      cases input with
-      | retry =>
-          rcases scheduled_step_some config (erase before) after node .retry h with
-            ⟨state, output, recovered, found, trans, recoveredFound, nonempty, result⟩
-          have projectedOutput := step_erases config.protocol recovered state .retry output trans
-          have outputState : output.state = state :=
-            (congrArg Result.state projectedOutput).symm
-          have projectedMessages := retry_messages_erases config node state recovered recoveredFound
-          have hasMessages
-              : (Execution.Global.retryMessages config node state).isEmpty = false := by
-            cases empty : Execution.Global.retryMessages config node state
-            · rw [empty] at projectedMessages
-              exact absurd projectedMessages.symm (nonempty rfl)
-            · rfl
-          refine ⟨.retry node, {
-            before with
-            network := before.network ++ Execution.Global.retryMessages config node state
-            sent := before.sent ++ Execution.Global.retryMessages config node state
-          }, rfl, ?_, ?_⟩
-          · have ghostFound : Execution.Global.nodeState before node = some state := found
-            have ghostRecovered : Execution.Global.recoveredTxID config node = some recovered :=
-              recoveredFound
-            simp only [Execution.Global.next, ghostRecovered, ghostFound, Option.bind_eq_bind,
-              Option.bind_some, hasMessages]
-            rfl
-          · rw [result, outputState]
-            have unchanged := replace_found before.system.nodes node state nodup found
-            simp only [erase, unchanged, List.map_append, projectedMessages]
-      | timeout =>
-          rcases scheduled_step_some config (erase before) after node .timeout h with
-            ⟨state, output, recovered, found, trans, recoveredFound, _, result⟩
-          have system := systemStep_of_result config before node .timeout recovered state output found trans
-          have accepted := timeout_accepted config.protocol recovered state output trans
-          have noMessages := transition_messages_empty config.protocol state .timeout node recovered
-            (by intro impossible; cases impossible)
-          have ghostRecovered : Execution.Global.recoveredTxID config node = some recovered :=
-            recoveredFound
-          refine ⟨.timeout node,
-            Execution.Global.recordEffects node
-              (Execution.Local.step config.protocol state .timeout).state
-              (Execution.Local.step config.protocol state .timeout).effects
-              { before with system := {
-                nodes := before.system.nodes.map fun entry =>
-                  if entry.1 == node then (node, output.state) else entry } },
-            rfl, ?_, ?_⟩
-          · simp only [Execution.Global.next, ghostRecovered, system, Option.bind_eq_bind,
-              Option.bind_some, accepted]
-            rfl
-          · rw [erase_recordEffects, result, noMessages]
-            simp [erase]
+  | retry node =>
+      rcases scheduled_step_some config (erase before) after node .retry h with
+        ⟨state, output, recovered, found, trans, recoveredFound, nonempty, result⟩
+      have projectedOutput := step_erases config.protocol recovered state .retry output trans
+      have outputState : output.state = state :=
+        (congrArg Result.state projectedOutput).symm
+      have projectedMessages := retry_messages_erases config node state recovered recoveredFound
+      have hasMessages
+          : (Execution.Global.retryMessages config node state).isEmpty = false := by
+        cases empty : Execution.Global.retryMessages config node state
+        · rw [empty] at projectedMessages
+          exact absurd projectedMessages.symm (nonempty rfl)
+        · rfl
+      refine ⟨.retry node, {
+        before with
+        network := before.network ++ Execution.Global.retryMessages config node state
+        sent := before.sent ++ Execution.Global.retryMessages config node state
+      }, ?_, ?_⟩
+      · have ghostFound : Execution.Global.nodeState before node = some state := found
+        have ghostRecovered : Execution.Global.recoveredTxID config node = some recovered :=
+          recoveredFound
+        simp only [Execution.Global.next, ghostRecovered, ghostFound, Option.bind_eq_bind,
+          Option.bind_some, hasMessages]
+        rfl
+      · rw [result, outputState]
+        have unchanged := replace_found before.system.nodes node state nodup found
+        simp only [erase, unchanged, List.map_append, projectedMessages]
+  | timeout node =>
+      rcases scheduled_step_some config (erase before) after node .timeout h with
+        ⟨state, output, recovered, found, trans, recoveredFound, _, result⟩
+      have system := systemStep_of_result config before node .timeout recovered state output found trans
+      have accepted := timeout_accepted config.protocol recovered state output trans
+      have noMessages := transition_messages_empty config.protocol state .timeout node recovered
+        (by intro impossible; cases impossible)
+      have ghostRecovered : Execution.Global.recoveredTxID config node = some recovered :=
+        recoveredFound
+      refine ⟨.timeout node,
+        Execution.Global.recordEffects node
+          (Execution.Local.step config.protocol state .timeout).state
+          (Execution.Local.step config.protocol state .timeout).effects
+          { before with system := {
+            nodes := before.system.nodes.map fun entry =>
+              if entry.1 == node then (node, output.state) else entry } },
+        ?_, ?_⟩
+      · simp only [Execution.Global.next, ghostRecovered, system, Option.bind_eq_bind,
+          Option.bind_some, accepted]
+        rfl
+      · rw [erase_recordEffects, result, noMessages]
+        simp [erase]
   | deliver envelope =>
-      dsimp only [Model.transitionSystem, MultiNodeTransitionSystem.lift,
-        MultiNodeTransitionSystem.next] at h
-      cases contains : (erase before).network.contains envelope <;> rw [contains] at h
-      · cases h
-      have membership : envelope ∈ (erase before).network := List.elem_iff.mp contains
-      rcases first_matching_envelope before.network envelope membership with
-        ⟨decorated, member, projected, removed, _⟩
-      rcases scheduled_step_some config
-          { erase before with network := MultiNodeTransitionSystem.removeOne envelope (erase before).network }
+      change (do guard (envelope ∈ (erase before).network); schedule config (erase before) envelope.target (Model.receive envelope.source envelope.payload)) = some after at h
+      have member : envelope ∈ (erase before).network := by
+        by_cases yes : envelope ∈ (erase before).network
+        · exact yes
+        · simp [guard, failure, yes] at h
+      simp [guard, member] at h
+      obtain ⟨decorated, member, projected⟩ := List.mem_map.mp member
+      rcases scheduled_step_some config (erase before)
           after envelope.target (Model.receive envelope.source envelope.payload) h with
         ⟨state, output, recovered, found, trans, recoveredFound, _, result⟩
       have eventEq : Execution.Global.eventFor decorated =
@@ -3734,9 +3705,7 @@ private theorem step_lifts (config : Model.Config)
                         else
                           entry
                 }
-              network := Execution.Global.removeOne decorated before.network
-          },
-        congrArg MultiNodeTransitionSystem.Action.deliver projected,
+                },
         ?_,
         ?_
       ⟩
@@ -3746,46 +3715,171 @@ private theorem step_lifts (config : Model.Config)
           system, Option.bind_eq_bind, Option.bind_some]
         rfl
       · rw [erase_recordEffects, result, noMessages]
-        simp [erase, removed, targetEq]
+        simp [erase, targetEq]
 
-private theorem model_initial_lifts (config : Model.Config) (state : Model.State)
-    (initialized : (Model.transitionSystem config).init state)
-    : exists decorated,
-        (Execution.Global.transitionSystem config).init decorated
-        /\ erase decorated = state := by
-  rcases initialized with
-    ⟨valid, covered, nodesNodup, network, nodes⟩
-  have initialNodes :
-      (state.nodes.map Prod.fst).map (fun node => (node, initialNode node)) =
-        state.nodes := by
-    rw [List.map_map]
-    conv => rhs; rw [← List.map_id state.nodes]
-    apply List.map_congr_left
-    intro entry member
-    have initialized := nodes entry member
-    change entry.2 = initialNode entry.1 at initialized
-    exact Prod.ext rfl initialized.symm
-  refine ⟨Execution.Global.initial config (state.nodes.map Prod.fst),
-    ⟨valid, _, nodesNodup, covered, rfl⟩, ?_⟩
-  rcases state with ⟨nodes, network⟩
-  simp_all [erase, Execution.Global.initial]
+private abbrev updateNodes {α : Type} (nodes : List (Location × α)) (node : Location)
+    (s : α) :=
+  nodes.map fun entry => if entry.1 == node then (node, s) else entry
+
+private def Provenance (ghost : Execution.Global.State) (node : Location) (e : Event)
+    : Prop :=
+  e = .timeout
+  ∨ ∃ env ∈ (erase ghost).network,
+      env.target = node ∧ Model.receive env.source env.payload = e
+
+private theorem strip_updates (nodes : List (Location × Model.Local.NodeState))
+    (node : Location) (next : Model.Local.NodeState)
+    : (updateNodes nodes node next).map stripEntry
+      = updateNodes (nodes.map stripEntry) node (strip next) := by
+  simp only [updateNodes, List.map_map]
+  apply List.map_congr_left
+  intro entry _
+  by_cases h : entry.1 = node <;> simp [stripEntry, h]
+
+private theorem linked_update {before : Model.State}
+    {ghost nextGhost : Execution.Global.State} (linked : Linked before ghost)
+    (node : Location) (next : Model.Local.NodeState) (base sent : List Model.Envelope)
+    (baseOK : base ⊆ before.network)
+    (nodes : (erase nextGhost).nodes = updateNodes (erase ghost).nodes node (strip next))
+    (network : (erase nextGhost).network = (erase ghost).network ++ sent)
+    (pending : ∀ a ∈ next.pending, Provenance ghost node a.event)
+    (rep : Atomic.Represents (CCF.OCC.values next.store) (strip next))
+    : Linked {nodes := updateNodes before.nodes node next, network := base ++ sent}
+        nextGhost := by
+  refine ⟨by rw [nodes, linked.nodes, strip_updates], ?_, ?_, ?_⟩
+  · intro msg mem; rw [network, List.mem_append]; exact (List.mem_append.mp mem).imp_left (fun h => linked.queued (baseOK h))
+  · intro n s member e has
+    obtain ⟨old, present, eq⟩ := List.mem_map.mp member
+    have provenance : Provenance ghost n e.event := by
+      split at eq
+      · cases eq; exact pending e has
+      · cases eq; exact linked.pending _ _ present _ has
+    rcases provenance with h | ⟨env, member, target, eq⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨env, network ▸ List.mem_append_left _ member, target, eq⟩
+
+  · intro n s member
+    obtain ⟨p,mem,eq⟩ := List.mem_map.mp member
+    split at eq
+    · cases eq; exact rep
+    · cases eq; exact linked.represented _ _ mem
+
+private theorem linked_mem {s : Model.State} {g : Execution.Global.State} (l : Linked s g)
+    {n st} (h : (n,st) ∈ s.nodes)
+    : (n, strip st) ∈ g.system.nodes := by
+  change (n,strip st) ∈ (erase g).nodes
+  rw [l.nodes]; exact List.mem_map.mpr ⟨_, h, rfl⟩
+
+private theorem linked_unmem {s : Model.State} {g : Execution.Global.State}
+    (l : Linked s g) {n st} (h : (n,st) ∈ g.system.nodes)
+    : ∃ orig, (n,orig) ∈ s.nodes ∧ strip orig = st := by
+  change (n,st) ∈ (erase g).nodes at h
+  rw [l.nodes] at h
+  obtain ⟨⟨n',orig⟩, mem, eq⟩ := List.mem_map.mp h
+  cases eq; exact ⟨_, mem, rfl⟩
+
+private def advanceNode (config : Model.Config) (before : Model.State)
+    (base : List Model.Envelope) (node : Location) (op : Model.Local.Operation)
+    : Option Model.State := do
+  let st ← MultiNodeTransitionSystem.nodeState before node
+  let (next,out) ←
+    ((Model.protocol config).step (Capabilities.record node) node st op).run {}
+  return {nodes := updateNodes before.nodes node next, network := base ++ out.outgoing}
+
+private theorem step_lifts {config : Model.Config} {before after : Model.State}
+    {ghost : Execution.Global.State} (linked : Linked before ghost)
+    (nodup : (ghost.system.nodes.map Prod.fst).Nodup) {action : Model.Action}
+    (reachable : (Model.transitionSystem config).Reachable before)
+    (stepped : (Model.transitionSystem config).step before action = some after)
+    : ∃ nextGhost,
+        (nextGhost = ghost ∨ ∃ a, Execution.Global.next config ghost a = some nextGhost)
+        ∧ Linked after nextGhost := by
+  have localLift (node : Location) (op : Model.Local.Operation) (base : List Model.Envelope) (baseOK : base ⊆ before.network)
+      (origin : ∀ e, op = .run e → Provenance ghost node e)
+      (ran : advanceNode config before base node op = some after) :
+      ∃ nextGhost, (nextGhost = ghost ∨ ∃ a, Execution.Global.next config ghost a = some nextGhost) ∧ Linked after nextGhost := by
+    obtain ⟨st, found, ran⟩ := Option.bind_eq_some_iff.mp ran
+    obtain ⟨⟨next,out⟩, enabled, ran⟩ := Option.bind_eq_some_iff.mp ran
+    cases Option.some.inj ran
+    simp only [Model.protocol, StateT.run, effect_bind, effect_lift, Option.bind_eq_some_iff, Option.map_eq_some_iff] at enabled
+    obtain ⟨_, ⟨tx, recovered, rfl⟩, enabled⟩ := enabled
+    obtain ⟨entry, selected, value⟩ := Option.map_eq_some_iff.mp found
+    have same : entry = (node,st) := Prod.ext (beq_iff_eq.mp (List.find?_some (p := fun entry : Location × Model.Local.NodeState => entry.1 == node) selected)) value
+    have present : (node,st) ∈ before.nodes := same ▸ List.mem_of_find?_eq_some selected
+    have lookup : MultiNodeTransitionSystem.nodeState (erase ghost) node = some (strip st) := by
+      simp [MultiNodeTransitionSystem.nodeState, linked.nodes, List.find?_map, Function.comp_def, stripEntry, selected, value]
+    have classified := Atomic.operation_refines config node tx st next op out (linked.represented _ _ present)
+      (Transactions.reachable_wellFormed config before reachable _ present) enabled
+    have provenance (a : Model.Local.Attempt) (h : a ∈ next.pending) : Provenance ghost node a.event := by
+      rcases classified.pending a h with ⟨old,mem,eq⟩ | eq
+      · exact eq ▸ linked.pending _ _ present old mem
+      · exact origin _ eq
+    rcases classified.serialized with ⟨same,noSend,_⟩ | ⟨e,source,run⟩
+    · refine ⟨ghost,Or.inl rfl,linked_update linked node next base out.outgoing baseOK ?_ (by simp [noSend]) provenance classified.represented⟩
+      rw [show strip next = strip st from same]
+      exact (replace_found _ node (strip st) nodup lookup).symm
+    · have sched : schedule config (erase ghost) node e = some {nodes := updateNodes (erase ghost).nodes node (strip next),network := (erase ghost).network ++ out.outgoing} := by
+        simp only [schedule,lookup,recovered,Option.bind_eq_bind,Option.bind_some]
+        change ((step _ _ _ (strip st) e).run {}).bind _ = _
+        rw [run]; rfl
+      have lift (act : AtomicAction) (go : atomic config (erase ghost) act = _) := atomic_lifts config ghost act _ nodup (go.trans sched)
+      have act : ∃ act, atomic config (erase ghost) act = schedule config (erase ghost) node e := by
+        rcases source with rfl | ⟨a,mem,rfl⟩
+        · exact ⟨.retry node,rfl⟩
+        · rcases linked.pending _ _ present a mem with ht | ⟨env,queued,target,event⟩
+          · exact ⟨.timeout node,by rw [ht]; rfl⟩
+          · exact ⟨.deliver env,by simp [atomic,guard,queued,target,event]⟩
+      obtain ⟨action,go⟩ := act
+      obtain ⟨a,g,go,eq⟩ := lift action go
+      exact ⟨g,Or.inr ⟨a,go⟩,linked_update linked node _ _ _ baseOK (congrArg (·.nodes) eq) (congrArg (·.network) eq) provenance classified.represented⟩
+  cases action with
+  | «local» node input =>
+      apply localLift node ((Model.protocol config).internal input) before.network
+        (fun _ h => h) _ stepped
+      intro e eq; cases input <;> cases eq; exact Or.inl rfl
+  | deliver env =>
+      have queued : env ∈ before.network := by
+        by_cases h : env ∈ before.network
+        · exact h
+        · simp [MultiNodeTransitionSystem.next, guard, failure, h] at stepped
+      refine localLift env.target (.run (Model.receive env.source env.payload))
+        (MultiNodeTransitionSystem.removeOne env before.network) ?_ ?_ ?_
+      · induction before.network with
+        | nil => simp [MultiNodeTransitionSystem.removeOne]
+        | cons head tail ih =>
+            simp only [MultiNodeTransitionSystem.removeOne]; split <;> grind
+      · rintro _ ⟨⟩; exact Or.inr ⟨env, linked.queued queued, rfl, rfl⟩
+      · simpa [MultiNodeTransitionSystem.next, guard, queued, advanceNode, updateNodes, Model.protocol] using stepped
 
 private theorem model_reachable_lifts {config : Model.Config} {state : Model.State}
     (reachable : (Model.transitionSystem config).Reachable state)
     : exists decorated,
-        Execution.Global.Reachable config decorated /\ erase decorated = state := by
+        Execution.Global.Reachable config decorated /\ Linked state decorated := by
   induction reachable
     using @CCF.TransitionSystem.Reachable.rec (Model.transitionSystem config) with
-  | initial initialized =>
-      obtain ⟨decorated, init, projected⟩ := model_initial_lifts config _ initialized
-      exact ⟨decorated, .initial init, projected⟩
-  | @step before after action _ transition ih =>
-      obtain ⟨decorated, ghostReachable, projected⟩ := ih
-      obtain ⟨ghostAction, ghostAfter, _, ghostStep, erased⟩ :=
-        step_lifts config decorated action after
-          (Invariants.reachable_well_formed ghostReachable).nodeKeysNodup
-          (by simpa only [projected] using transition)
-      exact ⟨ghostAfter, .step ghostReachable ghostStep, erased⟩
+  | @initial state init =>
+      obtain ⟨valid,covered,distinct,net,nodes⟩ := init
+      let ghost := Execution.Global.initial config (state.nodes.map Prod.fst)
+      refine ⟨ghost,.initial ⟨valid,_,distinct,covered,rfl⟩,?_,?_,?_,?_⟩
+      · change (state.nodes.map Prod.fst).map _ = state.nodes.map _
+        rw [List.map_map]; apply List.map_congr_left
+        intro p mem; obtain ⟨n,st⟩ := p
+        have eq : st = Model.Local.initialNode n := nodes _ mem
+        subst st; rfl
+      · simp [net]
+      · intro n st present a mem
+        have eq : st = Model.Local.initialNode n := nodes _ present
+        simp [eq,Model.Local.initialNode] at mem
+      · intro n st present
+        have eq : st = Model.Local.initialNode n := nodes _ present
+        subst st; exact Atomic.represents_initial _
+  | @step before after action prior transition ih =>
+      obtain ⟨ghost,reachable,link⟩ := ih
+      obtain ⟨next,same | ⟨_,go⟩,linked⟩ :=
+        step_lifts link (Invariants.reachable_well_formed reachable).nodeKeysNodup prior
+          transition
+      · exact ⟨next,same ▸ reachable,linked⟩
+      · exact ⟨next,.step reachable go,linked⟩
 
 end DisasterRecovery.Proofs.Lifting
 
@@ -3800,70 +3894,13 @@ private theorem history_correspondence {config : Model.Config}
     (behaviour : Properties.Behaviour config) {bound : Nat}
     (inBehaviour : (behaviour.stateAt bound).isSome)
     : exists ghost, Correspondence config behaviour bound ghost := by
-  have behaviour_lifts {config : Model.Config} {before after : Model.State} {tail}
-      (path : Behaviour.Path (Model.transitionSystem config) before tail after)
-      (ghost : Execution.Global.State) (reachable : Execution.Global.Reachable config ghost)
-      (linked : erase ghost = before)
-      : exists final,
-          Decoration config ghost tail final
-          /\ Execution.Global.Reachable config final
-          /\ erase final = after := by
-    induction path
-      using @Behaviour.Path.rec (Model.transitionSystem config) generalizing ghost with
-    | nil => exact ⟨ghost, .nil _, reachable, linked⟩
-    | @cons before middle after tail action step _ ih =>
-        obtain ⟨ghostAction, ghostMiddle, _, ghostStep, middleEq⟩ :=
-          step_lifts config ghost action middle
-            (Invariants.reachable_well_formed reachable).nodeKeysNodup
-            (by simpa only [linked] using step)
-        obtain ⟨final, decorated, reachableFinal, finalEq⟩ :=
-          ih ghostMiddle (.step reachable ghostStep) middleEq
-        exact ⟨
-          final,
-          middleEq ▸ Decoration.cons ghostStep decorated,
-          reachableFinal,
-          finalEq
-        ⟩
   obtain ⟨last, found⟩ := Option.isSome_iff_exists.mp inBehaviour
-  obtain ⟨before, first, initialized⟩ := behaviour.valid_init
-  obtain ⟨initial, init, linked⟩ := model_initial_lifts config before initialized
-  obtain ⟨tail, path⟩ := Behaviour.valid_path 0 bound first (by simpa using found)
-  obtain ⟨final, _, reachable, finalEq⟩ := behaviour_lifts path initial (.initial init) linked
+  obtain ⟨final, reachable, link⟩ := model_reachable_lifts (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem found))
   refine ⟨final, reachable, fun i state le atI => ?_⟩
-  obtain ⟨suffix, rest⟩ :=
-    Behaviour.valid_path i (bound - i) atI (by rwa [Nat.add_sub_cancel' le])
-  exact ⟨suffix, finalEq ▸ rest⟩
+  obtain ⟨suffix, rest⟩ := Behaviour.valid_path i (bound - i) atI (by rwa [Nat.add_sub_cancel' le])
+  exact ⟨suffix, last, rest, link⟩
 
 end DisasterRecovery.Proofs.History
-
-namespace DisasterRecovery.Proofs.Lifting
-
-open CCF
-open DisasterRecovery.Model.Local
-open Execution.Local (messages)
-open DisasterRecovery.Proofs.Local
-attribute [local simp] StateT.run
-
-private theorem model_step_lifts {config : Model.Config} {before after : Model.State}
-    {action : Model.Action}
-    (reachable : (Model.transitionSystem config).Reachable before)
-    (transition : (Model.transitionSystem config).step before action = some after)
-    : exists decoratedBefore decoratedAction decoratedAfter,
-        Execution.Global.Reachable config decoratedBefore
-        /\ erase decoratedBefore = before
-        /\ eraseAction decoratedAction = action
-        /\ Execution.Global.next config decoratedBefore decoratedAction
-            = some decoratedAfter
-        /\ erase decoratedAfter = after := by
-  obtain ⟨decoratedBefore, ghostReachable, linked⟩ := model_reachable_lifts reachable
-  obtain ⟨decoratedAction, decoratedAfter, projectedAction, ghostStep, projectedAfter⟩ :=
-    step_lifts config decoratedBefore action after
-      (Invariants.reachable_well_formed ghostReachable).nodeKeysNodup
-      (by simpa only [linked] using transition)
-  exact ⟨decoratedBefore, decoratedAction, decoratedAfter,
-    ghostReachable, linked, projectedAction, ghostStep, projectedAfter⟩
-
-end DisasterRecovery.Proofs.Lifting
 
 namespace DisasterRecovery.Proofs.Committed
 
@@ -3967,7 +4004,7 @@ open Execution.Global
 open Invariants Quorum
 
 private theorem evolves_refl (state : NodeState) : Evolves state state :=
-  ⟨fun _ h => h, fun _ h => h, fun h => ⟨h, rfl⟩⟩
+  ⟨fun _ h => h, fun _ h => h, fun h => ⟨h, rfl⟩, terminal_refl _⟩
 
 private theorem advance_frame {config : Execution.Local.Config} {state : NodeState}
     {timeout : Bool} {output : StepOutput}
@@ -4009,7 +4046,7 @@ private theorem step_genuine (config : Config) (state : NodeState) (event : Even
     unfold insertGossip at member
     split at member
     · exact prior member
-    · have original := (List.mergeSort_perm _ _).mem_iff.mp member
+    · have original := member
       rcases List.mem_cons.mp original with rfl | old
       · exact incoming
       · exact prior old
@@ -4123,24 +4160,25 @@ private theorem step_evolves (config : Execution.Local.Config) (state : NodeStat
     unfold insertGossip
     split
     · exact member
-    · exact (List.mergeSort_perm _ _).mem_iff.mpr (List.mem_cons_of_mem _ member)
+    · exact List.mem_cons_of_mem _ member
   have insertVote_extends (source : Location) (votes : List Location)
       : votes ⊆ insertVote source votes := by
     intro voter member
-    unfold insertVote
-    split
-    · exact member
-    · exact (List.mergeSort_perm _ _).mem_iff.mpr (List.mem_cons_of_mem _ member)
+    by_cases h : voter = source
+    · exact List.mem_cons.mpr (Or.inl h)
+    · exact List.mem_cons_of_mem _ ((List.mem_erase_of_ne h).mpr member)
   have evolves_of_advance {config : Execution.Local.Config}
       {state received : NodeState} {timeout : Bool} {output : StepOutput}
       (advanced : advance config received timeout = some output)
+      (terminal : TerminalPreserved state.phase received.phase)
       (gossips : state.gossips ⊆ received.gossips) (votes : state.votes ⊆ received.votes)
       (frozen
         : state.chosen.isSome = true
           -> received.chosen.isSome = true /\ received.gossips = state.gossips)
       : Evolves state output.state := by
     obtain ⟨sameGossips, sameVotes, keepsChoice⟩ := advance_frame advanced
-    refine ⟨sameGossips ▸ gossips, sameVotes ▸ votes, fun chosen => ?_⟩
+    refine ⟨sameGossips ▸ gossips, sameVotes ▸ votes, ?_, terminal_trans terminal (advance_spec advanced).terminal⟩
+    intro chosen
     obtain ⟨chosen', same⟩ := frozen chosen
     exact ⟨keepsChoice chosen', sameGossips.trans same⟩
   suffices stepped :
@@ -4161,7 +4199,7 @@ private theorem step_evolves (config : Execution.Local.Config) (state : NodeStat
       split at stepped
       · split at stepped
         · rename_i unchosen
-          refine evolves_of_advance stepped (insertGossip_extends _ _ _) (fun _ h => h)
+          refine evolves_of_advance stepped (terminal_refl _) (insertGossip_extends _ _ _) (fun _ h => h)
             fun chosen => ?_
           rw [unchosen] at chosen
           cases chosen
@@ -4170,7 +4208,7 @@ private theorem step_evolves (config : Execution.Local.Config) (state : NodeStat
   | receiveVote source validation =>
       simp only [Execution.Local.transitionSystem, guard] at stepped
       split at stepped
-      · exact evolves_of_advance stepped (fun _ h => h) (insertVote_extends _ _)
+      · exact evolves_of_advance stepped (terminal_refl _) (fun _ h => h) (insertVote_extends _ _)
           fun chosen => ⟨chosen, rfl⟩
       · cases stepped
   | receiveIAmOpen source validation =>
@@ -4179,11 +4217,11 @@ private theorem step_evolves (config : Execution.Local.Config) (state : NodeStat
       · split at stepped
         · exact evolves_of_advance (config := config) (timeout := false)
             (received := { state with phase := .joining, chosen := some source })
-            stepped (fun _ h => h) (fun _ h => h) fun _ => ⟨rfl, rfl⟩
+            stepped ⟨fun _ => rfl, fun h => False.elim (h.elim (by grind) (by grind))⟩ (fun _ h => h) (fun _ h => h) fun _ => ⟨rfl, rfl⟩
         · cases stepped
       · cases stepped
   | timeout =>
-      exact evolves_of_advance stepped (fun _ h => h) (fun _ h => h) fun chosen => ⟨chosen, rfl⟩
+      exact evolves_of_advance stepped (terminal_refl _) (fun _ h => h) (fun _ h => h) fun chosen => ⟨chosen, rfl⟩
   | retry =>
       cases stepped
       exact evolves_refl state
@@ -4237,8 +4275,10 @@ private theorem behaviour_node_final {config : Model.Config}
     {behaviour : Properties.Behaviour config} {bound : Nat} {ghost : State}
     (linked : History.Correspondence config behaviour bound ghost) {i : Nat}
     {state : Model.State} (le : i <= bound) (found : behaviour.stateAt i = some state)
-    {node : Location} {current : NodeState} (present : (node, current) ∈ state.nodes)
-    : exists final, (node, final) ∈ ghost.system.nodes /\ Evolves current final := by
+    {node : Location} {current : Model.Local.NodeState}
+    (present : (node, current) ∈ state.nodes)
+    : exists final,
+        (node, final) ∈ ghost.system.nodes /\ Evolves (Lifting.strip current) final := by
   have evolves_trans {first second third : NodeState}
       (left : Evolves first second) (right : Evolves second third)
       : Evolves first third :=
@@ -4248,34 +4288,42 @@ private theorem behaviour_node_final {config : Model.Config}
       fun chosen => by
         obtain ⟨chosen', same⟩ := left.frozen chosen
         obtain ⟨chosen'', same'⟩ := right.frozen chosen'
-        exact ⟨chosen'', same'.trans same⟩
+        exact ⟨chosen'', same'.trans same⟩,
+      terminal_trans left.terminal right.terminal
     ⟩
   have model_step_evolves {config : Model.Config} {before after : Model.State}
       {action : Model.Action} (reachable : (Model.transitionSystem config).Reachable before)
       (transition : (Model.transitionSystem config).step before action = some after)
-      {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
-      : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
-    obtain ⟨ghostBefore, ghostAction, ghostAfter, reachable', projected, _, step, projected'⟩ :=
-      Lifting.model_step_lifts reachable transition
-    have original : (node, current) ∈ ghostBefore.system.nodes := by
-      simpa only [← projected, Lifting.erase] using member
-    simpa only [← projected', Lifting.erase]
-      using next_evolves (reachable_well_formed reachable') step original
+      {node : Location} {current : Model.Local.NodeState} (member : (node, current) ∈ before.nodes)
+      : exists updated, (node, updated) ∈ after.nodes /\ Evolves (Lifting.strip current) (Lifting.strip updated) := by
+    obtain ⟨g,reach,link⟩ := Lifting.model_reachable_lifts reachable
+    obtain ⟨g', change, link'⟩ := Lifting.step_lifts link (reachable_well_formed reach).nodeKeysNodup reachable transition
+    have original := Lifting.linked_mem link member
+    obtain ⟨out,present,evolves⟩ : ∃ out, (node,out) ∈ g'.system.nodes ∧ Evolves (Lifting.strip current) out := by
+      rcases change with rfl | ⟨_, step⟩
+      · exact ⟨_, original, evolves_refl _⟩
+      · exact next_evolves (reachable_well_formed reach) step original
+    obtain ⟨updated, mem, rfl⟩ := Lifting.linked_unmem link' present
+    exact ⟨updated, mem, ⟨evolves.gossips, evolves.votes, evolves.frozen, evolves.terminal⟩⟩
   have steps_evolve {config : Model.Config} {before after : Model.State} {steps}
       (run : Behaviour.Path (Model.transitionSystem config) before steps after)
       (reachable : (Model.transitionSystem config).Reachable before)
-      {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
-      : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
+      {node : Location} {current : Model.Local.NodeState} (member : (node, current) ∈ before.nodes)
+      : exists updated, (node, updated) ∈ after.nodes /\ Evolves (Lifting.strip current) (Lifting.strip updated) := by
     induction run
       using @Behaviour.Path.rec (Model.transitionSystem config) generalizing current with
-    | nil => exact ⟨current, member, evolves_refl current⟩
+    | nil => exact ⟨current, member, evolves_refl (Lifting.strip current)⟩
     | cons transition _ ih =>
         obtain ⟨middle, present, evolves⟩ := model_step_evolves reachable transition member
         obtain ⟨updated, present', evolves'⟩ := ih (.step reachable transition) present
         exact ⟨updated, present', evolves_trans evolves evolves'⟩
-  obtain ⟨suffix, run⟩ := linked.suffix i state le found
-  exact steps_evolve run (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem found))
-    present
+  obtain ⟨suffix, _, run, link⟩ := linked.suffix i state le found
+  obtain ⟨st, mem, evolves⟩ := steps_evolve run (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem found)) present
+  exact ⟨
+    _,
+    Lifting.linked_mem link mem,
+    ⟨evolves.gossips, evolves.votes, evolves.frozen, evolves.terminal⟩
+  ⟩
 
 private theorem next_frozen {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
@@ -4429,8 +4477,8 @@ private theorem step_preserves_opening_threshold (config : Config) (state : Node
       split at stepped
       · refine advance_threshold stepped fun kind opened => ?_
         refine Nat.le_trans (threshold kind opened) ?_
-        unfold insertVote
-        split <;> simp
+        simp only [insertVote,List.length_cons,List.length_erase]
+        split <;> omega
       · cases stepped
   | receiveIAmOpen source validation =>
       simp only [Execution.Local.transitionSystem, guard] at stepped
@@ -4591,14 +4639,14 @@ theorem quorum_open_preserves_commit
   have invariant := reachable_quorum_invariant linked.reachable
   have stateReachable := behaviour.reachable inBehaviour
   obtain ⟨atOpening, openingReachable, projected⟩ := Lifting.model_reachable_lifts stateReachable
-  have openingPresent : (opener, current) ∈ atOpening.system.nodes := by
-    simpa only [← projected, Lifting.erase] using present
+  have openingPresent := Lifting.linked_mem projected present
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
   have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
   obtain ⟨final, finalMember, evolves⟩ :=
     behaviour_node_final linked openLe found.symm present
   have votesSent : forall voter, voter ∈ current.votes -> Predicates.SentVote ghost voter opener :=
     fun voter member => invariant.votesSent _ finalMember voter (evolves.votes member)
+  change voteQuorum config.protocol ≤ current.votes.length at threshold
   have anyVote : exists voter, voter ∈ current.votes := by
     cases votes : current.votes with
     | nil => simp [votes, voteQuorum] at threshold
@@ -4714,8 +4762,7 @@ theorem full_gossip_preserves_commit
     have sourceKey : envelope.source ∈ atGossip.system.nodes.map Prod.fst := by
       exact (reachable_well_formed gossipReachable).nodeKeys _ configured
     obtain ⟨entry, entryMember, key⟩ := List.mem_map.mp sourceKey
-    have originalPresent : (envelope.source, entry.2) ∈ gossiped.nodes := by
-      simpa only [← projected, Lifting.erase, ← key] using entryMember
+    obtain ⟨original, originalPresent, _⟩ := Lifting.linked_unmem projected (show (envelope.source, entry.2) ∈ atGossip.system.nodes by simpa only [← key] using entryMember)
     obtain ⟨final, finalMember, evolves⟩ :=
       behaviour_node_final linked le inBehaviour originalPresent
     have states : final = current :=
@@ -4725,7 +4772,7 @@ theorem full_gossip_preserves_commit
     · intro member
       exact genuine _ present (same.symm ▸ member)
     · intro member
-      have original := (full envelope.source entry.2 configured originalPresent gossip).mpr member
+      have original := (full envelope.source original configured originalPresent gossip).mpr member
       have finalGossip := evolves.gossips original
       simpa only [states, same] using finalGossip
   rintro config behaviour gossiped opened opener current
@@ -4737,8 +4784,7 @@ theorem full_gossip_preserves_commit
       (Option.isSome_iff_exists.mpr ⟨_, openFound.symm⟩))
   obtain ⟨atOpening, openingReachable, projected⟩ :=
     Lifting.model_reachable_lifts (behaviour.reachable openedMember)
-  have openingPresent : (opener, current) ∈ atOpening.system.nodes := by
-    simpa only [← projected, Lifting.erase] using present
+  have openingPresent := Lifting.linked_mem projected present
   obtain ⟨voter, voted⟩ :=
     Observed.reachable_opening_has_vote openingReachable _ openingPresent opening
   obtain ⟨final, finalMember, evolves⟩ :=
@@ -4773,40 +4819,35 @@ private theorem notification_opening_state {config : Model.Config}
     {kind : OpenKind}
     (notification
       : Properties.Behaviour.NotificationAt config behaviour index node (.opening kind))
-    : exists after current,
+    : ∃ after current,
         behaviour.stateAt (index + 1) = some after
-        /\ (node, current) ∈ after.nodes
-        /\ current.openKind = some kind := by
-  obtain ⟨before, after, action, nodeBefore, nodeAfter, outputs,
-    _, atAfter, _, _, _, foundAfter, enabled, notified⟩ := notification
-  obtain ⟨recovered, _, enabled⟩ :=
-    DisasterRecovery.Proofs.Local.validStep_run
-      (s := ⟨node, nodeBefore, Properties.Behaviour.event action, nodeAfter, outputs⟩) enabled
-  have erased := Lifting.step_erases config.protocol recovered nodeBefore (source := node)
-    (Properties.Behaviour.event action) { state := nodeAfter, effects := outputs.notifications }
-    (by simp [enabled, Lifting.capture])
-  have stateEq := congrArg Lifting.Result.state erased
-  have notifications := congrArg Lifting.Result.effects erased
-  change (step config.protocol nodeBefore (Properties.Behaviour.event action)).state = nodeAfter at stateEq
-  change
-    (step config.protocol nodeBefore (Properties.Behaviour.event action)).effects.filterMap
-      Effect.diagnostic = outputs.notifications at notifications
-  have recorded : .opening kind ∈
-      (step config.protocol nodeBefore (Properties.Behaviour.event action)).effects := by
-    rw [← notifications] at notified
-    obtain ⟨effect, member, diagnostic⟩ := List.mem_filterMap.mp notified
-    cases effect <;> cases diagnostic
-    exact member
-  have opened := (Quorum.opening_effect_state config.protocol nodeBefore
-    (Properties.Behaviour.event action) kind recorded).2
-  rw [stateEq] at opened
-  refine ⟨after, nodeAfter, atAfter, ?_, opened⟩
-  obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp foundAfter
-  have key := beq_iff_eq.mp
-    (List.find?_some found :)
-  have same : entry = (node, nodeAfter) := Prod.ext key value
-  rw [← same]
-  exact List.mem_of_find?_eq_some found
+        ∧ (node,current) ∈ after.nodes
+        ∧ current.phase = .opening
+        ∧ current.openKind = some kind := by
+  obtain ⟨before,after,action,st,next,out,atBefore,atAfter,_,_,found,foundAfter,run,notified⟩ := notification
+  have lookup {state : Model.State} {n : Location} {s : Model.Local.NodeState} (h : CCF.MultiNodeTransitionSystem.nodeState state n = some s) : (n,s) ∈ state.nodes := by
+    obtain ⟨entry,found,value⟩ := Option.map_eq_some_iff.mp h
+    have eq : entry = (n,s) := Prod.ext (beq_iff_eq.mp (List.find?_some found :)) value
+    exact eq ▸ List.mem_of_find?_eq_some found
+  obtain ⟨tx,_,run⟩ := DisasterRecovery.Proofs.Local.validStep_run (s := ⟨node,st,Properties.Behaviour.operation action,next,out⟩) run
+  have reachable := behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem atBefore)
+  obtain ⟨g,_,link⟩ := Lifting.model_reachable_lifts reachable
+  have refines := Atomic.operation_refines config node tx st next _ out (link.represented _ _ (lookup found))
+    (Transactions.reachable_wellFormed config before reachable _ (lookup found)) run
+  rcases refines.serialized with ⟨_,_,noOpening⟩ | ⟨e,_,atomic⟩
+  · exact False.elim (noOpening kind notified)
+  · have erased := Lifting.step_erases config.protocol tx (Atomic.project st) (source := node) e
+        {state := Atomic.project next,effects := out.notifications} (by simp [atomic,Lifting.capture])
+    have eq := congrArg Lifting.Result.state erased
+    have diag := congrArg Lifting.Result.effects erased
+    change (step config.protocol (Atomic.project st) e).state = Atomic.project next at eq
+    change (step config.protocol (Atomic.project st) e).effects.filterMap Effect.diagnostic = out.notifications at diag
+    rw [←diag] at notified
+    obtain ⟨eff,member,h⟩ := List.mem_filterMap.mp notified
+    cases eff <;> cases h
+    have state := Quorum.opening_effect_state _ _ _ _ member
+    rw [eq] at state
+    exact ⟨after,next,atAfter,lookup foundAfter,state⟩
 
 private theorem current_quorum_unique_of_thresholds {config : Model.Config}
     {state : State} (reachable : Reachable config state)
@@ -4853,12 +4894,11 @@ private theorem quorum_notification_final_votes {config : Model.Config}
     : exists final,
         (node, final) ∈ ghost.system.nodes
         /\ voteQuorum config.protocol <= final.votes.length := by
-  obtain ⟨after, current, inBehaviour, present, opened⟩ :=
+  obtain ⟨after, current, inBehaviour, present, _, opened⟩ :=
     Observed.notification_opening_state notification
   obtain ⟨atOpening, openingReachable, projected⟩ :=
     Lifting.model_reachable_lifts (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem inBehaviour))
-  have openingPresent : (node, current) ∈ atOpening.system.nodes := by
-    simpa only [← projected, Lifting.erase] using present
+  have openingPresent := Lifting.linked_mem projected present
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
   have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
   obtain ⟨final, finalMember, evolves⟩ := behaviour_node_final linked le inBehaviour present
