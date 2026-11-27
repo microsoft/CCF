@@ -9,6 +9,7 @@ import signal
 import ssl
 import subprocess
 import sys
+import threading
 import time
 
 import httpx
@@ -19,8 +20,11 @@ import infra.network
 from loguru import logger as LOG
 
 FORWARDING_RPC_INTERFACE = "forwarding_rpc_interface"
-N2N_MESSAGE_LIMIT = 100
+N2N_MESSAGE_LIMIT = 40
 FORWARDING_TIMEOUT_MS = 10000
+MAX_DAISY_ATTEMPTS = 5
+CHANNEL_BURST_COUNT = 64
+MIN_ELECTION_TIMEOUT_MS = 3000
 
 
 def make_forwarding_interface():
@@ -70,6 +74,9 @@ def wait_for_unknown_primary(client, base_url, timeout_s):
 
 def run(args):
     args.node_to_node_message_limit = N2N_MESSAGE_LIMIT
+    args.election_timeout_ms = max(
+        int(args.election_timeout_ms), MIN_ELECTION_TIMEOUT_MS
+    )
     for host in args.nodes:
         host.rpc_interfaces[FORWARDING_RPC_INTERFACE] = make_forwarding_interface()
 
@@ -79,10 +86,11 @@ def run(args):
         network.start_and_open(args)
         primary, backups = network.find_nodes()
         primary_url = f"https://{primary.get_public_rpc_address()}"
+        tls_ctx = ssl.create_default_context(cafile=network.cert_path)
 
         with contextlib.ExitStack() as stack:
             primary_client = stack.enter_context(
-                httpx.Client(verify=network.cert_path, http2=False)
+                httpx.Client(verify=tls_ctx, http2=False)
             )
             initial_view = primary_client.get(f"{primary_url}/node/network").json()[
                 "current_view"
@@ -121,7 +129,7 @@ def run(args):
                 )
                 fwd_client = stack.enter_context(
                     httpx.Client(
-                        verify=network.cert_path,
+                        verify=tls_ctx,
                         http2=False,
                         limits=httpx.Limits(keepalive_expiry=None),
                     )
@@ -134,74 +142,131 @@ def run(args):
 
             # Suspend primary to trigger an election and exercise two
             # forwarding consistency guards across the view change:
-            # 1. Immediately after suspending primary (while backups[0] still
-            #    believes primary is leader), forward PUT /records/daisy via
-            #    backups[0]. The forwarded packet queues in primary's TCP
-            #    buffer while backups elect new_primary. When primary resumes,
-            #    its first timer tick triggers CheckQuorum step-down to
-            #    Follower before reading the socket, so process_forwarded()
-            #    hits forward() with is_forwarded == true ->
-            #    503 RequestAlreadyForwarded.
-            # 2. Reusing the remaining backup's pre-election persistent
-            #    forwarding session in the new view hits
-            #    !check_session_consistency() -> 500 SessionConsistencyLost.
-            daisy_backup = backups[0]
-            daisy_fwd_url = f"https://{daisy_backup.get_public_rpc_address(FORWARDING_RPC_INTERFACE)}"
+            # 1. Pre-warm a keep-alive TLS client on daisy_backup (leaving
+            #    is_forwarding == False) and forward PUT /records/daisy
+            #    immediately after suspending the current primary. The
+            #    forwarded packet queues in the old primary's TCP buffer while
+            #    the backups elect a new leader; keeping the old primary
+            #    suspended past election_timeout normally causes CheckQuorum
+            #    step-down before NodeIngress reads the socket, returning
+            #    503 RequestAlreadyForwarded. Because NodeIngress vs
+            #    CheckQuorum ordering is not strictly guaranteed on resume,
+            #    retry up to MAX_DAISY_ATTEMPTS times (recording any 204
+            #    write's final status for consistency-replay) until
+            #    RequestAlreadyForwarded is observed.
+            # 2. On the first election, reusing the remaining backup's
+            #    pre-election persistent forwarding session in the new view
+            #    hits !check_session_consistency() -> 500 SessionConsistencyLost.
+            daisy_observed = False
+            session_consistency_checked = False
+            for attempt in range(MAX_DAISY_ATTEMPTS):
+                if attempt == 0:
+                    cur_primary, cur_backups = primary, backups
+                    cur_view = initial_view
+                else:
+                    cur_primary, cur_backups = network.find_nodes()
+                    cur_primary_url = f"https://{cur_primary.get_public_rpc_address()}"
+                    cur_view = primary_client.get(
+                        f"{cur_primary_url}/node/network"
+                    ).json()["current_view"]
+                    for node in network.get_joined_nodes():
+                        wait_for_node_view(
+                            primary_client,
+                            f"https://{node.get_public_rpc_address()}",
+                            cur_view,
+                            timeout_s=network.election_duration * 4,
+                        )
 
-            def send_daisy_request():
+                daisy_backup = cur_backups[0]
+                daisy_fwd_url = f"https://{daisy_backup.get_public_rpc_address(FORWARDING_RPC_INTERFACE)}"
+
                 with httpx.Client(
-                    verify=network.cert_path, http2=False, timeout=15.0
-                ) as c:
-                    return c.put(f"{daisy_fwd_url}/records/daisy", content=b"value")
+                    verify=tls_ctx,
+                    http2=False,
+                    timeout=15.0,
+                    limits=httpx.Limits(keepalive_expiry=None),
+                ) as daisy_client:
+                    # Pre-establish TCP+TLS on daisy_backup while keeping
+                    # is_forwarding == False on this session.
+                    warm_resp = daisy_client.get(f"{daisy_fwd_url}/node/state")
+                    assert warm_resp.status_code == http.HTTPStatus.OK, warm_resp.text
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as daisy_pool:
-                primary.suspend()
-                suspended_at = time.monotonic()
-                try:
-                    daisy_future = daisy_pool.submit(send_daisy_request)
-                    new_primary, new_view = network.wait_for_new_primary(
-                        primary, nodes=backups
-                    )
-                    assert new_view > initial_view, (new_view, initial_view)
+                    with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=1
+                    ) as daisy_pool:
+                        cur_primary.suspend()
+                        suspended_at = time.monotonic()
+                        try:
+                            daisy_future = daisy_pool.submit(
+                                daisy_client.put,
+                                f"{daisy_fwd_url}/records/daisy",
+                                content=b"value",
+                            )
+                            new_primary, new_view = network.wait_for_new_primary(
+                                cur_primary, nodes=cur_backups
+                            )
+                            assert new_view > cur_view, (new_view, cur_view)
 
-                    remaining_backup = next(b for b in backups if b != new_primary)
-                    remaining_primary_url = (
-                        f"https://{remaining_backup.get_public_rpc_address()}"
-                    )
-                    wait_for_node_view(
+                            if not session_consistency_checked:
+                                remaining_backup = next(
+                                    b for b in cur_backups if b != new_primary
+                                )
+                                remaining_primary_url = f"https://{remaining_backup.get_public_rpc_address()}"
+                                wait_for_node_view(
+                                    primary_client,
+                                    remaining_primary_url,
+                                    new_view,
+                                    timeout_s=network.election_duration * 4,
+                                )
+                                fwd_client, fwd_url = backup_sessions[remaining_backup]
+                                r = fwd_client.put(
+                                    f"{fwd_url}/records/fwd", content=b"value"
+                                )
+                                assert (
+                                    r.status_code
+                                    == http.HTTPStatus.INTERNAL_SERVER_ERROR
+                                ), (
+                                    r.status_code,
+                                    r.text,
+                                )
+                                assert (
+                                    r.json()["error"]["code"]
+                                    == "SessionConsistencyLost"
+                                ), r.text
+                                session_consistency_checked = True
+
+                            remaining_sleep = (
+                                suspended_at + network.election_duration + 0.5
+                            ) - time.monotonic()
+                            if remaining_sleep > 0:
+                                time.sleep(remaining_sleep)
+                        finally:
+                            cur_primary.resume()
+
+                        daisy_resp = daisy_future.result(timeout=15)
+
+                if (
+                    daisy_resp.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+                    and daisy_resp.json()["error"]["code"] == "RequestAlreadyForwarded"
+                ):
+                    daisy_observed = True
+                    break
+
+                if daisy_resp.status_code == http.HTTPStatus.NO_CONTENT:
+                    wait_for_final_tx_status(
                         primary_client,
-                        remaining_primary_url,
-                        new_view,
-                        timeout_s=network.election_duration * 4,
+                        f"https://{new_primary.get_public_rpc_address()}",
+                        daisy_resp.headers["x-ms-ccf-transaction-id"],
                     )
-                    fwd_client, fwd_url = backup_sessions[remaining_backup]
-                    r = fwd_client.put(f"{fwd_url}/records/fwd", content=b"value")
-                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, (
-                        r.status_code,
-                        r.text,
-                    )
-                    assert r.json()["error"]["code"] == "SessionConsistencyLost", r.text
-
-                    # Ensure primary stays suspended longer than its
-                    # election_timeout so its first timer tick on resume
-                    # triggers CheckQuorum step-down to Follower before it
-                    # reads the queued forwarded_msg from its TCP socket.
-                    remaining_sleep = (
-                        suspended_at + network.election_duration + 0.5
-                    ) - time.monotonic()
-                    if remaining_sleep > 0:
-                        time.sleep(remaining_sleep)
-                finally:
-                    primary.resume()
-
-                daisy_resp = daisy_future.result(timeout=15)
-                assert daisy_resp.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, (
-                    daisy_resp.status_code,
-                    daisy_resp.text,
+                LOG.warning(
+                    f"RequestAlreadyForwarded attempt {attempt + 1}/{MAX_DAISY_ATTEMPTS} "
+                    f"returned {daisy_resp.status_code}: {daisy_resp.text}; retrying"
                 )
-                assert (
-                    daisy_resp.json()["error"]["code"] == "RequestAlreadyForwarded"
-                ), daisy_resp.text
+
+            assert session_consistency_checked
+            assert (
+                daisy_observed
+            ), f"Did not observe RequestAlreadyForwarded within {MAX_DAISY_ATTEMPTS} attempts"
 
             targets = [
                 f"https://{n.get_public_rpc_address()}"
@@ -241,13 +306,14 @@ def run(args):
                     tvc.terminate()
                     tvc.wait(timeout=5)
 
-            # Isolate one backup from the rest of the cluster. First, while it
-            # still believes cur_primary is primary, burst forwarded writes
-            # past node_to_node_message_limit + the 10-slot unestablished
-            # forwarding queue to exercise forward_command() returning false
-            # (503 "Unable to establish channel to forward to primary."). Then
-            # wait for its election timer to clear primary_id and exercise the
-            # unknown-primary forwarding error path.
+            # Isolate one backup from the rest of the cluster. Pre-establish
+            # CHANNEL_BURST_COUNT (> N2N_MESSAGE_LIMIT + 10) TLS connections
+            # before suspending the other nodes, then release the entire burst
+            # simultaneously in a single wave so it exceeds the channel message
+            # limit and 10-slot unestablished forwarding queue long before the
+            # election timer expires (503 "Unable to establish channel to
+            # forward to primary."). Then wait for its election timer to clear
+            # primary_id and exercise the unknown-primary forwarding path.
             cur_primary, cur_backups = network.find_nodes()
             isolated = cur_backups[0]
             to_suspend = [cur_primary, *cur_backups[1:]]
@@ -255,59 +321,88 @@ def run(args):
             isolated_fwd_url = (
                 f"https://{isolated.get_public_rpc_address(FORWARDING_RPC_INTERFACE)}"
             )
-            burst_ssl_ctx = ssl.create_default_context(cafile=network.cert_path)
-            for node in to_suspend:
-                node.suspend()
-            try:
 
-                def send_one(_):
+            with contextlib.ExitStack() as burst_stack:
+                burst_clients = [
+                    burst_stack.enter_context(
+                        httpx.Client(
+                            verify=tls_ctx,
+                            http2=False,
+                            timeout=15.0,
+                            limits=httpx.Limits(keepalive_expiry=None),
+                        )
+                    )
+                    for _ in range(CHANNEL_BURST_COUNT)
+                ]
+                ready_barrier = threading.Barrier(CHANNEL_BURST_COUNT + 1)
+                release_event = threading.Event()
+
+                def send_one(client):
                     try:
-                        with httpx.Client(
-                            verify=burst_ssl_ctx, http2=False, timeout=1.5
-                        ) as c:
-                            return c.put(
-                                f"{isolated_fwd_url}/records/chan", content=b"value"
-                            )
+                        warm = client.get(f"{isolated_fwd_url}/node/state")
+                        assert warm.status_code == http.HTTPStatus.OK, warm.text
+                        ready_barrier.wait()
+                    except BaseException:
+                        ready_barrier.abort()
+                        raise
+                    release_event.wait()
+                    try:
+                        return client.put(
+                            f"{isolated_fwd_url}/records/chan",
+                            content=b"value",
+                            timeout=1.5,
+                        )
                     except httpx.TimeoutException:
                         return None
 
-                burst_count = N2N_MESSAGE_LIMIT + 15
-                with concurrent.futures.ThreadPoolExecutor(max_workers=64) as pool:
-                    responses = [
-                        resp
-                        for resp in pool.map(send_one, range(burst_count))
-                        if resp is not None
-                    ]
-                channel_errors = [
-                    resp
-                    for resp in responses
-                    if resp.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
-                    and resp.json()["error"]["code"] == "InternalError"
-                    and "Unable to establish channel to forward to primary."
-                    in resp.json()["error"]["message"]
-                ]
-                assert channel_errors, [
-                    (resp.status_code, resp.text) for resp in responses
-                ]
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=CHANNEL_BURST_COUNT
+                ) as pool:
+                    futures = [pool.submit(send_one, c) for c in burst_clients]
+                    try:
+                        # Wait until all burst connections are established and
+                        # parked at the barrier before suspending peers.
+                        ready_barrier.wait(timeout=30)
+                        for node in to_suspend:
+                            node.suspend()
+                        release_event.set()
+                        responses = [
+                            resp for f in futures if (resp := f.result()) is not None
+                        ]
+                        channel_errors = [
+                            resp
+                            for resp in responses
+                            if resp.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+                            and resp.json()["error"]["code"] == "InternalError"
+                            and "Unable to establish channel to forward to primary."
+                            in resp.json()["error"]["message"]
+                        ]
+                        assert channel_errors, [
+                            (resp.status_code, resp.text) for resp in responses
+                        ]
 
-                isolated_client = stack.enter_context(
-                    httpx.Client(verify=network.cert_path, http2=False)
-                )
-                wait_for_unknown_primary(
-                    isolated_client,
-                    isolated_url,
-                    timeout_s=network.election_duration * 4,
-                )
-                r = isolated_client.put(
-                    f"{isolated_fwd_url}/records/no_primary", content=b"value"
-                )
-                assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r.text
-                assert r.json()["error"]["code"] == "InternalError", r.text
-                assert "unknown primary" in r.json()["error"]["message"], r.text
-            finally:
-                for node in to_suspend:
-                    if node.suspended:
-                        node.resume()
+                        isolated_client = stack.enter_context(
+                            httpx.Client(verify=tls_ctx, http2=False)
+                        )
+                        wait_for_unknown_primary(
+                            isolated_client,
+                            isolated_url,
+                            timeout_s=network.election_duration * 4,
+                        )
+                        r = isolated_client.put(
+                            f"{isolated_fwd_url}/records/no_primary", content=b"value"
+                        )
+                        assert (
+                            r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+                        ), r.text
+                        assert r.json()["error"]["code"] == "InternalError", r.text
+                        assert "unknown primary" in r.json()["error"]["message"], r.text
+                    finally:
+                        ready_barrier.abort()
+                        release_event.set()
+                        for node in to_suspend:
+                            if node.suspended:
+                                node.resume()
 
 
 if __name__ == "__main__":
