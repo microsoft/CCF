@@ -3609,6 +3609,186 @@ DOCTEST_TEST_CASE(
   }
 }
 
+DOCTEST_TEST_CASE(
+  "Retired-committed node refuses forced leadership" *
+  doctest::test_suite("retirement"))
+{
+  PrimaryAndBackup n;
+
+  aft::Configuration::Nodes peer_only;
+  peer_only[n.id1] = {};
+  auto retire_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  retire_hooks->push_back(
+    std::make_unique<aft::ConfigurationChangeHook>(peer_only, 1));
+  auto entry = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(n.r0.replicate(
+    ccf::kv::BatchVector{{1, entry, false, retire_hooks}}, n.r0.get_view()));
+  n.replicate(2, 2, true);
+
+  // Peer acknowledges the retirement and following signature so retirement
+  // commits on node 0 (RetirementPhase::Completed).
+  n.r0.periodic(request_timeout);
+  require_ack(
+    n.backup_receives(n.with_payload(n.take_append_entries_header())), 2);
+  n.primary_receives(aft::AppendEntriesResponse{
+    .term = n.r0.get_view(),
+    .last_log_idx = 2,
+    .success = aft::AppendEntriesResponseType::OK});
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
+  DOCTEST_REQUIRE(
+    n.r0.get_details().retirement_phase == ccf::kv::RetirementPhase::Completed);
+
+  n.r0.set_retired_committed(3, {n.id0});
+  DOCTEST_REQUIRE(n.r0.is_retired_committed());
+  DOCTEST_REQUIRE_FALSE(n.r0.is_primary());
+  DOCTEST_REQUIRE_FALSE(n.r0.primary().has_value());
+
+  // Forcing leadership on a retired-committed node must not re-elect it.
+  n.r0.force_become_primary();
+  DOCTEST_REQUIRE_FALSE(n.r0.is_primary());
+  DOCTEST_REQUIRE_FALSE(n.r0.primary().has_value());
+  DOCTEST_REQUIRE(
+    n.r0.get_details().leadership_state == ccf::kv::LeadershipState::None);
+}
+
+DOCTEST_TEST_CASE(
+  "Backup rolls back and NACKs when a consensus hook throws a "
+  "non-std::exception" *
+  doctest::test_suite("multiple"))
+{
+  struct UnknownHookError
+  {};
+
+  class ThrowingHook : public ccf::kv::ConsensusHook
+  {
+  public:
+    void call(ccf::kv::ConfigurableConsensus*) override
+    {
+      throw UnknownHookError{};
+    }
+  };
+
+  class ThrowingHookStore : public Store
+  {
+  public:
+    using Store::Store;
+
+    aft::Index throw_at_idx = 0;
+
+    std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      const std::optional<ccf::TxID>& expected_txid = std::nullopt) override
+    {
+      ccf::kv::ConsensusHookPtrs entry_hooks;
+      if (expected_txid.has_value() && expected_txid->seqno == throw_at_idx)
+      {
+        entry_hooks.push_back(std::make_unique<ThrowingHook>());
+      }
+      return std::make_unique<ExecutionWrapper>(
+        data, expected_txid, std::move(entry_hooks));
+    }
+  };
+
+  auto kv1 =
+    std::make_shared<ThrowingHookStore>(ccf::kv::test::FirstBackupNodeId);
+  PrimaryAndBackup n({}, {.kv = kv1});
+
+  n.replicate(1, 1, true);
+  n.r0.periodic(request_timeout);
+  const auto ack =
+    n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(ack, 1);
+  n.primary_receives(ack.value());
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 1);
+
+  kv1->throw_at_idx = 3;
+  n.replicate(2, 3, false);
+  n.r0.periodic(request_timeout);
+  const auto nack =
+    n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_nack(nack, 1);
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 1);
+  DOCTEST_REQUIRE(n.r1.ledger->ledger.size() == 1);
+}
+
+DOCTEST_TEST_CASE(
+  "Follower retains conflicting suffix on a second conflict in the same term" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+
+  // Commit entry 1.1 and replicate uncommitted entry 1.2 to the backup.
+  n.replicate(1, 1, true);
+  n.r0.periodic(request_timeout);
+  const auto ack1 =
+    n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(ack1, 1);
+  n.primary_receives(ack1.value());
+
+  n.replicate(2, 2, false);
+  n.r0.periodic(request_timeout);
+  const auto ack2 =
+    n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(ack2, 2);
+  DOCTEST_REQUIRE(n.r1.get_view(2) == 1);
+  DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 1);
+
+  // Helper to build a single-entry AppendEntries payload matching
+  // LoggingStubStore's wire format.
+  const auto make_ae_payload =
+    [](bool committable, aft::Term term, aft::Index idx) {
+      const std::vector<uint8_t> body = {1, 2, 3};
+      std::vector<uint8_t> buf(sizeof(size_t) + aft::ADDITIONAL_METADATA_SIZE);
+      uint8_t* ptr = buf.data();
+      size_t rem = buf.size();
+      serialized::write(ptr, rem, aft::ADDITIONAL_METADATA_SIZE + body.size());
+      serialized::write(ptr, rem, committable);
+      serialized::write(ptr, rem, term);
+      serialized::write(ptr, rem, idx);
+      buf.insert(buf.end(), body.begin(), body.end());
+      return buf;
+    };
+
+  // First conflict in view 2: as a new follower in view 2, node 1 rolls back
+  // entry 1.2 and accepts 2.2 (clearing is_new_follower).
+  aft::AppendEntries term2_ae{};
+  term2_ae.idx = 2;
+  term2_ae.prev_idx = 1;
+  term2_ae.term = 2;
+  term2_ae.prev_term = 1;
+  term2_ae.leader_commit_idx = 1;
+  term2_ae.term_of_idx = 2;
+  const auto term2_header = as_bytes(term2_ae);
+  const auto term2_payload = make_ae_payload(false, 2, 2);
+  n.r1.recv_message(n.id0, term2_header, term2_payload);
+  auto resp = n.c1->pop_first(aft::append_entries_response, n.id0);
+  DOCTEST_REQUIRE(resp.has_value());
+  require_ack(read_msg<aft::AppendEntriesResponse>(*resp), 2);
+  DOCTEST_REQUIRE(n.r1.get_view() == 2);
+  DOCTEST_REQUIRE(n.r1.get_view(2) == 2);
+  DOCTEST_REQUIRE(n.r1.primary() == n.id0);
+
+  // Second conflicting AppendEntries in the same term (simulating an
+  // equivocating sender in view 2 claiming term_of_idx = 1 at index 2):
+  // is_new_follower is now false, so node 1 retains 2.2 without rolling back
+  // or sending a response.
+  const auto equivocator = ccf::kv::test::SecondBackupNodeId;
+  aft::AppendEntries conflicting_ae{};
+  conflicting_ae.idx = 2;
+  conflicting_ae.prev_idx = 1;
+  conflicting_ae.term = 2;
+  conflicting_ae.prev_term = 1;
+  conflicting_ae.leader_commit_idx = 1;
+  conflicting_ae.term_of_idx = 1;
+  const auto conflicting_header = as_bytes(conflicting_ae);
+  const auto conflicting_payload = make_ae_payload(false, 1, 2);
+  n.r1.recv_message(equivocator, conflicting_header, conflicting_payload);
+  DOCTEST_REQUIRE(n.c1->messages.empty());
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 2);
+  DOCTEST_REQUIRE(n.r1.get_view(2) == 2);
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;
