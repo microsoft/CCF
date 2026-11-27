@@ -1362,9 +1362,12 @@ def run_ledger_chunk_bytes_check(const_args):
             #   - Increasing over time as the mini-tree grows
             #   - Adding 2400 bytes here to be safe
             # - ~4600 further bytes per signature transaction of a service
-            #   with an ML-DSA identity, for its second COSE signature
+            #   with an ML-DSA-65 identity, for its second COSE signature
             #   - Adding 4800 bytes here to be safe
-            signature_size = 2400 + (4800 if has_pq_identity else 0)
+            ml_dsa_65_signature_overhead = 4800
+            signature_size = 2400 + (
+                ml_dsa_65_signature_overhead if has_pq_identity else 0
+            )
             return 24 + (202 * num_transactions) + (signature_size * num_signatures)
 
         network.per_node_args_override[0] = {"ledger_chunk_bytes": f"{size_0}B"}
