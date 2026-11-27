@@ -390,3 +390,26 @@ TEST_CASE("camel_case" * doctest::test_suite("nonstd"))
       "what-about-MixedSeparators");
   }
 }
+
+TEST_CASE("Base endpoint execution rejects mismatched endpoint definitions")
+{
+  EndpointRegistry registry("test");
+  auto base_definition = std::make_shared<EndpointDefinition>();
+  auto endpoint_without_command = std::make_shared<Endpoint>();
+  CommandEndpointContext cmd_ctx(nullptr);
+  ccf::kv::Tx tx(nullptr);
+  EndpointContext ep_ctx(nullptr, tx);
+
+  CHECK_THROWS_AS(
+    registry.execute_command_endpoint(base_definition, cmd_ctx),
+    std::logic_error);
+  CHECK_THROWS_AS(
+    registry.execute_command_endpoint(endpoint_without_command, cmd_ctx),
+    std::logic_error);
+  CHECK_THROWS_AS(
+    registry.execute_endpoint(base_definition, ep_ctx), std::logic_error);
+  CHECK_THROWS_AS(
+    registry.execute_endpoint_locally_committed(
+      base_definition, cmd_ctx, ccf::TxID{1, 1}),
+    std::logic_error);
+}
