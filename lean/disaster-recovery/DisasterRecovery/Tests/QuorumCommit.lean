@@ -4,10 +4,10 @@ import all Init.Control.State
 import all Init.Data.ByteArray.Lex
 import all Init.Data.String.Compare
 
-public import DisasterRecovery.Properties
+public import DisasterRecovery.Properties.Utils
 public import DisasterRecovery.Tests.Initial
 
-import DisasterRecovery.Proofs.Evaluation
+public import CCF.Proofs.Execution
 
 @[expose] public section
 
@@ -15,7 +15,7 @@ namespace DisasterRecovery.Tests.QuorumCommit
 
 open CCF CCF.Execution
 open Model.Local
-open Proofs.Evaluation
+
 
 private def high : TxID := { view := 1, seqno := 10 }
 private def low : TxID := { view := 1, seqno := 5 }
@@ -33,13 +33,16 @@ private def vote (source : Location) : Model.Envelope :=
   { source, target := "C", payload := .vote }
 
 private def heard (node : Location) : NodeState :=
-  { location := node, gossips := [("C", low)] }
+  Tests.written (initialNode node) [((.gossips,some "C"),some (.txid low))]
 
 private def selected (node : Location) : NodeState :=
-  { heard node with phase := .voting, timeoutState := .voting, chosen := some "C" }
+  Tests.written (heard node) [((.timeoutPhase,none),some (.phase .voting)),
+    ((.phase,none),some (.phase .voting)), ((.chosen,none),some (.location "C"))]
 
 private def openedC : NodeState :=
-  { selected "C" with phase := .opening, votes := ["A", "B"], openKind := some .quorum }
+  Tests.written (Tests.written (selected "C") [((.votes,some "A"),some .present)])
+    [((.phase,none),some (.phase .opening)), ((.openKind,none),some (.openKind .quorum)),
+     ((.votes,some "B"),some .present)]
 
 private def snapshot (a b c : NodeState) (network : List Model.Envelope) : Model.State :=
   { nodes := [("A", a), ("B", b), ("C", c)], network }
@@ -73,24 +76,41 @@ private def s8 :=
 private def s9 := snapshot (selected "A") (selected "B") (selected "C") s8.network
 
 private def s10 :=
-  snapshot (selected "A") (selected "B") { selected "C" with votes := ["A"] }
+  snapshot (selected "A") (selected "B") (Tests.written (selected "C") [((.votes,some "A"),some .present)])
     (aGossips ++ vote "B" :: bGossips)
 
 private def s11 := snapshot (selected "A") (selected "B") openedC (aGossips ++ bGossips)
 
+private def pending (before after : Model.State) (node : Location) (event : Event)
+    : Model.State :=
+  {
+    nodes :=
+      before.nodes.map
+        fun (n,s) => (n, if n == node then Tests.staged config s event else s),
+    network := after.network
+  }
+
 private def steps : List (Model.Action × Model.State) :=
   [
     (.local "C" .retry, s1),
-    (.deliver (gossip "C" "A" low), s2),
-    (.local "A" .timeout, s3),
+    (.deliver (gossip "C" "A" low), pending s1 s2 "A" (.receiveGossip "C" low .accepted)),
+    (.local "A" (.commit 0), s2),
+    (.local "A" .timeout, pending s2 s3 "A" .timeout),
+    (.local "A" (.commit 0), s3),
     (.local "A" .retry, s4),
-    (.deliver (gossip "C" "B" low), s5),
-    (.local "B" .timeout, s6),
+    (.deliver (gossip "C" "B" low), pending s4 s5 "B" (.receiveGossip "C" low .accepted)),
+    (.local "B" (.commit 0), s5),
+    (.local "B" .timeout, pending s5 s6 "B" .timeout),
+    (.local "B" (.commit 0), s6),
     (.local "B" .retry, s7),
-    (.deliver (gossip "C" "C" low), s8),
-    (.local "C" .timeout, s9),
-    (.deliver (vote "A"), s10),
-    (.deliver (vote "B"), s11)
+    (.deliver (gossip "C" "C" low), pending s7 s8 "C" (.receiveGossip "C" low .accepted)),
+    (.local "C" (.commit 0), s8),
+    (.local "C" .timeout, pending s8 s9 "C" .timeout),
+    (.local "C" (.commit 0), s9),
+    (.deliver (vote "A"), pending s9 s10 "C" (.receiveVote "A" .accepted)),
+    (.local "C" (.commit 0), s10),
+    (.deliver (vote "B"), pending s10 s11 "C" (.receiveVote "B" .accepted)),
+    (.local "C" (.commit 0), s11)
   ]
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
@@ -101,15 +121,14 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
 private def behaviour : Properties.Behaviour config :=
   ofSteps initial steps initialized
     (by
-      simp only [StepsFrom, steps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
-        Model.protocol, step, insertGossip_eval, insertVote_eval, and_true]
+      simp only [StepsFrom, steps, and_true]
       and_intros <;> rfl)
 
 private theorem opened : ("C", openedC) ∈ s11.nodes := by
   simp [s11, snapshot]
 
 private theorem final_in_behaviour : s11 ∈ behaviour :=
-  Execution.Behaviour.stateAt_mem (n := 11) rfl
+  Execution.Behaviour.stateAt_mem (n := 19) rfl
 
 private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
   unfold Properties.UpToDateWithQuorum
@@ -136,6 +155,6 @@ private theorem missing_own : ¬ Properties.ReceivedOwnGossip behaviour "A" := b
 example
     : ¬ (forall voter,
           voter ∈ openedC.votes -> Properties.ReceivedOwnGossip behaviour voter) :=
-  fun own => missing_own (own "A" (by simp [openedC]))
+  fun own => missing_own (own "A" (by decide +kernel))
 
 end DisasterRecovery.Tests.QuorumCommit

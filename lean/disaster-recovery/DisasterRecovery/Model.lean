@@ -32,8 +32,10 @@ def recoveredTxID (config : Config) (source : Location) : Option TxID :=
 inductive Input where
   /-- Request retransmission of the messages for the node's current phase. -/
   | retry
-  /-- Fire the next timeout in the node's timeout schedule. -/
+  /-- Run the transaction of the next timeout in the node's timeout schedule. -/
   | timeout
+  /-- Commit the node's pending transaction at `index`, or run it again if it conflicts. -/
+  | commit (index : Nat)
 deriving Repr, BEq
 
 /-- A recovery protocol message in flight. -/
@@ -42,7 +44,8 @@ abbrev Envelope := CCF.Envelope Location Message
 /-- The local states and queued recovery messages. -/
 abbrev State := MultiNodeTransitionSystem.State Location NodeState Message
 
-/-- A local retry or timeout, or one queued message delivery. -/
+/-- A local retry, timeout or commit, or one queued message delivery, which runs the
+transaction of its receive. -/
 abbrev Action := MultiNodeTransitionSystem.Action Location Message Input
 
 /-- Converts a delivered message into an accepted local receive event. -/
@@ -53,16 +56,17 @@ def receive (source : Location) : Message -> Event
 
 /-- Supplies the local recovery protocol to the shared network composition. -/
 def protocol (config : Config)
-    : MultiNodeTransitionSystem.Protocol Location NodeState Event Message Notification
+    : MultiNodeTransitionSystem.Protocol Location NodeState Operation Message Notification
         Input where
   init node state := state = initialNode node
   step host source state action := do
     let recovered <- liftM (recoveredTxID config source)
-    DisasterRecovery.Model.Local.step host config.protocol recovered state action
-  receive := receive
+    perform host config.protocol recovered state action
+  receive source message := .run (receive source message)
   internal
     | .retry => .retry
-    | .timeout => .timeout
+    | .timeout => .run .timeout
+    | .commit index => .commit index
 
 /-- Composes recovery nodes.
 Initial states include every expected location but may also contain unused nodes. -/

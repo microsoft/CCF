@@ -68,7 +68,8 @@ The replay checks everything else.
 | `retry`        | A retry runs right after the `sm_state` write at the version it read                                               |
 | `scenario`     | No more nodes log than the participants, each ends Opening, Open or Joining after a restart request, and one opens |
 
-A replayed execution is its state observation, its action, the notifications it emitted and the state it recorded writing.
+A replayed execution checks the pre-state, runs the handler, immediately commits its pending attempt at index zero, then checks the commit's notifications and the recorded post-state.
+Run-time outputs are not recorded or compared.
 A retry is its action and the messages it sent.
 Items of different nodes are interleaved so that each message is received after it is sent.
 As in the model's network, any queued copy of a message can be the one received, so receives are matched to sends by content.

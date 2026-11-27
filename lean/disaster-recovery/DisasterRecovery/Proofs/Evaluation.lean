@@ -3,90 +3,75 @@ module
 public import DisasterRecovery.Properties.Utils
 public import CCF.Proofs.Execution
 
-@[expose] public section
+import all Init.Control.State
 
-/-!
-Helpers for checking concrete executions by evaluation. `List.merge` and `List.mergeSort`
-are defined by well-founded recursion, so the kernel cannot evaluate `insertGossip` or
-`insertVote`. `insertGossip_eval` and `insertVote_eval` restate them with structurally
-recursive equivalents; after rewriting with `evalSimps`, concrete steps close by `rfl`.
--/
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Evaluation
 
-open CCF
-open Model.Local
+open CCF Model.Local
 
-/-- `List.merge` by structural recursion on fuel, so the kernel can evaluate it. -/
-def mergeFuel {α : Type} (le : α -> α -> Bool) : Nat -> List α -> List α -> List α
-  | 0, xs, ys => xs ++ ys
-  | _ + 1, [], ys => ys
-  | _ + 1, x :: xs, [] => x :: xs
-  | fuel + 1, x :: xs, y :: ys =>
-      if le x y then
-        x :: mergeFuel le fuel xs (y :: ys)
-      else
-        y :: mergeFuel le fuel (x :: xs) ys
+/-- Effects of handing the transaction's ordered outputs to the recording host. -/
+def recordOutputs (node : Location) (outputs : Outputs Location Message Notification)
+    : List Output → Outputs Location Message Notification
+  | [] => outputs
+  | .notify n :: rest =>
+      recordOutputs node { outputs with notifications := outputs.notifications ++ [n] } rest
+  | .send message target :: rest =>
+      recordOutputs node
+        { outputs with outgoing := outputs.outgoing ++ [{ source := node, target, payload := message }] } rest
 
-theorem merge_eq_mergeFuel {α : Type} (le : α -> α -> Bool)
-    : forall (fuel : Nat) (xs ys : List α),
-        xs.length + ys.length <= fuel -> List.merge xs ys le = mergeFuel le fuel xs ys
-  | 0, [], [], _ => by simp [mergeFuel]
-  | 0, _ :: _, _, h | 0, [], _ :: _, h => by simp at h
-  | _ + 1, [], _, _ => by simp [mergeFuel]
-  | _ + 1, _ :: _, [], _ => by simp [mergeFuel]
-  | fuel + 1, x :: xs, y :: ys, h => by
-      rw [List.cons_merge_cons, mergeFuel]
-      split
-      · rw [merge_eq_mergeFuel le fuel xs (y :: ys) (by simp at h ⊢; omega)]
-      · rw [merge_eq_mergeFuel le fuel (x :: xs) ys (by simp at h ⊢; omega)]
+theorem release_record (node : Location) (outputs : Outputs Location Message Notification)
+    (items : List Output)
+    : (release (Capabilities.record node) items).run outputs =
+        some ((), recordOutputs node outputs items) := by
+  induction items generalizing outputs with
+  | nil => rfl
+  | cons item rest ih =>
+      cases item <;> apply ih
 
-/-- `List.mergeSort` by structural recursion on fuel, so the kernel can evaluate it. -/
-def mergeSortFuel {α : Type} (le : α -> α -> Bool) : Nat -> List α -> List α
-  | 0, xs => xs
-  | fuel + 1, xs =>
-      if xs.length < 2 then
-        xs
-      else
-        mergeFuel le xs.length (mergeSortFuel le fuel (xs.take ((xs.length + 1) / 2)))
-          (mergeSortFuel le fuel (xs.drop ((xs.length + 1) / 2)))
+private theorem onlyRestarts (node : Location) (items : List Output)
+    (outs : Outputs Location Message Notification)
+    (only : ∀ x ∈ items, ∃ n, x = .notify (.restart n)) :
+    (recordOutputs node outs items).outgoing = outs.outgoing ∧
+    ∀ k, .opening k ∉ outs.notifications → .opening k ∉ (recordOutputs node outs items).notifications := by
+  induction items generalizing outs with
+  | nil => exact ⟨rfl,fun _ h => h⟩
+  | cons x rest ih =>
+    obtain ⟨n,rfl⟩ := only x List.mem_cons_self
+    have tail := ih {outs with notifications := outs.notifications ++ [.restart n]}
+      (fun y h => only y (List.mem_cons_of_mem _ h))
+    exact ⟨tail.1,fun k h => tail.2 k (by simpa using h)⟩
 
-theorem mergeSort_eq_mergeSortFuel {α : Type} (le : α -> α -> Bool)
-    : forall (fuel : Nat) (xs : List α),
-        xs.length <= fuel -> xs.mergeSort le = mergeSortFuel le fuel xs
-  | 0, [], _ => by simp [mergeSortFuel]
-  | 0, _ :: _, h => by simp at h
-  | fuel + 1, xs, h => by
-      rw [mergeSortFuel]
-      split
-      · match xs, ‹xs.length < 2› with
-        | [], _ => simp
-        | [_], _ => simp
-      · conv => lhs; rw [← List.take_append_drop ((xs.length + 1) / 2) xs]
-        rw [List.mergeSort_append _ _ (by simp; omega) (by simp; omega),
-          merge_eq_mergeFuel le xs.length _ _ (by simp; omega),
-          mergeSort_eq_mergeSortFuel le fuel (xs.take _) (by simp; omega),
-          mergeSort_eq_mergeSortFuel le fuel (xs.drop _) (by simp; omega)]
+/-- Run-time restart callbacks cannot deliver protocol messages or announce an opening. -/
+theorem unguarded_frame (node : Location) (items : List Output) :
+    (recordOutputs node {} (unguarded items)).outgoing = [] ∧
+    ∀ k, .opening k ∉ (recordOutputs node {} (unguarded items)).notifications := by
+  have only (x) (h : x ∈ unguarded items) : ∃ n, x = .notify (.restart n) := by
+    obtain ⟨_,h⟩ := List.mem_filter.mp h
+    cases x with
+    | send => contradiction
+    | notify n => cases n <;> first | contradiction | exact ⟨_,rfl⟩
+  have frame := onlyRestarts node _ {} only
+  exact ⟨frame.1,fun k => frame.2 k (by simp)⟩
 
-theorem insertGossip_eval (source : Location) (txid : TxID)
-    (gossips : List (Location × TxID))
-    : insertGossip source txid gossips
-      = if gossips.any (fun entry => entry.1 == source) then
-          gossips
-        else
-          mergeSortFuel (fun left right => decide (left.1 <= right.1))
-            (gossips.length + 1) ((source, txid) :: gossips) := by
-  unfold insertGossip
-  rw [mergeSort_eq_mergeSortFuel _ (gossips.length + 1) _ (by simp)]
+/-- A stale read-only commit with restart-only outputs cannot send or open. -/
+theorem restart_frame (node : Location) (items : List Output)
+    (only : ∀ x ∈ items, ∃ n, x = .notify (.restart n)) :
+    (recordOutputs node {} items).outgoing = [] ∧
+    ∀ k, .opening k ∉ (recordOutputs node {} items).notifications :=
+  ⟨(onlyRestarts node _ {} only).1,fun k => (onlyRestarts node _ {} only).2 k (by simp)⟩
 
-theorem insertVote_eval (source : Location) (votes : List Location)
-    : insertVote source votes
-      = if votes.contains source then
-          votes
-        else
-          mergeSortFuel (fun left right => decide (left <= right)) (votes.length + 1)
-            (source :: votes) := by
-  unfold insertVote
-  rw [mergeSort_eq_mergeSortFuel _ (votes.length + 1) _ (by simp)]
+theorem timeout_enabled (node : Location) (config : Config) (recovered : TxID) (state : NodeState)
+    : ∃ after effects, (perform (Capabilities.record node) config recovered state (.run .timeout)).run {}
+        = some (after, effects) := by
+  simp only [perform, start]
+  cases h : ((transaction config .timeout).exec state.store).result with
+  | error reason => exact ⟨_, _, rfl⟩
+  | ok result =>
+      cases result
+      change ∃ after effects, ((release _ _).run {}).bind _ = some (after, effects)
+      rw [release_record]
+      exact ⟨_, _, rfl⟩
 
 end DisasterRecovery.Proofs.Evaluation

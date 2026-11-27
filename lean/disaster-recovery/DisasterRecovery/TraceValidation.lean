@@ -51,8 +51,6 @@ structure StateFields where
   chosen : Option Location := none
   /-- Opening justification, when the record specifies one. -/
   openKind : Option OpenKind := none
-  /-- Restart-request status, when the record specifies it. -/
-  restartRequested : Option Bool := none
 
 /-- An action to execute or an observation to check against the current model state. -/
 inductive Instruction where
@@ -111,8 +109,8 @@ def openKindName : OpenKind → String
   | .quorum => "quorum"
   | .failover => "failover"
 
-/-- The node an action runs on, and the local event it runs. -/
-private def localEvent (config : Model.Config) : Model.Action → Location × Event
+/-- The node an action runs on, and the local operation it runs. -/
+private def localOperation (config : Model.Config) : Model.Action → Location × Operation
   | .local node input => (node, (Model.protocol config).internal input)
   | .deliver envelope =>
       (envelope.target, (Model.protocol config).receive envelope.source envelope.payload)
@@ -120,6 +118,7 @@ private def localEvent (config : Model.Config) : Model.Action → Location × Ev
 private def actionName : Model.Action → String
   | .local _ .retry => "retry"
   | .local _ .timeout => "timeout"
+  | .local _ (.commit _) => "commit"
   | .deliver _ => "receive"
 
 /--
@@ -131,11 +130,11 @@ private def runAction (config : Model.Config) (state : Model.State)
     : Except String (Model.State × Location × LocalOutputs) := do
   let some next := (Model.transitionSystem config).step state action
   | throw s!"disabled model action '{actionName action}'"
-  let (node, event) := localEvent config action
+  let (node, operation) := localOperation config action
   let some before := nodeState state node
   | throw s!"node '{node}' is not in the network"
   let some (_, effects) :=
-    ((Model.protocol config).step (Capabilities.record node) node before event).run {}
+    ((Model.protocol config).step (Capabilities.record node) node before operation).run {}
   | throw s!"disabled model action '{actionName action}'"
   return (next, node, effects)
 
@@ -156,7 +155,6 @@ private def checkState (fields : StateFields) (state : NodeState)
   check "timeoutState" fields.timeoutState state.timeoutState
   check "chosen" (fields.chosen.map some) state.chosen
   check "openKind" (fields.openKind.map some) state.openKind
-  check "restartRequested" fields.restartRequested state.restartRequested
 
 /-- Current network state and outputs available for the next observation. -/
 structure ReplayState where

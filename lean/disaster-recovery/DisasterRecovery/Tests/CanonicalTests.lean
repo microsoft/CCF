@@ -15,6 +15,25 @@ open DisasterRecovery
 open CCF
 open DisasterRecovery.Model.Local
 
+-- Enumerate serial executions at commit boundaries. Rejected runs never enqueue.
+private def serial (location : Location) (config : Config) (recovered : TxID)
+    (state : NodeState) (event : Event) : Effect Location Message Notification NodeState :=
+  let execute := perform (Capabilities.record location) config recovered
+  match event with
+  | .retry => execute state .retry
+  | _ => do
+      let (ran, runOutputs) ← liftM ((execute state (.run event)).run {})
+      if ran.pending.isEmpty then
+        modify fun outputs => {
+          outgoing := outputs.outgoing ++ runOutputs.outgoing
+          notifications := outputs.notifications ++ runOutputs.notifications
+        }
+        return ran
+      execute ran (.commit 0)
+
+private def withValues (state : NodeState) (writes : OCC.Writes Table Key Value) : NodeState :=
+  { state with store := OCC.publish state.store state.version writes }
+
 private abbrev localMachine (config : Config) (recovered : TxID) (location : Location)
     : TransitionSystem where
   State := NodeState
@@ -22,7 +41,7 @@ private abbrev localMachine (config : Config) (recovered : TxID) (location : Loc
   init := fun state => state = initialNode location
   step :=
     fun state event =>
-      ((step (Capabilities.record location) config recovered state event).run {}).map
+      ((serial location config recovered state event).run {}).map
         Prod.fst
 
 example (config : Config) (recovered : TxID) (location : Location)
@@ -36,12 +55,12 @@ private def stepConfig : Model.Config :=
   }
 
 private def frozenStep
-    : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification :=
+    : MultiNodeTransitionSystem.LocalStep Location NodeState Operation Message Notification :=
   {
     node := "A"
-    before := { location := "A", chosen := some "B" }
-    action := .receiveGossip "OUTSIDE" { view := 9, seqno := 99 } .accepted
-    after := { location := "A", chosen := some "B" }
+    before := withValues (initialNode "A") [((.chosen, none), some (.location "B"))]
+    action := .run (.receiveGossip "OUTSIDE" { view := 9, seqno := 99 } .accepted)
+    after := withValues (initialNode "A") [((.chosen, none), some (.location "B"))]
     effects := { notifications := [.rejected "gossip-frozen"] }
   }
 
@@ -72,7 +91,7 @@ private def requireSome {α : Type} (value : Option α) (message : String) : IO 
 private def runLocal (config : Config) (state : NodeState) (event : Event)
     : IO (NodeState × Outputs Location Message Notification) :=
   requireSome
-    ((step (Capabilities.record state.location) config { view := 1, seqno := 10 } state
+    ((serial state.location config { view := 1, seqno := 10 } state
         event).run
       {})
     s!"disabled local event: {repr event}"
@@ -93,7 +112,8 @@ private def deliverMessage (config : Model.Config) (state : Model.State)
                         && message.target == target
                         && message.payload == payload)
                     s!"missing message from {source} to {target}: {repr payload}"
-  runGlobal config state (.deliver envelope)
+  let ran ← runGlobal config state (.deliver envelope)
+  runGlobal config ran (.local target (.commit 0))
 
 private def eventsFor (config : Config) : List Event :=
   let messages :=
@@ -116,9 +136,7 @@ private def invariant (state : NodeState) : Bool :=
       state.openKind.isSome
     else
       true
-  let restartOnlyJoining :=
-    if state.restartRequested then state.phase == .joining else true
-  chosenReady && openingKind && restartOnlyJoining
+  chosenReady && openingKind && state.pending.isEmpty
 
 private def phaseName : Phase -> String
   | .gossiping => "GOSSIPING"
@@ -140,7 +158,7 @@ private def stateKey (state : NodeState) : String :=
   let votes := String.intercalate "," state.votes
   let chosen := state.chosen.getD "-"
   let kind := state.openKind.map openKindName |>.getD "-"
-  s!"{state.location}|{phaseName state.phase}|{phaseName state.timeoutState}|g={gossips}|v={votes}|c={chosen}|k={kind}|r={state.restartRequested}"
+  s!"{state.location}|{phaseName state.phase}|{phaseName state.timeoutState}|g={gossips}|v={votes}|c={chosen}|k={kind}"
 
 private def enumerate (config : Config) (location : Location) : IO (Nat × Nat) := do
   let recovered : TxID := { view := 0, seqno := 0 }
@@ -152,11 +170,11 @@ private def enumerate (config : Config) (location : Location) : IO (Nat × Nat) 
   let mut cursor := 0
   let mut edges := 0
   while cursor < states.size do
-    let state := states[cursor]!
+    let state := states[cursor]?.getD initial
     expect (invariant state) s!"canonical invariant failed: {stateKey state}"
     for event in eventsFor config do
       edges := edges + 1
-      let emitted := step (Capabilities.record location) config recovered state event
+      let emitted := serial location config recovered state event
       if let some (after, effects) := emitted.run {} then
         let pending : Outputs Location Message Notification :=
           {
@@ -195,9 +213,15 @@ def run : IO Unit := do
     "duplicate expected locations were accepted"
   expect (voteQuorum config == 2) "two-node strict majority must be two"
   let initial := initialNode "A"
+  let execute (state : NodeState) (op : Operation) :=
+    (perform (Capabilities.record "A") config { view := 1, seqno := 10 } state op).run {}
+  expect ((execute initial (.commit 0)).isNone && (execute initial (.run .retry)).isNone)
+    "missing commit and transactional retry must be disabled"
   let machine := localMachine config { view := 1, seqno := 10 } "A"
   expect initial.gossips.isEmpty "canonical C++ state must start without gossip"
-  expect ((machine.step initial .timeout).isNone) "empty-gossip timeout must be disabled"
+  let rejected ← runLocal config initial .timeout
+  expect (rejected.1 == initial && rejected.2.notifications == [.rejected "no-gossip"])
+    "empty-gossip timeout must reject without enqueuing"
   expect
     (machine.step initial (.receiveGossip "A" { view := 1, seqno := 10 } .rejected)
       == some initial)
@@ -209,6 +233,25 @@ def run : IO Unit := do
   let duplicate <- runLocal config first.1
                     (.receiveGossip "A" { view := 99, seqno := 99 } .accepted)
   expect (duplicate.1 == first.1) "duplicate gossip changed its recorded TxID"
+  let runA := Operation.run (.receiveGossip "A" { view := 1, seqno := 10 } .accepted)
+  let runB := Operation.run (.receiveGossip "B" { view := 2, seqno := 1 } .accepted)
+  let (a, _) ← requireSome (execute initial runA) "first run disabled"
+  let (ab, _) ← requireSome (execute a runB) "second run disabled"
+  let (b, _) ← requireSome (execute ab (.commit 0)) "first commit disabled"
+  let (reran, _) ← requireSome (execute b (.commit 0)) "conflicting commit disabled"
+  expect (reran.store == b.store && reran.version == b.version && reran.pending.length == 1
+    && reran.pending != b.pending) "gossip scan conflict did not rerun on the newer snapshot"
+  let (voting, _) ← requireSome (execute reran (.commit 0)) "rerun commit disabled"
+  expect (voting.phase == .voting && voting.chosen == some "B") "rerun missed committed gossip"
+  let (readOnly, _) ← requireSome (execute first.1 runA) "duplicate run disabled"
+  let (both, _) ← requireSome (execute readOnly runB) "new gossip run disabled"
+  let (chosen, _) ← requireSome (execute both (.commit 1)) "new gossip commit disabled"
+  let some stale := chosen.pending[0]? | throw (IO.userError "missing duplicate gossip")
+  expect (stale.normal.writes.isEmpty && !OCC.validates chosen.store stale.normal.deps)
+    "duplicate gossip did not leave a stale read-only attempt"
+  let (cleared, effects) ← requireSome (execute chosen (.commit 0)) "read-only commit disabled"
+  expect (cleared == { chosen with pending := [] } && effects.notifications.isEmpty)
+    "read-only commit revalidated or changed the store"
   let second <- runLocal config first.1
                   (.receiveGossip "B" { view := 2, seqno := 1 } .accepted)
   expect (second.1.phase == .voting) "all expected gossips did not advance"
@@ -245,15 +288,16 @@ def run : IO Unit := do
   expect (twoVotes.2.notifications == [.opening .quorum] && twoVotes.2.outgoing.isEmpty)
     "quorum opening failed to notify without sending"
   let emptyVoting :=
-    { initial with phase := .voting, timeoutState := .voting, chosen := some "A" }
+    withValues initial [((.phase, none), some (.phase .voting)),
+      ((.timeoutPhase, none), some (.phase .voting)), ((.chosen, none), some (.location "A"))]
   expect (machine.step emptyVoting .timeout == some emptyVoting)
     "zero-vote timeout must be an enabled stutter"
-  let failover <- runLocal config { emptyVoting with votes := ["A"] } .timeout
+  let failover <- runLocal config (withValues emptyVoting [((.votes, some "A"), some .present)]) .timeout
   expect (failover.1.phase == .opening && failover.1.openKind == some .failover)
     "failover timeout did not open"
   expect (failover.2.notifications == [.opening .failover] && failover.2.outgoing.isEmpty)
     "failover opening failed to notify without sending"
-  let opening := { twoVotes.1 with timeoutState := .opening }
+  let opening := withValues twoVotes.1 [((.timeoutPhase, none), some (.phase .opening))]
   let complete <- runLocal config opening .timeout
   expect (complete.1.phase == .open && complete.2.notifications == [.completed])
     "opening timeout did not emit completion"
@@ -264,13 +308,13 @@ def run : IO Unit := do
     (ignoredOpen.1 == opening
       && ignoredOpen.2.notifications == [.rejected "already-opening-or-open"])
     "opening must ignore IAmOpen with a rejection diagnostic"
-  let misaligned := { opening with timeoutState := .voting }
-  expect
-    (machine.step misaligned .timeout
-      == some { misaligned with timeoutState := .opening })
+  let misaligned := withValues opening [((.timeoutPhase, none), some (.phase .voting))]
+  let advanced ← runLocal config misaligned .timeout
+  expect (advanced.1.phase == misaligned.phase && advanced.1.timeoutState == .opening
+    && advanced.2.notifications.isEmpty)
     "misaligned timeout must advance only the timeout lane"
   let joining <- runLocal config initial (.receiveIAmOpen "B" .accepted)
-  expect (joining.1.phase == .joining && joining.1.restartRequested)
+  expect (joining.1.phase == .joining && joining.1.chosen == some "B")
     "IAmOpen did not request joining restart"
   expect (joining.2.notifications == [.restart "B"] && joining.2.outgoing.isEmpty)
     "joining failed to record the selected restart notification"
@@ -282,7 +326,7 @@ def run : IO Unit := do
   let retry (config : Model.Config) (state : NodeState)
       : Option (NodeState × List Model.Envelope) := do
     let recovered <- Model.recoveredTxID config "A"
-    let (after, effects) <- (step (Capabilities.record "A") config.protocol recovered
+    let (after, effects) <- (perform (Capabilities.record "A") config.protocol recovered
                               state .retry).run
                               {}
     pure (after, effects.outgoing)
@@ -313,14 +357,14 @@ def run : IO Unit := do
   let retryCases : List (NodeState × Option (List Model.Envelope)) :=
     [
       (initial, some gossip),
-      ({ initial with chosen := some "B" }, some gossip),
-      ({ initial with phase := .voting }, some gossip),
+      (withValues initial [((.chosen, none), some (.location "B"))], some gossip),
+      (withValues initial [((.phase, none), some (.phase .voting))], some gossip),
       (
-        { initial with phase := .opening },
+        withValues initial [((.phase, none), some (.phase .opening))],
         some [{ source := "A", target := "B", payload := .iAmOpen }]
       ),
-      ({ initial with phase := .joining }, none),
-      ({ initial with phase := .open }, none)
+      (withValues initial [((.phase, none), some (.phase .joining))], none),
+      (withValues initial [((.phase, none), some (.phase .open))], none)
     ]
   for (before, expected) in retryCases do
     expect
@@ -333,13 +377,13 @@ def run : IO Unit := do
       == some (second.1, [{ source := "A", target := "B", payload := .vote }]))
     "a vote-only retry must remain enabled"
   expect
-    ((retry noPeers { initial with phase := .opening }).isNone)
+    ((retry noPeers opening).isNone)
     "opening retry without recipients must be disabled"
   let globalInitial := Tests.initial globalConfig
   expect
     (((Model.transitionSystem globalConfig).step globalInitial
-        (.local "A" .timeout)).isNone)
-    "global empty-gossip timeout must remain disabled"
+        (.local "A" .timeout)) == some globalInitial)
+    "global empty-gossip timeout must reject without enqueuing"
   expect
     (((Model.transitionSystem globalConfig).step globalInitial
         (.local "C" .retry)).isNone)
@@ -351,10 +395,13 @@ def run : IO Unit := do
                   "self-gossip missing"
   let delivered <- runGlobal globalConfig sent (.deliver message)
   expect (delivered.network.length == 1) "delivery did not consume one envelope"
-  expect
-    (MultiNodeTransitionSystem.nodeState delivered "A"
-      == some { initial with gossips := [("A", { view := 1, seqno := 10 })] })
-    "global delivery did not apply local receive"
+  let receiver ← requireSome (MultiNodeTransitionSystem.nodeState delivered "A") "missing receiver"
+  expect (receiver.store == initial.store && receiver.version == initial.version &&
+    receiver.pending.map (·.event) == [.receiveGossip "A" { view := 1, seqno := 10 } .accepted])
+    "delivery must enqueue the handler without publishing"
+  let committed ← runGlobal globalConfig delivered (.local "A" (.commit 0))
+  expect (MultiNodeTransitionSystem.nodeState committed "A" == some first.1)
+    "commit did not apply local receive"
   expect
     (MultiNodeTransitionSystem.nodeState delivered "B"
       == MultiNodeTransitionSystem.nodeState sent "B")
@@ -401,11 +448,14 @@ def run : IO Unit := do
   let joiner <- requireSome (MultiNodeTransitionSystem.nodeState joined "A")
                   "joiner disappeared"
   expect
-    (joiner.phase == .joining && joiner.chosen == some "B" && joiner.restartRequested)
+    (joiner.phase == .joining && joiner.chosen == some "B")
     "global IAmOpen did not request the selected restart"
-  let timeout1 <- runGlobal globalConfig joined (.local "B" .timeout)
-  let timeout2 <- runGlobal globalConfig timeout1 (.local "B" .timeout)
-  let timeout3 <- runGlobal globalConfig timeout2 (.local "B" .timeout)
+  let timeout (state : Model.State) := do
+    let ran ← runGlobal globalConfig state (.local "B" .timeout)
+    runGlobal globalConfig ran (.local "B" (.commit 0))
+  let timeout1 ← timeout joined
+  let timeout2 ← timeout timeout1
+  let timeout3 ← timeout timeout2
   let opened <- requireSome (MultiNodeTransitionSystem.nodeState timeout3 "B")
                   "opened node disappeared"
   expect (opened.phase == .open) "global timeout lane did not complete opening"
@@ -445,8 +495,8 @@ def run : IO Unit := do
   let (oneStates, oneEdges) <- enumerate
                                 { instanceId := "n1", expectedLocations := ["A"] } "A"
   let (twoStates, twoEdges) <- enumerate config "A"
-  expect (oneStates == 21 && oneEdges == 168 && twoStates == 151 && twoEdges == 2114)
-    "canonical exploration changed its reachable states or event coverage"
+  expect (oneStates == 21 && oneEdges == 168 && twoStates == 251 && twoEdges == 3514)
+    s!"canonical exploration changed: {oneStates}/{oneEdges}, {twoStates}/{twoEdges}"
   IO.println s!"canonical n=1: {oneStates} states, {oneEdges} event edges"
   IO.println s!"canonical n=2: {twoStates} states, {twoEdges} event edges"
   IO.println "all canonical semantic checks passed"
