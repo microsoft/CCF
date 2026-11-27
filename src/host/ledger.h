@@ -14,6 +14,7 @@
 #include "ledger/filenames.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -27,6 +28,7 @@
 #include <memory>
 #include <string>
 #include <sys/types.h>
+#include <system_error>
 #include <tuple>
 #include <unistd.h>
 #include <utility>
@@ -38,44 +40,51 @@ namespace asynchost
 {
   static constexpr size_t ledger_max_read_cache_files_default = 5;
 
-  static std::optional<std::string> get_file_name_with_idx(
-    const std::string& dir, size_t idx, bool allow_recovery_files)
+  enum class LedgerFileFilter : std::uint8_t
   {
-    std::optional<std::string> match = std::nullopt;
+    Committed,
+    CommittedIncludingRecovery
+  };
+
+  static std::optional<std::string> get_file_name_with_idx(
+    const fs::path& dir, size_t idx, LedgerFileFilter filter)
+  {
+    const bool include_recovery =
+      filter == LedgerFileFilter::CommittedIncludingRecovery;
+
     for (auto const& f : fs::directory_iterator(dir))
     {
-      // If any file, based on its name, contains idx. Only committed
-      // (i.e. those with a last idx) are considered here.
-      auto f_name = f.path().filename();
-      if (
-        ccf::ledger::is_ledger_file_name_ignored(f_name) ||
-        ccf::ledger::is_ledger_file_name_committed_prefix(f_name) ||
-        (!allow_recovery_files &&
-         ccf::ledger::is_ledger_file_name_recovery(f_name)))
+      auto f_name = f.path().filename().string();
+      const auto range = ccf::ledger::get_ledger_committed_range_from_file_name(
+        f_name, include_recovery);
+      if (!range.has_value())
       {
         continue;
       }
 
-      size_t start_idx = 0;
-      std::optional<size_t> last_idx = std::nullopt;
-      try
+      const auto [start_idx, last_idx] = *range;
+      if (idx < start_idx || idx > last_idx)
       {
-        start_idx = ccf::ledger::get_start_idx_from_file_name(f_name);
-        last_idx = ccf::ledger::get_last_idx_from_file_name(f_name);
-      }
-      catch (const std::exception& e)
-      {
-        // Ignoring invalid ledger file
         continue;
       }
-      if (idx >= start_idx && last_idx.has_value() && idx <= last_idx.value())
+
+      std::error_code ec;
+      if (!f.is_regular_file(ec))
       {
-        match = f_name;
-        break;
+        if (ec && ec != std::errc::no_such_file_or_directory)
+        {
+          LOG_FAIL_FMT(
+            "Could not determine file type for {}: {}",
+            f.path().string(),
+            ec.message());
+        }
+        continue;
       }
+
+      return f_name;
     }
 
-    return match;
+    return std::nullopt;
   }
 
   struct LedgerReadResult
@@ -1057,6 +1066,7 @@ namespace asynchost
         // If the file cannot be renamed (e.g. file was removed), report an
         // error and continue
         LOG_FAIL_FMT("Error renaming ledger file: {}", e.what());
+        return false;
       }
       file_name = new_file_name;
 
@@ -1100,10 +1110,7 @@ namespace asynchost
         return false;
       }
 
-      // Files that are completed and committed are fsync'ed under lock
-      // (acquired in LedgerFiles::commit()) to ensure that any file returned by
-      // committed_ledger_path_with_idx() is complete and can be safely read and
-      // served to other nodes.
+      // Sync before publishing the committed name to directory scans.
       {
         ccf::ds::TimeBoundLogger log_if_slow(std::format(
           "Committing ledger file - fsync({})", file_name.string()));
@@ -1152,11 +1159,8 @@ namespace asynchost
     // Ledger directories (read-only)
     const std::vector<fs::path> read_ledger_dirs;
 
-    // Guards all mutable ledger state below, and transitively every LedgerFile
-    // reachable from `files`, since LedgerFile is not internally synchronised.
-    // Also guards the on-disk layout of `ledger_dir`: file renames and
-    // removals happen under it, so directory scans under it observe a
-    // consistent set of names.
+    // Serialises mutations, including file renames, and guards access to
+    // LedgerFiles. Canonical chunk discovery reads only the atomics and disk.
     ccf::ds::Mutex state_lock;
 
     // Keep tracks of all ledger files for writing.
@@ -1171,7 +1175,8 @@ namespace asynchost
     size_t last_idx CCF_GUARDED_BY(state_lock) = 0;
     size_t committed_idx CCF_GUARDED_BY(state_lock) = 0;
 
-    size_t end_of_committed_files_idx CCF_GUARDED_BY(state_lock) = 0;
+    std::atomic<size_t> end_of_committed_files_idx = 0;
+    std::atomic<size_t> init_generation = 0;
 
     // Indicates if the ledger has been initialised at a specific idx and
     // may still be replaying existing entries.
@@ -1182,7 +1187,7 @@ namespace asynchost
       std::nullopt;
 
     // Use to remember the index from which replication started
-    size_t init_idx CCF_GUARDED_BY(state_lock) = 0;
+    std::atomic<size_t> init_idx = 0;
 
     // Set during recovery to mark files as temporary until the recovery is
     // complete
@@ -1230,7 +1235,8 @@ namespace asynchost
       // Note: reading recovery chunks from main ledger directory is
       // acceptable and in fact required to complete private recovery.
       std::string ledger_dir_;
-      auto match = get_file_name_with_idx(ledger_dir, idx, true);
+      auto match = get_file_name_with_idx(
+        ledger_dir, idx, LedgerFileFilter::CommittedIncludingRecovery);
       if (match.has_value())
       {
         ledger_dir_ = ledger_dir;
@@ -1239,7 +1245,7 @@ namespace asynchost
       {
         for (auto const& dir : read_ledger_dirs)
         {
-          match = get_file_name_with_idx(dir, idx, false);
+          match = get_file_name_with_idx(dir, idx, LedgerFileFilter::Committed);
           if (match.has_value())
           {
             ledger_dir_ = dir;
@@ -1492,29 +1498,26 @@ namespace asynchost
 
         for (auto const& f : fs::directory_iterator(read_dir))
         {
-          auto file_name = f.path().filename();
-          auto last_idx_ = ccf::ledger::get_last_idx_from_file_name(file_name);
-          if (
-            !last_idx_.has_value() ||
-            !ccf::ledger::is_ledger_file_name_committed(file_name) ||
-            ccf::ledger::is_ledger_file_name_ignored(file_name))
+          const auto file_name = f.path().filename().string();
+          const auto range =
+            ccf::ledger::get_ledger_committed_range_from_file_name(file_name);
+          if (!range.has_value())
           {
             LOG_DEBUG_FMT(
               "Read-only ledger file {} is ignored as not committed",
-              file_name.string());
+              file_name);
             continue;
           }
 
-          if (last_idx_.value() > last_idx)
+          if (range->second > last_idx)
           {
-            last_idx = last_idx_.value();
+            last_idx = range->second;
             committed_idx = last_idx;
             end_of_committed_files_idx = last_idx;
           }
 
           LOG_DEBUG_FMT(
-            "Recovering file from read-only ledger directory: {}",
-            file_name.string());
+            "Recovering file from read-only ledger directory: {}", file_name);
         }
       }
 
@@ -1536,27 +1539,18 @@ namespace asynchost
         // files, independently of directory iteration order.
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
-          auto file_name = f.path().filename();
-          if (
-            ccf::ledger::is_ledger_file_ignored(file_name) ||
-            !ccf::ledger::is_ledger_file_name_committed(file_name))
+          const auto file_name = f.path().filename().string();
+          const auto range =
+            ccf::ledger::get_ledger_committed_range_from_file_name(file_name);
+          if (!range.has_value())
           {
             continue;
           }
 
-          const auto file_end_idx =
-            ccf::ledger::get_last_idx_from_file_name(file_name);
-          if (!file_end_idx.has_value())
+          if (range->second > committed_idx)
           {
-            LOG_FAIL_FMT(
-              "Unexpected file {} in {}: committed but not completed",
-              file_name.string(),
-              ledger_dir.string());
-          }
-          else if (file_end_idx.value() > committed_idx)
-          {
-            committed_idx = file_end_idx.value();
-            end_of_committed_files_idx = file_end_idx.value();
+            committed_idx = range->second;
+            end_of_committed_files_idx = range->second;
           }
         }
 
@@ -1686,7 +1680,13 @@ namespace asynchost
 
       ccf::ds::MutexGuard guard(state_lock);
 
+      // Clamp before renaming anything for replay. A scan that sampled the
+      // old boundary must not return a name from the old layout, even if a
+      // subsequent commit advances the boundary back to its previous value.
+      end_of_committed_files_idx =
+        std::min(end_of_committed_files_idx.load(), idx);
       init_idx = idx;
+      ++init_generation;
 
       // Used by backup nodes to initialise the ledger when starting from a
       // non-empty state, i.e. snapshot. It is assumed that idx is included in a
@@ -1697,39 +1697,30 @@ namespace asynchost
       // replayed.
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
-        auto file_name = f.path().filename();
-        if (
-          ccf::ledger::is_ledger_file_name_committed(file_name) &&
-          (ccf::ledger::get_start_idx_from_file_name(file_name) > idx))
+        const auto file_name = f.path().filename().string();
+        const auto range =
+          ccf::ledger::get_ledger_committed_range_from_file_name(file_name);
+        if (range.has_value() && range->first > idx)
         {
-          auto last_idx_file =
-            ccf::ledger::get_last_idx_from_file_name(file_name);
-          if (!last_idx_file.has_value())
-          {
-            throw std::logic_error(std::format(
-              "Committed ledger file {} does not include last idx in file name",
-              file_name.string()));
-          }
-
           LOG_INFO_FMT(
             "Remove committed suffix from ledger file {} after init at {}: "
             "last_idx {}",
-            file_name.string(),
+            file_name,
             idx,
-            last_idx_file.value());
+            range->second);
 
           {
-            ccf::ds::TimeBoundLogger log_rename_if_slow(std::format(
-              "Removing committed suffix - rename({})", file_name.string()));
+            ccf::ds::TimeBoundLogger log_rename_if_slow(
+              std::format("Removing committed suffix - rename({})", file_name));
             files::rename(
               ledger_dir / file_name,
               ledger_dir /
                 ccf::ledger::remove_suffix(
-                  file_name.string(),
+                  file_name,
                   std::format(
                     "{}{}{}",
                     ccf::ledger::ledger_last_idx_delimiter,
-                    last_idx_file.value(),
+                    range->second,
                     ccf::ledger::ledger_committed_suffix)));
           }
         }
@@ -1743,9 +1734,6 @@ namespace asynchost
       last_idx_on_init = last_idx;
       last_idx = idx;
       committed_idx = idx;
-      // Files renamed above are no longer immutable, so they must not be
-      // classified as committed for concurrent readers.
-      end_of_committed_files_idx = std::min(end_of_committed_files_idx, idx);
       if (recovery_start_idx_ > 0)
       {
         // Do not set recovery idx and create recovery chunks
@@ -2062,11 +2050,17 @@ namespace asynchost
         // file is committed to the committed index
         const auto last_idx_in_file = (*it)->get_last_idx();
         auto commit_idx = (it == f_to) ? idx : last_idx_in_file;
-        if (
-          (*it)->commit(commit_idx) &&
-          (it != f_to || (idx == last_idx_in_file)))
+        if ((*it)->commit(commit_idx))
         {
           end_of_committed_files_idx = last_idx_in_file;
+        }
+
+        // Release completed chunks even if their source was removed and the
+        // rename failed. Recovery chunks remain active until open().
+        if (
+          commit_idx == last_idx_in_file && (*it)->is_complete() &&
+          !(*it)->is_recovery())
+        {
           it = files.erase(it);
         }
         else
@@ -2078,11 +2072,11 @@ namespace asynchost
       committed_idx = idx;
     }
 
-    [[nodiscard]] bool is_in_committed_file(size_t idx)
+    // Classification is a snapshot of the boundary, not a lock on the file.
+    // Range reads still take state_lock when accessing files and the cache.
+    [[nodiscard]] bool is_in_committed_file(size_t idx) const
     {
-      ccf::ds::MutexGuard guard(state_lock);
-
-      return idx <= end_of_committed_files_idx;
+      return idx <= end_of_committed_files_idx.load();
     }
 
     /**
@@ -2093,31 +2087,43 @@ namespace asynchost
     [[nodiscard]] std::optional<fs::path> committed_ledger_path_with_idx(
       size_t idx)
     {
-      ccf::ds::MutexGuard guard(state_lock);
-
-      if (idx > end_of_committed_files_idx)
+      if (idx == 0)
       {
-        LOG_INFO_FMT(
-          "Index {} is beyond end of committed files at {}, cannot get "
-          "committed ledger path",
-          idx,
-          end_of_committed_files_idx);
         return std::nullopt;
       }
 
-      auto name = get_file_name_with_idx(
-        ledger_dir, idx, false /* do not allow recovery files */);
-
-      if (!name.has_value())
+      while (true)
       {
-        LOG_INFO_FMT(
-          "Could not find committed ledger file for index {} in {}",
-          idx,
-          ledger_dir.string());
-        return std::nullopt;
-      }
+        const auto generation = init_generation.load();
+        const auto end = end_of_committed_files_idx.load();
+        if (idx > end)
+        {
+          LOG_INFO_FMT(
+            "Index {} is beyond end of committed files at {}, cannot get "
+            "committed ledger path",
+            idx,
+            end);
+          return std::nullopt;
+        }
 
-      return ledger_dir / name.value();
+        auto name =
+          get_file_name_with_idx(ledger_dir, idx, LedgerFileFilter::Committed);
+        if (generation != init_generation.load())
+        {
+          continue;
+        }
+
+        if (!name.has_value())
+        {
+          LOG_INFO_FMT(
+            "Could not find committed ledger file for index {} in {}",
+            idx,
+            ledger_dir.string());
+          return std::nullopt;
+        }
+
+        return ledger_dir / name.value();
+      }
     }
 
     [[nodiscard]] std::optional<ccf::ledger::CommittedLedgerPrefixRange>
@@ -2170,9 +2176,7 @@ namespace asynchost
 
     [[nodiscard]] size_t get_init_idx()
     {
-      ccf::ds::MutexGuard guard(state_lock);
-
-      return init_idx;
+      return init_idx.load();
     }
   };
 }

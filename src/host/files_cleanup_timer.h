@@ -52,23 +52,15 @@ namespace asynchost
           continue;
         }
 
-        auto file_name = entry.path().filename().string();
-
-        if (!ccf::ledger::is_ledger_file_name_committed(file_name))
+        const auto file_name = entry.path().filename().string();
+        const auto range =
+          ccf::ledger::get_ledger_committed_range_from_file_name(file_name);
+        if (!range.has_value())
         {
           continue;
         }
 
-        try
-        {
-          auto start_idx = ccf::ledger::get_start_idx_from_file_name(file_name);
-          result.emplace_back(start_idx, entry.path());
-        }
-        catch (const std::exception& e)
-        {
-          LOG_DEBUG_FMT(
-            "Skipping ledger file {} during cleanup: {}", file_name, e.what());
-        }
+        result.emplace_back(range->first, entry.path());
       }
 
       // Sort ascending by start index (oldest first)
