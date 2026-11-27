@@ -4,3 +4,8 @@
 # Race between closedir and epoll_ctl.
 race:closedir
 race:epoll_ctl
+
+# OpenSSL 3.5 reads its method cache without holding the lock that writers
+# take. libcrypto is not instrumented, so TSAN cannot see the atomics that make
+# this safe and reports the memcmp and memcpy calls it intercepts.
+race:libcrypto.so

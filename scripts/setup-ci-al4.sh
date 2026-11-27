@@ -64,13 +64,15 @@ install_source_control() {
 install_build_dependencies() {
     # To build CCF. Azure Linux 4 uses more explicit package names than Azure
     # Linux 3: build-essential is not present, and the curl development package
-    # is named libcurl-devel.
+    # is named libcurl-devel. clang does not pull in llvm, which provides the
+    # llvm-symbolizer that sanitizer builds require at run time.
     dnf -y install  \
         gcc  \
         gcc-c++  \
         make  \
         binutils  \
         clang  \
+        llvm  \
         cmake  \
         ninja-build  \
         patch  \

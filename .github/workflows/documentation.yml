@@ -22,14 +22,16 @@ jobs:
     name: Build documentation
     runs-on: ubuntu-26.04
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: "Checkout dependencies"
         shell: bash
         run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          set -ex
+          dnf -y update
+          dnf -y install ca-certificates git tar zstd
 
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 

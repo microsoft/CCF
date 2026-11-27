@@ -141,6 +141,8 @@ File: `coverage.yml`
 # Long Tests
 
 Secondary continuous integration job. Runs more expensive, longer tests, such as tests against ASAN and TSAN builds, extended fuzzing etc.
+The ASAN, TSAN, debug and release jobs run in Azure Linux 4 containers.
+The combined shuffled, LTS and snmalloc job remains on Azure Linux 3 because its long LTS test runs historical releases directly to check ledger and snapshot recovery.
 
 - Runs daily on week days.
 - Can be manually run on a PR by setting `run-long-test` label, or via workflow dispatch.
@@ -153,6 +155,7 @@ File: `long-test.yml`
 # CodeQL analysis
 
 Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", on pushes to main, once a week on schedule, and manually.
+The build runs in an Azure Linux 4 container.
 
 File: `codeql-analysis.yml`
 3rd party dependencies:
@@ -165,7 +168,7 @@ File: `codeql-analysis.yml`
 Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
 All five packages (consensus, common, consistency, disaster-recovery, and kv) run in one matrix.
 Package checks and trace replays run directly on GitHub-hosted Ubuntu 26.04 runners, as does the lightweight final gate.
-Native trace captures build CCF, so they remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers.
+Native trace captures build CCF, so they remain on `gha-vmss-d16av7-ci-c` with Azure Linux 4 containers.
 Each matrix job caches its third-party dependency checkouts and build outputs, leanfmt and (for disaster-recovery and kv) Batteries, using GitHub Actions caching.
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run.
@@ -263,6 +266,7 @@ File: `npm.yml`
 # Documentation
 
 Builds a single documentation site from the checked-out source on every workflow run.
+The build runs in an Azure Linux 4 container.
 Pushes to `main` and manual runs on `main` publish to GitHub Pages at `/main/`, with a redirect from the site root.
 The `github-pages` deployment environment should allow deployments only from `main`.
 

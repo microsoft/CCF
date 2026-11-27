@@ -23,7 +23,9 @@ jobs:
     name: "ASAN"
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -31,9 +33,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          dnf -y update
+          dnf -y install ca-certificates git tar zstd
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -82,7 +83,9 @@ jobs:
     name: "TSAN"
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --privileged --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -90,9 +93,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          dnf -y update
+          dnf -y install ca-certificates git tar zstd
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -144,7 +146,9 @@ jobs:
     name: Long e2e - Debug
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -152,9 +156,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          dnf -y update
+          dnf -y install ca-certificates git tar zstd
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -224,7 +227,9 @@ jobs:
     name: Long e2e - Release
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      image: mcr.microsoft.com/azurelinux/core:4
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
@@ -232,9 +237,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
+          dnf -y update
+          dnf -y install ca-certificates git tar zstd
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
