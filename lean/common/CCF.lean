@@ -7,10 +7,13 @@ public import CCF.Finset
 public import CCF.Function
 public import CCF.Msgpack
 public import CCF.MultiNodeTransitionSystem
+public import CCF.OCC
 public import CCF.Parsec
 public import CCF.Proofs.Execution
 public import CCF.Proofs.Finset
 public import CCF.Proofs.Function
+public import CCF.Proofs.OCC
+public import CCF.Proofs.OCCOverlay
 public import CCF.Proofs.Seq
 public import CCF.Seq
 public import CCF.TransitionSystem
