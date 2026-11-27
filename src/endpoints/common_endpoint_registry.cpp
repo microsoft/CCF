@@ -312,7 +312,12 @@ namespace ccf
       "/receipt",
       HTTP_GET,
       ccf::historical::read_only_adapter_v4(
-        get_receipt, context, is_tx_committed, txid_from_query_string),
+        get_receipt,
+        context,
+        is_tx_committed,
+        txid_from_query_string,
+        ccf::historical::default_error_handler,
+        ccf::historical::ReceiptEndorsements::X509),
       no_auth_required)
       .set_auto_schema<void, nlohmann::json>()
       .add_openapi_response<std::string>(
@@ -353,8 +358,14 @@ namespace ccf
     make_read_only_endpoint(
       "/receipt/cose",
       HTTP_GET,
+      // A COSE receipt does not carry service identity endorsements
       ccf::historical::read_only_adapter_v4(
-        get_cose_receipt, context, is_tx_committed, txid_from_query_string),
+        get_cose_receipt,
+        context,
+        is_tx_committed,
+        txid_from_query_string,
+        ccf::historical::default_error_handler,
+        ccf::historical::ReceiptEndorsements::None),
       no_auth_required)
       .set_auto_schema<void, ds::openapi::Cose>()
       .add_openapi_response<std::string>(

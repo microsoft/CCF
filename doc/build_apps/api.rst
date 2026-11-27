@@ -138,6 +138,12 @@ This metadata and temporary reply snapshots add memory overhead beyond the cache
 .. doxygenfunction:: ccf::historical::read_write_adapter_v4
    :project: CCF
 
+The adapters attach endorsements of previous service identities to the receipt of the historical state before calling the handler.
+Each kind of endorsement can delay or fail the request, so handlers which do not serve them should pass the matching :cpp:enum:`ccf::historical::ReceiptEndorsements` value.
+
+.. doxygenenum:: ccf::historical::ReceiptEndorsements
+   :project: CCF
+
 .. doxygenclass:: ccf::historical::AbstractStateCache
    :project: CCF
    :members: set_default_expiry_duration, set_soft_cache_limit, get_state_at, get_store_at, get_store_range, drop_cached_states

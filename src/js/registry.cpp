@@ -733,7 +733,11 @@ namespace ccf::js
           do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
         },
         context,
-        is_tx_committed)(endpoint_ctx);
+        is_tx_committed,
+        ccf::historical::txid_from_header,
+        ccf::historical::default_error_handler,
+        // ccf.historicalState.receipt only exposes X.509 endorsements
+        ccf::historical::ReceiptEndorsements::X509)(endpoint_ctx);
     }
     else
     {
