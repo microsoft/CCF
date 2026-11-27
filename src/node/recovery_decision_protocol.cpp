@@ -87,7 +87,6 @@ namespace ccf
 
   void RecoveryDecisionProtocolSubsystem::emit_trace(nlohmann::json&& record)
   {
-    static std::atomic<uint64_t> next_trace_sequence = 0;
     record["node"] = get_location().name;
     record["sequence"] = next_trace_sequence.fetch_add(1);
     LOG_INFO_FMT("{} {}", recovery_trace_marker, record.dump());
@@ -494,7 +493,6 @@ namespace ccf
         }
         auto& sm_state = sm_state_opt.value();
         trace_safely([&]() {
-          static std::atomic<uint64_t> next_trace_batch = 0;
           current_trace_batch = next_trace_batch.fetch_add(1);
           current_trace_pre_version =
             sm_state_handle->get_version_of_previous_write().value();

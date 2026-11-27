@@ -12,6 +12,7 @@
 #include "node/configuration.h"
 #include "tasks/task.h"
 
+#include <atomic>
 #include <string_view>
 
 namespace ccf::recovery_decision_protocol
@@ -79,6 +80,8 @@ namespace ccf
     std::optional<recovery_decision_protocol::RequestNodeInfo> node_info_cache;
     std::optional<recovery_decision_protocol::IAmOpenRequest>
       iamopen_request_cache;
+    std::atomic<uint64_t> next_trace_sequence = 0;
+    std::atomic<uint64_t> next_trace_batch = 0;
 
   public:
     RecoveryDecisionProtocolSubsystem(NodeState* node_state);
