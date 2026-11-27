@@ -1,0 +1,2 @@
+Live KV access to `public:ccf.internal.signatures`, `public:ccf.internal.cose_signatures` and `public:ccf.internal.tree` has been removed across C++, Rust and JavaScript contexts, and `GET /node/state` is now non-transactional without `x-ms-ccf-transaction-id` while remaining available during recovery.
+See the [7.x to 8.x migration guide](doc/releases/migration_7_x_to_8_x.rst#signature-transaction-tables).

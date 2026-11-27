@@ -1962,39 +1962,94 @@ TEST_CASE("Historical cache rejects signatures which misreport their TxID")
 
   // Write a signature transaction by hand, which declares a TxID in a later
   // view than the one it is actually committed in
-  const auto signature_seqno = store.current_version() + 1;
-  const ccf::TxID declared_id{store.current_txid().view + 1, signature_seqno};
+  const auto signature_txid = store.next_txid();
+  const auto signature_seqno = signature_txid.seqno;
+  const ccf::TxID declared_id{signature_txid.view + 1, signature_seqno};
   {
-    auto tx = store.create_tx();
-    const auto root = history->get_replicated_state_root();
-    const std::vector<uint8_t> root_hash(root.h.begin(), root.h.end());
-    if (signing_mode == ccf::LedgerSignMode::Dual)
+    class MisreportedSignatureTx : public ccf::kv::PendingTx
     {
-      tx.wo<ccf::Signatures>(ccf::Tables::SIGNATURES)
-        ->put(ccf::PrimarySignature(
-          ccf::NodeId{"node_id"},
-          declared_id.seqno,
-          declared_id.view,
-          root,
-          {},
-          state.node_kp->sign_hash(root_hash.data(), root_hash.size()),
-          node_cert));
-    }
-    const auto& cose_config = history->get_cose_signatures_config();
-    tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
-      ->put(
-        ccf::IdentityType::CLASSICAL,
-        ccf::cose::sign_ledger(
-          *state.service_kp,
-          ccf::crypto::kid_from_key(state.service_kp->public_key_der()),
-          0,
-          cose_config.issuer,
-          cose_config.subject,
-          declared_id.to_str(),
-          root_hash));
-    tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
-      ->put(history->serialise_tree(signature_seqno - 1));
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      ccf::kv::Store& store;
+      ccf::TxID txid;
+      ccf::TxID declared_id;
+      ccf::LedgerSignMode signing_mode;
+      ccf::crypto::Sha256Hash root;
+      std::vector<uint8_t> serialised_tree;
+      ccf::crypto::ECKeyPairPtr node_kp;
+      ccf::crypto::Pem node_cert;
+      ccf::crypto::ECKeyPairPtr service_kp;
+      ccf::COSESignaturesConfig cose_config;
+
+    public:
+      MisreportedSignatureTx(
+        ccf::kv::Store& store_,
+        ccf::TxID txid_,
+        ccf::TxID declared_id_,
+        ccf::LedgerSignMode signing_mode_,
+        ccf::crypto::Sha256Hash root_,
+        std::vector<uint8_t> serialised_tree_,
+        ccf::crypto::ECKeyPairPtr node_kp_,
+        ccf::crypto::Pem node_cert_,
+        ccf::crypto::ECKeyPairPtr service_kp_,
+        ccf::COSESignaturesConfig cose_config_) :
+        store(store_),
+        txid(txid_),
+        declared_id(declared_id_),
+        signing_mode(signing_mode_),
+        root(root_),
+        serialised_tree(std::move(serialised_tree_)),
+        node_kp(std::move(node_kp_)),
+        node_cert(std::move(node_cert_)),
+        service_kp(std::move(service_kp_)),
+        cose_config(std::move(cose_config_))
+      {}
+
+      ccf::kv::PendingTxInfo call() override
+      {
+        auto tx = store.create_reserved_tx(txid);
+        const std::vector<uint8_t> root_hash(root.h.begin(), root.h.end());
+        if (signing_mode == ccf::LedgerSignMode::Dual)
+        {
+          tx.wo<ccf::Signatures>(ccf::Tables::SIGNATURES)
+            ->put(ccf::PrimarySignature(
+              ccf::NodeId{"node_id"},
+              declared_id.seqno,
+              declared_id.view,
+              root,
+              {},
+              node_kp->sign_hash(root_hash.data(), root_hash.size()),
+              node_cert));
+        }
+        tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+          ->put(
+            ccf::IdentityType::CLASSICAL,
+            ccf::cose::sign_ledger(
+              *service_kp,
+              ccf::crypto::kid_from_key(service_kp->public_key_der()),
+              0,
+              cose_config.issuer,
+              cose_config.subject,
+              declared_id.to_str(),
+              root_hash));
+        tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+          ->put(serialised_tree);
+        return tx.commit_reserved();
+      }
+    };
+
+    auto pending = std::make_unique<MisreportedSignatureTx>(
+      store,
+      signature_txid,
+      declared_id,
+      signing_mode,
+      history->get_replicated_state_root(),
+      history->serialise_tree(signature_seqno - 1),
+      state.node_kp,
+      node_cert,
+      state.service_kp,
+      history->get_cose_signatures_config());
+    REQUIRE(
+      store.commit(signature_txid, std::move(pending), true) ==
+      ccf::kv::CommitResult::SUCCESS);
   }
   const auto signature_id = store.current_txid();
   REQUIRE(signature_id.seqno == signature_seqno);
@@ -4068,7 +4123,8 @@ TEST_CASE(
 
   for (const auto& written_signatures : signature_transactions)
   {
-    auto tx = store.create_tx();
+    const auto txid = store.next_txid();
+    auto tx = store.create_reserved_tx(txid);
     auto* signatures = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
     for (const auto& [identity_type, signature] : written_signatures)
     {
@@ -4076,12 +4132,22 @@ TEST_CASE(
     }
     tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
       ->put({});
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto info = tx.commit_reserved();
+    REQUIRE(info.success == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(
+      store.commit(
+        txid,
+        std::make_unique<ccf::kv::MovePendingTx>(
+          std::move(info.data),
+          std::move(info.claims_digest),
+          std::move(info.commit_evidence_digest),
+          std::move(info.hooks)),
+        true) == ccf::kv::CommitResult::SUCCESS);
 
-    const auto txid = store.current_txid();
+    REQUIRE(store.current_txid() == txid);
     INFO("Signature transaction: ", txid.to_str());
     {
-      auto read_tx = store.create_read_only_tx();
+      auto read_tx = store.create_read_only_tx_at_replicated_state();
       REQUIRE(
         read_tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)->size() ==
         2);

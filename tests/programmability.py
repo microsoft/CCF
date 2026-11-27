@@ -272,6 +272,11 @@ def test_custom_endpoints_kv_restrictions(network, args):
     user = network.users[0]
 
     module_name = "restrictions.js"
+    signature_tables = (
+        "public:ccf.internal.signatures",
+        "public:ccf.internal.cose_signatures",
+        "public:ccf.internal.tree",
+    )
 
     endpoints = {
         "/try_read": {
@@ -303,6 +308,12 @@ def test_custom_endpoints_kv_restrictions(network, args):
             "post": endpoint_properties(
                 js_module=module_name,
                 js_function="try_read_current_via_historical_handle",
+            )
+        },
+        "/read_historical_signature_tables": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="read_historical_signature_tables",
             )
         },
     }
@@ -409,6 +420,30 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:ccf.internal.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+        LOG.info("Current signature tables are inaccessible, not merely read-only")
+        for table in signature_tables:
+            for path in ("/app/try_read", "/app/try_write"):
+                r = c.post(path, {"table": table})
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, (
+                    path,
+                    table,
+                    r.status_code,
+                    r.body.text(),
+                )
+                assert "inaccessible" in r.body.text(), (table, r.body.text())
+
+        LOG.info("Neighboring public internal tables remain read-only")
+        for table in (
+            "public:ccf.internal.signatures_other",
+            "public:ccf.internal.cose_signatures_other",
+            "public:ccf.internal.tree.nested",
+        ):
+            r = c.post("/app/try_read", {"table": table})
+            assert r.status_code == http.HTTPStatus.OK, (table, r.body.text())
+            r = c.post("/app/try_write", {"table": table})
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, (table, r.body.text())
+            assert "read-only" in r.body.text(), (table, r.body.text())
+
         LOG.info("Cannot grant access to (hypothetical) private gov/internal tables")
         r = c.post("/app/try_read", {"table": "ccf.gov.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
@@ -469,6 +504,13 @@ def test_custom_endpoints_kv_restrictions(network, args):
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+        r = post_until_available(
+            c,
+            "/app/try_read_historical",
+            {"table": "public:ccf.internal.foo", "seqno": seqno},
+        )
+        assert r.status_code == http.HTTPStatus.OK, (r.status_code, r.body.text())
+
         LOG.info("A historical handle cannot be used against the current KV")
         r = post_until_available(
             c,
@@ -476,6 +518,37 @@ def test_custom_endpoints_kv_restrictions(network, args):
             {"table": "my_js_table", "seqno": seqno},
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("Historical signature tables expose actual entries at a signed seqno")
+        deadline = time.time() + 10
+        while True:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            signed_seqno = r.body.json()["last_signed_seqno"]
+            if signed_seqno >= int(seqno):
+                break
+            assert time.time() < deadline, "No signature covering the test write"
+            time.sleep(0.1)
+        network.wait_for_all_nodes_to_commit(primary=primary)
+
+        r = post_until_available(
+            c, "/app/read_historical_signature_tables", {"seqno": signed_seqno}
+        )
+        assert r.status_code == http.HTTPStatus.OK, (r.status_code, r.body.text())
+        result = r.body.json()
+        assert int(result["transactionId"].split(".")[1]) == signed_seqno, result
+        assert result["isSignatureTransaction"], result
+        assert set(result["tables"]) == set(signature_tables), result
+        required_tables = set(signature_tables[1:])
+        if result["rawSignatureExpected"]:
+            required_tables.add(signature_tables[0])
+        for table, contents in result["tables"].items():
+            assert contents["writeDenied"], (table, contents)
+            assert contents["size"] == contents["entries"], (table, contents)
+            if table not in required_tables:
+                assert contents["size"] == 0, (table, contents)
+                continue
+            assert contents["size"] > 0, (table, contents)
 
     return network
 

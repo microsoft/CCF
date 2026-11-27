@@ -939,18 +939,14 @@ TEST_CASE("Identity endorsements link consecutive service recoveries")
     const TestIdentity identity;
     {
       auto tx = store.create_tx();
-      if (generation != 0)
-      {
-        tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
-          ->put(tree.serialise());
-      }
       InternalTablesAccess::create_service(
         tx,
         identity.cert,
         identity.pq_cert,
         creations[generation],
         {{"generation", generation}},
-        generation != 0);
+        generation != 0,
+        generation != 0 ? std::make_optional(tree.get_root()) : std::nullopt);
       REQUIRE(InternalTablesAccess::endorse_previous_identity(
         tx, *identity.key, identity.pq_key));
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
@@ -1056,13 +1052,14 @@ namespace
       bool classical_only = false)
     {
       auto tx = store.create_tx();
-      if (count != 0)
-      {
-        tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
-          ->put(tree.serialise());
-      }
       InternalTablesAccess::create_service(
-        tx, identity.cert, identity.pq_cert, create_txid, nullptr, count != 0);
+        tx,
+        identity.cert,
+        identity.pq_cert,
+        create_txid,
+        nullptr,
+        count != 0,
+        count != 0 ? std::make_optional(tree.get_root()) : std::nullopt);
       if (classical_only)
       {
         auto* service = tx.rw<Service>(Tables::SERVICE);
@@ -1196,8 +1193,8 @@ TEST_CASE("Failed recovery creation preserves the previous service")
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
   const char* expected_error =
-    "Previous service doesn't have a serialised merkle tree";
-  SUBCASE("Missing serialised Merkle tree") {}
+    "Previous service has no materialised signed root";
+  SUBCASE("Missing materialised signed root") {}
   SUBCASE("Missing creation transaction")
   {
     auto tx = store.create_tx();
@@ -2061,15 +2058,27 @@ TEST_CASE("create_service publishes the service signing identities")
   INFO("Recovery publishes the new key and preserves legacy recovery state");
   {
     auto tx = kv_store.create_tx();
-    tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
-      ->put(tree.serialise());
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::create_service(
+        tx, recovered_cert, recovered_pq_cert, {2, 10}, nullptr, true),
+      "Previous service has no materialised signed root",
+      std::logic_error);
+    REQUIRE(
+      !tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+         ->has());
+    REQUIRE(tx.ro<ccf::Service>(Tables::SERVICE)->get()->cert == service_cert);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
     InternalTablesAccess::create_service(
       tx,
       recovered_cert,
       recovered_pq_cert,
       {2, 10},
       nullptr,
-      true /* recovering */);
+      true /* recovering */,
+      tree.get_root());
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 

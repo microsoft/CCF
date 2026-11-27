@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "kv/store.h"
+#include "kv/test/stub_consensus.h"
 #include "node/commit_callback_subsystem.h"
 #include "service/tables/signatures.h"
 #include "test_common.h"
@@ -3403,6 +3404,8 @@ DOCTEST_TEST_CASE(
       ccf::Tables::SERIALISED_MERKLE_TREE};
 
     ccf::kv::Store sender_store;
+    std::shared_ptr<ccf::kv::test::PrimaryStubConsensus> sender_consensus =
+      std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
     std::shared_ptr<ccf::kv::Store> follower_store =
       std::make_shared<ccf::kv::Store>();
     std::shared_ptr<aft::ChannelStubProxy> follower_channels =
@@ -3424,6 +3427,7 @@ DOCTEST_TEST_CASE(
     {
       auto encryptor = std::make_shared<TermPreservingEncryptor>();
       sender_store.set_encryptor(encryptor);
+      sender_store.set_consensus(sender_consensus);
       sender_store.initialise_term(1);
 
       follower_store->set_encryptor(encryptor);
@@ -3453,12 +3457,23 @@ DOCTEST_TEST_CASE(
     {
       const auto txid = sender_store.next_txid();
       auto tx = sender_store.create_reserved_tx(txid);
-      tx.rw(signatures)->put(ccf::PrimarySignature(primary_id, txid.seqno));
-      tx.rw(serialised_tree)->put({});
+      tx.wo(signatures)->put(ccf::PrimarySignature(primary_id, txid.seqno));
+      tx.wo(serialised_tree)->put({});
       auto [rc, data, claims_digest, commit_evidence_digest, tx_hooks] =
         tx.commit_reserved();
       DOCTEST_REQUIRE(rc == ccf::kv::CommitResult::SUCCESS);
-      raw_entries.push_back(std::move(data));
+      DOCTEST_REQUIRE(
+        sender_store.commit(
+          txid,
+          std::make_unique<ccf::kv::MovePendingTx>(
+            std::move(data),
+            std::move(claims_digest),
+            std::move(commit_evidence_digest),
+            std::move(tx_hooks)),
+          true) == ccf::kv::CommitResult::SUCCESS);
+      const auto replicated = sender_consensus->get_latest_data();
+      DOCTEST_REQUIRE(replicated.has_value());
+      raw_entries.push_back(*replicated);
       return txid.seqno;
     }
 
@@ -3467,18 +3482,17 @@ DOCTEST_TEST_CASE(
       size_t value,
       const std::optional<aft::Configuration::Nodes>& new_config = std::nullopt)
     {
-      const auto txid = sender_store.next_txid();
-      auto tx = sender_store.create_reserved_tx(txid);
+      auto tx = sender_store.create_tx();
       tx.rw(values)->put(key, value);
       if (new_config.has_value())
       {
         tx.rw(configs)->put(0, *new_config);
       }
-      auto [rc, data, claims_digest, commit_evidence_digest, tx_hooks] =
-        tx.commit_reserved();
-      DOCTEST_REQUIRE(rc == ccf::kv::CommitResult::SUCCESS);
-      raw_entries.push_back(std::move(data));
-      return txid.seqno;
+      DOCTEST_REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      const auto replicated = sender_consensus->get_latest_data();
+      DOCTEST_REQUIRE(replicated.has_value());
+      raw_entries.push_back(*replicated);
+      return tx.commit_version();
     }
 
     void deliver(

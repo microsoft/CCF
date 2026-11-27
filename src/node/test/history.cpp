@@ -161,12 +161,27 @@ TEST_CASE("Check signature verification")
 
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
-    auto txs = primary_store.create_tx();
-    auto sigs = txs.rw(signatures);
-    ccf::PrimarySignature bogus(ccf::kv::test::PrimaryNodeId, 0);
+    const auto txid = primary_store.next_txid();
+    auto txs = primary_store.create_reserved_tx(txid);
+    auto sigs = txs.wo(signatures);
+    ccf::PrimarySignature bogus(ccf::kv::test::PrimaryNodeId, txid.seqno);
+    bogus.view = txid.view;
+    bogus.root = primary_history->get_replicated_state_root();
     bogus.sig = std::vector<uint8_t>(256, 1);
     sigs->put(bogus);
-    REQUIRE(txs.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+    txs.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put(primary_history->serialise_tree(txid.seqno - 1));
+    auto info = txs.commit_reserved();
+    REQUIRE(info.success == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(
+      primary_store.commit(
+        txid,
+        std::make_unique<ccf::kv::MovePendingTx>(
+          std::move(info.data),
+          std::move(info.claims_digest),
+          std::move(info.commit_evidence_digest),
+          std::move(info.hooks)),
+        true) == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
   }
 }
 
@@ -353,7 +368,7 @@ TEST_CASE("Signing identity carries an ML-DSA key next to the classical key")
   primary_history->emit_signature();
   REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
 
-  auto tx = backup_store.create_read_only_tx();
+  auto tx = backup_store.create_read_only_tx_at_replicated_state();
   auto* cose_signatures =
     tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
   REQUIRE(cose_signatures->get(ccf::IdentityType::CLASSICAL).has_value());
@@ -506,20 +521,18 @@ class TestPendingTx : public ccf::kv::PendingTx
 {
   ccf::TxID txid;
   ccf::kv::Store& store;
-  MapT& other_table;
 
 public:
-  TestPendingTx(ccf::TxID txid_, ccf::kv::Store& store_, MapT& other_table_) :
+  TestPendingTx(ccf::TxID txid_, ccf::kv::Store& store_) :
     txid(txid_),
-    store(store_),
-    other_table(other_table_)
+    store(store_)
   {}
 
   ccf::kv::PendingTxInfo call() override
   {
     auto txr = store.create_reserved_tx(txid);
-    auto txrv = txr.rw(other_table);
-    txrv->put(0, 1);
+    txr.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({});
     return txr.commit_reserved();
   }
 };
@@ -551,7 +564,6 @@ TEST_CASE("Pending signatures retain their endorsed certificate")
   constexpr auto store_term = 2;
   store.initialise_term(store_term);
 
-  MapT table("public:table");
   const auto gap_txid = store.next_txid();
 
   history->emit_signature();
@@ -560,11 +572,10 @@ TEST_CASE("Pending signatures retain their endorsed certificate")
   history->set_endorsed_certificate(second_cert);
   REQUIRE(
     store.commit(
-      gap_txid,
-      std::make_unique<TestPendingTx>(gap_txid, store, table),
-      false) == ccf::kv::CommitResult::SUCCESS);
+      gap_txid, std::make_unique<TestPendingTx>(gap_txid, store), false) ==
+    ccf::kv::CommitResult::SUCCESS);
 
-  auto tx = store.create_read_only_tx();
+  auto tx = store.create_read_only_tx_at_replicated_state();
   auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
   const auto signature = signatures->get();
   REQUIRE(signature.has_value());
@@ -630,7 +641,7 @@ TEST_CASE("Signatures are not emitted on demand until signing is enabled")
   MapT table("public:table");
 
   auto get_signature = [&]() {
-    auto tx = store.create_read_only_tx();
+    auto tx = store.create_read_only_tx_at_replicated_state();
     return tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get();
   };
 
@@ -687,8 +698,8 @@ public:
   ccf::kv::PendingTxInfo call() override
   {
     auto tx = store.create_reserved_tx(txid);
-    auto sig = tx.rw(signatures);
-    auto tree = tx.rw(serialised_tree);
+    auto sig = tx.wo(signatures);
+    auto tree = tx.wo(serialised_tree);
 
     sig->put(ccf::PrimarySignature(ccf::kv::test::PrimaryNodeId, txid.seqno));
     tree->put({});
@@ -719,7 +730,6 @@ TEST_CASE(
   store.set_consensus(consensus);
 
   MapT table("public:table");
-  MapT other_table("public:other_table");
 
   INFO("Write first tx");
   {
@@ -740,8 +750,7 @@ TEST_CASE(
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
 
-    store.commit(
-      rv, std::make_unique<TestPendingTx>(rv, store, other_table), true);
+    store.commit(rv, std::make_unique<TestPendingTx>(rv, store), true);
     REQUIRE(consensus->count == 3);
   }
 
@@ -998,15 +1007,18 @@ TEST_CASE("COSE signature table holds one entry per identity")
 
   INFO("A table carrying two identities round-trips both");
   {
-    auto tx = store.create_tx();
+    auto tx = store.create_reserved_tx(store.next_txid());
     auto* handle = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
     handle->put(ccf::IdentityType::CLASSICAL, ec384_sig);
     handle->put(ccf::IdentityType::PQ, mldsa65_sig);
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({});
+    REQUIRE(tx.commit_reserved().success == ccf::kv::CommitResult::SUCCESS);
+    store.compact(store.current_version());
   }
 
   {
-    auto tx = store.create_read_only_tx();
+    auto tx = store.create_read_only_tx_at_replicated_state();
     auto* handle = tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
 
     // A reader which only understands ECDSA still finds it, unaffected by
@@ -1032,22 +1044,33 @@ TEST_CASE("CLASSICAL COSE signatures interoperate with the legacy singleton")
   const ccf::CoseSignature keyed_signature{4, 5, 6};
 
   {
-    auto tx = store.create_tx();
+    auto tx = store.create_reserved_tx(store.next_txid());
     tx.wo<LegacyCoseSignatures>(ccf::Tables::COSE_SIGNATURES)
       ->put(legacy_signature);
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({});
+    REQUIRE(tx.commit_reserved().success == ccf::kv::CommitResult::SUCCESS);
+    store.compact(store.current_version());
   }
 
   {
-    auto tx = store.create_tx();
-    auto* signatures = tx.rw<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    auto tx = store.create_read_only_tx_at_replicated_state();
+    auto* signatures = tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
     REQUIRE(signatures->get(ccf::IdentityType::CLASSICAL) == legacy_signature);
-    signatures->put(ccf::IdentityType::CLASSICAL, keyed_signature);
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
-    auto tx = store.create_read_only_tx();
+    auto tx = store.create_reserved_tx(store.next_txid());
+    auto* signatures = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    signatures->put(ccf::IdentityType::CLASSICAL, keyed_signature);
+    tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({});
+    REQUIRE(tx.commit_reserved().success == ccf::kv::CommitResult::SUCCESS);
+    store.compact(store.current_version());
+  }
+
+  {
+    auto tx = store.create_read_only_tx_at_replicated_state();
     REQUIRE(
       tx.ro<LegacyCoseSignatures>(ccf::Tables::COSE_SIGNATURES)->get() ==
       keyed_signature);

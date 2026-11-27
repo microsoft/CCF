@@ -40,6 +40,10 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
 
 Each node will then immediately restore the public entries of its ledger (``ledger.directory`` and ``ledger.read_only_directories`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling :http:GET:`/node/state` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
+.. note::
+
+    From CCF 8.0, :http:GET:`/node/state` is non-transactional: it does not return the ``x-ms-ccf-transaction-id`` header, and ``last_signed_seqno`` reports node progress rather than a KV snapshot. The endpoint is available throughout public ledger recovery and snapshot installation, before the KV store is ready.
+
 At startup, the host discovers the latest committed chunk end across all configured ledger directories before restoring mutable chunks. Mutable chunks whose reconstructed end is at or before this committed frontier, including incomplete chunks without an end index in their filename, are renamed with an ``.ignored`` suffix rather than reused for new appends. Chunks which overlap the committed history but extend beyond that frontier are retained.
 
 Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration.

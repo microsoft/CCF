@@ -4,7 +4,9 @@
 #include "ccf/kv/tx.h"
 
 #include "ds/ccf_assert.h"
+#include "ds/internal_logger.h"
 #include "kv/compacted_version_conflict.h"
+#include "kv/internal_table_names.h"
 #include "kv/kv_types.h"
 #include "kv/tx_pimpl.h"
 #include "kv/untyped_map.h"
@@ -23,6 +25,59 @@ namespace ccf::kv
   // Use default destructor, but instantiate here where untyped::ChangeSet is
   // not incomplete
   MapChanges::~MapChanges() = default;
+
+  void BaseTx::check_map_access(const std::string& map_name, AccessMode access)
+  {
+    const char* reason = nullptr;
+    switch (pimpl->role)
+    {
+      case PrivateImpl::Role::Ordinary:
+      {
+        if (is_signature_table(map_name))
+        {
+          reason = "Live transactions cannot access signature tables";
+        }
+        break;
+      }
+      case PrivateImpl::Role::Reserved:
+      {
+        if (!is_signature_table(map_name) || access != AccessMode::WriteOnly)
+        {
+          reason =
+            "Reserved transactions may only acquire write-only handles "
+            "to signature tables";
+        }
+        break;
+      }
+      case PrivateImpl::Role::MaterialisedReadOnly:
+      {
+        if (!pimpl->store->check_rollback_count(pimpl->read_rollback_count))
+        {
+          throw CompactedVersionConflict(std::format(
+            "Materialised state for map '{}' was invalidated by rollback",
+            map_name));
+        }
+        if (access != AccessMode::ReadOnly && access != AccessMode::Diff)
+        {
+          reason =
+            "Materialised read transactions may only acquire read-only "
+            "or diff handles";
+        }
+        break;
+      }
+    }
+
+    if (reason != nullptr)
+    {
+      // Denials are reported to the caller through the exception. Logging at
+      // a quieter level avoids a FAIL line per request from a probing or
+      // misbehaving application.
+      const auto message =
+        std::format("Access to map '{}' denied: {}", map_name, reason);
+      LOG_DEBUG_FMT("{}", message);
+      throw MapAccessDenied(message);
+    }
+  }
 
   void BaseTx::retain_change_set(
     const std::string& map_name,
@@ -97,10 +152,18 @@ namespace ccf::kv
         std::format("Map {} has unexpected type", map_name));
     }
 
-    return {
-      abstract_map,
-      untyped_map->create_change_set(
-        read_txid->seqno, track_deletes_on_missing_keys)};
+    auto change_set = untyped_map->create_change_set(
+      read_txid->seqno, track_deletes_on_missing_keys);
+    // Rollback can replace a map between the access check and snapshot capture.
+    if (
+      pimpl->role == PrivateImpl::Role::MaterialisedReadOnly &&
+      !pimpl->store->check_rollback_count(pimpl->read_rollback_count))
+    {
+      throw CompactedVersionConflict(std::format(
+        "Materialised state for map '{}' was invalidated by rollback",
+        map_name));
+    }
+    return {abstract_map, std::move(change_set)};
   }
 
   std::list<AbstractHandle*> BaseTx::get_possible_handles(
@@ -137,6 +200,28 @@ namespace ccf::kv
     pimpl = std::make_unique<PrivateImpl>();
     pimpl->store = store_;
     KV_TRACE(pimpl->trace_attempt.bind(store_));
+  }
+
+  ReadOnlyTx::ReadOnlyTx(
+    AbstractStore* store_,
+    ccf::SeqNo read_version,
+    Version read_rollback_count) :
+    BaseTx(store_)
+  {
+    pimpl->role = PrivateImpl::Role::MaterialisedReadOnly;
+    pimpl->read_txid = TxID(ccf::VIEW_UNKNOWN, read_version);
+    pimpl->read_rollback_count = read_rollback_count;
+  }
+
+  TxDiff::TxDiff(
+    AbstractStore* store_,
+    ccf::SeqNo read_version,
+    Version read_rollback_count) :
+    BaseTx(store_)
+  {
+    pimpl->role = PrivateImpl::Role::MaterialisedReadOnly;
+    pimpl->read_txid = TxID(ccf::VIEW_UNKNOWN, read_version);
+    pimpl->read_rollback_count = read_rollback_count;
   }
 
   // Use default destructor, but instantiate here where PrivateImpl is not

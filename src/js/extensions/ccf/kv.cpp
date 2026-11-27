@@ -116,8 +116,8 @@ namespace ccf::js::extensions
         return -1;
       }
 
-      auto access_permission =
-        ccf::js::check_kv_map_access(jsctx.access, map_name);
+      auto access_permission = ccf::js::check_kv_map_access(
+        jsctx.access, map_name, kvhelpers::KVSource::CurrentTx);
       std::string explanation =
         ccf::js::explain_kv_map_access(access_permission, jsctx.access);
 

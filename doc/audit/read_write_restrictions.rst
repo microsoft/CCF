@@ -60,7 +60,7 @@ CCF ensures that governance audit is possible offline from a ledger, by consider
     If this table is moved, make sure the source is updated in-sync.
     (Ctrl+Shift+F: read_write_restrictions)
 
-The possible access permissions are elaborated in the table below:
+The possible access permissions are elaborated in the table below. The public internal column excludes the :ref:`signature-transaction tables <audit/read_write_restrictions:Signature-Transaction Tables>` described below.
 
 .. table:: KV permissions in different execution contexts
     :widths: auto
@@ -80,3 +80,16 @@ The possible access permissions are elaborated in the table below:
     +--------------------------+------------+------------+------------+------------+------------+------------+
 
 Any violation of these restrictions (eg - calling ``set`` on a `Read-only` table, or ``has`` on a `None` table) results in an exception being thrown.
+
+Signature-Transaction Tables
+----------------------------
+
+From CCF 8.0, the following public internal tables are inaccessible in current-KV application and governance contexts, including read-only endpoints, ballots and constitution functions, as well as in C++ and Rust transactions:
+
+- ``public:ccf.internal.signatures``
+- ``public:ccf.internal.cose_signatures``
+- ``public:ccf.internal.tree``
+
+Other public internal tables retain the read-only permissions shown above. See :doc:`/build_apps/kv/kv_how_to` for the C++ and Rust transaction APIs.
+
+Historical read-only access to these tables, :doc:`receipt APIs </use_apps/rpc_api>` and :doc:`offline ledger parsing </audit/python_library>` remain supported. For non-transactional progress metadata, use :http:GET:`/node/state`. Custom constitutions based on releases before 7.0.17 that read signatures to initialise member acknowledgement state digests must migrate to the :ref:`state-digest update and acknowledgement workflow <governance/adding_member:Activating a New Member>`.

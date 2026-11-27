@@ -530,6 +530,7 @@ namespace ccf::kv
       rollback_count(rollback_count_)
     {
       version = reserved_tx_id.seqno;
+      pimpl->role = PrivateImpl::Role::Reserved;
       KV_TRACE(trace::unsupported(pimpl->store, "reserved transaction"));
       pimpl->commit_view = reserved_tx_id.view;
       pimpl->read_txid = TxID(read_term, reserved_tx_id.seqno - 1);
@@ -541,6 +542,20 @@ namespace ccf::kv
       if (committed)
       {
         throw std::logic_error("Transaction already committed");
+      }
+
+      for (const auto& [map_name, changes] : all_changes)
+      {
+        if (
+          changes.changeset->read_version.has_value() ||
+          !changes.changeset->reads.empty())
+        {
+          const auto message = std::format(
+            "Reserved transaction cannot depend on reads from map '{}'",
+            map_name);
+          LOG_FAIL_FMT("{}", message);
+          throw MapAccessDenied(message);
+        }
       }
 
       // A reserved transaction must fill its version with a ledger entry, so

@@ -79,6 +79,19 @@ def test_basic_rust(network, args):
     return network
 
 
+@reqs.description("Rust KV calls report explicit denial of current signature tables")
+@reqs.supports_methods("/app/signature-table-access")
+def test_signature_table_access_denied(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client() as anonymous:
+        response = anonymous.post("/app/signature-table-access")
+        assert response.status_code == http.HTTPStatus.OK, response
+        assert response.body.text() == "denied"
+
+    return network
+
+
 def test_compaction_conflict_is_retried(network, args):
     primary, _ = network.find_primary()
 
@@ -135,6 +148,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
         test_basic_rust(network, args)
+        test_signature_table_access_denied(network, args)
         test_compaction_conflict_is_retried(network, args)
 
 

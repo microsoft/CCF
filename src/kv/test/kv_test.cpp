@@ -42,6 +42,37 @@ struct MapTypes
   using UntypedMap = ccf::kv::untyped::Map;
 };
 
+static ccf::kv::PendingTxInfo make_signature_entry(
+  ccf::kv::Store& store, const ccf::TxID& txid, uint8_t marker)
+{
+  auto signature = store.create_reserved_tx(txid);
+  signature.wo<ccf::Signatures>(ccf::Tables::SIGNATURES)
+    ->put(ccf::PrimarySignature(ccf::kv::test::PrimaryNodeId, txid.seqno));
+  signature.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+    ->put(ccf::IdentityType::CLASSICAL, {marker});
+  signature.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+    ->put({marker});
+  return signature.commit_reserved();
+}
+
+static ccf::kv::CommitResult publish_signature_entry(
+  ccf::kv::Store& store, const ccf::TxID& txid, uint8_t marker)
+{
+  auto info = make_signature_entry(store, txid, marker);
+  if (info.success != ccf::kv::CommitResult::SUCCESS)
+  {
+    return info.success;
+  }
+  return store.commit(
+    txid,
+    std::make_unique<ccf::kv::MovePendingTx>(
+      std::move(info.data),
+      std::move(info.claims_digest),
+      std::move(info.commit_evidence_digest),
+      std::move(info.hooks)),
+    true);
+}
+
 TEST_CASE("Map name parsing")
 {
   using SD = ccf::kv::SecurityDomain;
@@ -66,6 +97,434 @@ TEST_CASE("Map name parsing")
 
   REQUIRE(parse("ccf_foo") == mp(SD::PRIVATE, AC::APPLICATION));
   REQUIRE(parse("public:ccf_foo") == mp(SD::PUBLIC, AC::APPLICATION));
+}
+
+TEST_CASE("Live transactions cannot acquire signature table handles")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+
+  auto check_denied = [&store]() {
+    for (const auto* name :
+         {ccf::Tables::SIGNATURES,
+          ccf::Tables::COSE_SIGNATURES,
+          ccf::Tables::SERIALISED_MERKLE_TREE})
+    {
+      INFO("Restricted table: ", std::string_view(name));
+      MapTypes::StringString typed_map(name);
+
+      auto tx = store.create_tx();
+      CHECK_THROWS_AS(tx.ro(typed_map), ccf::kv::MapAccessDenied);
+      CHECK_THROWS_AS(tx.rw(typed_map), ccf::kv::MapAccessDenied);
+      CHECK_THROWS_AS(tx.wo(typed_map), ccf::kv::MapAccessDenied);
+      CHECK_THROWS_AS(
+        tx.ro<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+      CHECK_THROWS_AS(
+        tx.rw<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+      CHECK_THROWS_AS(
+        tx.wo<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+
+      auto ro = store.create_read_only_tx();
+      CHECK_THROWS_AS(ro.ro(typed_map), ccf::kv::MapAccessDenied);
+      CHECK_THROWS_AS(
+        ro.ro<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+
+      auto diff = store.create_tx_diff();
+      CHECK_THROWS_AS(diff.diff(typed_map), ccf::kv::MapAccessDenied);
+      CHECK_THROWS_AS(
+        diff.diff<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+    }
+  };
+
+  INFO("Denied before any signature exists, without creating maps or snapshot");
+  auto deferred_tx = store.create_tx();
+  auto deferred_ro = store.create_read_only_tx();
+  CHECK_THROWS_AS(
+    deferred_tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES),
+    ccf::kv::MapAccessDenied);
+  CHECK_THROWS_AS(
+    deferred_ro.ro<ccf::Signatures>(ccf::Tables::SIGNATURES),
+    ccf::kv::MapAccessDenied);
+  check_denied();
+  for (const auto* name :
+       {ccf::Tables::SIGNATURES,
+        ccf::Tables::COSE_SIGNATURES,
+        ccf::Tables::SERIALISED_MERKLE_TREE})
+  {
+    CHECK(store.get_map(store.current_version(), name) == nullptr);
+  }
+  CHECK(store.current_version() == 0);
+
+  INFO("Denied while a signature reservation is pending and after it commits");
+  const auto signature_txid = store.next_txid();
+  check_denied();
+  MapTypes::StringString ordinary("public:ordinary");
+  {
+    auto writer = store.create_tx();
+    writer.rw(ordinary)->put("key", "value");
+    REQUIRE(writer.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(deferred_tx.ro(ordinary)->get("key") == "value");
+  REQUIRE(deferred_ro.ro(ordinary)->get("key") == "value");
+  REQUIRE(
+    publish_signature_entry(store, signature_txid, 42) ==
+    ccf::kv::CommitResult::SUCCESS);
+  check_denied();
+
+  INFO("Restrictions apply only to the exact three public signature tables");
+  for (const auto* name :
+       {"public:ccf.internal.signatures_extra",
+        "public:ccf.internal.cose_signatures.extra",
+        "public:ccf.internal.tree_extra",
+        "ccf.internal.signatures",
+        ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET})
+  {
+    INFO("Allowed table: ", std::string_view(name));
+    MapTypes::StringString map(name);
+    auto tx = store.create_tx();
+    tx.wo(map)->put("key", "value");
+    REQUIRE(tx.ro(map)->get("key") == "value");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto read = store.create_read_only_tx();
+    REQUIRE(read.ro(map)->get("key") == "value");
+    auto diff = store.create_tx_diff();
+    REQUIRE(diff.diff(map)->size() == 1);
+  }
+}
+
+TEST_CASE("Historical signature entries remain readable")
+{
+  ccf::kv::Store source;
+  source.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const auto txid = source.next_txid();
+  auto info = make_signature_entry(source, txid, 42);
+  REQUIRE(info.success == ccf::kv::CommitResult::SUCCESS);
+
+  ccf::kv::Store historical(true);
+  historical.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  REQUIRE(
+    historical.deserialize(info.data)->apply() ==
+    ccf::kv::ApplyResult::PASS_SIGNATURE);
+
+  auto tx = historical.create_read_only_tx();
+  REQUIRE(
+    tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get()->seqno ==
+    txid.seqno);
+  REQUIRE(
+    tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+      ->get(ccf::IdentityType::CLASSICAL) == std::vector<uint8_t>{42});
+  REQUIRE(
+    tx.ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->get() == std::vector<uint8_t>{42});
+
+  auto ptr = historical.create_read_only_tx_ptr();
+  auto diff = historical.create_tx_diff();
+  for (const auto* name :
+       {ccf::Tables::SIGNATURES,
+        ccf::Tables::COSE_SIGNATURES,
+        ccf::Tables::SERIALISED_MERKLE_TREE})
+  {
+    INFO("Historical table: ", std::string_view(name));
+    REQUIRE(ptr->ro<MapTypes::UntypedMap>(name)->size() == 1);
+    REQUIRE(diff.diff<MapTypes::UntypedMap>(name)->size() == 1);
+
+    auto ordinary = historical.create_tx();
+    CHECK_THROWS_AS(
+      ordinary.ro<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+    CHECK_THROWS_AS(
+      ordinary.wo<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+  }
+}
+
+TEST_CASE("Reserved transactions are write-only on signature tables")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  store.set_consensus(std::make_shared<ccf::kv::test::PrimaryStubConsensus>());
+
+  INFO("Cannot access non-signature maps or upgrade signature handles");
+  {
+    auto reserved = store.create_reserved_tx(store.next_txid());
+    CHECK_THROWS_AS(
+      reserved.wo<MapTypes::StringString>("public:ordinary"),
+      ccf::kv::MapAccessDenied);
+    CHECK_THROWS_AS(
+      reserved.rw<MapTypes::StringString>("public:ordinary"),
+      ccf::kv::MapAccessDenied);
+    CHECK_THROWS_AS(
+      reserved.ro<MapTypes::StringString>("public:ordinary"),
+      ccf::kv::MapAccessDenied);
+    CHECK(store.get_map(store.current_version(), "public:ordinary") == nullptr);
+
+    for (const auto* name :
+         {ccf::Tables::SIGNATURES,
+          ccf::Tables::COSE_SIGNATURES,
+          ccf::Tables::SERIALISED_MERKLE_TREE})
+    {
+      INFO("Reserved table: ", std::string_view(name));
+      auto* handle = reserved.wo<MapTypes::UntypedMap>(name);
+      CHECK(reserved.wo<MapTypes::UntypedMap>(name) == handle);
+      CHECK_THROWS_AS(
+        reserved.ro<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+      CHECK_THROWS_AS(
+        reserved.rw<MapTypes::UntypedMap>(name), ccf::kv::MapAccessDenied);
+    }
+  }
+
+  INFO("Clear on an empty signature table records a read and is rejected");
+  {
+    auto reserved = store.create_reserved_tx(store.next_txid());
+    auto* tree = reserved.wo<ccf::SerialisedMerkleTree>(
+      ccf::Tables::SERIALISED_MERKLE_TREE);
+    tree->clear();
+    tree->put({1});
+    CHECK_THROWS_AS(reserved.commit_reserved(), ccf::kv::MapAccessDenied);
+  }
+
+  INFO("Recorded read dependencies on populated signature tables are rejected");
+  const auto baseline = store.next_txid();
+  REQUIRE(
+    publish_signature_entry(store, baseline, 1) ==
+    ccf::kv::CommitResult::SUCCESS);
+  for (const std::string_view observation : {"get", "foreach", "clear"})
+  {
+    INFO("Reserved observation: ", observation);
+    auto reserved = store.create_reserved_tx(store.next_txid());
+    auto* handle =
+      reserved.wo<MapTypes::UntypedMap>(ccf::Tables::SERIALISED_MERKLE_TREE);
+    const auto key = ccf::SerialisedMerkleTree::create_unit();
+    if (observation == "get")
+    {
+      REQUIRE(handle->get(key).has_value());
+    }
+    else if (observation == "foreach")
+    {
+      handle->foreach([](const auto&, const auto&) { return true; });
+    }
+    else
+    {
+      reserved
+        .wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+        ->clear();
+    }
+    handle->put(key, {2});
+    CHECK_THROWS_AS(reserved.commit_reserved(), ccf::kv::MapAccessDenied);
+  }
+}
+
+TEST_CASE("Materialised reads exclude gaps and cannot tear signature state")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
+  MapTypes::StringString raw("public:raw");
+  {
+    auto tx = store.create_tx();
+    tx.rw(raw)->put("key", "old");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto old_signature = store.next_txid();
+  REQUIRE(
+    publish_signature_entry(store, old_signature, 1) ==
+    ccf::kv::CommitResult::SUCCESS);
+  const auto pending_signature = store.next_txid();
+  {
+    auto tx = store.create_tx();
+    tx.rw(raw)->put("key", "new");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(store.current_version() == pending_signature.seqno + 1);
+  REQUIRE(consensus->number_of_replicas() == old_signature.seqno);
+
+  auto cold = store.create_read_only_tx_at_replicated_state();
+  auto warm = store.create_read_only_tx_at_replicated_state();
+  REQUIRE(
+    warm.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get()->seqno ==
+    old_signature.seqno);
+  REQUIRE(warm.ro(raw)->get("key") == "old");
+  REQUIRE(
+    publish_signature_entry(store, pending_signature, 2) ==
+    ccf::kv::CommitResult::SUCCESS);
+
+  for (auto* read : {&cold, &warm})
+  {
+    REQUIRE(read->ro(raw)->get("key") == "old");
+    REQUIRE(
+      read->ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get()->seqno ==
+      old_signature.seqno);
+    REQUIRE(
+      read->ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+        ->get(ccf::IdentityType::CLASSICAL) == std::vector<uint8_t>{1});
+    REQUIRE(
+      read->ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+        ->get() == std::vector<uint8_t>{1});
+  }
+
+  auto current = store.create_read_only_tx_at_replicated_state();
+  REQUIRE(current.ro(raw)->get("key") == "new");
+  REQUIRE(
+    current.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get()->seqno ==
+    pending_signature.seqno);
+  REQUIRE(
+    current.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+      ->get(ccf::IdentityType::CLASSICAL) == std::vector<uint8_t>{2});
+  REQUIRE(
+    current.ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->get() == std::vector<uint8_t>{2});
+}
+
+TEST_CASE("Materialised reads reject rollback and see replication compaction")
+{
+  SUBCASE("Rollback before lookup invalidates live and historical views")
+  {
+    for (const bool is_historical : {false, true})
+    {
+      INFO("Historical store: ", is_historical);
+      ccf::kv::Store store(is_historical);
+      store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+      auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+      store.set_consensus(consensus);
+      constexpr ccf::View initial_view = 2;
+      constexpr ccf::View replacement_view = 3;
+      store.initialise_term(initial_view);
+      MapTypes::StringString raw("public:raw");
+      ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+      ccf::CoseSignatures cose_signatures(ccf::Tables::COSE_SIGNATURES);
+
+      {
+        auto tx = store.create_tx();
+        tx.rw(raw)->put("key", "old");
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      }
+      const auto initial_signature = store.next_txid();
+      REQUIRE(
+        publish_signature_entry(store, initial_signature, 1) ==
+        ccf::kv::CommitResult::SUCCESS);
+
+      auto old = store.create_read_only_tx_at_replicated_state();
+      REQUIRE(old.ro(signatures)->get()->seqno == initial_signature.seqno);
+      auto diff = store.create_tx_diff();
+      if (is_historical)
+      {
+        REQUIRE(diff.diff(cose_signatures)->size() == 1);
+      }
+
+      store.rollback({initial_view, 0}, replacement_view);
+      consensus->view_history.rollback(0);
+      consensus->flush();
+      {
+        auto tx = store.create_tx();
+        tx.rw(raw)->put("key", "replacement");
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      }
+      const auto replacement_signature = store.next_txid();
+      REQUIRE(replacement_signature.seqno == initial_signature.seqno);
+      REQUIRE(
+        publish_signature_entry(store, replacement_signature, 2) ==
+        ccf::kv::CommitResult::SUCCESS);
+
+      CHECK_THROWS_AS(old.ro(raw), ccf::kv::CompactedVersionConflict);
+      CHECK_THROWS_AS(old.ro(signatures), ccf::kv::CompactedVersionConflict);
+      if (is_historical)
+      {
+        CHECK_THROWS_AS(
+          diff.diff(cose_signatures), ccf::kv::CompactedVersionConflict);
+      }
+
+      auto fresh = store.create_read_only_tx_at_replicated_state();
+      REQUIRE(fresh.ro(raw)->get("key") == "replacement");
+      REQUIRE(
+        fresh.ro(cose_signatures)->get(ccf::IdentityType::CLASSICAL) ==
+        std::vector<uint8_t>{2});
+    }
+  }
+
+  SUBCASE("Rollback during snapshot acquisition is detected")
+  {
+    class ReplacingStore : public ccf::kv::Store
+    {
+    public:
+      std::function<void()> replace_during_lookup = nullptr;
+      bool replacement_triggered = false;
+
+      std::shared_ptr<ccf::kv::AbstractMap> get_map(
+        ccf::kv::Version version, const std::string& name) override
+      {
+        if (
+          name == ccf::Tables::COSE_SIGNATURES &&
+          replace_during_lookup != nullptr)
+        {
+          auto replace = std::exchange(replace_during_lookup, nullptr);
+          replacement_triggered = true;
+          replace();
+        }
+        return ccf::kv::Store::get_map(version, name);
+      }
+    };
+
+    ReplacingStore store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+    store.set_consensus(consensus);
+    store.initialise_term(2);
+    ccf::CoseSignatures cose_signatures(ccf::Tables::COSE_SIGNATURES);
+    const auto initial_signature = store.next_txid();
+    REQUIRE(
+      publish_signature_entry(store, initial_signature, 1) ==
+      ccf::kv::CommitResult::SUCCESS);
+    auto old = store.create_read_only_tx_at_replicated_state();
+
+    store.replace_during_lookup = [&]() {
+      store.rollback({2, 0}, 3);
+      consensus->view_history.rollback(0);
+      consensus->flush();
+      REQUIRE(
+        publish_signature_entry(store, store.next_txid(), 2) ==
+        ccf::kv::CommitResult::SUCCESS);
+    };
+
+    CHECK_THROWS_AS(old.ro(cose_signatures), ccf::kv::CompactedVersionConflict);
+    REQUIRE(store.replacement_triggered);
+  }
+
+  SUBCASE("Prefix compacted synchronously inside replication is visible")
+  {
+    class CompactingConsensus : public ccf::kv::test::PrimaryStubConsensus
+    {
+      ccf::kv::Store& store;
+
+    public:
+      std::optional<ccf::SeqNo> observed_signature;
+
+      explicit CompactingConsensus(ccf::kv::Store& store_) : store(store_) {}
+
+      bool replicate(
+        const ccf::kv::BatchVector& entries, ccf::View view) override
+      {
+        const auto result = PrimaryStubConsensus::replicate(entries, view);
+        store.compact(std::get<0>(entries.back()));
+        auto read = store.create_read_only_tx_at_replicated_state();
+        if (auto sig = read.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get())
+        {
+          observed_signature = sig->seqno;
+        }
+        return result;
+      }
+    };
+
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto consensus = std::make_shared<CompactingConsensus>(store);
+    store.set_consensus(consensus);
+    const auto txid = store.next_txid();
+    REQUIRE(
+      publish_signature_entry(store, txid, 1) ==
+      ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(consensus->observed_signature == txid.seqno);
+  }
 }
 
 TEST_CASE("Zero-revision whole-map dependencies")
@@ -2591,24 +3050,25 @@ TEST_CASE("Deserialising from other Store")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   ccf::kv::Store store;
   store.set_encryptor(encryptor);
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
 
   MapTypes::NumString public_map("public:public");
   MapTypes::NumString private_map("private");
-  auto tx1 = store.create_reserved_tx(store.next_txid());
+  auto tx1 = store.create_tx();
   auto handle1 = tx1.rw(public_map);
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
-  auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
-    tx1.commit_reserved();
-  auto& success = success_;
-  auto& data = data_;
-  REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS);
+  const auto data = consensus->get_latest_data();
+  REQUIRE(data.has_value());
 
   ccf::kv::Store clone;
   clone.set_encryptor(encryptor);
 
-  REQUIRE(clone.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS);
+  REQUIRE(
+    clone.deserialize(data.value())->apply() == ccf::kv::ApplyResult::PASS);
 }
 
 TEST_CASE("Transaction diffs")
@@ -2782,6 +3242,8 @@ TEST_CASE("Deserialise return status")
   ccf::kv::Store store;
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  store.set_consensus(consensus);
 
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
   ccf::SerialisedMerkleTree serialised_tree(
@@ -2798,24 +3260,22 @@ TEST_CASE("Deserialise return status")
   store.set_history(history);
 
   {
-    auto tx = store.create_reserved_tx(store.next_txid());
+    auto tx = store.create_tx();
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
-    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
-      tx.commit_reserved();
-    auto& success = success_;
-    auto& serialised_data = data_;
-    REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    const auto serialised_data = consensus->get_latest_data();
+    REQUIRE(serialised_data.has_value());
 
     REQUIRE(
-      store.deserialize(serialised_data)->apply() ==
+      store.deserialize(serialised_data.value())->apply() ==
       ccf::kv::ApplyResult::PASS);
   }
 
   {
     auto tx = store.create_reserved_tx(store.next_txid());
-    auto sig_handle = tx.rw(signatures);
-    auto tree_handle = tx.rw(serialised_tree);
+    auto sig_handle = tx.wo(signatures);
+    auto tree_handle = tx.wo(serialised_tree);
     ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     tree_handle->put({});
@@ -2832,17 +3292,35 @@ TEST_CASE("Deserialise return status")
 
   INFO("Signature transactions with additional contents should fail");
   {
-    auto tx = store.create_reserved_tx(store.next_txid());
-    auto sig_handle = tx.rw(signatures);
-    auto data_handle = tx.rw(data);
+    // The transaction API rejects this mixture, so exercise ledger admission
+    // with an explicitly malformed serialised entry.
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor,
+      ccf::TxID{store.commit_view(), store.current_version() + 1},
+      ccf::kv::EntryType::WriteSet,
+      0);
+    const auto serialise_single_write =
+      [&serialiser](
+        const std::string& name,
+        const ccf::kv::serialisers::SerialisedEntry& key,
+        const ccf::kv::serialisers::SerialisedEntry& value) {
+        serialiser.start_map(name, ccf::kv::SecurityDomain::PUBLIC);
+        serialiser.serialise_entry_version(ccf::kv::NoVersion);
+        serialiser.serialise_count_header(0);
+        serialiser.serialise_count_header(1);
+        serialiser.serialise_write(key, value);
+        serialiser.serialise_count_header(0);
+      };
     ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, 2);
-    sig_handle->put(sigv);
-    data_handle->put(43, 43);
-    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
-      tx.commit_reserved();
-    auto& success = success_;
-    auto& serialised_data = data_;
-    REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
+    serialise_single_write(
+      signatures.get_name(),
+      ccf::Signatures::create_unit(),
+      ccf::Signatures::ValueSerialiser::to_serialised(sigv));
+    serialise_single_write(
+      data.get_name(),
+      MapTypes::NumNum::KeySerialiser::to_serialised(43),
+      MapTypes::NumNum::ValueSerialiser::to_serialised(43));
+    const auto serialised_data = serialiser.get_raw_data();
 
     REQUIRE(
       store.deserialize(serialised_data)->apply() ==
@@ -3882,7 +4360,8 @@ TEST_CASE("CommittableTx guards")
     const auto baseline_txid = kv_store.current_txid();
 
     auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
-    reserved.rw(map)->put("k", "from_reserved");
+    reserved.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({42});
 
     // Roll the store back, invalidating the rollback_count that `reserved`
     // captured when it was created.
@@ -3917,7 +4396,8 @@ TEST_CASE("CommittableTx guards")
     kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
 
     auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
-    reserved.rw(map)->put("k", "v");
+    reserved.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({42});
     REQUIRE(
       reserved.commit_reserved().success == ccf::kv::CommitResult::SUCCESS);
 
@@ -3956,22 +4436,22 @@ TEST_CASE("CommittableTx guards")
     ccf::kv::Store kv_store;
     kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
 
-    {
-      // Establish the map, so the reserved tx below can read from it without
-      // creating it
-      auto tx = kv_store.create_tx();
-      tx.rw(map)->put("k", "v");
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    }
+    const auto baseline = kv_store.next_txid();
+    REQUIRE(
+      make_signature_entry(kv_store, baseline, 42).success ==
+      ccf::kv::CommitResult::SUCCESS);
 
     // Such a transaction would otherwise succeed with an empty ledger entry,
     // leaving nothing at its reserved version
     auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
-    REQUIRE(reserved.rw(map)->get("k") == "v");
+    auto* handle =
+      reserved.wo<MapTypes::UntypedMap>(ccf::Tables::SERIALISED_MERKLE_TREE);
+    REQUIRE(handle->get(ccf::SerialisedMerkleTree::create_unit()).has_value());
     REQUIRE_THROWS_WITH_AS(
       reserved.commit_reserved(),
-      "Reserved transaction cannot be empty",
-      std::logic_error);
+      "Reserved transaction cannot depend on reads from map "
+      "'public:ccf.internal.tree'",
+      ccf::kv::MapAccessDenied);
     REQUIRE_THROWS_WITH_AS(
       auto _ = reserved.commit_version(),
       "Transaction not yet committed",
@@ -4621,11 +5101,11 @@ TEST_CASE("Reserved transaction map creation is serialised with lookups")
       size_t n = 0;
       while (!stop_token.stop_requested())
       {
-        // Takes maps_lock and searches the map set. Looks up names in the
-        // range being inserted, so the search path traverses the nodes
-        // add_dynamic_map is writing. Deliberately avoids current_version(),
-        // so this contends only on maps_lock.
-        (void)store.get_map(1, std::format("public:reserved_{}", n % 2000));
+        // These names are repeatedly created and removed. The lookup holds
+        // maps_lock, and avoids any additional ordering with the writer.
+        const auto* name = (n % 2 == 0) ? ccf::Tables::SIGNATURES :
+                                          ccf::Tables::SERIALISED_MERKLE_TREE;
+        (void)store.get_map(2, name);
         n++;
       }
     });
@@ -4634,16 +5114,16 @@ TEST_CASE("Reserved transaction map creation is serialised with lookups")
   constexpr size_t reserved_txs = 2000;
   for (size_t i = 0; i < reserved_txs; ++i)
   {
-    // Each reserved transaction writes to a map that does not exist yet, so
-    // committing it adds to the Store's map set. Nothing else here may take
-    // maps_lock, or it would order the write against the readers and hide the
-    // race being reproduced.
-    auto tx = store.create_reserved_tx(store.next_txid());
-    tx.rw<MapTypes::StringString>(std::format("public:reserved_{}", i))
-      ->put("k", "v");
-    const auto [result, data, claims, commit_evidence, hooks] =
-      tx.commit_reserved();
-    REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
+    // Rollback removes the signature tables so the next reservation creates
+    // them again, exercising add_dynamic_map on every iteration.
+    const auto txid = store.next_txid();
+    REQUIRE(
+      make_signature_entry(store, txid, 42).success ==
+      ccf::kv::CommitResult::SUCCESS);
+    if (i + 1 < reserved_txs)
+    {
+      store.rollback({txid.view, 1}, txid.view);
+    }
   }
 
   for (auto& reader : readers)
@@ -4652,14 +5132,12 @@ TEST_CASE("Reserved transaction map creation is serialised with lookups")
   }
   readers.clear();
 
-  // Confirm the writes really did extend the map set, so this exercises
-  // Store::add_dynamic_map rather than silently doing nothing.
+  // Confirm the final reservation really recreated the signature tables.
   REQUIRE(
-    store.get_map(store.current_version(), "public:reserved_0") != nullptr);
+    store.get_map(store.current_version(), ccf::Tables::SIGNATURES) != nullptr);
   REQUIRE(
     store.get_map(
-      store.current_version(),
-      std::format("public:reserved_{}", reserved_txs - 1)) != nullptr);
+      store.current_version(), ccf::Tables::SERIALISED_MERKLE_TREE) != nullptr);
 }
 
 // Exposes the version the chunker has recorded entries up to, which is the
@@ -4688,7 +5166,6 @@ class RollingBackPendingTx : public ccf::kv::PendingTx
 {
   ccf::TxID txid;
   ccf::kv::Store& store;
-  MapTypes::StringString& table;
   ccf::TxID rollback_to;
   ccf::kv::Term rollback_term;
 
@@ -4696,21 +5173,17 @@ public:
   RollingBackPendingTx(
     ccf::TxID txid_,
     ccf::kv::Store& store_,
-    MapTypes::StringString& table_,
     ccf::TxID rollback_to_,
     ccf::kv::Term rollback_term_) :
     txid(txid_),
     store(store_),
-    table(table_),
     rollback_to(rollback_to_),
     rollback_term(rollback_term_)
   {}
 
   ccf::kv::PendingTxInfo call() override
   {
-    auto tx = store.create_reserved_tx(txid);
-    tx.rw(table)->put("key", "value");
-    auto info = tx.commit_reserved();
+    auto info = make_signature_entry(store, txid, 42);
     store.rollback(rollback_to, rollback_term);
     return info;
   }
@@ -4751,7 +5224,7 @@ TEST_CASE("Chunk metadata is not restored by a batch a rollback discarded")
     store.commit(
       reserved,
       std::make_unique<RollingBackPendingTx>(
-        reserved, store, map, baseline_txid, initial_term + 1),
+        reserved, store, baseline_txid, initial_term + 1),
       false);
   }
 
@@ -5247,8 +5720,8 @@ TEST_CASE("Ledger entry chunk request")
     {
       auto txid = store.next_txid();
       auto tx = store.create_reserved_tx(txid);
-      auto sig_handle = tx.rw(signatures);
-      auto tree_handle = tx.rw(serialised_tree);
+      auto sig_handle = tx.wo(signatures);
+      auto tree_handle = tx.wo(serialised_tree);
       ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.seqno);
       sig_handle->put(sigv);
       tree_handle->put({});
@@ -5323,8 +5796,8 @@ TEST_CASE("Ledger entry chunk request")
       REQUIRE(store.should_create_ledger_chunk(txid.seqno));
 
       // Add the signature
-      auto sig_handle = tx.rw(signatures);
-      auto tree_handle = tx.rw(serialised_tree);
+      auto sig_handle = tx.wo(signatures);
+      auto tree_handle = tx.wo(serialised_tree);
       ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.seqno);
       sig_handle->put(sigv);
       tree_handle->put({});

@@ -1,5 +1,10 @@
 const FIXED_KEY = ccf.strToBuf("hello");
 const FIXED_VALUE = ccf.strToBuf("world");
+const SIGNATURE_TABLES = [
+  "public:ccf.internal.signatures",
+  "public:ccf.internal.cose_signatures",
+  "public:ccf.internal.tree",
+];
 
 export function try_read(request) {
   const table_name = request.body.json().table;
@@ -140,4 +145,61 @@ export function try_read_current_via_historical_handle(request) {
     statusCode: 200,
     body: `Permitted to read from table: ${body.table}`,
   };
+}
+
+export function read_historical_signature_tables(request) {
+  const body = request.body.json();
+  const states = ccf.historical.getStateRange(3, body.seqno, body.seqno, 1800);
+  if (states === null) {
+    return {
+      statusCode: 202,
+      headers: { "retry-after": "1" },
+      body: `Historical state at ${body.seqno} is not yet available`,
+    };
+  }
+
+  try {
+    const state = states[0];
+    const tables = {};
+    for (const table of SIGNATURE_TABLES) {
+      const handle = state.kv[table];
+      let entries = 0;
+      handle.forEach((value, key) => {
+        if (
+          !handle.has(key) ||
+          handle.get(key) === undefined ||
+          value.byteLength === 0 ||
+          handle.getVersionOfPreviousWrite(key) !== body.seqno
+        ) {
+          throw new Error(`Unreadable historical entry in ${table}`);
+        }
+        entries++;
+      });
+      let writeDenied = false;
+      try {
+        handle.set(FIXED_KEY, FIXED_VALUE);
+      } catch (e) {
+        if (!(e instanceof TypeError)) {
+          throw e;
+        }
+        writeDenied = true;
+      }
+      tables[table] = { size: handle.size, entries, writeDenied };
+    }
+
+    return {
+      statusCode: 200,
+      body: {
+        transactionId: state.transactionId,
+        isSignatureTransaction: state.receipt.is_signature_transaction,
+        rawSignatureExpected: state.receipt.signature.length > 0,
+        tables,
+      },
+    };
+  } catch (e) {
+    return {
+      statusCode: 400,
+      body: `Failed to read historical signature tables at ${body.seqno}\n${e}`,
+    };
+  }
 }

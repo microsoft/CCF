@@ -66,7 +66,9 @@ namespace ccf::kv
     // Always <= version: rollback() clamps it.
     Version last_committable = 0;
 
-    Version rollback_count = 0;
+    // Written only under version_lock; atomic so check_rollback_count() can
+    // read it without contending on version_lock.
+    std::atomic<Version> rollback_count = 0;
 
     std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
       pending_txs;
@@ -1415,8 +1417,7 @@ namespace ccf::kv
 
     bool check_rollback_count(Version count) override
     {
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-      return rollback_count == count;
+      return rollback_count.load() == count;
     }
 
     std::optional<std::tuple<Version, Version>> next_version(
@@ -1440,7 +1441,7 @@ namespace ccf::kv
       Version v = next_version_unsafe();
       KV_TRACE(trace::apply(this, v, term_of_next_version));
 
-      return std::make_tuple(v, rollback_count);
+      return std::make_tuple(v, rollback_count.load());
     }
 
     TxID next_txid() override
@@ -1592,19 +1593,55 @@ namespace ccf::kv
       }
     }
 
+  private:
+    std::pair<Version, Version> materialised_read_state()
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      // Consensus may compact synchronously in replicate(), before
+      // last_replicated is advanced. Both versions are complete prefixes.
+      return {
+        std::max(last_replicated, compacted.load()), rollback_count.load()};
+    }
+
+  public:
     ReadOnlyTx create_read_only_tx() override
     {
+      if (is_historical)
+      {
+        return create_read_only_tx_at_replicated_state();
+      }
       return {this};
     }
 
     std::unique_ptr<ReadOnlyTx> create_read_only_tx_ptr() override
     {
+      if (is_historical)
+      {
+        const auto [read_version, read_rollback_count] =
+          materialised_read_state();
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return std::unique_ptr<ReadOnlyTx>(
+          new ReadOnlyTx(this, read_version, read_rollback_count));
+      }
       return std::make_unique<ReadOnlyTx>(this);
     }
 
     TxDiff create_tx_diff() override
     {
+      if (is_historical)
+      {
+        const auto [read_version, read_rollback_count] =
+          materialised_read_state();
+        return {this, read_version, read_rollback_count};
+      }
       return {this};
+    }
+
+    ReadOnlyTx create_read_only_tx_at_replicated_state()
+    {
+      const auto [read_version, read_rollback_count] =
+        materialised_read_state();
+      return {this, read_version, read_rollback_count};
     }
 
     CommittableTx create_tx()
@@ -1620,7 +1657,7 @@ namespace ccf::kv
     ReservedTx create_reserved_tx(const TxID& tx_id)
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-      return {this, term_of_last_version, tx_id, rollback_count};
+      return {this, term_of_last_version, tx_id, rollback_count.load()};
     }
 
     bool apply_tx_flags(

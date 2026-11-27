@@ -15,6 +15,7 @@ import e2e_logging
 import governance_api
 import governance_history
 import governance_js
+import infra.clients
 import infra.crypto
 import infra.e2e_args
 import infra.interfaces
@@ -341,6 +342,12 @@ def test_all_members(network, args):
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
+        with node.client() as c:
+            state = c.get("/node/state")
+            assert state.status_code == http.HTTPStatus.OK, state
+            assert infra.clients.CCF_TX_ID_HEADER not in state.headers, state.headers
+            assert state.body.json()["last_signed_seqno"] > 0, state.body.json()
+
         member = network.consortium.get_any_active_member()
         updated = member.update_ack_state_digest(node)
         updated_digest = updated.body.json()

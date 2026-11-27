@@ -2131,13 +2131,14 @@ namespace
         keys.pq_key->self_sign("CN=test", valid_from, valid_to);
 
       auto tx = node_state->store->create_tx();
-      if (count != 0)
-      {
-        tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
-          ->put(tree.serialise());
-      }
       ccf::InternalTablesAccess::create_service(
-        tx, cert, pq_cert, create_txid, nullptr, count != 0);
+        tx,
+        cert,
+        pq_cert,
+        create_txid,
+        nullptr,
+        count != 0,
+        count != 0 ? std::make_optional(tree.get_root()) : std::nullopt);
       if (!with_pq)
       {
         auto* service = tx.rw<ccf::Service>(ccf::Tables::SERVICE);

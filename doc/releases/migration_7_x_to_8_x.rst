@@ -120,3 +120,12 @@ Nodes that join a service never create one.
 - When a service with an ML-DSA identity opens, it endorses the ML-DSA identity of the previous service with its own, as it does for the classical identity (see :ref:`audit/builtin_maps:``previous_service_identity_endorsement```).
   A service whose previous service had no ML-DSA identity, such as the one that introduces it, endorses its own ML-DSA identity, which starts the chain.
 - Nodes fetch and validate the ML-DSA endorsement chain with the classical one, and applications read it and the trusted ML-DSA keys through the ``_pq`` getters of :cpp:class:`ccf::NetworkIdentitySubsystemInterface`.
+
+Signature-Transaction Tables
+----------------------------
+
+From CCF 8.0, ``public:ccf.internal.signatures``, ``public:ccf.internal.cose_signatures`` and ``public:ccf.internal.tree`` are inaccessible in live transactions across C++, Rust and JavaScript application and governance contexts.
+Use historical KV views, :doc:`receipt APIs </use_apps/rpc_api>` or :doc:`offline ledger parsing </audit/python_library>` instead; see :ref:`audit/read_write_restrictions:Signature-Transaction Tables` and :ref:`build_apps/kv/kv_how_to:Signature Metadata`.
+
+- Custom constitutions based on releases before 7.0.17 that read ``public:ccf.internal.signatures`` or ``public:ccf.internal.cose_signatures`` when adding or resetting a member must remove those reads and use the :ref:`state-digest update and acknowledgement workflow <governance/adding_member:Activating a New Member>`.
+- :http:GET:`/node/state` is now non-transactional: it no longer returns the ``x-ms-ccf-transaction-id`` header, and it is served during public ledger recovery and snapshot installation before the KV store is ready.

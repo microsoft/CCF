@@ -52,6 +52,30 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
     )?;
     // SNIPPET_END: rust_get_record
 
+    registry.read_write(
+        "/signature-table-access",
+        "POST",
+        Auth::None,
+        |context| -> EndpointResult {
+            for table in [
+                "public:ccf.internal.signatures",
+                "public:ccf.internal.cose_signatures",
+                "public:ccf.internal.tree",
+            ] {
+                if context.map(table).get(&[0; 8]) != Err(BridgeError::AccessDenied)
+                    || context.map(table).put(&[0; 8], b"probe") != Err(BridgeError::AccessDenied)
+                {
+                    return Err(EndpointError::internal(format!(
+                        "Expected AccessDenied for {table}"
+                    )));
+                }
+            }
+            context.set_status(200)?;
+            context.set_body(b"denied")?;
+            Ok(())
+        },
+    )?;
+
     registry.read_write("/compaction/marker", "POST", Auth::None, |context| {
         COMPACTION_READY.store(false, Ordering::Release);
         context.map(COMPACTION_MARKER).put(b"init", b"init")?;

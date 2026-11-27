@@ -74,6 +74,10 @@ First, the new member should update and retrieve the latest state digest via the
 
 No state digest is recorded when a member is added. Until the member calls this ``:update`` endpoint, :http:GET:`/gov/members/state-digests/{memberId}` returns ``404 Not Found`` and the member cannot acknowledge a state digest.
 
+.. note::
+
+    From CCF 8.0, ``public:ccf.internal.signatures`` and ``public:ccf.internal.cose_signatures`` are inaccessible in the current KV. Custom constitutions based on releases before 7.0.17 that read those tables when adding or resetting a member must remove those reads and rely on the ``:update`` and ``:ack`` workflow described here instead. See :ref:`audit/read_write_restrictions:Signature-Transaction Tables`.
+
 .. code-block:: bash
 
     $ touch empty_file

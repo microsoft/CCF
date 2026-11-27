@@ -128,6 +128,13 @@ If you are only reading from or only writing to a given :cpp:type:`ccf::kv::Map`
 
 Note that, as in the sample above, it is possible to acquire different kinds of handles at different points within your transaction's execution. So if you need to read in one location and write in another you can retrieve multiple distinct handles and get local type-safety, while the resulting transaction correctly handles all reads and writes made.
 
+Signature Metadata
+------------------
+
+From CCF 8.0, ``public:ccf.internal.signatures``, ``public:ccf.internal.cose_signatures`` and ``public:ccf.internal.tree`` are inaccessible in live transactions. ``Tx``, ``ReadOnlyTx`` and ``TxDiff`` reject all handles to these tables (``ro``, ``rw``, ``wo`` and ``diff``) with ``ccf::kv::MapAccessDenied`` in C++ and ``BridgeError::AccessDenied`` in Rust; see :ref:`audit/read_write_restrictions:Signature-Transaction Tables` for JavaScript.
+
+For signature data and proofs, use :ref:`historical state <build_apps/example_cpp:Historical Queries>` or :doc:`receipt APIs </use_apps/rpc_api>` instead. Historical KV views and offline ledger parsing remain supported. For node progress metadata, use :http:GET:`/node/state`, which is non-transactional and independent of any KV snapshot.
+
 Removing a key
 --------------
 
