@@ -2,6 +2,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+"""Unsupported internal utility for fetching AMD SEV-SNP collateral.
+
+This script is intended only for internal experiments and debugging.
+It is unsupported, may change or be removed without notice, and must not
+be relied on in production deployments.
+"""
+
 import argparse
 from enum import Enum
 import logging
@@ -76,7 +83,12 @@ def make_chain_url(base_url, product_family):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fetch AMD collateral data.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Fetch AMD collateral data. "
+            "WARNING: Unsupported internal tool for experiments and debugging only."
+        )
+    )
     parser.add_argument(
         "-u",
         "--base-url",
