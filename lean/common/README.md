@@ -18,8 +18,8 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Proofs.Execution`          | Constructors and theorems for runs and behaviours            |
 | `CCF.Proofs.Finset`             | Lemmas about the `CCF.Finset` operations                     |
 | `CCF.Proofs.Function`           | Lemmas about point updates                                   |
-| `CCF.Proofs.OCC`                | Replay of validated programs insensitive to scan order      |
-| `CCF.Proofs.OCCOverlay`         | Value-level row overlay and serial program evaluation       |
+| `CCF.Proofs.OCC`                | Replay of validated programs insensitive to scan order       |
+| `CCF.Proofs.OCCOverlay`         | Value-level row overlay and serial program evaluation        |
 | `CCF.Proofs.Seq`                | Lemmas about sequence access and membership                  |
 
 `CCF.Execution.BehaviourImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.

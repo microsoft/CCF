@@ -42,8 +42,8 @@ Every record has `node`, `sequence`, a per-node counter from 0, and `kind`:
 `start` also carries the `expected_locations`.
 Handler records hold the phase and timeout phase that `advance()` read and wrote (`pre`, `pre_timeout`, `post`, `post_timeout`), and any `chosen` node, `open_kind` or `restart` it read, wrote or requested.
 An IAmOpen's `pre` and `chosen` are its own Joining writes, which `advance()` then reads.
-Only executions whose transaction committed are logged, with the seqno of the TxID that CCF reported as their `version`: the version the transaction committed at if it wrote, and the version it read at otherwise.
-A restart is requested by the same function, after its record is logged, so an execution that did not commit requests none.
+Only handler executions whose transaction committed locally are logged, with the seqno of the TxID that CCF reported as their `version`: the version the transaction committed at if it wrote, and the version it read at otherwise.
+A restart is scheduled by the same function after any trace record is emitted, and runs only once that TxID is globally committed, so a conflicting or rolled-back execution requests none.
 A vote or IAmOpen always writes, and any other write that the replay can observe changes a phase, so the replayer treats an execution that changes neither phase as a read.
 
 Receives name their sender in `source`.
@@ -69,7 +69,7 @@ The replay checks everything else.
 | `scenario`     | No more nodes log than the participants, each ends Opening, Open or Joining after a restart request, and one opens |
 
 A replayed execution checks the pre-state, runs the handler, immediately commits its pending attempt at index zero, then checks the commit's notifications and the recorded post-state.
-Run-time outputs are not recorded or compared.
+Executions that do not commit are not logged and are not replayed.
 A retry is its action and the messages it sent.
 Items of different nodes are interleaved so that each message is received after it is sent.
 As in the model's network, any queued copy of a message can be the one received, so receives are matched to sends by content.
