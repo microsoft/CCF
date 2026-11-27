@@ -1361,7 +1361,14 @@ def run_ledger_chunk_bytes_check(const_args):
             #   - Some variation from cert sizes
             #   - Increasing over time as the mini-tree grows
             #   - Adding 2400 bytes here to be safe
-            return 24 + (202 * num_transactions) + (2400 * num_signatures)
+            # - ~4600 further bytes per signature transaction of a service
+            #   with an ML-DSA-65 identity, for its second COSE signature
+            #   - Adding 4800 bytes here to be safe
+            ml_dsa_65_signature_overhead = 4800
+            signature_size = 2400 + (
+                ml_dsa_65_signature_overhead if has_pq_identity else 0
+            )
+            return 24 + (202 * num_transactions) + (signature_size * num_signatures)
 
         network.per_node_args_override[0] = {"ledger_chunk_bytes": f"{size_0}B"}
         network.per_node_args_override[1] = {"ledger_chunk_bytes": f"{size_1}B"}
@@ -1370,6 +1377,8 @@ def run_ledger_chunk_bytes_check(const_args):
         network.start_and_open(args)
 
         primary, backups = network.find_nodes()
+
+        has_pq_identity = network.get_pq_service_certificate(primary) is not None
 
         nodes_and_sizes = [
             (primary, size_0),
