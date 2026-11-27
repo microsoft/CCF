@@ -34,8 +34,6 @@ private theorem start_preserves {node : Location} {config : Config}
   | ok u =>
       cases u
       simp only [start, hr] at run
-      change ((release _ _).run {}).bind _ = _ at run
-      rw [Evaluation.release_record] at run
       have eq := congrArg Prod.fst (Option.some.inj run)
       change {before with pending := before.pending ++ [⟨e, ran.normal, ran.outputs⟩]} = after at eq
       subst after

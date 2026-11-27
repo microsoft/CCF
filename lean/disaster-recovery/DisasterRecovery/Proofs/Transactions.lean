@@ -262,4 +262,122 @@ theorem readOnly_only_restart (config : Config) (event : Event) (db : Store)
   | send => contradiction
   | notify n => cases n <;> first | contradiction | exact ⟨_,rfl⟩
 
+private def ReadOnlySilent (db : Store) {α : Type} : Tx α → Prop
+  | .done _ | .fail _ | .put .. => True
+  | .get addr k => ReadOnlySilent db (k (valueAt db [] addr))
+  | .scan _ k => ∀ xs, ReadOnlySilent db (k xs)
+  | .output _ _ => False
+
+private theorem readOnlySilent_bind (db : Store) {α β : Type} (p : Tx α) (f : α → Tx β)
+    (hp : ReadOnlySilent db p) (hf : ∀ x, ReadOnlySilent db (f x))
+    : ReadOnlySilent db (p >>= f) := by
+  induction p with
+  | done x => exact hf x
+  | fail | put => trivial
+  | get _ _ ih => exact ih _ hp
+  | scan _ _ ih => exact fun xs => ih xs (hp xs)
+  | output _ _ _ => exact False.elim hp
+
+private theorem readOnlySilent_exec (db : Store) {α : Type} (p : Tx α)
+    (n : Normal Table Key Value) (nw : n.writes = []) (outs : List Output)
+    (ok : ReadOnlySilent db p) (empty : (p.execFrom db n outs).normal.writes = [])
+    : (p.execFrom db n outs).outputs = outs := by
+  induction p generalizing n outs with
+  | done | fail => rfl
+  | get addr _ ih =>
+      have h := ih (valueAt db [] addr) (recordOp db n (.read addr (valueAt db [] addr)))
+        (by simp [recordOp, stage, nw]) outs ok (by simpa [Program.execFrom, nw] using empty)
+      simpa [Program.execFrom, nw] using h
+  | scan _ _ ih =>
+      exact ih _ _ (by simp [recordOp, stage, nw]) outs (ok _) empty
+  | output _ _ _ => exact False.elim ok
+  | put _ _ rest _ => have h := empty_prefix rest db _ _ empty; contradiction
+
+private theorem readPhase_silent (db : Store) (table : Table) {α : Type}
+    (f : Phase → Tx α)
+    (hf : ∀ ph, single db table = some (.phase ph) → ReadOnlySilent db (f ph))
+    : ReadOnlySilent db (readPhase table >>= f) := by
+  dsimp [readPhase, Program.read, ReadOnlySilent, Bind.bind, Pure.pure, Program.bind]
+  have eq : valueAt db [] (table, none) = single db table := by simp [valueAt, find, single]
+  rw [eq]
+  cases h : single db table with
+  | none => trivial
+  | some v =>
+      cases v with
+      | phase ph => exact hf ph h
+      | txid _ | present | location _ | openKind _ => trivial
+
+private theorem advance_readOnlySilent (config : Config) (timeout : Bool) (db : Store)
+    (ne : single db .phase ≠ some (.phase .joining))
+    : ReadOnlySilent db (advance config timeout) := by
+  unfold advance
+  apply readPhase_silent
+  intro phase hph
+  apply readPhase_silent
+  intro lane _
+  cases phase with
+  | joining => exact False.elim (ne hph)
+  | gossiping =>
+      intro xs
+      dsimp [Program.bind]
+      split
+      · split <;> trivial
+      · cases timeout <;> cases lane <;> trivial
+  | voting =>
+      intro xs
+      dsimp [Program.bind]
+      split
+      · split <;> cases timeout <;> trivial
+      · cases timeout <;> cases lane <;> trivial
+  | opening | «open» => cases timeout <;> cases lane <;> trivial
+
+private theorem transaction_readOnlySilent (config : Config) (event : Event) (db : Store)
+    (ne : single db .phase ≠ some (.phase .joining))
+    : ReadOnlySilent db (transaction config event) := by
+  cases event with
+  | timeout => exact advance_readOnlySilent config true db ne
+  | retry => trivial
+  | receiveVote _ v => cases v <;> trivial
+  | receiveIAmOpen _ v =>
+      cases v with
+      | rejected => trivial
+      | accepted =>
+          unfold transaction
+          apply readPhase_silent
+          intro ph _
+          cases ph <;> trivial
+  | receiveGossip source _ v =>
+      cases v with
+      | rejected => trivial
+      | accepted =>
+          unfold transaction
+          apply readOnlySilent_bind
+          · change ReadOnlySilent db (match valueAt db [] (.chosen, none) with
+              | some (.location loc) => .done (some loc)
+              | _ => .done none)
+            cases valueAt db [] (.chosen, none) with
+            | none => trivial
+            | some v => cases v <;> trivial
+          · intro chosen
+            split
+            · trivial
+            · dsimp [Program.read, ReadOnlySilent, Bind.bind, Pure.pure, Program.bind]
+              split
+              · trivial
+              · exact advance_readOnlySilent config false db ne
+
+/-- A read-only transaction can emit a restart notification only when the snapshot's
+committed phase is already `joining`. -/
+theorem readOnly_restart_phase (config : Config) (event : Event) (db : Store)
+    (empty : ((transaction config event).exec db).normal.writes = [])
+    (chosen : Location)
+    (member : .notify (.restart chosen) ∈ ((transaction config event).exec db).outputs)
+    : single db .phase = some (.phase .joining) := by
+  by_cases h : single db .phase = some (.phase .joining)
+  · exact h
+  · have silent := readOnlySilent_exec db (transaction config event) {} rfl []
+      (transaction_readOnlySilent config event db h) empty
+    rw [show ((transaction config event).exec db).outputs = [] from silent] at member
+    contradiction
+
 end DisasterRecovery.Proofs.Transactions

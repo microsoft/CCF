@@ -50,17 +50,27 @@ private theorem onlyRestarts (node : Location) (items : List Output)
         (fun y h => only y (List.mem_cons_of_mem _ h))
       exact ⟨tail.1,fun k h => tail.2 k (by simpa using h)⟩
 
-/-- Run-time restart callbacks cannot deliver protocol messages or announce an opening. -/
-theorem unguarded_frame (node : Location) (items : List Output)
-    : (recordOutputs node {} (unguarded items)).outgoing = []
-      ∧ ∀ k, .opening k ∉ (recordOutputs node {} (unguarded items)).notifications := by
-  have only (x) (h : x ∈ unguarded items) : ∃ n, x = .notify (.restart n) := by
-    obtain ⟨_,h⟩ := List.mem_filter.mp h
-    cases x with
-    | send => contradiction
-    | notify n => cases n <;> first | contradiction | exact ⟨_,rfl⟩
-  have frame := onlyRestarts node _ {} only
-  exact ⟨frame.1,fun k => frame.2 k (by simp)⟩
+/-- Every recorded notification was already present or came from a `.notify` output. -/
+theorem recordOutputs_mem_notifications (node : Location)
+    (outs : Outputs Location Message Notification) (items : List Output)
+    (n : Notification)
+    (mem : n ∈ (recordOutputs node outs items).notifications)
+    : n ∈ outs.notifications ∨ .notify n ∈ items := by
+  induction items generalizing outs with
+  | nil => exact Or.inl mem
+  | cons item rest ih =>
+      cases item with
+      | send message target =>
+          rcases ih _ mem with old | tail
+          · exact Or.inl old
+          · exact Or.inr (List.mem_cons_of_mem _ tail)
+      | notify m =>
+          rcases ih _ mem with old | tail
+          · simp only [List.mem_append, List.mem_singleton] at old
+            rcases old with prev | rfl
+            · exact Or.inl prev
+            · exact Or.inr List.mem_cons_self
+          · exact Or.inr (List.mem_cons_of_mem _ tail)
 
 /-- A stale read-only commit with restart-only outputs cannot send or open. -/
 theorem restart_frame (node : Location) (items : List Output)
@@ -79,8 +89,6 @@ theorem timeout_enabled (node : Location) (config : Config) (recovered : TxID)
   | error reason => exact ⟨_, _, rfl⟩
   | ok result =>
       cases result
-      change ∃ after effects, ((release _ _).run {}).bind _ = some (after, effects)
-      rw [release_record]
       exact ⟨_, _, rfl⟩
 
 end DisasterRecovery.Proofs.Evaluation

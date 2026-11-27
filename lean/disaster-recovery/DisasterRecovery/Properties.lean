@@ -117,6 +117,26 @@ theorem full_gossip_preserves_commit_witness
           /\ openerState.openKind = some .failover := by
   exact Proofs.GlobalWitnesses.full_gossip_preserves_commit_witness
 
+/-- In a valid behaviour, a node that notifies a restart never notifies an opening,
+before or after. -/
+theorem restart_excludes_opening
+    : forall (config : Model.Config) (behaviour : Behaviour config),
+      forall (restartStep openingStep : Nat) (node chosen : Location) (kind : OpenKind),
+        Behaviour.NotificationAt config behaviour restartStep node (.restart chosen)
+        -> ¬ Behaviour.NotificationAt config behaviour openingStep node
+              (.opening kind) := by
+  exact Proofs.Model.restart_excludes_opening
+
+/-- Witness: for every valid configuration with at least two locations, a valid behaviour
+exists with a step notifying a restart. -/
+theorem restart_excludes_opening_witness
+    : forall (config : ValidConfig),
+        2 <= config.val.protocol.expectedLocations.length
+        -> exists (behaviour : Behaviour config),
+        exists (step : Nat) (node chosen : Location),
+          Behaviour.NotificationAt config behaviour step node (.restart chosen) := by
+  exact Proofs.GlobalWitnesses.restart_excludes_opening_witness
+
 -- Local invariants of running and committing a transaction: they hold for every node
 -- state, not only reachable ones.
 

@@ -49,6 +49,20 @@ example (config : Properties.ValidConfig)
   exact ⟨opener, txid, recovered, upToDate⟩
 
 example (config : Properties.ValidConfig)
+    (multiple : 2 <= config.val.protocol.expectedLocations.length)
+    : exists (behaviour : Properties.Behaviour config) (step : Nat) (node chosen
+                                                                      : Location),
+        Properties.Behaviour.NotificationAt config behaviour step node (.restart chosen)
+        /\ forall (openingStep : Nat) (kind : OpenKind),
+            ¬ Properties.Behaviour.NotificationAt config behaviour openingStep node
+                (.opening kind) := by
+  obtain ⟨behaviour, step, node, chosen, notified⟩ :=
+    Properties.restart_excludes_opening_witness config multiple
+  exact ⟨behaviour, step, node, chosen, notified, fun openingStep kind =>
+    Properties.restart_excludes_opening config behaviour step openingStep node chosen kind
+      notified⟩
+
+example (config : Properties.ValidConfig)
     : exists localStep : Properties.LocalStep,
         localStep.after = localStep.before
         /\ .rejected "gossip-frozen" ∈ localStep.effects.notifications := by

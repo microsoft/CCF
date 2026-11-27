@@ -1138,4 +1138,98 @@ theorem quorum_opener_unique_witness
       simp [voteOut]
       exact full)
 
+/-- A failover opener can announce itself to another configured node, which commits the restart. -/
+theorem restart_excludes_opening_witness (config : Properties.ValidConfig)
+    (multiple : 2 ≤ config.val.protocol.expectedLocations.length)
+    : ∃ (behaviour : Properties.Behaviour config) (index : Nat) (node chosen : Location),
+        Properties.Behaviour.NotificationAt config behaviour index node
+          (.restart chosen) := by
+  obtain ⟨winner, member, _, ready⟩ := full_choice config
+  let peers := config.val.protocol.expectedLocations.filter (· != winner)
+  have distinct := config.property.2.1
+  have nonemptyPeers : peers ≠ [] := by
+    intro empty
+    have sub : config.val.protocol.expectedLocations ⊆ [winner] := by
+      intro node mem
+      by_cases same : node = winner
+      · simp [same]
+      · have has : node ∈ peers := List.mem_filter.mpr ⟨mem, by simpa using same⟩
+        simp [empty] at has
+    have bound := distinct.length_le_of_subset sub
+    simp at bound
+    omega
+  obtain ⟨peer, peerMem⟩ := List.exists_mem_of_ne_nil _ nonemptyPeers
+  obtain ⟨configured, different⟩ := List.mem_filter.mp peerMem
+  have ne : peer ≠ winner := by simpa using different
+  let states := Function.update (selected config winner) winner (failedOver config winner)
+  obtain ⟨concrete, network, clean, reachable⟩ :=
+    failover_reachable config multiple winner member ready
+  let sent : Outputs Location Message Notification :=
+    { outgoing := peers.map fun target => { source := winner, target, payload := .iAmOpen } }
+  obtain ⟨tx, recovered⟩ := recovered_exists config winner member
+  have retry :
+      (Atomic.step (Capabilities.record winner) config.val.protocol tx (states winner) .retry).run {}
+        = some (states winner, sent) := by
+    have ph : (states winner).phase = .opening := by simp [states, failedOver]
+    have location : (states winner).location = winner := by
+      simp [states, failedOver, voted, selected]
+    simp only [Atomic.step, ph, location]
+    change (do
+      guard (!peers.isEmpty)
+      for target in peers do
+        (Capabilities.record winner).send .iAmOpen target
+      pure (states winner) : Effect Location Message Notification Atomic.NodeState).run {} = _
+    simp [guard, nonemptyPeers, broadcast_run, sent]
+  have retryReal :
+      (Model.Local.perform (Capabilities.record winner) config.val.protocol tx
+        (concrete winner) .retry).run {} = some (concrete winner, sent) := by
+    rw [Atomic.retry_agrees config.val.protocol winner tx (concrete winner) (states winner)
+      (clean winner member).represented (clean winner member).location, retry]
+    rfl
+  have sentStep := local_next config concrete network winner member .retry
+    (concrete winner) sent
+    (protocol_perform config winner tx (concrete winner) (concrete winner) .retry
+      sent recovered retryReal)
+  simp only [Function.update_eq_self] at sentStep
+  have sentReach : (Model.transitionSystem config).Reachable
+      { nodes := table config concrete, network := network ++ sent.outgoing } :=
+    .step (action := .local winner .retry) reachable sentStep
+  obtain ⟨peerTx, peerRecovered⟩ := recovered_exists config peer configured
+  let before := selected config winner peer
+  let after : Atomic.NodeState := { before with phase := .joining, chosen := some winner }
+  let restartOut : Outputs Location Message Notification :=
+    { notifications := [.restart winner] }
+  have body :
+      (Atomic.step (Capabilities.record peer) config.val.protocol peerTx before
+        (.receiveIAmOpen winner .accepted)).run {} = some (after, restartOut) := by
+    rfl
+  obtain ⟨mid, last, early, runEq, _, commitEq, _⟩ :=
+    Atomic.run_commit config.val.protocol peer peerTx (concrete peer) (states peer) after
+      (clean peer configured) (Model.receive winner .iAmOpen)
+      (receive_ne_retry winner .iAmOpen) restartOut (by intro _; simp [restartOut])
+      (by simpa [states, ne, before, Model.receive] using body)
+  have deliverStep := delivery_next config concrete (network ++ sent.outgoing)
+    { source := winner, target := peer, payload := .iAmOpen } configured
+    (List.mem_append_right _ (List.mem_map.mpr ⟨peer, peerMem, rfl⟩)) mid early
+    (protocol_perform config peer peerTx (concrete peer) mid
+      (.run (Model.receive winner .iAmOpen)) early peerRecovered runEq)
+  have deliverReach : (Model.transitionSystem config).Reachable
+      {
+        nodes := table config (Function.update concrete peer mid)
+        network := MultiNodeTransitionSystem.removeOne
+          { source := winner, target := peer, payload := .iAmOpen }
+          (network ++ sent.outgoing) ++ early.outgoing
+      } :=
+    .step (action := .deliver { source := winner, target := peer, payload := .iAmOpen })
+      sentReach deliverStep
+  obtain ⟨behaviour, index, node, restart⟩ :=
+    commit_notification_exists config (Function.update concrete peer mid) _
+      deliverReach peer configured last restartOut
+      (by
+        simpa [Model.protocol] using
+          protocol_perform config peer peerTx mid last (.commit 0) restartOut
+            peerRecovered commitEq)
+      (.restart winner) (by simp [restartOut])
+  exact ⟨behaviour, index, node, winner, restart⟩
+
 end DisasterRecovery.Proofs.GlobalWitnesses

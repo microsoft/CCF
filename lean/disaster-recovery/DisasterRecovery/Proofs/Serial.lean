@@ -56,25 +56,19 @@ theorem run_commit (c : Config) (node : Location) (tx : TxID)
       let mid := {before with pending := [a]}
       have start
           : (Model.Local.perform (Capabilities.record node) c tx before (.run e)).run {}
-            = some
-                (
-                  mid,
-                  Evaluation.recordOutputs node {} (Model.Local.unguarded ran.outputs)
-                ) := by
+            = some (mid, {}) := by
         have h : Model.Local.perform (Capabilities.record node) c tx before (.run e) =
             Model.Local.start (Capabilities.record node) c before e := by
           cases e <;> first | rfl | contradiction
         rw [h]
-        simp only [Model.Local.start,show ((Model.Local.transaction c e).exec before.store).result = .ok () from ok]
-        change ((Model.Local.release _ _).run {}).bind _ = _
-        rw [Evaluation.release_record]
-        simp only [mid, a, ran, body, clean.pending, List.nil_append]
+        simp only [Model.Local.start,
+          show ((Model.Local.transaction c e).exec before.store).result = .ok () from ok,
+          mid, a, ran, body, clean.pending, List.nil_append]
         rfl
       have valid := Program.exec_valid before.store body
       change validates before.store ran.normal.deps = true at valid
       by_cases empty : ran.normal.writes.isEmpty = true
-      · refine ⟨mid, { mid with pending := [] }, _, start,
-          (Evaluation.unguarded_frame node _).1, ?_, ?_⟩
+      · refine ⟨mid, { mid with pending := [] }, {}, start, rfl, ?_, ?_⟩
         · simp only [Model.Local.perform, mid, List.getElem?_cons_zero, a, empty,
             reduceIte]
           change ((Model.Local.release _ _).run {}).bind _ = _
@@ -90,7 +84,7 @@ theorem run_commit (c : Config) (node : Location) (tx : TxID)
               version := before.version + 1
               pending := []
           }
-        refine ⟨mid, last, _, start, (Evaluation.unguarded_frame node _).1, ?_, ?_⟩
+        refine ⟨mid, last, {}, start, rfl, ?_, ?_⟩
         · simp only [Model.Local.perform, mid, List.getElem?_cons_zero, a, empty, valid, reduceIte]
           change ((Model.Local.release _ _).run {}).bind _ = _
           rw [Evaluation.release_record]

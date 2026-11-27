@@ -713,6 +713,13 @@ private structure Linked (state : Model.State) (ghost : Execution.Global.State)
   represented
     : ∀ n st,
         (n,st) ∈ state.nodes → Atomic.Represents (CCF.OCC.values st.store) (strip st)
+  joiningReadOnly
+    : ∀ n st,
+        (n, st) ∈ state.nodes
+        → ∀ a ∈ st.pending,
+            a.normal.writes.isEmpty = true
+            → (∃ chosen, .notify (.restart chosen) ∈ a.outputs)
+            → st.phase = .joining
 
 /-- Retains a decorated local step's state and notifications, ignoring send effects. -/
 private def eraseOutput (output : Execution.Local.StepOutput) : Result :=
@@ -3744,9 +3751,14 @@ private theorem linked_update {before : Model.State}
     (network : (erase nextGhost).network = (erase ghost).network ++ sent)
     (pending : ∀ a ∈ next.pending, Provenance ghost node a.event)
     (rep : Atomic.Represents (CCF.OCC.values next.store) (strip next))
+    (jro
+      : ∀ a ∈ next.pending,
+          a.normal.writes.isEmpty = true
+          → (∃ chosen, .notify (.restart chosen) ∈ a.outputs)
+          → next.phase = .joining)
     : Linked {nodes := updateNodes before.nodes node next, network := base ++ sent}
         nextGhost := by
-  refine ⟨by rw [nodes, linked.nodes, strip_updates], ?_, ?_, ?_⟩
+  refine ⟨by rw [nodes, linked.nodes, strip_updates], ?_, ?_, ?_, ?_⟩
   · intro msg mem; rw [network, List.mem_append]; exact (List.mem_append.mp mem).imp_left (fun h => linked.queued (baseOK h))
   · intro n s member e has
     obtain ⟨old, present, eq⟩ := List.mem_map.mp member
@@ -3763,6 +3775,11 @@ private theorem linked_update {before : Model.State}
     split at eq
     · cases eq; exact rep
     · cases eq; exact linked.represented _ _ mem
+  · intro n s member
+    obtain ⟨p, mem, eq⟩ := List.mem_map.mp member
+    split at eq
+    · cases eq; exact jro
+    · cases eq; exact linked.joiningReadOnly _ _ mem
 
 private theorem linked_mem {s : Model.State} {g : Execution.Global.State} (l : Linked s g)
     {n st} (h : (n,st) ∈ s.nodes)
@@ -3814,11 +3831,41 @@ private theorem step_lifts {config : Model.Config} {before after : Model.State}
       rcases classified.pending a h with ⟨old,mem,eq⟩ | eq
       · exact eq ▸ linked.pending _ _ present old mem
       · exact origin _ eq
-    rcases classified.serialized with ⟨same,noSend,_⟩ | ⟨e,source,run⟩
-    · refine ⟨ghost,Or.inl rfl,linked_update linked node next base out.outgoing baseOK ?_ (by simp [noSend]) provenance classified.represented⟩
+    have jroOf (preserve : st.phase = .joining → next.phase = .joining)
+        : ∀ a ∈ next.pending,
+            a.normal.writes.isEmpty = true
+            → (∃ chosen, .notify (.restart chosen) ∈ a.outputs)
+            → next.phase = .joining := by
+      intro a mem empty ⟨chosen, hasRestart⟩
+      rcases classified.pendingOrigin a mem with old | ⟨ranEq, storeEq⟩
+      · exact preserve (linked.joiningReadOnly _ _ present a old empty ⟨chosen, hasRestart⟩)
+      · have ph := Transactions.readOnly_restart_phase config.protocol a.event st.store
+          (by rw [ranEq]; exact List.isEmpty_iff.mp empty) chosen
+          (by rw [ranEq]; exact hasRestart)
+        simp [Model.Local.NodeState.phase, storeEq, ph]
+    rcases classified.serialized with ⟨same,noSend,_,_⟩ | ⟨e,source,run⟩
+    · have jro := jroOf (fun h => (congrArg Atomic.NodeState.phase same).trans h)
+      refine ⟨ghost,Or.inl rfl,linked_update linked node next base out.outgoing baseOK ?_ (by simp [noSend]) provenance classified.represented jro⟩
       rw [show strip next = strip st from same]
       exact (replace_found _ node (strip st) nodup lookup).symm
-    · have sched : schedule config (erase ghost) node e = some {nodes := updateNodes (erase ghost).nodes node (strip next),network := (erase ghost).network ++ out.outgoing} := by
+    · have erased := Lifting.step_erases config.protocol tx (strip st) (source := node) e
+        { state := strip next, effects := out.notifications }
+        (by
+          change Option.map Lifting.capture
+              ((step (Capabilities.record node) config.protocol tx (project st) e).run {}) = _
+          rw [run]
+          rfl)
+      have eqState : (Execution.Local.step config.protocol (strip st) e).state = strip next :=
+        congrArg Lifting.Result.state erased
+      have preserve : st.phase = .joining → next.phase = .joining := by
+        intro joined
+        change (strip next).phase = .joining
+        rw [← eqState]
+        rcases Quorum.step_spec config.protocol (strip st) e with ⟨sameState, _⟩ | ⟨received, _, fromState, advanced⟩
+        · rw [sameState]; exact joined
+        · exact (Quorum.advance_spec advanced).terminal.1 (fromState.terminal.1 joined)
+      have jro := jroOf preserve
+      have sched : schedule config (erase ghost) node e = some {nodes := updateNodes (erase ghost).nodes node (strip next),network := (erase ghost).network ++ out.outgoing} := by
         simp only [schedule,lookup,recovered,Option.bind_eq_bind,Option.bind_some]
         change ((step _ _ _ (strip st) e).run {}).bind _ = _
         rw [run]; rfl
@@ -3831,7 +3878,7 @@ private theorem step_lifts {config : Model.Config} {before after : Model.State}
           · exact ⟨.deliver env,by simp [atomic,guard,queued,target,event]⟩
       obtain ⟨action,go⟩ := act
       obtain ⟨a,g,go,eq⟩ := lift action go
-      exact ⟨g,Or.inr ⟨a,go⟩,linked_update linked node _ _ _ baseOK (congrArg (·.nodes) eq) (congrArg (·.network) eq) provenance classified.represented⟩
+      exact ⟨g,Or.inr ⟨a,go⟩,linked_update linked node _ _ _ baseOK (congrArg (·.nodes) eq) (congrArg (·.network) eq) provenance classified.represented jro⟩
   cases action with
   | «local» node input =>
       apply localLift node ((Model.protocol config).internal input) before.network
@@ -3860,7 +3907,7 @@ private theorem model_reachable_lifts {config : Model.Config} {state : Model.Sta
   | @initial state init =>
       obtain ⟨valid,covered,distinct,net,nodes⟩ := init
       let ghost := Execution.Global.initial config (state.nodes.map Prod.fst)
-      refine ⟨ghost,.initial ⟨valid,_,distinct,covered,rfl⟩,?_,?_,?_,?_⟩
+      refine ⟨ghost,.initial ⟨valid,_,distinct,covered,rfl⟩,?_,?_,?_,?_,?_⟩
       · change (state.nodes.map Prod.fst).map _ = state.nodes.map _
         rw [List.map_map]; apply List.map_congr_left
         intro p mem; obtain ⟨n,st⟩ := p
@@ -3873,6 +3920,9 @@ private theorem model_reachable_lifts {config : Model.Config} {state : Model.Sta
       · intro n st present
         have eq : st = Model.Local.initialNode n := nodes _ present
         subst st; exact Atomic.represents_initial _
+      · intro n st present a mem
+        have eq : st = Model.Local.initialNode n := nodes _ present
+        simp [eq, Model.Local.initialNode] at mem
   | @step before after action prior transition ih =>
       obtain ⟨ghost,reachable,link⟩ := ih
       obtain ⟨next,same | ⟨_,go⟩,linked⟩ :=
@@ -4834,7 +4884,7 @@ private theorem notification_opening_state {config : Model.Config}
   obtain ⟨g,_,link⟩ := Lifting.model_reachable_lifts reachable
   have refines := Atomic.operation_refines config node tx st next _ out (link.represented _ _ (lookup found))
     (Transactions.reachable_wellFormed config before reachable _ (lookup found)) run
-  rcases refines.serialized with ⟨_,_,noOpening⟩ | ⟨e,_,atomic⟩
+  rcases refines.serialized with ⟨_,_,noOpening,_⟩ | ⟨e,_,atomic⟩
   · exact False.elim (noOpening kind notified)
   · have erased := Lifting.step_erases config.protocol tx (Atomic.project st) (source := node) e
         {state := Atomic.project next,effects := out.notifications} (by simp [atomic,Lifting.capture])
@@ -4848,6 +4898,48 @@ private theorem notification_opening_state {config : Model.Config}
     have state := Quorum.opening_effect_state _ _ _ _ member
     rw [eq] at state
     exact ⟨after,next,atAfter,lookup foundAfter,state⟩
+
+private theorem notification_restart_state {config : Model.Config}
+    {behaviour : Properties.Behaviour config} {index : Nat} {node chosen : Location}
+    (notification
+      : Properties.Behaviour.NotificationAt config behaviour index node (.restart chosen))
+    : ∃ after current,
+        behaviour.stateAt (index + 1) = some after
+        ∧ (node, current) ∈ after.nodes
+        ∧ current.phase = .joining := by
+  obtain ⟨before, after, action, st, next, out, atBefore, atAfter, _, _, found, foundAfter, run, notified⟩ := notification
+  have lookup {state : Model.State} {n : Location} {s : Model.Local.NodeState}
+      (h : CCF.MultiNodeTransitionSystem.nodeState state n = some s) : (n, s) ∈ state.nodes := by
+    obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp h
+    have eq : entry = (n, s) := Prod.ext (beq_iff_eq.mp (List.find?_some found :)) value
+    exact eq ▸ List.mem_of_find?_eq_some found
+  obtain ⟨tx, _, run⟩ := DisasterRecovery.Proofs.Local.validStep_run
+    (s := ⟨node, st, Properties.Behaviour.operation action, next, out⟩) run
+  have reachable := behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem atBefore)
+  obtain ⟨g, _, link⟩ := Lifting.model_reachable_lifts reachable
+  have refines := Atomic.operation_refines config node tx st next _ out (link.represented _ _ (lookup found))
+    (Transactions.reachable_wellFormed config before reachable _ (lookup found)) run
+  rcases refines.serialized with ⟨same, _, _, restartNotif⟩ | ⟨e, _, atomic⟩
+  · obtain ⟨a, mem, empty, inOut⟩ := restartNotif chosen notified
+    have stJoining := link.joiningReadOnly _ _ (lookup found) a mem empty ⟨chosen, inOut⟩
+    have nextJoining : next.phase = .joining :=
+      (congrArg Atomic.NodeState.phase same).trans stJoining
+    exact ⟨after, next, atAfter, lookup foundAfter, nextJoining⟩
+  · have erased := Lifting.step_erases config.protocol tx (Atomic.project st) (source := node) e
+        { state := Atomic.project next, effects := out.notifications }
+        (by simp [atomic, Lifting.capture])
+    have eq := congrArg Lifting.Result.state erased
+    have diag := congrArg Lifting.Result.effects erased
+    change (step config.protocol (Atomic.project st) e).state = Atomic.project next at eq
+    change (step config.protocol (Atomic.project st) e).effects.filterMap Effect.diagnostic = out.notifications at diag
+    rw [← diag] at notified
+    obtain ⟨eff, member, h⟩ := List.mem_filterMap.mp notified
+    cases eff <;> cases h
+    rcases Quorum.step_spec config.protocol (Atomic.project st) e with ⟨_, _, noRestart⟩ | ⟨_, _, _, advanced⟩
+    · exact False.elim (noRestart _ member)
+    · have state := (Quorum.advance_spec advanced).restart _ member
+      rw [eq] at state
+      exact ⟨after, next, atAfter, lookup foundAfter, state⟩
 
 private theorem current_quorum_unique_of_thresholds {config : Model.Config}
     {state : State} (reachable : Reachable config state)
@@ -4931,5 +5023,31 @@ theorem quorum_opener_unique
   exact Observed.current_quorum_unique_of_thresholds linked.reachable
     (firstOpener, firstState) (secondOpener, secondState)
     firstMember secondMember firstThreshold secondThreshold
+
+/-- No node in a model execution both requests restart and announces opening. -/
+theorem restart_excludes_opening (config : Model.Config)
+    (behaviour : Properties.Behaviour config) (restartStep openingStep : Nat)
+    (node chosen : Model.Local.Location) (kind : Model.Local.OpenKind)
+    (restart
+      : Properties.Behaviour.NotificationAt config behaviour restartStep node
+          (.restart chosen))
+    : ¬ Properties.Behaviour.NotificationAt config behaviour openingStep node
+          (.opening kind) := by
+  intro opening
+  obtain ⟨_, _, atR, memR, joined⟩ := Observed.notification_restart_state restart
+  obtain ⟨_, _, atO, memO, opened, _⟩ := Observed.notification_opening_state opening
+  obtain ⟨ghost, linked⟩ := History.history_correspondence behaviour
+    (Behaviour.max_isSome (Option.isSome_iff_exists.mpr ⟨_, atR⟩)
+      (Option.isSome_iff_exists.mpr ⟨_, atO⟩))
+  obtain ⟨r, rMem, rEvolves⟩ :=
+    Gossip.behaviour_node_final linked (Nat.le_max_left _ _) atR memR
+  obtain ⟨o, oMem, oEvolves⟩ :=
+    Gossip.behaviour_node_final linked (Nat.le_max_right _ _) atO memO
+  have same : r = o := congrArg Prod.snd
+    (Quorum.eq_of_key_eq (Invariants.reachable_well_formed linked.reachable).nodeKeysNodup
+      rMem oMem rfl)
+  have joining := rEvolves.terminal.1 joined
+  have openingPhase := oEvolves.terminal.2 (Or.inl opened)
+  grind
 
 end DisasterRecovery.Proofs.Model

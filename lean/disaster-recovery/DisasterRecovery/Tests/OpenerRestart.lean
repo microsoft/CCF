@@ -10,13 +10,14 @@ import DisasterRecovery.Proofs.Evaluation
 @[expose] public section
 
 /-!
-A node that opens by quorum also requests a restart, under the rule that a restart is
-requested when the transaction of an IAmOpen runs, not when it commits.
+A node that runs the transaction of an IAmOpen and then opens by quorum before that
+transaction commits does not request a restart.
 
 `A` and `C` vote for `A`, while `B` hears only itself and opens by failover. `A` runs the
 transaction of `C`'s vote, which gives it a quorum, and then that of `B`'s IAmOpen, which
-still reads the voting phase and so requests a restart. The vote commits first, so `A`
-opens, and the IAmOpen then conflicts on `phase`, runs again, and is rejected.
+still reads the voting phase. The vote commits first, so `A` opens, and the IAmOpen then
+conflicts on `phase`, runs again, and is rejected. A restart requested when the IAmOpen
+ran, as the C++ once did, would have restarted `A` although it opened.
 -/
 
 namespace DisasterRecovery.Tests.OpenerRestart
@@ -177,24 +178,6 @@ private def behaviour : Properties.Behaviour config :=
       simp only [StepsFrom, steps, and_true]
       and_intros <;> rfl)
 
-private theorem restarted : NotificationAt config behaviour 25 "A" (.restart "B") := by
-  refine ⟨
-    voteRunning,
-    bothRunning,
-    .deliver (iAmOpen "B" "A"),
-    aVoteRunning,
-    aBothRunning,
-    { notifications := [.restart "B"] },
-    rfl,
-    rfl,
-    rfl,
-    rfl,
-    rfl,
-    rfl,
-    rfl,
-    by simp
-  ⟩
-
 private theorem openedByQuorum
     : NotificationAt config behaviour 26 "A" (.opening .quorum) := by
   refine ⟨
@@ -214,12 +197,26 @@ private theorem openedByQuorum
     by simp
   ⟩
 
--- `A` both requests a restart and opens.
-example
-    : exists (restartStep openingStep : Nat) (node chosen : Location) (kind : OpenKind),
-        NotificationAt config behaviour restartStep node (.restart chosen)
-        /\ NotificationAt config behaviour openingStep node (.opening kind) :=
-  ⟨25, 26, "A", "B", .quorum, restarted, openedByQuorum⟩
+-- Running the IAmOpen notifies nothing, although `A` is still voting.
+example (notification : Notification)
+    : ¬ NotificationAt config behaviour 25 "A" notification := by
+  rintro ⟨before, _, action, nodeBefore, nodeAfter, outputs,
+    first, _, chosen, _, foundBefore, _, run, notified⟩
+  rw [behaviour, ofSteps_actionAt] at chosen
+  rw [behaviour, ofSteps_stateAt] at first
+  have actionEq : action = .deliver (iAmOpen "B" "A") := by
+    simpa [steps] using chosen.symm
+  have stateEq : before = voteRunning := by simpa [steps] using first.symm
+  subst action before
+  have beforeEq : nodeBefore = aVoteRunning := by
+    simpa [voteRunning, snapshot, MultiNodeTransitionSystem.nodeState]
+      using foundBefore.symm
+  subst nodeBefore
+  change some (aBothRunning, {}) = some (nodeAfter, outputs) at run
+  have effects := congrArg Prod.snd (Option.some.inj run)
+  dsimp only at effects
+  rw [← effects] at notified
+  simp at notified
 
 -- After the vote commits, committing the IAmOpen conflicts on `phase`, runs again,
 -- and is rejected.
@@ -241,6 +238,13 @@ example
     rfl,
     by simp
   ⟩
+
+-- `A` opens, so no step of the behaviour notifies its restart.
+example (step : Nat) (chosen : Location)
+    : ¬ NotificationAt config behaviour step "A" (.restart chosen) :=
+  fun restarted =>
+    Properties.restart_excludes_opening config behaviour step 26 "A" chosen .quorum
+      restarted openedByQuorum
 
 -- `A` ends opening by quorum, with no pending attempts.
 example

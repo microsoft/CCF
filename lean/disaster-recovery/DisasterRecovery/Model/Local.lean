@@ -408,14 +408,6 @@ def release (host : Capabilities Location Message Notification)
       host.notify notification
       release host rest
 
-/-- The outputs that the C++ passes to the host while the handler runs, without waiting
-for its transaction to commit: its restart requests. -/
-def unguarded (outputs : List Output) : List Output :=
-  outputs.filter
-    fun
-    | .notify (.restart _) => true
-    | _ => false
-
 /-- Runs the transaction of `event` on a snapshot of the committed store, leaving it
 pending. A transaction that fails is rejected at once. -/
 def start (host : Capabilities Location Message Notification) (config : Config)
@@ -427,7 +419,6 @@ def start (host : Capabilities Location Message Notification) (config : Config)
       host.notify (.rejected reason)
       return state
   | .ok () =>
-      release host (unguarded ran.outputs)
       let attempt := { event, normal := ran.normal, outputs := ran.outputs }
       return { state with pending := state.pending ++ [attempt] }
 
