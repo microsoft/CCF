@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
+#include "ccf/service/identity_type.h"
 
 #include <cstdint>
 #include <format>
@@ -13,21 +14,6 @@
 
 namespace ccf
 {
-  /// Cryptographic family of an identity.
-  // Preserve the existing 64-bit C++ representation.
-  // NOLINTNEXTLINE(performance-enum-size)
-  enum class IdentityType : uint64_t
-  {
-    /// Classical cryptographic identity.
-    CLASSICAL = 0,
-    /// Post-quantum cryptographic identity.
-    PQ = 1,
-  };
-
-  DECLARE_JSON_ENUM(
-    IdentityType,
-    {{IdentityType::CLASSICAL, "CLASSICAL"}, {IdentityType::PQ, "PQ"}});
-
   /// Encoding of the certificate or public key held by an identity.
   enum class IdentityKind : uint8_t
   {
