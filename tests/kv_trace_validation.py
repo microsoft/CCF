@@ -22,6 +22,7 @@ TRACE_CASES = {
     "KV trace per-map global snapshots",
     "KV trace disjoint concurrent commits",
     "KV trace replication failure after apply",
+    "KV trace rollback during replicate",
 }
 REQUIRED_FUZZ_COVERAGE = {
     "snapshot",

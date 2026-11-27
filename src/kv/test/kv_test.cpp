@@ -25,6 +25,7 @@
 #undef FAIL
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <random>
 #include <set>
 #include <stop_token>
@@ -5346,6 +5347,243 @@ TEST_CASE("Ledger entry chunk request")
       REQUIRE(
         (header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
     }
+  }
+}
+
+TEST_CASE("Store version wraps to 0 past INT64_MAX")
+{
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+  kv_store.initialise_term(2);
+
+  constexpr auto max_signed_version =
+    static_cast<ccf::kv::Version>(std::numeric_limits<int64_t>::max());
+  ccf::kv::StoreSnapshot snapshot(max_signed_version);
+  auto serialised = snapshot.serialise(encryptor);
+  ccf::kv::ConsensusHookPtrs hooks;
+  REQUIRE(
+    kv_store.deserialise_snapshot(
+      serialised.data(), serialised.size(), hooks) ==
+    ccf::kv::ApplyResult::PASS);
+  REQUIRE(kv_store.current_version() == max_signed_version);
+
+  const auto wrapped_txid = kv_store.next_txid();
+  REQUIRE(wrapped_txid.view == 2);
+  REQUIRE(wrapped_txid.seqno == 0);
+  REQUIRE(kv_store.current_version() == 0);
+
+  const auto next_txid = kv_store.next_txid();
+  REQUIRE(next_txid.view == 2);
+  REQUIRE(next_txid.seqno == 1);
+  REQUIRE(kv_store.current_version() == 1);
+}
+
+TEST_CASE("Store::commit edge cases")
+{
+  class FixedResultPendingTx : public ccf::kv::PendingTx
+  {
+    ccf::kv::CommitResult result;
+
+  public:
+    explicit FixedResultPendingTx(ccf::kv::CommitResult result_) :
+      result(result_)
+    {}
+
+    ccf::kv::PendingTxInfo call() override
+    {
+      return {result, {}, ccf::empty_claims(), {}, {}};
+    }
+  };
+
+  SUBCASE("Out-of-order committable commits do not regress last_committable")
+  {
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+    store.set_consensus(consensus);
+    store.initialise_term(1);
+
+    const auto txid1 = store.next_txid();
+    const auto txid2 = store.next_txid();
+    REQUIRE(txid1.seqno == 1);
+    REQUIRE(txid2.seqno == 2);
+
+    // Commit seqno 2 first so last_committable advances to 2 while seqno 2
+    // waits in pending_txs for seqno 1.
+    REQUIRE(
+      store.commit(
+        txid2,
+        std::make_unique<FixedResultPendingTx>(ccf::kv::CommitResult::SUCCESS),
+        true) == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(consensus->number_of_replicas() == 0);
+    REQUIRE(store.committable_gap() == 0);
+
+    // Committing an earlier committable seqno must not lower last_committable,
+    // and should drain both queued entries in order.
+    REQUIRE(
+      store.commit(
+        txid1,
+        std::make_unique<FixedResultPendingTx>(ccf::kv::CommitResult::SUCCESS),
+        true) == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(consensus->number_of_replicas() == 2);
+    REQUIRE(store.committable_gap() == 0);
+  }
+
+  SUBCASE("Unexpected non-SUCCESS PendingTx result is handled without aborting")
+  {
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+    store.set_consensus(consensus);
+    store.initialise_term(1);
+
+    const auto txid = store.next_txid();
+    REQUIRE(
+      store.commit(
+        txid,
+        std::make_unique<FixedResultPendingTx>(
+          ccf::kv::CommitResult::FAIL_CONFLICT),
+        false) == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(consensus->number_of_replicas() == 1);
+  }
+}
+
+TEST_CASE("untyped::Map::create_committer rejects unexpected AbstractChangeSet")
+{
+  class DummyChangeSet : public ccf::kv::AbstractChangeSet
+  {
+  public:
+    [[nodiscard]] bool has_writes() const override
+    {
+      return false;
+    }
+  };
+
+  ccf::kv::Store store;
+  ccf::kv::untyped::Map map(&store, "public:map");
+  DummyChangeSet dummy;
+
+  REQUIRE_THROWS_WITH_AS(
+    map.create_committer(&dummy), "Type confusion error", std::logic_error);
+}
+
+TEST_CASE("apply_changes ignores new_maps entries absent from changes")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+  auto written_map =
+    std::make_shared<ccf::kv::untyped::Map>(&store, "public:written");
+  auto untracked_map =
+    std::make_shared<ccf::kv::untyped::Map>(&store, "public:untracked");
+
+  auto changeset = written_map->create_change_set(0, false);
+  REQUIRE(changeset != nullptr);
+  const auto key =
+    ccf::kv::serialisers::JsonSerialiser<std::string>::to_serialised("k");
+  const auto val =
+    ccf::kv::serialisers::JsonSerialiser<std::string>::to_serialised("v");
+  changeset->writes[key] = val;
+
+  ccf::kv::OrderedChanges changes;
+  changes.emplace(
+    std::piecewise_construct,
+    std::forward_as_tuple("public:written"),
+    std::forward_as_tuple(written_map, std::move(changeset)));
+
+  ccf::kv::MapCollection new_maps;
+  new_maps["public:written"] = written_map;
+  new_maps["public:untracked"] = untracked_map;
+
+  ccf::kv::ConsensusHookPtrs hooks;
+  store.lock_map_set();
+  const auto committed_v = ccf::kv::apply_changes(
+    changes,
+    []() -> std::optional<ccf::kv::Version> { return 1; },
+    hooks,
+    new_maps,
+    std::nullopt,
+    false);
+  store.unlock_map_set();
+
+  REQUIRE(committed_v.has_value());
+  REQUIRE(*committed_v == 1);
+  REQUIRE(store.get_map(1, "public:written") == written_map);
+  REQUIRE(store.get_map(1, "public:untracked") == nullptr);
+}
+
+TEST_CASE("BaseTx internal invariant guards")
+{
+  class TestBaseTx : public ccf::kv::BaseTx
+  {
+  public:
+    using BaseTx::BaseTx;
+    using BaseTx::compacted_version_conflict;
+    using BaseTx::get_map_and_change_set_by_name;
+    using BaseTx::retain_change_set;
+  };
+
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+  SUBCASE("retain_change_set rejects duplicate map name")
+  {
+    TestBaseTx tx(&store);
+    auto mc = tx.get_map_and_change_set_by_name("public:dup", false);
+    auto untyped_map = std::dynamic_pointer_cast<ccf::kv::untyped::Map>(mc.map);
+    REQUIRE(untyped_map != nullptr);
+
+    tx.retain_change_set("public:dup", std::move(mc.changeset), mc.map);
+
+    auto duplicate_cs = untyped_map->create_change_set(0, false);
+    REQUIRE_THROWS_WITH_AS(
+      tx.retain_change_set("public:dup", std::move(duplicate_cs), mc.map),
+      "Re-creating change set for map public:dup",
+      std::logic_error);
+  }
+
+  SUBCASE(
+    "get_map_and_change_set_by_name rejects duplicate created map without "
+    "handle")
+  {
+    TestBaseTx tx(&store);
+    auto mc = tx.get_map_and_change_set_by_name("public:unretained", false);
+    REQUIRE(mc.map != nullptr);
+
+    REQUIRE_THROWS_WITH_AS(
+      tx.get_map_and_change_set_by_name("public:unretained", false),
+      "Created map without creating handle over it",
+      std::logic_error);
+  }
+
+  SUBCASE("get_map_and_change_set_by_name rejects non-untyped AbstractMap")
+  {
+    class WrongMapStore : public ccf::kv::Store
+    {
+    public:
+      std::shared_ptr<ccf::kv::AbstractMap> get_map(
+        ccf::kv::Version, const std::string& map_name) override
+      {
+        return std::make_shared<FakeMap>(map_name);
+      }
+    };
+
+    WrongMapStore wrong_store;
+    ccf::kv::ReadOnlyTx tx(&wrong_store);
+    REQUIRE_THROWS_WITH_AS(
+      tx.ro<MapTypes::StringString>("public:wrong_type"),
+      "Map public:wrong_type has unexpected type",
+      std::logic_error);
+  }
+
+  SUBCASE("compacted_version_conflict requires read_txid to be set")
+  {
+    TestBaseTx tx(&store);
+    REQUIRE_THROWS_WITH_AS(
+      tx.compacted_version_conflict("public:map"),
+      "read_txid should have already been set",
+      std::logic_error);
   }
 }
 
