@@ -23,18 +23,20 @@ Lake checks independent proof modules in parallel; the global witness constructi
 
 ## Model
 
-`Model/Local.lean` defines one node.
+`Model/Local.lean` defines one node over a versioned [`CCF.OCC`](../common/CCF/OCC.lean) store holding six protocol tables (`phase`, `timeoutPhase`, `gossips`, `chosen`, `votes`, and `openKind`), a version counter, and a queue of pending transaction attempts.
 Its phases are gossiping, voting, opening, joining, and open.
-It also models a timeout lane, retries, failover, and restart.
-`Local.step` returns `none` for a disabled event.
-For an enabled event it returns the next state and invokes the host's `send` and `notify` callbacks.
-A rejected receive is an enabled step that emits a notification.
+It also models a timeout lane, retries, failover, and restart notifications.
+Receive and timeout handlers are `CCF.OCC.Program` transactions executed by `Local.perform`, which separates running a transaction on a snapshot (`Operation.run`), committing a pending attempt (`Operation.commit index`), and resending messages (`Operation.retry`).
+`Local.perform` returns `none` for a disabled operation.
+Running a failing transaction notifies a rejection and leaves the node unchanged; otherwise the attempt is queued with its staged writes, read dependencies, and outputs, without releasing outputs before commit.
+Committing a read-only attempt releases its outputs without validation.
+Committing a writing attempt validates its read dependencies against the committed store: if valid, it publishes the writes at the next version and releases the outputs; otherwise it rolls the attempt back and runs its event again on the committed store.
 `Validation.accepted` and `Validation.rejected` represent the results of the C++ quote and certificate checks.
-The model does not define that cryptography.
+The model does not define that cryptography, and it does not model the C++ `nodes` table written by every handler.
 
 [`CCF.MultiNodeTransitionSystem`](../common/CCF/MultiNodeTransitionSystem.lean) in the [common package](../common/README.md) composes copies of one local protocol into a message-passing network.
 Each step executes one node once, collects its outputs with `Capabilities.record`, and appends its sends to the queue.
-Delivery consumes any queued envelope, not only the first.
+Delivery consumes any queued envelope, not only the first, and runs the receive handler's transaction.
 Notifications are not stored in the global state.
 
 `Model.lean` supplies each node's recovered TxID and adds `Config.Valid` to the initial-state predicate.
@@ -43,15 +45,19 @@ The proofs reconstruct sends and notifications by re-executing the recorded acti
 
 ## Properties
 
-The local properties are invariants of `Local.step`.
+The local properties are invariants of `Local.perform`.
 They hold for every node state, not only reachable ones.
 Each quantifies a `LocalStep` record and assumes `ValidStep`: re-executing the step yields exactly the recorded after-state and outputs.
+The two commit properties additionally assume `Commits`, meaning the indexed pending attempt was produced by running its transaction on some snapshot and validates against the current store.
 
 The global properties quantify a `Behaviour config`, a valid finite or infinite execution recording an initial state and actions paired with their destination states.
 See the [shared behaviour definitions](../common/README.md#transition-systems) for indexed access and the domain convention for finite behaviours.
 `Behaviour.NotificationAt` states that the recorded action at step `i`, taken by `node` between states `i` and `i + 1`, emitted a given notification.
 
 `quorum_opener_unique` states that all `opening quorum` notifications in a behaviour originate from one node.
+
+`restart_excludes_opening` states that a node notifying a restart in a behaviour never notifies an opening, before or after.
+`Tests/OpenerRestart.lean` exercises the conflicting `IAmOpen` interleaving against this rule.
 
 `deadlock_free` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every recovery configuration.
 Enabled stutters after completion count, so this does not assert eventual recovery or fairness.
@@ -62,9 +68,9 @@ The corresponding witness supplies a reachable initial state for every valid rec
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
-Each safety theorem has a corresponding `_witness` lemma asserting that, for every valid configuration, some valid behaviour or step satisfies its premises.
+Each safety theorem has a corresponding `_witness` lemma asserting that some valid behaviour or step satisfies its premises.
 `ValidConfig` restricts `Model.Config` to configurations satisfying the existing `Config.Valid` predicate without changing the model configuration type.
-The full-gossip witness includes a failover opening and requires at least two expected locations, since a single vote already forms a quorum in a single-location configuration.
+The full-gossip and restart witnesses require at least two expected locations, since a single vote already forms a quorum in a single-location configuration and a failover opener needs a peer to notify.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
 
 Freshness is a necessary condition for election, not a definition of commitment in CCF.

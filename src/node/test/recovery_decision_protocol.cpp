@@ -71,6 +71,12 @@ namespace ccf
       ns.consensus = std::move(consensus);
     }
 
+    static void set_commit_callbacks(
+      NodeState& ns, std::shared_ptr<ccf::CommitCallbackSubsystem> callbacks)
+    {
+      ns.commit_callbacks = std::move(callbacks);
+    }
+
     static void set_last_recovered_signed_idx(
       NodeState& ns, ::consensus::Index idx)
     {
@@ -268,6 +274,7 @@ namespace
   {
     NetworkState network;
     std::shared_ptr<ccf::kv::test::PrimaryStubConsensus> consensus;
+    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks;
     StubRuntimeControl runtime_control;
     std::unique_ptr<NodeState> node_state;
     ccf::crypto::Pem self_cert;
@@ -293,6 +300,7 @@ namespace
       network.tables->set_encryptor(
         std::make_shared<ccf::kv::NullTxEncryptor>());
       consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+      commit_callbacks = std::make_shared<ccf::CommitCallbackSubsystem>();
       network.tables->set_consensus(consensus);
       network.identity = make_network_identity();
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
@@ -319,6 +327,8 @@ namespace
       RecoveryDecisionProtocolTestAccess::set_self_signed_cert(
         *node_state, self_cert);
       RecoveryDecisionProtocolTestAccess::set_consensus(*node_state, consensus);
+      RecoveryDecisionProtocolTestAccess::set_commit_callbacks(
+        *node_state, commit_callbacks);
       RecoveryDecisionProtocolTestAccess::set_last_recovered_signed_idx(
         *node_state, last_recovered_seqno);
       consensus->view_history.update(1, 2);
@@ -357,9 +367,21 @@ namespace
         }
         network.tables->unset_global_hook(
           Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
+        if (commit_callbacks != nullptr)
+        {
+          commit_callbacks->shutdown();
+        }
       }
       catch (...)
       {}
+    }
+
+    void commit_to_latest()
+    {
+      const auto ver = network.tables->current_version();
+      const auto view = consensus->get_view(ver);
+      network.tables->compact(ver);
+      commit_callbacks->on_commit({view, ver}, consensus->view_history);
     }
 
     RecoveryDecisionProtocolSubsystem& rdp()
@@ -1346,6 +1368,10 @@ TEST_CASE("Recovery trace quorum open complete")
   CHECK(n1.receive_iamopen(n2).status == HTTP_STATUS_NO_CONTENT);
   CHECK(n0.current_sm_state() == StateMachine::JOINING);
   CHECK(n1.current_sm_state() == StateMachine::JOINING);
+  CHECK(n0.fix.runtime_control.restart_count == 0);
+  CHECK(n1.fix.runtime_control.restart_count == 0);
+  n0.fix.commit_to_latest();
+  n1.fix.commit_to_latest();
   CHECK(n0.fix.runtime_control.restart_count == 1);
   CHECK(n1.fix.runtime_control.restart_count == 1);
 
@@ -1435,6 +1461,8 @@ TEST_CASE("Recovery trace voting zero votes timeout failover")
   n1.run_retry();
   CHECK(n0.receive_iamopen(n1).status == HTTP_STATUS_NO_CONTENT);
   CHECK(n0.current_sm_state() == StateMachine::JOINING);
+  CHECK(n0.fix.runtime_control.restart_count == 0);
+  n0.fix.commit_to_latest();
   CHECK(n0.fix.runtime_control.restart_count == 1);
   n0.run_retry();
   CHECK(n0.retry_task->is_cancelled());
@@ -1620,6 +1648,119 @@ TEST_CASE("Recovery trace protocol rejections")
   CHECK(n2.current_sm_state() == StateMachine::OPEN);
   n2.run_retry();
   CHECK(n2.retry_task->is_cancelled());
+}
+
+TEST_CASE(
+  "Recovery decision restart waits for global commit and rejects bad cert")
+{
+  drain_main_job_board();
+
+  const std::vector<sealing_recovery::Location> locations = {
+    {"node0", "127.0.0.1:8200"},
+    {"node1", "127.0.0.1:8201"},
+    {"node2", "127.0.0.1:8202"}};
+
+  SUBCASE("Conflicting IAmOpen transaction does not request restart")
+  {
+    RecoveryDecisionProtocolFixture fix(locations);
+    fix.commit_service_and_self_node();
+    fix.commit_sm_state(StateMachine::VOTING, StateMachine::VOTING);
+
+    // Populate node1 info so advance() in JOINING can resolve the target.
+    {
+      auto tx = fix.network.tables->create_tx();
+      auto req = fix.make_iamopen_request("node1");
+      tx.rw<NodeInfoMap>(Tables::RECOVERY_DECISION_PROTOCOL_NODES)
+        ->put("node1", ccf::recovery_decision_protocol::NodeInfo{req.info, {}});
+      tx.rw<Votes>(Tables::RECOVERY_DECISION_PROTOCOL_VOTES)->insert("node0");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      fix.commit_to_latest();
+    }
+
+    // Both transactions read the same VOTING snapshot before either commits.
+    auto tx_vote = fix.network.tables->create_tx();
+    auto tx_iamopen = fix.network.tables->create_tx();
+
+    // T_iamopen reads VOTING (as recovery_decision_protocol_iamopen does),
+    // writes JOINING, and runs advance() before committing.
+    CHECK(
+      tx_iamopen.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
+        ->get() == StateMachine::VOTING);
+    tx_iamopen.rw<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
+      ->put(StateMachine::JOINING);
+    tx_iamopen.rw<ChosenNode>(Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
+      ->put("node1");
+    AdvanceTrace iamopen_trace;
+    fix.rdp().advance(tx_iamopen, false, iamopen_trace);
+    CHECK(iamopen_trace.restart);
+    CHECK(iamopen_trace.join_target.has_value());
+    CHECK(fix.runtime_control.restart_count == 0);
+
+    // T_vote commits OPENING first, causing T_iamopen to conflict on SMState.
+    tx_vote.rw<Votes>(Tables::RECOVERY_DECISION_PROTOCOL_VOTES)
+      ->insert("node2");
+    AdvanceTrace vote_trace;
+    fix.rdp().advance(tx_vote, false, vote_trace);
+    REQUIRE(tx_vote.commit() == ccf::kv::CommitResult::SUCCESS);
+    CHECK(tx_iamopen.commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
+
+    fix.commit_to_latest();
+    CHECK(fix.runtime_control.restart_count == 0);
+    auto ro = fix.network.tables->create_read_only_tx();
+    CHECK(
+      ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)->get() ==
+      StateMachine::OPENING);
+  }
+
+  SUBCASE("Rolled-back local JOINING commit does not request restart")
+  {
+    const auto prev_cert =
+      make_self_signed_cert(ccf::crypto::make_ec_key_pair(), "CN=PrevRollback");
+    VirtualRecoveryNode n0(locations, 0, {2, 5}, prev_cert);
+    VirtualRecoveryNode n1(locations, 1, {2, 10}, prev_cert);
+
+    n0.fix.commit_sm_state(StateMachine::VOTING, StateMachine::VOTING);
+    n1.fix.commit_sm_state(StateMachine::OPENING, StateMachine::OPENING);
+
+    const auto resp = n0.receive_iamopen(n1);
+    REQUIRE(resp.status == HTTP_STATUS_NO_CONTENT);
+    CHECK(n0.current_sm_state() == StateMachine::JOINING);
+    CHECK(n0.fix.runtime_control.restart_count == 0);
+
+    // Invalidate the locally committed view-2 TxID by committing view 3.
+    const auto local_ver = n0.fix.network.tables->current_version();
+    aft::ViewHistory rolled_back_history;
+    rolled_back_history.update(1, 2);
+    rolled_back_history.update(local_ver, 3);
+    n0.fix.commit_callbacks->on_commit({3, local_ver}, rolled_back_history);
+    CHECK(n0.fix.runtime_control.restart_count == 0);
+  }
+
+  SUBCASE("Invalid service certificate aborts before writing JOINING")
+  {
+    const auto prev_cert =
+      make_self_signed_cert(ccf::crypto::make_ec_key_pair(), "CN=PrevBadCert");
+    VirtualRecoveryNode n0(locations, 0, {2, 5}, prev_cert);
+    VirtualRecoveryNode n1(locations, 1, {2, 10}, prev_cert);
+
+    n0.fix.commit_sm_state(StateMachine::VOTING, StateMachine::VOTING);
+
+    IAmOpenRequest bad_req;
+    bad_req.info = n1.request_info();
+    bad_req.info.service_cert_der = {0x01, 0x02, 0x03};
+    bad_req.prev_service_fingerprint = service_fingerprint_from_pem(prev_cert);
+    bad_req.txid = {2, 10};
+
+    const auto resp = send_node_request(
+      *n0.frontend,
+      "/recovery_decision_protocol/iamopen",
+      nlohmann::json(bad_req),
+      n1.fix.self_cert);
+    CHECK(resp.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK(n0.current_sm_state() == StateMachine::VOTING);
+    n0.fix.commit_to_latest();
+    CHECK(n0.fix.runtime_control.restart_count == 0);
+  }
 }
 
 int main(int argc, char** argv)

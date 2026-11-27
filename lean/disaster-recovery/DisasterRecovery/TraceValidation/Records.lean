@@ -279,6 +279,8 @@ def parseEvent (record : Record) : Checked TraceEvent := do
           | .bool flag => pure flag
           | _ => throw (invalid "invalid restart")
       let chosen ← ifPresent "chosen" (parseName location)
+      require (!(restart.getD false) || chosen.isSome)
+        s!"{location}: {kind} requests restart without recording the chosen node"
       let execution : Execution :=
         {
           pre,

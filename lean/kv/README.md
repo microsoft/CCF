@@ -33,7 +33,7 @@ Each record supplies model actions and expected outputs; trace-only bookkeeping 
 
 ## Model
 
-`Kv/Model/Types.lean` defines finite association lists over arbitrary equality-bearing map/key/value types.
+`Kv/Model/Types.lean` re-exports the shared versioned-store and OCC definitions from [`CCF.OCC`](../common/CCF/OCC.lean) over finite association lists with arbitrary equality-bearing map/key/value types, and defines the KV-specific store, snapshot, and transaction types.
 The model instance uses opaque strings for map names, keys, and values.
 The trace adapter represents serialized key/value bytes losslessly as lowercase hex.
 There are no fixed bounds on map/key/transaction counts.

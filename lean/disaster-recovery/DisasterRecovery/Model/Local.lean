@@ -1,6 +1,7 @@
 module
 
 public import CCF.Capabilities
+public import CCF.OCC
 public import CCF.TxID
 
 @[expose] public section
@@ -8,6 +9,7 @@ public import CCF.TxID
 namespace DisasterRecovery.Model.Local
 
 open CCF (Capabilities)
+open CCF.OCC (Program)
 
 /-- A node's configured recovery location. -/
 abbrev Location := String
@@ -42,7 +44,7 @@ inductive Validation where
   | accepted
   /-- The message failed quote or certificate validation. -/
   | rejected
-deriving Repr, BEq, Hashable, Inhabited, DecidableEq
+deriving Repr, Hashable, Inhabited, DecidableEq
 
 /-- The recovery instance identifier and expected participants. -/
 structure Config where
@@ -59,25 +61,42 @@ def Config.isValid (config : Config) : Bool :=
   && !config.expectedLocations.any String.isEmpty
   && config.expectedLocations.eraseDups.length = config.expectedLocations.length
 
-/-- One node's recovery state, without message queues or execution history. -/
-structure NodeState where
-  /-- This node's recovery location. -/
-  location : Location
-  /-- Current protocol phase. -/
-  phase : Phase := .gossiping
-  /-- Phase reached by the independent timeout lane. -/
-  timeoutState : Phase := .gossiping
+/-- The tables of the node's key-value store that the protocol reads and writes. -/
+inductive Table where
+  /-- The protocol phase, a single value. -/
+  | phase
+  /-- The phase reached by the independent timeout lane, a single value. -/
+  | timeoutPhase
   /-- The first accepted ledger tip from each gossip source. -/
-  gossips : List (Prod Location TxID) := []
-  /-- Distinct sources of accepted votes. -/
-  votes : List Location := []
-  /-- The selected opener, or the node to join after an IAmOpen receive. -/
-  chosen : Option Location := none
-  /-- The justification recorded when this node starts opening. -/
-  openKind : Option OpenKind := none
-  /-- Whether joining has requested a restart from the chosen node. -/
-  restartRequested : Bool := false
-deriving Repr, BEq, ReflBEq, LawfulBEq, Hashable, Inhabited
+  | gossips
+  /-- The selected opener, or the node to join after an IAmOpen receive, a single value. -/
+  | chosen
+  /-- The sources of accepted votes. -/
+  | votes
+  /-- The justification recorded when this node starts opening, a single value. -/
+  | openKind
+deriving Repr, Hashable, DecidableEq
+
+/-- A location in a table with one entry for each source, or `none` in a table that
+holds a single value. -/
+abbrev Key := Option Location
+
+/-- The values the tables hold. -/
+inductive Value where
+  /-- A phase, in `phase` and `timeoutPhase`. -/
+  | phase (phase : Phase)
+  /-- A recovered ledger tip, in `gossips`. -/
+  | txid (txid : TxID)
+  /-- A location, in `chosen`. -/
+  | location (location : Location)
+  /-- An opening justification, in `openKind`. -/
+  | openKind (kind : OpenKind)
+  /-- Membership, in `votes`. -/
+  | present
+deriving Repr, Hashable, DecidableEq
+
+/-- The committed state of the node's key-value store. -/
+abbrev Store := CCF.OCC.DB Table Key Value
 
 /-- A received message and its validation result, or a local timeout or retry. -/
 inductive Event where
@@ -91,7 +110,7 @@ inductive Event where
   | timeout
   /-- Resend the messages appropriate to the current phase. -/
   | retry
-deriving Repr, BEq, Hashable
+deriving Repr, DecidableEq, Hashable
 
 /-- Messages emitted by a retry and delivered to another recovery node. -/
 inductive Message where
@@ -101,7 +120,7 @@ inductive Message where
   | vote
   /-- Announce that the sender is opening the recovered service. -/
   | iAmOpen
-deriving Repr, BEq, ReflBEq, LawfulBEq
+deriving Repr, DecidableEq
 
 /-- Host-visible outcomes of a local recovery step. -/
 inductive Notification where
@@ -113,7 +132,97 @@ inductive Notification where
   | completed
   /-- An incoming message was rejected without changing the local state. -/
   | rejected (reason : String)
-deriving Repr, BEq, Hashable
+deriving Repr, DecidableEq, Hashable
+
+/-- What a transaction asks of the host. -/
+inductive Output where
+  /-- Send a message to a location. -/
+  | send (message : Message) (target : Location)
+  /-- Notify the host. -/
+  | notify (notification : Notification)
+deriving Repr, DecidableEq
+
+/-- A transaction body over the node's store. -/
+abbrev Tx := Program Table Key Value Output
+
+/-- A transaction that has run on a snapshot of the store and has not committed. -/
+structure Attempt where
+  /-- The event the transaction handles. -/
+  event : Event
+  /-- Its staged writes, and what it read from its snapshot. -/
+  normal : CCF.OCC.Normal Table Key Value
+  /-- What it asks of the host. -/
+  outputs : List Output
+deriving Repr, DecidableEq
+
+/-- The store of a node that starts the protocol: both phases are gossiping. -/
+def initialStore : Store :=
+  [
+    ((.phase, none), { value := .phase .gossiping, version := 0 }),
+    ((.timeoutPhase, none), { value := .phase .gossiping, version := 0 })
+  ]
+
+/-- One node's recovery state. A transaction's snapshot captures `store`; the rest is
+outside any snapshot. -/
+structure NodeState where
+  /-- This node's recovery location. -/
+  location : Location
+  /-- The committed key-value store. -/
+  store : Store := initialStore
+  /-- The version of the latest transaction that wrote to the store. -/
+  version : Nat := 0
+  /-- Transactions that have run and have not committed, oldest first. -/
+  pending : List Attempt := []
+deriving Repr, DecidableEq
+
+/-- The single value of `table` in `store`. -/
+def single (store : Store) (table : Table) : Option Value :=
+  (CCF.OCC.find store (table, none)).map (·.value)
+
+/-- The committed protocol phase. -/
+def NodeState.phase (state : NodeState) : Phase :=
+  match single state.store .phase with
+  | some (.phase phase) => phase
+  | _ => .gossiping
+
+/-- The committed phase of the timeout lane. -/
+def NodeState.timeoutState (state : NodeState) : Phase :=
+  match single state.store .timeoutPhase with
+  | some (.phase phase) => phase
+  | _ => .gossiping
+
+/-- The committed chosen location. -/
+def NodeState.chosen (state : NodeState) : Option Location :=
+  match single state.store .chosen with
+  | some (.location location) => some location
+  | _ => none
+
+/-- The committed opening justification. -/
+def NodeState.openKind (state : NodeState) : Option OpenKind :=
+  match single state.store .openKind with
+  | some (.openKind kind) => some kind
+  | _ => none
+
+/-- The gossip entries among the entries of the `gossips` table. -/
+def gossipEntries (entries : List (Key × Value)) : List (Location × TxID) :=
+  entries.filterMap
+    fun
+    | (some source, .txid txid) => some (source, txid)
+    | _ => none
+
+/-- The vote sources among the entries of the `votes` table. -/
+def voteEntries (entries : List (Key × Value)) : List Location :=
+  entries.filterMap (·.1)
+
+/-- The committed gossips. -/
+def NodeState.gossips (state : NodeState) : List (Location × TxID) :=
+  gossipEntries
+    ((CCF.OCC.image state.store .gossips).map fun (key, cell) => (key, cell.value))
+
+/-- The committed votes. -/
+def NodeState.votes (state : NodeState) : List Location :=
+  voteEntries
+    ((CCF.OCC.image state.store .votes).map fun (key, cell) => (key, cell.value))
 
 /-- Starts a node in gossiping with empty gossip and vote collections. -/
 def initialNode (location : Location) : NodeState :=
@@ -122,10 +231,6 @@ def initialNode (location : Location) : NodeState :=
 /-- The strict-majority vote threshold among expected locations. -/
 def voteQuorum (config : Config) : Nat :=
   config.expectedLocations.length / 2 + 1
-
-/-- A timeout can advance the protocol only when its lane matches the protocol phase. -/
-def validTimeout (state : NodeState) (timeout : Bool) : Bool :=
-  timeout && decide (state.phase = state.timeoutState)
 
 /-- Orders gossip candidates by view, sequence number, then location name. -/
 def txScoreGreater (leftName : Location) (left : TxID) (rightName : Location)
@@ -149,143 +254,206 @@ def maximumGossip : List (Prod Location TxID) -> Option (Prod Location TxID)
   | head :: tail =>
       some (tail.foldl selectMaximum head)
 
-/-- Records a source's first gossip and keeps the collection sorted by location. -/
-def insertGossip (source : Location) (txid : TxID) (gossips : List (Prod Location TxID))
-    : List (Prod Location TxID) :=
-  if gossips.any (fun entry => entry.1 == source) then
-    gossips
-  else
-    ((source, txid) :: gossips).mergeSort (fun left right => left.1 <= right.1)
+/-- Reads a phase table, failing if it is unset. -/
+def readPhase (table : Table) : Tx Phase := do
+  match ← Program.read (table, none) with
+  | some (.phase phase) => return phase
+  | _ => .fail "state-not-set"
 
-/-- Adds a previously unseen voter and keeps votes sorted by location. -/
-def insertVote (source : Location) (votes : List Location) : List Location :=
-  if votes.contains source then
-    votes
-  else
-    (source :: votes).mergeSort (fun left right => left <= right)
+/-- Writes a phase table. -/
+def writePhase (table : Table) (phase : Phase) : Tx Unit :=
+  Program.write (table, none) (.phase phase)
 
-/-- Advances the timeout lane from gossiping to voting, then to opening. -/
-def advanceTimeoutState : Phase -> Phase
-  | .gossiping => .voting
-  | .voting => .opening
-  | state => state
+/-- Reads the chosen location, if one is set. -/
+def readChosen : Tx (Option Location) := do
+  match ← Program.read (.chosen, none) with
+  | some (.location location) => return some location
+  | _ => return none
 
-/-- Advances the timeout lane only when this step was triggered by a timeout. -/
-def advanceTimeoutLane (state : NodeState) (timeout : Bool) : NodeState :=
-  if timeout then
-    { state with timeoutState := advanceTimeoutState state.timeoutState }
-  else
-    state
+/-- Notifies the host, if the transaction commits. -/
+def notify (notification : Notification) : Tx Unit :=
+  Program.emit (.notify notification)
 
-/-- Advances the protocol phase and emits notifications, or disables an impossible advance. -/
-def advance (host : Capabilities Location Message Notification)
-    (config : Config) (state : NodeState) (timeout : Bool)
-    : CCF.Effect Location Message Notification NodeState := do
-  let aligned := validTimeout state timeout
-  match state.phase with
-  | .gossiping =>
-      if decide (state.gossips.length >= config.expectedLocations.length) || aligned then
-        match maximumGossip state.gossips with
-        | none => failure
-        | some (chosen, _) =>
-            let next := { state with phase := .voting, chosen := some chosen }
-            return advanceTimeoutLane next timeout
-      else
-        return advanceTimeoutLane state timeout
-  | .voting =>
-      let sufficient := decide (state.votes.length >= voteQuorum config)
-      if sufficient || aligned then
-        if aligned && state.votes.isEmpty then
-          return state
+/-- Advances the protocol phase, as `advance()` in the C++ does, and then the timeout
+lane if this is a timeout. -/
+def advance (config : Config) (timeout : Bool) : Tx Unit := do
+  let phase ← readPhase .phase
+  let lane ← readPhase .timeoutPhase
+  -- A timeout can advance the protocol only when its lane matches the protocol phase.
+  let aligned := timeout && phase == lane
+  let advanceLane ←
+    match phase with
+    | .gossiping => do
+        let gossips := gossipEntries (← Program.entries .gossips)
+        if decide (gossips.length >= config.expectedLocations.length) || aligned then
+          match maximumGossip gossips with
+          | none => .fail "no-gossip"
+          | some (chosen, _) =>
+              Program.write (.chosen, none) (.location chosen)
+              writePhase .phase .voting
+              pure true
         else
-          let kind := if aligned && !sufficient then .failover else .quorum
-          let next :=
-            {
-              state with
-                phase := .opening
-                openKind := some kind
-            }
-          host.notify (.opening kind)
-          return advanceTimeoutLane next timeout
-      else
-        return advanceTimeoutLane state timeout
-  | .joining =>
-      match state.chosen with
-      | none => failure
-      | some chosen =>
-          host.notify (.restart chosen)
-          return advanceTimeoutLane { state with restartRequested := true } timeout
-  | .opening =>
-      if aligned then
-        host.notify .completed
-        return advanceTimeoutLane { state with phase := .open } timeout
-      else
-        return advanceTimeoutLane state timeout
-  | .open =>
-      return advanceTimeoutLane state timeout
-
-/-- Emits a rejection diagnostic without changing the local protocol state. -/
-def rejected (host : Capabilities Location Message Notification)
-    (state : NodeState) (reason : String)
-    : CCF.Effect Location Message Notification NodeState := do
-  host.notify (.rejected reason)
-  return state
-
-/-- Executes one local event using the host's output-only callbacks. -/
-def step (host : Capabilities Location Message Notification) (config : Config)
-    (recovered : TxID) (state : NodeState) (event : Event)
-    : CCF.Effect Location Message Notification NodeState := do
-  match event with
-  | .receiveGossip source txid validation =>
-      match validation with
-      | .rejected => rejected host state "quote-or-certificate"
-      | .accepted =>
-          if state.chosen != none then
-            rejected host state "gossip-frozen"
+          pure true
+    | .voting => do
+        let votes := voteEntries (← Program.entries .votes)
+        let sufficient := decide (votes.length >= voteQuorum config)
+        if sufficient || aligned then
+          if aligned && votes.isEmpty then
+            -- A node that voted for another node leaves opening to that node.
+            pure false
           else
-            let received :=
-              { state with gossips := insertGossip source txid state.gossips }
-            advance host config received false
-            <|> rejected host state "empty-gossip-advance"
-  | .receiveVote source validation =>
-      match validation with
-      | .rejected => rejected host state "quote-or-certificate"
-      | .accepted =>
-          let received := { state with votes := insertVote source state.votes }
-          advance host config received false <|> rejected host state "vote-advance"
-  | .receiveIAmOpen source validation =>
-      match validation with
-      | .rejected => rejected host state "quote-or-certificate"
-      | .accepted =>
-          match state.phase with
-          | .opening | .open => rejected host state "already-opening-or-open"
-          | _ =>
-              let received :=
-                {
-                  state with
-                    phase := .joining
-                    chosen := some source
-                }
-              advance host config received false
-              <|> rejected host state "join-without-chosen"
-  | .timeout =>
-      advance host config state true
-  | .retry =>
-      match state.phase with
-      | .gossiping | .voting =>
-          let voteTarget := if state.phase == .voting then state.chosen else none
-          guard (voteTarget.isSome || !config.expectedLocations.isEmpty)
-          if let some target := voteTarget then
-            host.send .vote target
+            let kind := if aligned && !sufficient then OpenKind.failover else .quorum
+            Program.write (.openKind, none) (.openKind kind)
+            writePhase .phase .opening
+            notify (.opening kind)
+            pure true
+        else
+          pure true
+    | .joining => do
+        match ← readChosen with
+        | none => .fail "no-chosen-node"
+        | some chosen =>
+            notify (.restart chosen)
+            pure true
+    | .opening => do
+        if aligned then
+          writePhase .phase .open
+          notify .completed
+        pure true
+    | .open => pure true
+  if timeout && advanceLane then
+    match lane with
+    | .gossiping => writePhase .timeoutPhase .voting
+    | .voting => writePhase .timeoutPhase .opening
+    | _ => pure ()
+
+/-- The transaction of a receive or a timeout, as its C++ handler reads and writes the
+store. A failure is the handler returning an error: nothing is applied. -/
+def transaction (config : Config) : Event → Tx Unit
+  | .receiveGossip _ _ .rejected
+  | .receiveVote _ .rejected
+  | .receiveIAmOpen _ .rejected => .fail "quote-or-certificate"
+  | .receiveGossip source txid .accepted => do
+      if (← readChosen).isSome then
+        .fail "gossip-frozen"
+      else
+        if (← Program.read (.gossips, some source)).isNone then
+          Program.write (.gossips, some source) (.txid txid)
+        advance config false
+  | .receiveVote source .accepted => do
+      Program.write (.votes, some source) .present
+      advance config false
+  | .receiveIAmOpen source .accepted => do
+      match ← readPhase .phase with
+      | .opening | .open => .fail "already-opening-or-open"
+      | _ =>
+          writePhase .phase .joining
+          Program.write (.chosen, none) (.location source)
+          advance config false
+  | .timeout => advance config true
+  | .retry => .fail "not-a-transaction"
+
+/-- The messages a retry sends in the committed phase. It reads the store and writes
+nothing. -/
+def retry (config : Config) (location : Location) (recovered : TxID) : Tx Unit := do
+  let send (message : Message) (target : Location) : Tx Unit :=
+    Program.emit (.send message target)
+  match ← readPhase .phase with
+  | .gossiping =>
+      if config.expectedLocations.isEmpty then
+        .fail "nothing-to-send"
+      else
+        for target in config.expectedLocations do
+          send (.gossip recovered) target
+  | .voting =>
+      match ← readChosen with
+      | some chosen =>
+          send .vote chosen
           for target in config.expectedLocations do
-            host.send (.gossip recovered) target
+            send (.gossip recovered) target
+      | none =>
+          if config.expectedLocations.isEmpty then
+            .fail "nothing-to-send"
+          else
+            for target in config.expectedLocations do
+              send (.gossip recovered) target
+  | .opening =>
+      let targets := config.expectedLocations.filter (· != location)
+      if targets.isEmpty then
+        .fail "nothing-to-send"
+      else
+        for target in targets do
+          send .iAmOpen target
+  | .joining | .open => .fail "nothing-to-send"
+
+/-- How a node executes a local event. A receive or a timeout is a transaction, which
+runs and then commits; other transactions can commit in between. -/
+inductive Operation where
+  /-- Run the transaction of a receive or a timeout on a snapshot of the store. -/
+  | run (event : Event)
+  /-- Commit the pending transaction at `index`, or run it again if it conflicts. -/
+  | commit (index : Nat)
+  /-- Resend the messages appropriate to the committed phase, outside any transaction. -/
+  | retry
+deriving Repr, DecidableEq, Hashable
+
+/-- Passes a transaction's outputs to the host, in order. -/
+def release (host : Capabilities Location Message Notification)
+    : List Output → CCF.Effect Location Message Notification Unit
+  | [] => pure ()
+  | .send message target :: rest => do
+      host.send message target
+      release host rest
+  | .notify notification :: rest => do
+      host.notify notification
+      release host rest
+
+/-- Runs the transaction of `event` on a snapshot of the committed store, leaving it
+pending. A transaction that fails is rejected at once. -/
+def start (host : Capabilities Location Message Notification) (config : Config)
+    (state : NodeState) (event : Event)
+    : CCF.Effect Location Message Notification NodeState := do
+  let ran := (transaction config event).exec state.store
+  match ran.result with
+  | .error reason =>
+      host.notify (.rejected reason)
+      return state
+  | .ok () =>
+      let attempt := { event, normal := ran.normal, outputs := ran.outputs }
+      return { state with pending := state.pending ++ [attempt] }
+
+/-- Runs or commits a transaction, or retries.
+A commit applies the transaction's writes at the next version and passes its outputs to
+the host, unless the transaction conflicts: something it read was written since its
+snapshot. It is then rolled back and run again on the committed store. -/
+def perform (host : Capabilities Location Message Notification) (config : Config)
+    (recovered : TxID) (state : NodeState)
+    : Operation → CCF.Effect Location Message Notification NodeState
+  | .run .retry => failure
+  | .run event => start host config state event
+  | .commit index => do
+      let some attempt := state.pending[index]?
+      | failure
+      let state := { state with pending := state.pending.eraseIdx index }
+      if attempt.normal.writes.isEmpty then
+        release host attempt.outputs
+        return state
+      else if CCF.OCC.validates state.store attempt.normal.deps then
+        release host attempt.outputs
+        let version := state.version + 1
+        return {
+          state with
+            store := CCF.OCC.publish state.store version attempt.normal.writes
+            version
+        }
+      else
+        start host config state attempt.event
+  | .retry => do
+      let ran := (retry config state.location recovered).exec state.store
+      match ran.result with
+      | .error _ => failure
+      | .ok () =>
+          release host ran.outputs
           return state
-      | .opening =>
-          let targets := config.expectedLocations.filter (· != state.location)
-          guard (!targets.isEmpty)
-          for target in targets do
-            host.send .iAmOpen target
-          return state
-      | .joining | .open => failure
 
 end DisasterRecovery.Model.Local

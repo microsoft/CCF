@@ -49,6 +49,20 @@ example (config : Properties.ValidConfig)
   exact ⟨opener, txid, recovered, upToDate⟩
 
 example (config : Properties.ValidConfig)
+    (multiple : 2 <= config.val.protocol.expectedLocations.length)
+    : exists (behaviour : Properties.Behaviour config) (step : Nat) (node chosen
+                                                                      : Location),
+        Properties.Behaviour.NotificationAt config behaviour step node (.restart chosen)
+        /\ forall (openingStep : Nat) (kind : OpenKind),
+            ¬ Properties.Behaviour.NotificationAt config behaviour openingStep node
+                (.opening kind) := by
+  obtain ⟨behaviour, step, node, chosen, notified⟩ :=
+    Properties.restart_excludes_opening_witness config multiple
+  exact ⟨behaviour, step, node, chosen, notified, fun openingStep kind =>
+    Properties.restart_excludes_opening config behaviour step openingStep node chosen kind
+      notified⟩
+
+example (config : Properties.ValidConfig)
     : exists localStep : Properties.LocalStep,
         localStep.after = localStep.before
         /\ .rejected "gossip-frozen" ∈ localStep.effects.notifications := by
@@ -70,16 +84,22 @@ example (config : Properties.ValidConfig)
         localStep.after.phase = .opening
         /\ localStep.after.openKind = some .quorum
         /\ .opening .quorum ∈ localStep.effects.notifications := by
-  obtain ⟨localStep, valid, action, phase, quorum⟩ := Properties.quorum_advance_opens_witness config
-  exact ⟨localStep, Properties.quorum_advance_opens config localStep ⟨valid, action, phase, quorum⟩⟩
+  obtain ⟨s, i, a, premises⟩ := Properties.quorum_advance_opens_witness config
+  exact ⟨s, Properties.quorum_advance_opens config s i a premises⟩
 
 example (config : Properties.ValidConfig)
-    : exists localStep : Properties.LocalStep,
-        localStep.after = { localStep.before with phase := .open }
-        /\ .completed ∈ localStep.effects.notifications := by
-  obtain ⟨localStep, valid, action, phase, timeoutState⟩ :=
-    Properties.aligned_opening_timeout_completes_witness config
-  exact ⟨localStep,
-    Properties.aligned_opening_timeout_completes config localStep ⟨valid, action, phase, timeoutState⟩⟩
+    : exists (s : Properties.LocalStep) (i : Nat),
+        s.after
+          = {
+            s.before with
+              store :=
+                CCF.OCC.publish s.before.store (s.before.version + 1)
+                  [((.phase, none), some (.phase .open))]
+              version := s.before.version + 1
+              pending := s.before.pending.eraseIdx i
+          }
+        /\ .completed ∈ s.effects.notifications := by
+  obtain ⟨s, i, a, premises⟩ := Properties.aligned_opening_timeout_completes_witness config
+  exact ⟨s, i, Properties.aligned_opening_timeout_completes config s i a premises⟩
 
 end DisasterRecovery.Tests.Witnesses

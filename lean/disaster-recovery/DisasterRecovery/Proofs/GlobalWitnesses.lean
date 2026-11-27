@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.Proofs.Evaluation
+public import DisasterRecovery.Proofs.Serial
 
 import CCF.Proofs.Function
 import all Init.Control.State
@@ -14,17 +14,23 @@ Construct executions for arbitrary recovery configurations. Gossip is delivered 
 demand: the source retries, appending its genuine broadcast, before its envelope
 is delivered. This works throughout gossip collection because voting nodes still
 broadcast their recovered ledger. All nodes therefore obtain the same collection
-and choice before any votes are delivered.
+and choice before any votes are delivered. Each accepted handler is executed as a
+run followed immediately by committing that pending attempt.
 -/
 
-open CCF CCF.Execution Model.Local
-open Evaluation
+open CCF CCF.Execution
+open Model.Local (
+  Location TxID Message Notification Event Operation voteQuorum maximumGossip
+    selectMaximum
+  )
+open Atomic (Clean)
 
-private abbrev table (config : Properties.ValidConfig) (states : Location → NodeState) :=
+private abbrev table (config : Properties.ValidConfig)
+    (states : Location → Model.Local.NodeState) :=
   config.val.protocol.expectedLocations.map fun node => (node, states node)
 
 private def initial (config : Properties.ValidConfig) : Model.State :=
-  { nodes := table config initialNode }
+  { nodes := table config Model.Local.initialNode }
 
 private theorem initialized (config : Properties.ValidConfig)
     : (Model.transitionSystem config).init (initial config) := by
@@ -35,15 +41,24 @@ private theorem initialized (config : Properties.ValidConfig)
     obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
     rfl
 
-private def At (config : Properties.ValidConfig) (states : Location → NodeState) : Prop :=
-  ∃ network,
-    (Model.transitionSystem config).Reachable { nodes := table config states, network }
+private def At (config : Properties.ValidConfig) (states : Location → Atomic.NodeState)
+    : Prop :=
+  ∃ (concrete : Location → Model.Local.NodeState) (network : List Model.Envelope),
+    (∀ node ∈ config.val.protocol.expectedLocations, Clean (concrete node) (states node))
+    ∧ (Model.transitionSystem config).Reachable
+        { nodes := table config concrete, network }
 
-private theorem at_initial (config : Properties.ValidConfig) : At config initialNode :=
-  ⟨[], .initial (initialized config)⟩
+private theorem at_initial (config : Properties.ValidConfig)
+    : At config Atomic.initialNode :=
+  ⟨
+    Model.Local.initialNode,
+    [],
+    fun node _ => Atomic.clean_initial node,
+    .initial (initialized config)
+  ⟩
 
 private theorem lookup_table (config : Properties.ValidConfig)
-    (states : Location → NodeState) (node : Location)
+    (states : Location → Model.Local.NodeState) (node : Location)
     (member : node ∈ config.val.protocol.expectedLocations)
     (network : List Model.Envelope)
     : MultiNodeTransitionSystem.nodeState { nodes := table config states, network } node
@@ -60,16 +75,6 @@ private theorem lookup_table (config : Properties.ValidConfig)
           simp [List.find?, beq_eq_false_iff_ne.mpr same,
             ih (present.resolve_left (Ne.symm same))]
   simp [Function.comp_def, find_eq _ member]
-
-private theorem update_table (config : Properties.ValidConfig)
-    (states : Location → NodeState) (node : Location) (after : NodeState)
-    : (table config states).map
-        (fun entry => if entry.1 == node then (node, after) else entry)
-      = table config (Function.update states node after) := by
-  simp only [table, List.map_map]
-  apply List.map_congr_left
-  intro n _
-  by_cases same : n = node <;> simp [same, Function.update]
 
 @[local simp]
 private theorem effect_bind {S A B : Type} (a : StateT S Option A)
@@ -100,21 +105,24 @@ private theorem recovered_exists (config : Properties.ValidConfig) (node : Locat
   obtain ⟨entry, found⟩ := Option.isSome_iff_exists.mp found
   exact ⟨entry.2, by simp [Model.recoveredTxID, found]⟩
 
-private theorem protocol_run (config : Properties.ValidConfig) (node : Location)
-    (txid : TxID) (before after : NodeState) (event : Event)
+private theorem protocol_perform (config : Properties.ValidConfig) (node : Location)
+    (txid : TxID) (before after : Model.Local.NodeState) (op : Operation)
     (outputs : Outputs Location Message Notification)
     (recovered : Model.recoveredTxID config node = some txid)
     (run
-      : (step (Capabilities.record node) config.val.protocol txid before event).run {}
+      : (Model.Local.perform (Capabilities.record node) config.val.protocol txid before
+          op).run
+          {}
         = some (after, outputs))
-    : ((Model.protocol config).step (Capabilities.record node) node before event).run {}
+    : ((Model.protocol config).step (Capabilities.record node) node before op).run {}
       = some (after, outputs) := by
   simpa [Model.protocol, StateT.run, recovered] using run
 
 private theorem local_next (config : Properties.ValidConfig)
-    (states : Location → NodeState) (network : List Model.Envelope) (node : Location)
-    (member : node ∈ config.val.protocol.expectedLocations) (input : Model.Input)
-    (after : NodeState) (outputs : Outputs Location Message Notification)
+    (states : Location → Model.Local.NodeState) (network : List Model.Envelope)
+    (node : Location) (member : node ∈ config.val.protocol.expectedLocations)
+    (input : Model.Input) (after : Model.Local.NodeState)
+    (outputs : Outputs Location Message Notification)
     (run
       : ((Model.protocol config).step (Capabilities.record node) node
           (states node) ((Model.protocol config).internal input)).run
@@ -133,10 +141,10 @@ private theorem local_next (config : Properties.ValidConfig)
   by_cases same : a = node <;> simp [same, Function.update]
 
 private theorem delivery_next (config : Properties.ValidConfig)
-    (states : Location → NodeState) (network : List Model.Envelope)
+    (states : Location → Model.Local.NodeState) (network : List Model.Envelope)
     (envelope : Model.Envelope)
     (member : envelope.target ∈ config.val.protocol.expectedLocations)
-    (queued : envelope ∈ network) (after : NodeState)
+    (queued : envelope ∈ network) (after : Model.Local.NodeState)
     (outputs : Outputs Location Message Notification)
     (run
       : ((Model.protocol config).step (Capabilities.record envelope.target)
@@ -157,19 +165,59 @@ private theorem delivery_next (config : Properties.ValidConfig)
   intro a _
   by_cases same : a = envelope.target <;> simp [same, Function.update]
 
-private theorem at_local {config : Properties.ValidConfig} {states : Location → NodeState}
+private theorem clean_update {config : Properties.ValidConfig}
+    {concrete : Location → Model.Local.NodeState} {states : Location → Atomic.NodeState}
+    (clean
+      : ∀ node ∈ config.val.protocol.expectedLocations,
+          Clean (concrete node) (states node))
+    (node : Location) (last : Model.Local.NodeState) (after : Atomic.NodeState)
+    (next : Clean last after)
+    : ∀ other ∈ config.val.protocol.expectedLocations,
+        Clean (Function.update concrete node last other)
+          (Function.update states node after other) := by
+  intro other member
+  by_cases same : other = node
+  · subst other
+    simpa using next
+  · simpa [Function.update, same] using clean other member
+
+private theorem at_timeout {config : Properties.ValidConfig}
+    {states : Location → Atomic.NodeState}
     (reachable : At config states) (node : Location)
-    (member : node ∈ config.val.protocol.expectedLocations) (input : Model.Input)
-    (after : NodeState) (outputs : Outputs Location Message Notification)
-    (run
-      : ((Model.protocol config).step (Capabilities.record node) node
-          (states node) ((Model.protocol config).internal input)).run
+    (member : node ∈ config.val.protocol.expectedLocations) (txid : TxID)
+    (recovered : Model.recoveredTxID config node = some txid)
+    (after : Atomic.NodeState) (outputs : Outputs Location Message Notification)
+    (accepted : ∀ reason, outputs.notifications ≠ [.rejected reason])
+    (atomic
+      : (Atomic.step (Capabilities.record node) config.val.protocol txid
+          (states node) .timeout).run
           {}
         = some (after, outputs))
     : At config (Function.update states node after) := by
-  obtain ⟨network, reachable⟩ := reachable
-  exact ⟨_, .step reachable (local_next config states network node member input
-    after outputs run)⟩
+  obtain ⟨concrete, network, clean, reachable⟩ := reachable
+  obtain ⟨mid, last, early, runEq, _, commitEq, cleanLast⟩ :=
+    Atomic.run_commit config.val.protocol node txid (concrete node) (states node) after
+      (clean node member) .timeout (by decide) outputs accepted atomic
+  have step1 := local_next config concrete network node member .timeout mid early
+    (protocol_perform config node txid (concrete node) mid (.run .timeout) early recovered runEq)
+  have step2 :=
+    local_next config (Function.update concrete node mid)
+      (network ++ early.outgoing) node member (.commit 0) last outputs
+      (by
+        simpa [Model.protocol]
+          using protocol_perform config node txid mid last (.commit 0) outputs recovered
+            commitEq)
+  have collapsed : Function.update (Function.update concrete node mid) node last =
+      Function.update concrete node last := by
+    funext other
+    by_cases same : other = node <;> simp [Function.update, same]
+  rw [collapsed] at step2
+  exact ⟨
+    Function.update concrete node last,
+    _,
+    clean_update clean node last after cleanLast,
+    .step (.step reachable step1) step2
+  ⟩
 
 private theorem broadcast_run (source : Location) (message : Message)
     (targets : List Location) (outputs : Outputs Location Message Notification)
@@ -200,16 +248,18 @@ private theorem broadcast_run (source : Location) (message : Message)
 private theorem nonempty (config : Properties.ValidConfig)
     : config.val.protocol.expectedLocations ≠ [] := by
   have valid := config.property.1
-  simp only [Config.isValid, Bool.and_eq_true] at valid
+  simp only [Model.Local.Config.isValid, Bool.and_eq_true] at valid
   intro empty
   simp [empty] at valid
 
 private theorem retry_run (config : Properties.ValidConfig) (source : Location)
-    (txid : TxID) (state : NodeState)
+    (txid : TxID) (state : Atomic.NodeState)
     (phase : state.phase = .gossiping ∨ state.phase = .voting)
     (chosen : state.phase = .voting → state.chosen.isSome = true)
     : ∃ outputs,
-        (step (Capabilities.record source) config.val.protocol txid state .retry).run {}
+        (Atomic.step (Capabilities.record source) config.val.protocol txid state
+            .retry).run
+            {}
           = some (state, outputs)
         ∧ (∀ target ∈ config.val.protocol.expectedLocations,
             { source, target, payload := Message.gossip txid } ∈ outputs.outgoing)
@@ -220,7 +270,7 @@ private theorem retry_run (config : Properties.ValidConfig) (source : Location)
   rcases phase with phase | phase
   · refine ⟨{ outgoing := (config.val.protocol.expectedLocations.map
         (fun target => { source, target, payload := Message.gossip txid })) }, ?_, ?_, ?_⟩
-    · simp [step, phase, nonempty config, guard]
+    · simp [Atomic.step, phase, nonempty config, guard]
       exact ⟨(), by simpa using (broadcast_run source (.gossip txid)
         config.val.protocol.expectedLocations {})⟩
     · intro target member
@@ -233,7 +283,7 @@ private theorem retry_run (config : Properties.ValidConfig) (source : Location)
           config.val.protocol.expectedLocations.map
             (fun target => { source, target, payload := Message.gossip txid })) },
       ?_, ?_, ?_⟩
-    · simp [step, phase, selected]
+    · simp [Atomic.step, phase, selected]
       change ((config.val.protocol.expectedLocations.foldlM
         (fun (_ : Unit) target => (Capabilities.record source).send (.gossip txid) target)
           () : Effect Location Message Notification Unit).run
@@ -246,40 +296,80 @@ private theorem retry_run (config : Properties.ValidConfig) (source : Location)
     · intro other _ eq
       simp_all
 
+private theorem receive_ne_retry (source : Location) (payload : Message)
+    : Model.receive source payload ≠ .retry := by
+  cases payload <;> simp [Model.receive]
+
 private theorem send_deliver {config : Properties.ValidConfig}
-    {states : Location → NodeState} (reachable : At config states)
+    {states : Location → Atomic.NodeState} (reachable : At config states)
     (source target : Location) (payload : Message)
     (sourceMember : source ∈ config.val.protocol.expectedLocations)
     (targetMember : target ∈ config.val.protocol.expectedLocations)
+    (sourceTxID targetTxID : TxID)
+    (sourceRecovered : Model.recoveredTxID config source = some sourceTxID)
+    (targetRecovered : Model.recoveredTxID config target = some targetTxID)
     (sent : Outputs Location Message Notification)
     (retry
-      : ((Model.protocol config).step (Capabilities.record source) source
+      : (Atomic.step (Capabilities.record source) config.val.protocol sourceTxID
           (states source) .retry).run
           {}
         = some (states source, sent))
-    (emitted : { source, target, payload } ∈ sent.outgoing) (after : NodeState)
+    (emitted : { source, target, payload } ∈ sent.outgoing) (after : Atomic.NodeState)
     (received : Outputs Location Message Notification)
+    (accepted : ∀ reason, received.notifications ≠ [.rejected reason])
     (receive
-      : ((Model.protocol config).step (Capabilities.record target) target
+      : (Atomic.step (Capabilities.record target) config.val.protocol targetTxID
           (states target) (Model.receive source payload)).run
           {}
         = some (after, received))
     : At config (Function.update states target after) := by
-  obtain ⟨network, reachable⟩ := reachable
-  have same : Function.update states source (states source) = states := by
+  obtain ⟨concrete, network, clean, reachable⟩ := reachable
+  have retryReal :
+      (Model.Local.perform (Capabilities.record source) config.val.protocol sourceTxID
+        (concrete source) .retry).run {} = some (concrete source, sent) := by
+    rw [Atomic.retry_agrees config.val.protocol source sourceTxID (concrete source)
+      (states source) (clean source sourceMember).represented (clean source sourceMember).location,
+      retry]
+    rfl
+  have same : Function.update concrete source (concrete source) = concrete := by
     simp
-  have retryStep := local_next config states network source sourceMember .retry
-    (states source) sent retry
+  have retryStep := local_next config concrete network source sourceMember .retry
+    (concrete source) sent
+    (protocol_perform config source sourceTxID (concrete source) (concrete source) .retry
+      sent sourceRecovered retryReal)
   rw [same] at retryStep
   have queued : ({ source, target, payload } : Model.Envelope) ∈ network ++ sent.outgoing :=
     List.mem_append_right _ emitted
-  exact ⟨_, .step (.step reachable retryStep)
-    (delivery_next config states _ { source, target, payload } targetMember queued
-      after received receive)⟩
+  obtain ⟨mid, last, early, runEq, _, commitEq, cleanLast⟩ :=
+    Atomic.run_commit config.val.protocol target targetTxID (concrete target) (states target)
+      after (clean target targetMember) (Model.receive source payload)
+      (receive_ne_retry source payload) received accepted receive
+  have deliverStep := delivery_next config concrete (network ++ sent.outgoing)
+    { source, target, payload } targetMember queued mid early
+    (protocol_perform config target targetTxID (concrete target) mid
+      (.run (Model.receive source payload)) early targetRecovered runEq)
+  have commitStep :=
+    local_next config (Function.update concrete target mid)
+      (MultiNodeTransitionSystem.removeOne { source, target, payload }
+          (network ++ sent.outgoing)
+        ++ early.outgoing)
+      target targetMember (.commit 0) last received
+      (by
+        simpa [Model.protocol]
+          using protocol_perform config target targetTxID mid last (.commit 0) received
+            targetRecovered commitEq)
+  have collapsed : Function.update (Function.update concrete target mid) target last =
+      Function.update concrete target last := by
+    funext other
+    by_cases same : other = target <;> simp [Function.update, same]
+  rw [collapsed] at commitStep
+  exact ⟨Function.update concrete target last, _,
+    clean_update clean target last after cleanLast,
+    .step (.step (.step reachable retryStep) deliverStep) commitStep⟩
 
 private def collect : List (Location × TxID) → List (Location × TxID)
   | [] => []
-  | entry :: rest => insertGossip entry.1 entry.2 (collect rest)
+  | entry :: rest => Atomic.insertGossip entry.1 entry.2 (collect rest)
 
 private theorem collect_perm (entries : List (Location × TxID))
     (distinct : (entries.map Prod.fst).Nodup)
@@ -294,8 +384,8 @@ private theorem collect_perm (entries : List (Location × TxID))
         obtain ⟨e, member, same⟩ := List.any_eq_true.mp present
         have key : e.1 = entry.1 := by simpa using same
         exact distinct.1 (List.mem_map.mpr ⟨e, perm.mem_iff.mp member, key⟩)
-      simp only [collect, insertGossip, absent]
-      exact (List.mergeSort_perm _ _).trans (List.Perm.cons _ perm)
+      simp only [collect, Atomic.insertGossip, absent, Bool.false_eq_true, ↓reduceIte]
+      exact List.Perm.cons _ perm
 
 private theorem maximum_member {entries : List (Location × TxID)}
     {entry : Location × TxID} (selected : maximumGossip entries = some entry)
@@ -328,7 +418,7 @@ private theorem maximum_exists (entries : List (Location × TxID))
 
 private def gathered (config : Properties.ValidConfig) (node : Location)
     (entries : List (Location × TxID))
-    : NodeState :=
+    : Atomic.NodeState :=
   {
     location := node
     gossips := collect entries
@@ -345,12 +435,13 @@ private def gathered (config : Properties.ValidConfig) (node : Location)
   }
 
 private theorem gathered_empty (config : Properties.ValidConfig) (node : Location)
-    : gathered config node [] = initialNode node := by
+    : gathered config node [] = Atomic.initialNode node := by
   have positive : 0 < config.val.protocol.expectedLocations.length :=
     List.length_pos_iff.mpr (nonempty config)
-  simp [gathered, collect, initialNode, Nat.not_le.mpr positive]
+  simp [gathered, collect, Atomic.initialNode, Nat.not_le.mpr positive]
 
-private def Active (config : Properties.ValidConfig) (states : Location → NodeState)
+private def Active (config : Properties.ValidConfig)
+    (states : Location → Atomic.NodeState)
     : Prop :=
   ∀ node ∈ config.val.protocol.expectedLocations,
     ((states node).phase = .gossiping ∨ (states node).phase = .voting)
@@ -376,8 +467,8 @@ private theorem gathered_active (config : Properties.ValidConfig) (node : Locati
   · simp [gathered, full]
 
 private theorem active_update {config : Properties.ValidConfig}
-    {states : Location → NodeState} (active : Active config states) (node : Location)
-    (after : NodeState)
+    {states : Location → Atomic.NodeState} (active : Active config states)
+    (node : Location) (after : Atomic.NodeState)
     (next
       : (after.phase = .gossiping ∨ after.phase = .voting)
         ∧ (after.phase = .voting → after.chosen.isSome = true))
@@ -415,7 +506,7 @@ private theorem gossip_gathered_run (config : Properties.ValidConfig) (node : Lo
     (rest : List (Location × TxID))
     (distinct : ((entry :: rest).map Prod.fst).Nodup)
     (bound : (entry :: rest).length ≤ config.val.protocol.expectedLocations.length)
-    : (step (Capabilities.record node) config.val.protocol recovered
+    : (Atomic.step (Capabilities.record node) config.val.protocol recovered
         (gathered config node rest) (.receiveGossip entry.1 entry.2 .accepted)).run
         {}
       = some (gathered config node (entry :: rest), {}) := by
@@ -424,7 +515,7 @@ private theorem gossip_gathered_run (config : Properties.ValidConfig) (node : Lo
     omega
   have length : (collect (entry :: rest)).length = (entry :: rest).length :=
     (collect_perm _ distinct).length_eq
-  have ins : insertGossip entry.1 entry.2 (collect rest) = collect (entry :: rest) := rfl
+  have ins : Atomic.insertGossip entry.1 entry.2 (collect rest) = collect (entry :: rest) := rfl
   by_cases full : config.val.protocol.expectedLocations.length ≤ (entry :: rest).length
   · have populated : collect (entry :: rest) ≠ [] := by
       have positive := List.length_pos_iff.mpr (nonempty config)
@@ -433,12 +524,12 @@ private theorem gossip_gathered_run (config : Properties.ValidConfig) (node : Lo
       omega
     obtain ⟨winner, selected⟩ := maximum_exists (collect (entry :: rest)) populated
     simp only [List.length_cons] at full length
-    simp [step, gathered, smaller, advance, validTimeout,
-      advanceTimeoutLane, ins, full, length, selected]
+    simp [Atomic.step, gathered, smaller, Atomic.advance, Atomic.validTimeout,
+      Atomic.advanceTimeoutLane, ins, full, length, selected]
     rfl
   · simp only [List.length_cons] at full length
-    simp [step, gathered, smaller, advance, validTimeout,
-      advanceTimeoutLane, ins, full, length]
+    simp [Atomic.step, gathered, smaller, Atomic.advance, Atomic.validTimeout,
+      Atomic.advanceTimeoutLane, ins, full, length]
     rfl
 
 private theorem fill_node (config : Properties.ValidConfig) (target : Location)
@@ -447,9 +538,9 @@ private theorem fill_node (config : Properties.ValidConfig) (target : Location)
     (distinct : (entries.map Prod.fst).Nodup)
     (subset : ∀ entry ∈ entries, entry ∈ config.val.recovered)
     (bound : entries.length ≤ config.val.protocol.expectedLocations.length)
-    (states : Location → NodeState)
+    (states : Location → Atomic.NodeState)
     (reachable : At config states) (active : Active config states)
-    (empty : states target = initialNode target)
+    (empty : states target = Atomic.initialNode target)
     : At config (Function.update states target (gathered config target entries)) := by
   induction entries with
   | nil =>
@@ -473,24 +564,20 @@ private theorem fill_node (config : Properties.ValidConfig) (target : Location)
         (before entry.1) (activeRest entry.1 sourceMember).1
         (activeRest entry.1 sourceMember).2
       obtain ⟨targetTxID, targetRecovered⟩ := recovered_exists config target targetMember
-      have receive := protocol_run config target targetTxID
-        (gathered config target rest) (gathered config target (entry :: rest))
-        (.receiveGossip entry.1 entry.2 .accepted) {} targetRecovered
-        (gossip_gathered_run config target targetTxID entry rest distinct bound)
+      have receive := gossip_gathered_run config target targetTxID entry rest distinct bound
       have next := send_deliver reachableRest entry.1 target (.gossip entry.2)
-        sourceMember targetMember sent
-        (protocol_run config entry.1 entry.2 (before entry.1) (before entry.1) .retry
-          sent recovered retry)
+        sourceMember targetMember entry.2 targetTxID recovered targetRecovered sent retry
         (emitted target targetMember) (gathered config target (entry :: rest)) {}
-        (by simpa [before, Model.protocol, Model.receive] using receive)
+        (by intro _; simp)
+        (by simpa [before, Model.receive] using receive)
       simpa [before] using next
 
 private theorem fill_nodes (config : Properties.ValidConfig) (targets : List Location)
     (distinct : targets.Nodup)
     (subset : ∀ target ∈ targets, target ∈ config.val.protocol.expectedLocations)
-    (states : Location → NodeState) (reachable : At config states)
+    (states : Location → Atomic.NodeState) (reachable : At config states)
     (active : Active config states)
-    (empty : ∀ target ∈ targets, states target = initialNode target)
+    (empty : ∀ target ∈ targets, states target = Atomic.initialNode target)
     : ∃ finalStates,
         At config finalStates
         ∧ Active config finalStates
@@ -544,20 +631,16 @@ private theorem full_gossip_reachable (config : Properties.ValidConfig)
     : At config (fun node => gathered config node config.val.recovered) := by
   obtain ⟨states, reachable, _, filled, _⟩ :=
     fill_nodes config config.val.protocol.expectedLocations config.property.2.1
-      (fun _ member => member) initialNode (at_initial config)
-      (by intro node _; simp [initialNode])
+      (fun _ member => member) Atomic.initialNode (at_initial config)
+      (by intro node _; simp [Atomic.initialNode])
       (by simp)
-  obtain ⟨network, reachable⟩ := reachable
-  refine ⟨network, ?_⟩
-  have same : table config states =
-      table config (fun node => gathered config node config.val.recovered) := by
-    apply List.map_congr_left
-    intro node member
-    rw [filled node member]
-  simpa only [same] using reachable
+  obtain ⟨concrete, network, clean, reachable⟩ := reachable
+  refine ⟨concrete, network, ?_, reachable⟩
+  intro node member
+  simpa [filled node member] using clean node member
 
 private def selected (config : Properties.ValidConfig) (winner node : Location)
-    : NodeState :=
+    : Atomic.NodeState :=
   {
     location := node,
     phase := .voting,
@@ -595,7 +678,7 @@ private theorem full_choice (config : Properties.ValidConfig)
 
 private def ballots : List Location → List Location
   | [] => []
-  | source :: rest => insertVote source (ballots rest)
+  | source :: rest => Atomic.insertVote source (ballots rest)
 
 private theorem ballots_perm (sources : List Location) (distinct : sources.Nodup)
     : (ballots sources).Perm sources := by
@@ -606,12 +689,12 @@ private theorem ballots_perm (sources : List Location) (distinct : sources.Nodup
       have perm := ih distinct
       have missing : source ∉ ballots rest :=
         fun member => absent (perm.mem_iff.mp member)
-      simp only [ballots, insertVote, List.contains_eq_mem, missing]
-      exact (List.mergeSort_perm _ _).trans (List.Perm.cons _ perm)
+      simp only [ballots, Atomic.insertVote, List.erase_of_not_mem missing]
+      exact List.Perm.cons _ perm
 
 private def voted (config : Properties.ValidConfig) (winner : Location)
     (sources : List Location)
-    : NodeState :=
+    : Atomic.NodeState :=
   {
     selected config winner winner with
       votes := ballots sources
@@ -636,7 +719,7 @@ private theorem voted_active (config : Properties.ValidConfig) (winner : Locatio
 private theorem vote_run (config : Properties.ValidConfig) (winner source : Location)
     (recovered : TxID) (rest : List Location) (distinct : (source :: rest).Nodup)
     (bound : (source :: rest).length ≤ voteQuorum config.val.protocol)
-    : (step (Capabilities.record winner) config.val.protocol recovered
+    : (Atomic.step (Capabilities.record winner) config.val.protocol recovered
         (voted config winner rest) (.receiveVote source .accepted)).run
         {}
       = some
@@ -654,15 +737,15 @@ private theorem vote_run (config : Properties.ValidConfig) (winner source : Loca
     simp at bound
     omega
   have length := (ballots_perm (source :: rest) distinct).length_eq
-  have ins : insertVote source (ballots rest) = ballots (source :: rest) := rfl
+  have ins : Atomic.insertVote source (ballots rest) = ballots (source :: rest) := rfl
   by_cases full : voteQuorum config.val.protocol ≤ (source :: rest).length
   · simp only [List.length_cons] at full length
-    simp [step, voted, selected, smaller, ins, advance, validTimeout,
-      full, length, advanceTimeoutLane, Capabilities.record]
+    simp [Atomic.step, voted, selected, smaller, ins, Atomic.advance, Atomic.validTimeout,
+      full, length, Atomic.advanceTimeoutLane, Capabilities.record]
     rfl
   · simp only [List.length_cons] at full length
-    simp [step, voted, selected, smaller, ins, advance, validTimeout,
-      full, length, advanceTimeoutLane]
+    simp [Atomic.step, voted, selected, smaller, ins, Atomic.advance, Atomic.validTimeout,
+      full, length, Atomic.advanceTimeoutLane]
     rfl
 
 private theorem collect_votes (config : Properties.ValidConfig) (winner : Location)
@@ -701,16 +784,20 @@ private theorem collect_votes (config : Properties.ValidConfig) (winner : Locati
       have phase : (before source).phase = .voting := by
         by_cases same : source = winner <;>
           simp [before, same, voted, selected, Nat.not_le.mpr small]
-      have receive := protocol_run config winner targetTxID
-        (voted config winner rest) (voted config winner (source :: rest))
-        (.receiveVote source .accepted) _ targetRecovered
-        (vote_run config winner source targetTxID rest distinct bound)
+      have receive := vote_run config winner source targetTxID rest distinct bound
+      let voteOut : Outputs Location Message Notification := {
+        notifications :=
+          if voteQuorum config.val.protocol ≤ (source :: rest).length then
+            [.opening .quorum]
+          else
+            []
+      }
       have next :=
-        send_deliver reachableRest source winner .vote sourceMember winnerMember sent
-          (protocol_run config source sourceTxID (before source) (before source) .retry
-            sent sourceRecovered retry)
-          (emitted winner phase chosen) (voted config winner (source :: rest)) _
-          (by simpa [before, Model.protocol, Model.receive] using receive)
+        send_deliver reachableRest source winner .vote sourceMember winnerMember
+          sourceTxID targetTxID sourceRecovered targetRecovered sent retry
+          (emitted winner phase chosen) (voted config winner (source :: rest)) voteOut
+          (by intro _; dsimp [voteOut]; split <;> simp)
+          (by simpa [before, Model.receive, voteOut] using receive)
       simpa [before] using next
 
 private theorem quorum_bound (config : Properties.ValidConfig)
@@ -728,7 +815,7 @@ private theorem recovered_distinct (config : Properties.ValidConfig)
 theorem quorum_open_preserves_commit_witness
     : ∀ config : Properties.ValidConfig,
         ∃ (behaviour : Properties.Behaviour config) (openedState : Model.State),
-        ∃ (opener : Location) (openerState : NodeState),
+        ∃ (opener : Location) (openerState : Model.Local.NodeState),
           openedState ∈ behaviour
           ∧ (opener, openerState) ∈ openedState.nodes
           ∧ openerState.openKind = some .quorum
@@ -744,14 +831,24 @@ theorem quorum_open_preserves_commit_witness
   have length : voters.length = voteQuorum config.val.protocol := by
     simp [voters, Nat.min_eq_left (quorum_bound config)]
   let states := Function.update (selected config winner) winner (voted config winner voters)
-  obtain ⟨network, reachable⟩ := collect_votes config winner winnerMember reachable
-    voters distinct subset (by omega)
-  let globalState : Model.State := { nodes := table config states, network }
+  obtain ⟨concrete, network, clean, reachable⟩ :=
+    collect_votes config winner winnerMember reachable voters distinct subset (by omega)
+  let globalState : Model.State := { nodes := table config concrete, network }
   obtain ⟨behaviour, member⟩ := Execution.reachable_iff_behaviour.mp reachable
-  refine ⟨behaviour, globalState, winner, voted config winner voters, member, ?_, ?_, ?_⟩
-  · exact List.mem_map.mpr ⟨winner, winnerMember, by simp [states]⟩
-  · simp [voted, length]
+  have winnerProj := (clean winner winnerMember).represented.project
+    (clean winner winnerMember).location
+  have winnerKind : (concrete winner).openKind = (voted config winner voters).openKind := by
+    have := congrArg Atomic.NodeState.openKind winnerProj
+    simpa [states, Atomic.project] using this
+  have winnerVotes : (concrete winner).votes = (voted config winner voters).votes := by
+    have := congrArg Atomic.NodeState.votes winnerProj
+    simpa [states, Atomic.project] using this
+  refine ⟨behaviour, globalState, winner, concrete winner, member, ?_, ?_, ?_⟩
+  · exact List.mem_map.mpr ⟨winner, winnerMember, rfl⟩
+  · rw [winnerKind]
+    simp [voted, length]
   · intro voter voterMember
+    rw [winnerVotes] at voterMember
     have expected : voter ∈ config.val.protocol.expectedLocations :=
       subset voter ((ballots_perm voters distinct).mem_iff.mp voterMember)
     have own : ∃ txid, (voter, txid) ∈ config.val.recovered := by
@@ -761,19 +858,23 @@ theorem quorum_open_preserves_commit_witness
       obtain ⟨entry, present, key⟩ := List.mem_map.mp key
       exact ⟨entry.2, by simpa [← key] using present⟩
     obtain ⟨txid, own⟩ := own
-    refine ⟨globalState, member, states voter, txid,
+    refine ⟨globalState, member, concrete voter, txid,
       List.mem_map.mpr ⟨voter, expected, rfl⟩, ?_⟩
-    have gossips : (states voter).gossips = collect config.val.recovered := by
-      by_cases same : voter = winner <;> simp [states, same, voted, selected]
-    rw [gossips]
+    have voterGossips : (concrete voter).gossips = collect config.val.recovered := by
+      have h := congrArg Atomic.NodeState.gossips
+        ((clean voter expected).represented.project (clean voter expected).location)
+      have atom : (states voter).gossips = collect config.val.recovered := by
+        by_cases same : voter = winner <;> simp [states, same, voted, selected]
+      exact h.trans atom
+    rw [voterGossips]
     exact (collect_perm config.val.recovered (recovered_distinct config)).mem_iff.mpr own
 
 private def failoverReady (config : Properties.ValidConfig) (winner : Location)
-    : NodeState :=
+    : Atomic.NodeState :=
   { voted config winner [winner] with timeoutState := .voting }
 
 private def failedOver (config : Properties.ValidConfig) (winner : Location)
-    : NodeState :=
+    : Atomic.NodeState :=
   {
     voted config winner [winner] with
       phase := .opening, timeoutState := .opening, openKind := some .failover
@@ -796,31 +897,28 @@ private theorem failover_reachable (config : Properties.ValidConfig)
     (by simp; omega)
   obtain ⟨txid, recovered⟩ := recovered_exists config winner winnerMember
   have first :
-      (step (Capabilities.record winner) config.val.protocol txid
+      (Atomic.step (Capabilities.record winner) config.val.protocol txid
         (voted config winner [winner]) .timeout).run {} =
         some (failoverReady config winner, {}) := by
-    simp [step, advance, voted, selected, ballots, insertVote, validTimeout,
-      failoverReady, advanceTimeoutLane, advanceTimeoutState,
-      show ¬voteQuorum config.val.protocol ≤ 1 by omega]
+    simp [Atomic.step, Atomic.advance, voted, selected, ballots, Atomic.insertVote,
+      Atomic.validTimeout, failoverReady, Atomic.advanceTimeoutLane,
+      Atomic.advanceTimeoutState, show ¬voteQuorum config.val.protocol ≤ 1 by omega]
   have next :=
-    at_local votedReachable winner winnerMember .timeout
-      (failoverReady config winner) {}
-      (by
-        simpa [Model.protocol]
-          using protocol_run config winner txid _ _ .timeout {} recovered first)
+    at_timeout votedReachable winner winnerMember txid recovered
+      (failoverReady config winner) {} (by intro _; simp)
+      (by simpa using first)
   have second :
-      (step (Capabilities.record winner) config.val.protocol txid
+      (Atomic.step (Capabilities.record winner) config.val.protocol txid
         (failoverReady config winner) .timeout).run {} =
         some (failedOver config winner, { notifications := [.opening .failover] }) := by
-    simp [step, advance, voted, selected, ballots, insertVote, validTimeout,
-      failoverReady, failedOver, advanceTimeoutLane, advanceTimeoutState,
-      Capabilities.record, show ¬voteQuorum config.val.protocol ≤ 1 by omega]
+    simp [Atomic.step, Atomic.advance, voted, selected, ballots, Atomic.insertVote,
+      Atomic.validTimeout, failoverReady, failedOver, Atomic.advanceTimeoutLane,
+      Atomic.advanceTimeoutState, Capabilities.record,
+      show ¬voteQuorum config.val.protocol ≤ 1 by omega]
   have final :=
-    at_local next winner winnerMember .timeout (failedOver config winner)
-      { notifications := [.opening .failover] }
-      (by
-        simpa [Model.protocol]
-          using protocol_run config winner txid _ _ .timeout _ recovered second)
+    at_timeout next winner winnerMember txid recovered (failedOver config winner)
+      { notifications := [.opening .failover] } (by intro _; simp)
+      (by simpa using second)
   simpa using final
 
 /-- With at least two locations, one genuine vote and two timeouts reach failover. -/
@@ -829,7 +927,7 @@ theorem full_gossip_preserves_commit_witness
         2 ≤ config.val.protocol.expectedLocations.length
         → ∃ (behaviour : Properties.Behaviour config)
             (gossipedState openedState : Model.State),
-          ∃ (opener : Location) (openerState : NodeState),
+          ∃ (opener : Location) (openerState : Model.Local.NodeState),
             gossipedState ∈ behaviour
             ∧ (∀ node nodeState,
                 node ∈ config.val.protocol.expectedLocations
@@ -840,24 +938,33 @@ theorem full_gossip_preserves_commit_witness
             ∧ openerState.openKind = some .failover := by
   intro config multiple
   obtain ⟨winner, winnerMember, _, reachable⟩ := full_choice config
-  obtain ⟨network, reachable⟩ :=
+  obtain ⟨concrete, network, clean, reachable⟩ :=
     failover_reachable config multiple winner winnerMember reachable
   let states := Function.update (selected config winner) winner (failedOver config winner)
-  let globalState : Model.State := { nodes := table config states, network }
+  let globalState : Model.State := { nodes := table config concrete, network }
   obtain ⟨behaviour, member⟩ := Execution.reachable_iff_behaviour.mp reachable
-  refine ⟨behaviour, globalState, globalState, winner, failedOver config winner,
-    member, ?_, member, ?_, rfl⟩
-  · intro node nodeState _ present gossip
+  have winnerKind : (concrete winner).openKind = some .failover := by
+    have := congrArg Atomic.NodeState.openKind
+      ((clean winner winnerMember).represented.project (clean winner winnerMember).location)
+    simpa [states, failedOver, Atomic.project] using this
+  refine ⟨behaviour, globalState, globalState, winner, concrete winner,
+    member, ?_, member, ?_, winnerKind⟩
+  · intro node nodeState expected present gossip
     obtain ⟨key, _, pair⟩ := List.mem_map.mp present
     have keyEq : key = node := congrArg Prod.fst pair
-    have stateEq : states node = nodeState := by simpa [keyEq] using congrArg Prod.snd pair
+    have stateEq : concrete node = nodeState := by
+      simpa [keyEq] using congrArg Prod.snd pair
     rw [← stateEq]
-    have gossips : (states node).gossips = collect config.val.recovered := by
-      by_cases same : node = winner <;>
-        simp [states, same, failedOver, voted, selected]
-    rw [gossips]
+    have nodeGossips : (concrete node).gossips = collect config.val.recovered := by
+      have h := congrArg Atomic.NodeState.gossips
+        ((clean node expected).represented.project (clean node expected).location)
+      have atom : (states node).gossips = collect config.val.recovered := by
+        by_cases same : node = winner <;>
+          simp [states, same, failedOver, voted, selected]
+      exact h.trans atom
+    rw [nodeGossips]
     exact (collect_perm config.val.recovered (recovered_distinct config)).mem_iff
-  · exact List.mem_map.mpr ⟨winner, winnerMember, by simp [states]⟩
+  · exact List.mem_map.mpr ⟨winner, winnerMember, rfl⟩
 
 private theorem snoc_before {α β : Type} (start before after : β)
     (steps : List (α × β)) (action : α)
@@ -892,48 +999,44 @@ private theorem reachable_finite {system : TransitionSystem} {state : system.Sta
         steps_snoc start before after steps action valid last enabled, ?_⟩
       simp
 
-private theorem notification_exists (config : Properties.ValidConfig)
-    (states : Location → NodeState) (network : List Model.Envelope)
+private theorem commit_notification_exists (config : Properties.ValidConfig)
+    (concrete : Location → Model.Local.NodeState) (network : List Model.Envelope)
     (reachable
       : (Model.transitionSystem config).Reachable
-          { nodes := table config states, network })
-    (envelope : Model.Envelope)
-    (member : envelope.target ∈ config.val.protocol.expectedLocations)
-    (queued : envelope ∈ network)
-    (after : NodeState) (outputs : Outputs Location Message Notification)
-    (run
-      : ((Model.protocol config).step (Capabilities.record envelope.target)
-          envelope.target (states envelope.target)
-          (Model.receive envelope.source envelope.payload)).run
+          { nodes := table config concrete, network })
+    (node : Location) (member : node ∈ config.val.protocol.expectedLocations)
+    (after : Model.Local.NodeState) (outputs : Outputs Location Message Notification)
+    (commit
+      : ((Model.protocol config).step (Capabilities.record node) node
+          (concrete node) (.commit 0)).run
           {}
         = some (after, outputs))
-    (notified : Notification.opening .quorum ∈ outputs.notifications)
-    : ∃ (behaviour : Properties.Behaviour config) (index : Nat) (opener : Location),
-        Properties.Behaviour.NotificationAt config behaviour index opener
-          (.opening .quorum) := by
-  let beforeGlobal : Model.State := { nodes := table config states, network }
-  let nextStates := Function.update states envelope.target after
+    (notif : Notification) (notified : notif ∈ outputs.notifications)
+    : ∃ (behaviour : Properties.Behaviour config) (index : Nat) (actor : Location),
+        Properties.Behaviour.NotificationAt config behaviour index actor notif := by
+  let beforeGlobal : Model.State := { nodes := table config concrete, network }
+  let nextConcrete := Function.update concrete node after
   let afterGlobal : Model.State := {
-    nodes := table config nextStates
-    network := MultiNodeTransitionSystem.removeOne envelope network ++ outputs.outgoing }
-  have enabled : (Model.transitionSystem config).step beforeGlobal (.deliver envelope)
+    nodes := table config nextConcrete
+    network := network ++ outputs.outgoing }
+  have enabled : (Model.transitionSystem config).step beforeGlobal (.local node (.commit 0))
       = some afterGlobal :=
-    delivery_next config states network envelope member queued after outputs run
+    local_next config concrete network node member (.commit 0) after outputs commit
   obtain ⟨start, steps, initialized, valid, last⟩ := reachable_finite reachable
-  let behaviour := ofSteps start (steps ++ [(.deliver envelope, afterGlobal)]) initialized
-    (steps_snoc start beforeGlobal afterGlobal steps (.deliver envelope) valid last enabled)
-  refine ⟨behaviour, steps.length, envelope.target, beforeGlobal, afterGlobal,
-    .deliver envelope, states envelope.target, after, outputs, ?_, ?_, ?_, rfl, ?_, ?_,
-    run, notified⟩
+  let behaviour := ofSteps start (steps ++ [(.local node (.commit 0), afterGlobal)]) initialized
+    (steps_snoc start beforeGlobal afterGlobal steps (.local node (.commit 0)) valid last enabled)
+  refine ⟨behaviour, steps.length, node, beforeGlobal, afterGlobal,
+    .local node (.commit 0), concrete node, after, outputs, ?_, ?_, ?_, rfl, ?_, ?_,
+    commit, notified⟩
   · rw [ofSteps_stateAt]
-    exact snoc_before start beforeGlobal afterGlobal steps (.deliver envelope) last
+    exact snoc_before start beforeGlobal afterGlobal steps (.local node (.commit 0)) last
   · rw [ofSteps_stateAt]
-    exact snoc_after start afterGlobal steps (.deliver envelope)
+    exact snoc_after start afterGlobal steps (.local node (.commit 0))
   · rw [ofSteps_actionAt]
     simp [List.map_append]
-  · exact lookup_table config states envelope.target member network
-  · simpa [nextStates]
-      using lookup_table config nextStates envelope.target member afterGlobal.network
+  · exact lookup_table config concrete node member network
+  · simpa [nextConcrete]
+      using lookup_table config nextConcrete node member afterGlobal.network
 
 /-- The final vote of a quorum emits an opening notification in a valid finite behaviour. -/
 theorem quorum_opener_unique_witness
@@ -975,31 +1078,158 @@ theorem quorum_opener_unique_witness
   have phase : (states source).phase = .voting := by
     by_cases same : source = winner <;>
       simp [states, same, voted, selected, Nat.not_le.mpr restSmall]
-  obtain ⟨network, reachableRest⟩ := reachableRest
-  have sentStep := local_next config states network source sourceMember .retry
-    (states source) sent
-    (protocol_run config source sourceTxID (states source) (states source) .retry
-      sent sourceRecovered retry)
+  obtain ⟨concrete, network, clean, reachableRest⟩ := reachableRest
+  have retryReal :
+      (Model.Local.perform (Capabilities.record source) config.val.protocol sourceTxID
+        (concrete source) .retry).run {} = some (concrete source, sent) := by
+    rw [Atomic.retry_agrees config.val.protocol source sourceTxID (concrete source)
+      (states source) (clean source sourceMember).represented (clean source sourceMember).location,
+      retry]
+    rfl
+  have sentStep := local_next config concrete network source sourceMember .retry
+    (concrete source) sent
+    (protocol_perform config source sourceTxID (concrete source) (concrete source) .retry
+      sent sourceRecovered retryReal)
   simp only [Function.update_eq_self] at sentStep
   have reachableSent : (Model.transitionSystem config).Reachable
-      { nodes := table config states, network := network ++ sent.outgoing } :=
+      { nodes := table config concrete, network := network ++ sent.outgoing } :=
     .step (action := .local source .retry) reachableRest sentStep
   have full : voteQuorum config.val.protocol ≤ (source :: rest).length := by
     rw [← eq, length]
     exact Nat.le_refl _
-  have receive := protocol_run config winner targetTxID
-    (voted config winner rest) (voted config winner (source :: rest))
-    (.receiveVote source .accepted) _ targetRecovered
-    (vote_run config winner source targetTxID rest distinct' (by rw [← eq, length]; exact Nat.le_refl _))
-  exact notification_exists config states
-    (network ++ sent.outgoing)
-    reachableSent { source, target := winner, payload := .vote } winnerMember
-    (List.mem_append_right _ (emitted winner phase chosen))
-    (voted config winner (source :: rest))
-    _
-    (by simpa [states, Model.receive] using receive)
+  have receive := vote_run config winner source targetTxID rest distinct'
+    (by rw [← eq, length]; exact Nat.le_refl _)
+  let voteOut : Outputs Location Message Notification := {
+    notifications :=
+      if voteQuorum config.val.protocol ≤ (source :: rest).length then
+        [.opening .quorum]
+      else
+        []
+  }
+  obtain ⟨mid, last, early, runEq, _, commitEq, _⟩ :=
+    Atomic.run_commit config.val.protocol winner targetTxID (concrete winner) (states winner)
+      (voted config winner (source :: rest)) (clean winner winnerMember)
+      (Model.receive source .vote) (receive_ne_retry source .vote) voteOut
+      (by intro _; dsimp [voteOut]; split <;> simp)
+      (by simpa [states, Model.receive, voteOut] using receive)
+  have deliverStep := delivery_next config concrete (network ++ sent.outgoing)
+    { source, target := winner, payload := .vote } winnerMember
+    (List.mem_append_right _ (emitted winner phase chosen)) mid early
+    (protocol_perform config winner targetTxID (concrete winner) mid
+      (.run (Model.receive source .vote)) early targetRecovered runEq)
+  have reachableDelivered : (Model.transitionSystem config).Reachable
+      {
+        nodes := table config (Function.update concrete winner mid)
+        network := MultiNodeTransitionSystem.removeOne
+          { source, target := winner, payload := .vote }
+          (network ++ sent.outgoing) ++ early.outgoing
+      } :=
+    .step (action := .deliver { source, target := winner, payload := .vote })
+      reachableSent deliverStep
+  exact commit_notification_exists config
+    (Function.update concrete winner mid)
+    _ reachableDelivered winner winnerMember last voteOut
     (by
-      simp only [List.length_cons] at full
-      simp [full])
+      simpa [Model.protocol]
+        using protocol_perform config winner targetTxID mid last (.commit 0) voteOut
+          targetRecovered commitEq)
+    (.opening .quorum)
+    (by
+      simp [voteOut]
+      exact full)
+
+/-- A failover opener can announce itself to another configured node, which commits the restart. -/
+theorem restart_excludes_opening_witness (config : Properties.ValidConfig)
+    (multiple : 2 ≤ config.val.protocol.expectedLocations.length)
+    : ∃ (behaviour : Properties.Behaviour config) (index : Nat) (node chosen : Location),
+        Properties.Behaviour.NotificationAt config behaviour index node
+          (.restart chosen) := by
+  obtain ⟨winner, member, _, ready⟩ := full_choice config
+  let peers := config.val.protocol.expectedLocations.filter (· != winner)
+  have distinct := config.property.2.1
+  have nonemptyPeers : peers ≠ [] := by
+    intro empty
+    have sub : config.val.protocol.expectedLocations ⊆ [winner] := by
+      intro node mem
+      by_cases same : node = winner
+      · simp [same]
+      · have has : node ∈ peers := List.mem_filter.mpr ⟨mem, by simpa using same⟩
+        simp [empty] at has
+    have bound := distinct.length_le_of_subset sub
+    simp at bound
+    omega
+  obtain ⟨peer, peerMem⟩ := List.exists_mem_of_ne_nil _ nonemptyPeers
+  obtain ⟨configured, different⟩ := List.mem_filter.mp peerMem
+  have ne : peer ≠ winner := by simpa using different
+  let states := Function.update (selected config winner) winner (failedOver config winner)
+  obtain ⟨concrete, network, clean, reachable⟩ :=
+    failover_reachable config multiple winner member ready
+  let sent : Outputs Location Message Notification :=
+    { outgoing := peers.map fun target => { source := winner, target, payload := .iAmOpen } }
+  obtain ⟨tx, recovered⟩ := recovered_exists config winner member
+  have retry :
+      (Atomic.step (Capabilities.record winner) config.val.protocol tx (states winner) .retry).run {}
+        = some (states winner, sent) := by
+    have ph : (states winner).phase = .opening := by simp [states, failedOver]
+    have location : (states winner).location = winner := by
+      simp [states, failedOver, voted, selected]
+    simp only [Atomic.step, ph, location]
+    change (do
+      guard (!peers.isEmpty)
+      for target in peers do
+        (Capabilities.record winner).send .iAmOpen target
+      pure (states winner) : Effect Location Message Notification Atomic.NodeState).run {} = _
+    simp [guard, nonemptyPeers, broadcast_run, sent]
+  have retryReal :
+      (Model.Local.perform (Capabilities.record winner) config.val.protocol tx
+        (concrete winner) .retry).run {} = some (concrete winner, sent) := by
+    rw [Atomic.retry_agrees config.val.protocol winner tx (concrete winner) (states winner)
+      (clean winner member).represented (clean winner member).location, retry]
+    rfl
+  have sentStep := local_next config concrete network winner member .retry
+    (concrete winner) sent
+    (protocol_perform config winner tx (concrete winner) (concrete winner) .retry
+      sent recovered retryReal)
+  simp only [Function.update_eq_self] at sentStep
+  have sentReach : (Model.transitionSystem config).Reachable
+      { nodes := table config concrete, network := network ++ sent.outgoing } :=
+    .step (action := .local winner .retry) reachable sentStep
+  obtain ⟨peerTx, peerRecovered⟩ := recovered_exists config peer configured
+  let before := selected config winner peer
+  let after : Atomic.NodeState := { before with phase := .joining, chosen := some winner }
+  let restartOut : Outputs Location Message Notification :=
+    { notifications := [.restart winner] }
+  have body :
+      (Atomic.step (Capabilities.record peer) config.val.protocol peerTx before
+        (.receiveIAmOpen winner .accepted)).run {} = some (after, restartOut) := by
+    rfl
+  obtain ⟨mid, last, early, runEq, _, commitEq, _⟩ :=
+    Atomic.run_commit config.val.protocol peer peerTx (concrete peer) (states peer) after
+      (clean peer configured) (Model.receive winner .iAmOpen)
+      (receive_ne_retry winner .iAmOpen) restartOut (by intro _; simp [restartOut])
+      (by simpa [states, ne, before, Model.receive] using body)
+  have deliverStep := delivery_next config concrete (network ++ sent.outgoing)
+    { source := winner, target := peer, payload := .iAmOpen } configured
+    (List.mem_append_right _ (List.mem_map.mpr ⟨peer, peerMem, rfl⟩)) mid early
+    (protocol_perform config peer peerTx (concrete peer) mid
+      (.run (Model.receive winner .iAmOpen)) early peerRecovered runEq)
+  have deliverReach : (Model.transitionSystem config).Reachable
+      {
+        nodes := table config (Function.update concrete peer mid)
+        network := MultiNodeTransitionSystem.removeOne
+          { source := winner, target := peer, payload := .iAmOpen }
+          (network ++ sent.outgoing) ++ early.outgoing
+      } :=
+    .step (action := .deliver { source := winner, target := peer, payload := .iAmOpen })
+      sentReach deliverStep
+  obtain ⟨behaviour, index, node, restart⟩ :=
+    commit_notification_exists config (Function.update concrete peer mid) _
+      deliverReach peer configured last restartOut
+      (by
+        simpa [Model.protocol] using
+          protocol_perform config peer peerTx mid last (.commit 0) restartOut
+            peerRecovered commitEq)
+      (.restart winner) (by simp [restartOut])
+  exact ⟨behaviour, index, node, winner, restart⟩
 
 end DisasterRecovery.Proofs.GlobalWitnesses
