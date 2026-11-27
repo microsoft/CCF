@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -279,6 +281,64 @@ inline AdapterType resolveJsonPointerStrict(
         const std::string &jsonPointer)
 {
     return resolveJsonPointer(rootNode, jsonPointer, jsonPointer.begin(), true);
+}
+
+/**
+ * @brief   Check whether a string is a JSON Pointer in its JSON String
+ *          representation, as defined in RFC 6901, section 3
+ *
+ * A JSON Pointer is either empty, or a sequence of reference tokens, each of
+ * which is prefixed by '/'. Within a reference token, '~' must be followed by
+ * '0' or '1'. Any other character, including an embedded null byte, may
+ * appear in a reference token.
+ *
+ * @param   s  string to check
+ *
+ * @return  \c true if \p s is a JSON Pointer
+ */
+inline bool isJsonPointer(const std::string &s)
+{
+    if (!s.empty() && s[0] != '/') {
+        return false;
+    }
+
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '~') {
+            if (i + 1 >= s.size() || (s[i + 1] != '0' && s[i + 1] != '1')) {
+                return false;
+            }
+            ++i;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * @brief   Check whether a string is a Relative JSON Pointer, as defined in
+ *          draft-handrews-relative-json-pointer-01, section 3
+ *
+ * A Relative JSON Pointer is a non-negative integer without leading zeros,
+ * followed either by '#' or by a JSON Pointer.
+ *
+ * @param   s  string to check
+ *
+ * @return  \c true if \p s is a Relative JSON Pointer
+ */
+inline bool isRelativeJsonPointer(const std::string &s)
+{
+    size_t digits = 0;
+    while (digits < s.size() && s[digits] >= '0' && s[digits] <= '9') {
+        ++digits;
+    }
+
+    // The prefix must be a non-negative integer without leading zeros
+    if (digits == 0 || (digits > 1 && s[0] == '0')) {
+        return false;
+    }
+
+    const std::string remainder = s.substr(digits);
+    return remainder == "#" || isJsonPointer(remainder);
 }
 
 } // namespace json_pointer

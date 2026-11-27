@@ -8,10 +8,107 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <algorithm>
+#include <cmath>
 #include <doctest/doctest.h>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <vector>
+
+TEST_CASE("Valijson nested property names")
+{
+  const auto schema = nlohmann::json::parse(R"({
+    "properties": {
+      "nested": {
+        "type": "object",
+        "propertyNames": {"maxLength": 3}
+      }
+    }
+  })");
+  CHECK_FALSE(
+    json::validate_json({{"nested", {{"abc", 1}}}}, schema).has_value());
+  CHECK(json::validate_json({{"nested", {{"abcd", 1}}}}, schema).has_value());
+}
+
+TEST_CASE("Valijson string formats")
+{
+  struct FormatCase
+  {
+    std::string format;
+    std::vector<std::string> valid;
+    std::vector<std::string> invalid;
+  };
+
+  const std::vector<FormatCase> cases = {
+    {"json-pointer", {"", "/a~0b/c~1d"}, {"a", "/a~", "/a~2"}},
+    {"relative-json-pointer", {"0#", "1/a~1b"}, {"01/a", "-1/a", "1/a~2"}},
+    {"ipv6",
+     {"::ffff:192.0.2.1", "2001:db8::1"},
+     {"::ffff:192.00.2.1", "::ffff:192.0.2.01"}},
+    {"date",
+     {"0001-01-01", "2024-02-29"},
+     {"1-01-01", "10000-01-01", "2023-02-29"}},
+    {"date-time",
+     {"0001-01-01T00:00:00Z", "2024-02-29T23:59:59Z"},
+     {"1-01-01T00:00:00Z", "10000-01-01T00:00:00Z", "2023-02-29T00:00:00Z"}}};
+
+  for (const auto& test : cases)
+  {
+    INFO(test.format);
+    const nlohmann::json schema_json = {
+      {"type", "string"}, {"format", test.format}};
+    valijson::Schema schema;
+    valijson::SchemaParser parser;
+    parser.populateSchema(
+      valijson::adapters::NlohmannJsonAdapter(schema_json), schema);
+    valijson::Validator validator;
+    for (const auto& value : test.valid)
+    {
+      INFO(value);
+      CHECK_FALSE(json::validate_json(value, schema_json).has_value());
+      const nlohmann::json target = value;
+      CHECK(validator.validate(
+        schema, valijson::adapters::NlohmannJsonAdapter(target), nullptr));
+    }
+    for (const auto& value : test.invalid)
+    {
+      INFO(value);
+      CHECK(json::validate_json(value, schema_json).has_value());
+      const nlohmann::json target = value;
+      CHECK_FALSE(validator.validate(
+        schema, valijson::adapters::NlohmannJsonAdapter(target), nullptr));
+    }
+  }
+}
+
+TEST_CASE("Valijson floating point integer conversion bounds")
+{
+  const double upper_bound =
+    -static_cast<double>(std::numeric_limits<int64_t>::min());
+  const nlohmann::json outside = upper_bound;
+  const valijson::adapters::NlohmannJsonAdapter outside_adapter(outside);
+  int64_t result = 42;
+  CHECK_FALSE(outside_adapter.asInteger(result));
+  CHECK(result == 42);
+
+  const nlohmann::json lower = -upper_bound;
+  CHECK(valijson::adapters::NlohmannJsonAdapter(lower).asInteger(result));
+  CHECK(result == std::numeric_limits<int64_t>::min());
+
+  const nlohmann::json inside = std::nextafter(upper_bound, 0.0);
+  CHECK(valijson::adapters::NlohmannJsonAdapter(inside).asInteger(result));
+  CHECK(result == static_cast<int64_t>(inside.get<double>()));
+}
+
+TEST_CASE("Valijson regex format")
+{
+  const nlohmann::json schema = {{"type", "string"}, {"format", "regex"}};
+  CHECK_FALSE(json::validate_json("^a+$", schema).has_value());
+#if defined(VALIJSON_USE_EXCEPTIONS) && VALIJSON_USE_EXCEPTIONS
+  CHECK(json::validate_json("[", schema).has_value());
+#else
+  CHECK_FALSE(json::validate_json("[", schema).has_value());
+#endif
+}
 
 TEST_CASE("host configuration unsigned integer bounds")
 {

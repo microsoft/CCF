@@ -8,8 +8,10 @@
 #include <unordered_map>
 #include <utility>
 
+#include <valijson/internal/date_time.hpp>
 #include <valijson/internal/hostname.hpp>
 #include <valijson/internal/ip_address.hpp>
+#include <valijson/internal/json_pointer.hpp>
 #include <valijson/internal/regex.hpp>
 #include <valijson/adapters/std_string_adapter.hpp>
 #include <valijson/constraints/concrete_constraints.hpp>
@@ -414,87 +416,38 @@ public:
         const std::string format = constraint.getFormat();
         if (format == "date") {
             // Matches dates like: 2022-07-18
-            static const internal::regex date_regex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$");
-            internal::smatch matches;
-            if (internal::regex_match(s, matches, date_regex)) {
-                const auto year = std::stoi(matches[1].str());
-                const auto month = std::stoi(matches[2].str());
-                const auto day = std::stoi(matches[3].str());
-                return validate_date_range(year, month, day);
-            } else {
-                if (m_results) {
-                    m_results->pushError(m_path, "String should be a valid date");
-                }
-                return false;
+            if (internal::isDate(s)) {
+                return true;
             }
+
+            if (m_results) {
+                m_results->pushError(m_path, "String should be a valid date");
+            }
+            return false;
         } else if (format == "time") {
             // Strict mode matches times like: 16:52:45Z, 16:52:45+02:00
             // Permissive mode also matches times like 16:52:45
-            static const internal::regex strictRegex("^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+\\-])([01][0-9]|2[0-3]):([0-5][0-9]))$");
-            static const internal::regex permissiveRegex("^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])?|([\\+\\-])([01][0-9]|2[0-3]):([0-5][0-9]))$");
-            internal::smatch matches;
-            if (internal::regex_match(s, matches, m_strictDateTime ? strictRegex : permissiveRegex)) {
-                const auto hour = std::stoi(matches[1].str());
-                const auto minute = std::stoi(matches[2].str());
-                const auto second = std::stoi(matches[3].str());
-                if (second == 60) {
-                    int offsetMinutes = 0;
-                    if (matches[7].matched && matches[8].matched && matches[9].matched) {
-                        const int sign = (matches[7].str() == "-") ? -1 : 1;
-                        offsetMinutes = sign * (std::stoi(matches[8].str()) * 60
-                                + std::stoi(matches[9].str()));
-                    }
-                    if (!validate_leap_second(hour, minute, offsetMinutes)) {
-                        if (m_results) {
-                            m_results->pushError(m_path, "String should be a valid time");
-                        }
-                        return false;
-                    }
-                }
+            if (internal::isTime(s, m_strictDateTime)) {
                 return true;
-            } else {
-                if (m_results) {
-                    m_results->pushError(m_path, "String should be a valid time");
-                }
-                return false;
             }
+
+            if (m_results) {
+                m_results->pushError(m_path, "String should be a valid time");
+            }
+            return false;
         } else if (format == "date-time") {
-            // Strict mode matches date/times like: 2022-07-18T16:52:45Z, 2022-07-18T16:52:45+02:00
+            // Strict mode matches date/times like: 2022-07-18T16:52:45Z,
+            // 2022-07-18T16:52:45+02:00
             // Permissive mode also matches date/times like: 2022-07-18T16:52:45
-            static const internal::regex strictRegex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+\\-])([01][0-9]|2[0-3]):([0-5][0-9]))$");
-            static const internal::regex permissiveRegex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])?|([\\+\\-])([01][0-9]|2[0-3]):([0-5][0-9]))$");
-            internal::smatch matches;
-            if (internal::regex_match(s, matches, m_strictDateTime ? strictRegex : permissiveRegex)) {
-                const auto year = std::stoi(matches[1].str());
-                const auto month = std::stoi(matches[2].str());
-                const auto day = std::stoi(matches[3].str());
-                if (!validate_date_range(year, month, day)) {
-                    return false;
-                }
-                const auto hour = std::stoi(matches[4].str());
-                const auto minute = std::stoi(matches[5].str());
-                const auto second = std::stoi(matches[6].str());
-                if (second == 60) {
-                    int offsetMinutes = 0;
-                    if (matches[10].matched && matches[11].matched && matches[12].matched) {
-                        const int sign = (matches[10].str() == "-") ? -1 : 1;
-                        offsetMinutes = sign * (std::stoi(matches[11].str()) * 60
-                                + std::stoi(matches[12].str()));
-                    }
-                    if (!validate_leap_second(hour, minute, offsetMinutes)) {
-                        if (m_results) {
-                            m_results->pushError(m_path, "String should be a valid date-time");
-                        }
-                        return false;
-                    }
-                }
+            if (internal::isDateTime(s, m_strictDateTime)) {
                 return true;
-            } else {
-                if (m_results) {
-                    m_results->pushError(m_path, "String should be a valid date-time");
-                }
-                return false;
             }
+
+            if (m_results) {
+                m_results->pushError(m_path,
+                                     "String should be a valid date-time");
+            }
+            return false;
         } else if (format == "ipv4") {
             // Matches IPv4 addresses between 0.0.0.0 and 255.255.255.255.
             if (internal::isIpv4DottedQuad(s, 0, s.size())) {
@@ -528,6 +481,45 @@ public:
                         "String should be a valid IPv6 address");
             }
             return false;
+        } else if (format == "json-pointer") {
+            // Matches JSON Pointers like: /foo/bar~0/baz~1
+            if (internal::json_pointer::isJsonPointer(s)) {
+                return true;
+            }
+
+            if (m_results) {
+                m_results->pushError(m_path,
+                                     "String should be a valid JSON Pointer");
+            }
+            return false;
+        } else if (format == "relative-json-pointer") {
+            // Matches Relative JSON Pointers like: 0#, 1/foo/bar
+            if (internal::json_pointer::isRelativeJsonPointer(s)) {
+                return true;
+            }
+
+            if (m_results) {
+                m_results->pushError(
+                    m_path, "String should be a valid Relative JSON Pointer");
+            }
+            return false;
+        } else if (format == "regex") {
+            // Matches regular expressions that the regular expression engine
+            // can compile. Compilation errors can only be detected when
+            // exceptions are enabled; otherwise the format is not enforced.
+#if VALIJSON_USE_EXCEPTIONS
+            try {
+                RegexEngine regexEngine(s);
+                (void)regexEngine;
+            } catch (...) {
+                if (m_results) {
+                    m_results->pushError(
+                        m_path, "String should be a valid regular expression");
+                }
+                return false;
+            }
+#endif
+            return true;
         }
 
         return true;
@@ -2030,74 +2022,6 @@ private:
     static bool validationCallback(const constraints::Constraint &constraint, ValidationVisitor<AdapterType, RegexEngine> &visitor)
     {
         return constraint.accept(visitor);
-    }
-
-    /**
-     * @brief    Helper function to validate if day is valid for the given
-     *           year and month, applying the Gregorian leap-year rules.
-     *
-     * @param    year    Year (any non-negative value)
-     * @param    month   Month, 1-12
-     * @param    day     Day, 1-31
-     *
-     * @return   \c true if day is valid for given year/month, \c false otherwise.
-     */
-    bool validate_date_range(int year, int month, int day)
-    {
-        if (day < 1) {
-            if (m_results) {
-                m_results->pushError(m_path, "String should be a valid date-time");
-            }
-            return false;
-        }
-
-        int limit;
-        if (month == 2) {
-            const bool leap = (year % 4 == 0)
-                    && ((year % 100 != 0) || (year % 400 == 0));
-            limit = leap ? 29 : 28;
-        } else if (month <= 7) {
-            limit = (month % 2 == 0) ? 30 : 31;
-        } else {
-            limit = (month % 2 != 0) ? 30 : 31;
-        }
-
-        if (day > limit) {
-            if (m_results) {
-                m_results->pushError(m_path, "String should be a valid date-time");
-            }
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * @brief    Helper function to validate a leap second value (seconds == 60)
-     *           in a time string.
-     *
-     * Per RFC 3339, a leap second is only valid when the UTC time would be
-     * 23:59:60. For a value '23:59:60Z' that is satisfied directly; for
-     * values with a numeric offset, the local hour and minute must combine
-     * with the offset to equal 23:59 UTC.
-     *
-     * @param    hour          Local hour from the time string
-     * @param    minute        Local minute from the time string
-     * @param    offsetMinutes Offset from UTC in minutes; positive values
-     *                         indicate the local time is ahead of UTC. For
-     *                         Z/z the offset is 0.
-     *
-     * @return   \c true if the leap second is permitted given the offset.
-     */
-    bool validate_leap_second(int hour, int minute, int offsetMinutes)
-    {
-        // Total local time in minutes since 00:00.
-        const int localMinutes = hour * 60 + minute;
-        // Convert to UTC minutes, wrapping into the range [0, 1440).
-        int utcMinutes = localMinutes - offsetMinutes;
-        utcMinutes = ((utcMinutes % 1440) + 1440) % 1440;
-        // 23:59 UTC == 23 * 60 + 59 == 1439 minutes.
-        return utcMinutes == 1439;
     }
 
     /// The JSON value being validated
