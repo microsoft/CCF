@@ -27,11 +27,11 @@ CHANNEL_BURST_COUNT = 64
 MIN_ELECTION_TIMEOUT_MS = 3000
 
 
-def make_forwarding_interface():
+def make_forwarding_interface(forwarding_timeout_ms=FORWARDING_TIMEOUT_MS):
     return infra.interfaces.RPCInterface(
         app_protocol="HTTP1",
         redirections=None,
-        forwarding_timeout_ms=FORWARDING_TIMEOUT_MS,
+        forwarding_timeout_ms=forwarding_timeout_ms,
     )
 
 
@@ -77,8 +77,12 @@ def run(args):
     args.election_timeout_ms = max(
         int(args.election_timeout_ms), MIN_ELECTION_TIMEOUT_MS
     )
+    forwarding_timeout_ms = max(FORWARDING_TIMEOUT_MS, args.election_timeout_ms * 3)
+    daisy_timeout_s = max(15.0, forwarding_timeout_ms / 1000.0 + 5.0)
     for host in args.nodes:
-        host.rpc_interfaces[FORWARDING_RPC_INTERFACE] = make_forwarding_interface()
+        host.rpc_interfaces[FORWARDING_RPC_INTERFACE] = make_forwarding_interface(
+            forwarding_timeout_ms
+        )
 
     with infra.consistency_trace.recording(args), infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
@@ -183,7 +187,7 @@ def run(args):
                 with httpx.Client(
                     verify=tls_ctx,
                     http2=False,
-                    timeout=15.0,
+                    timeout=daisy_timeout_s,
                     limits=httpx.Limits(keepalive_expiry=None),
                 ) as daisy_client:
                     # Pre-establish TCP+TLS on daisy_backup while keeping
@@ -243,7 +247,7 @@ def run(args):
                         finally:
                             cur_primary.resume()
 
-                        daisy_resp = daisy_future.result(timeout=15)
+                        daisy_resp = daisy_future.result(timeout=daisy_timeout_s)
 
                 if (
                     daisy_resp.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
@@ -257,6 +261,7 @@ def run(args):
                         primary_client,
                         f"https://{new_primary.get_public_rpc_address()}",
                         daisy_resp.headers["x-ms-ccf-transaction-id"],
+                        timeout_s=max(10.0, network.election_duration * 2),
                     )
                 LOG.warning(
                     f"RequestAlreadyForwarded attempt {attempt + 1}/{MAX_DAISY_ATTEMPTS} "
