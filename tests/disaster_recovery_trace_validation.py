@@ -265,6 +265,12 @@ def main() -> int:
     if not args.capture_only and args.checker is None:
         parser.error("--checker is required unless --capture-only is set")
 
+    args.binary = args.binary.resolve(strict=True)
+    if not args.capture_only:
+        args.checker = args.checker.resolve(strict=True)
+    if args.schema_script is not None:
+        args.schema_script = args.schema_script.resolve(strict=True)
+
     check_case_list(args.binary)
     run_capture(args.binary, args.output, args.timeout)
 
