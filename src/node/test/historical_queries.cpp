@@ -10,6 +10,7 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
+#include "ccf/historical_queries_utils.h"
 #include "ccf/receipt.h"
 #include "consensus/test/ledger_stub.h"
 #include "crypto/cbor_helpers.h"
@@ -19,6 +20,7 @@
 #include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
+#include "node/identity.h"
 #include "node/share_manager.h"
 #include "node/signature_cache_subsystem.h"
 
@@ -4539,6 +4541,176 @@ TEST_CASE("StateCache reply routing scaling benchmark" * doctest::skip())
     {
       measure_secret(7300, consumers);
     }
+  }
+}
+
+namespace
+{
+  struct StubNetworkIdentitySubsystem
+    : public ccf::NetworkIdentitySubsystemInterface
+  {
+    std::unique_ptr<ccf::NetworkIdentity> identity;
+    ccf::FetchStatus status = ccf::FetchStatus::Done;
+    ccf::TrustedKeys trusted_keys;
+
+    const std::unique_ptr<ccf::NetworkIdentity>& get() override
+    {
+      return identity;
+    }
+
+    [[nodiscard]] ccf::FetchStatus endorsements_fetching_status() const override
+    {
+      return status;
+    }
+
+    [[nodiscard]] std::optional<ccf::CoseEndorsementsChain>
+    get_cose_endorsements_chain(ccf::SeqNo) const override
+    {
+      return std::nullopt;
+    }
+
+    [[nodiscard]] std::optional<ccf::CoseEndorsementsChain>
+    get_cose_endorsements_chain_pq(ccf::SeqNo) const override
+    {
+      return std::nullopt;
+    }
+
+    [[nodiscard]] ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
+      ccf::SeqNo seqno) const override
+    {
+      auto it = trusted_keys.upper_bound(seqno);
+      if (it == trusted_keys.begin())
+      {
+        return nullptr;
+      }
+      return std::prev(it)->second;
+    }
+
+    [[nodiscard]] ccf::crypto::MLDSAPublicKeyPtr get_trusted_identity_for_pq(
+      ccf::SeqNo) const override
+    {
+      return nullptr;
+    }
+
+    [[nodiscard]] ccf::TrustedKeys get_trusted_keys() const override
+    {
+      return trusted_keys;
+    }
+
+    [[nodiscard]] ccf::TrustedKeysPQ get_trusted_keys_pq() const override
+    {
+      return {};
+    }
+  };
+
+  std::unique_ptr<ccf::NetworkIdentity> make_test_service_identity(
+    const std::string& subject_name)
+  {
+    return std::make_unique<ccf::NetworkIdentity>(
+      subject_name,
+      ccf::crypto::CurveID::SECP384R1,
+      ccf::crypto::MLDSAParameterSet::ML_DSA_65,
+      valid_from,
+      certificate_validity_period_days);
+  }
+
+  ccf::crypto::ECPublicKeyPtr public_key_of(const ccf::NetworkIdentity& id)
+  {
+    return ccf::crypto::make_ec_public_key(
+      ccf::crypto::make_unique_verifier(id.cert)->public_key_pem());
+  }
+}
+
+TEST_CASE("Service endorsements use the fetched identity history")
+{
+  // The receipt is signed by a node of a previous service, which was
+  // followed by several recoveries
+  constexpr ccf::SeqNo previous_service_from = 1;
+  constexpr ccf::SeqNo target_seqno = 10;
+  constexpr ccf::SeqNo later_service_from = 20;
+  constexpr ccf::SeqNo current_service_from = 30;
+
+  const auto previous = make_test_service_identity("CN=Previous Service");
+  const auto later = make_test_service_identity("CN=Later Service");
+
+  const auto node_cert = ccf::crypto::create_endorsed_cert(
+    ccf::crypto::make_ec_key_pair(),
+    "CN=Test node",
+    {},
+    valid_from,
+    certificate_validity_period_days,
+    previous->priv_key,
+    previous->cert);
+
+  auto subsystem = std::make_shared<StubNetworkIdentitySubsystem>();
+  subsystem->identity = make_test_service_identity("CN=Current Service");
+  subsystem->trusted_keys = {
+    {previous_service_from, public_key_of(*previous)},
+    {later_service_from, public_key_of(*later)},
+    {current_service_from, public_key_of(*subsystem->identity)}};
+
+  auto make_state = [&]() {
+    auto receipt = std::make_shared<ccf::TxReceiptImpl>(
+      std::nullopt,
+      ccf::CoseSignatureMap{},
+      std::nullopt,
+      nullptr,
+      ccf::NodeId(std::string("node_id")),
+      node_cert);
+    return std::make_shared<ccf::historical::State>(
+      nullptr, receipt, ccf::TxID{2, target_seqno});
+  };
+
+  // Neither the service table nor the ledger describe the previous
+  // services, so that any endorsement comes from the identity history
+  auto state = create_and_init_state();
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  ccf::historical::StateCache cache(
+    *state.kv_store, state.ledger_secrets, reader);
+  auto tx = state.kv_store->create_read_only_tx();
+
+  auto node_verifier = ccf::crypto::make_unique_verifier(node_cert);
+
+  {
+    INFO("The endorsement is produced without fetching historical entries");
+    auto historical_state = make_state();
+    REQUIRE(ccf::historical::populate_service_endorsements(
+      tx, historical_state, cache, subsystem));
+
+    const auto& endorsements = historical_state->receipt->service_endorsements;
+    REQUIRE(endorsements.has_value());
+    REQUIRE(endorsements->size() == 1);
+    const auto& endorsement = endorsements->front();
+
+    auto endorsement_verifier = ccf::crypto::make_unique_verifier(endorsement);
+    CHECK(
+      endorsement_verifier->subject_der() ==
+      ccf::crypto::make_unique_verifier(previous->cert)->subject_der());
+    CHECK(
+      endorsement_verifier->public_key_pem() ==
+      public_key_of(*previous)->public_key_pem());
+    CHECK(node_verifier->issuer_der() == endorsement_verifier->subject_der());
+    CHECK(node_verifier->verify_certificate(
+      {&subsystem->identity->cert}, {&endorsement}, true));
+  }
+
+  {
+    INFO("An identity which did not sign the node certificate is not used");
+    subsystem->trusted_keys[previous_service_from] = public_key_of(*later);
+    auto historical_state = make_state();
+    REQUIRE(ccf::historical::populate_service_endorsements(
+      tx, historical_state, cache, subsystem));
+    CHECK_FALSE(historical_state->receipt->service_endorsements.has_value());
+  }
+
+  {
+    INFO("An unsettled identity history is not used");
+    subsystem->trusted_keys[previous_service_from] = public_key_of(*previous);
+    subsystem->status = ccf::FetchStatus::Retry;
+    auto historical_state = make_state();
+    REQUIRE(ccf::historical::populate_service_endorsements(
+      tx, historical_state, cache, subsystem));
+    CHECK_FALSE(historical_state->receipt->service_endorsements.has_value());
   }
 }
 

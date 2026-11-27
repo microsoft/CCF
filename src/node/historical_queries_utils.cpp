@@ -4,6 +4,7 @@
 #include "ccf/historical_queries_utils.h"
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/ds/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "consensus/aft/cft_types.h"
@@ -15,6 +16,7 @@
 #include "service/tables/previous_service_identity.h"
 
 #include <format>
+#include <mutex>
 
 namespace
 {
@@ -37,8 +39,104 @@ namespace ccf
 {
   namespace
   {
-    std::map<ccf::crypto::Pem, std::vector<ccf::crypto::Pem>>
-      service_endorsement_cache;
+    // Guards the caches below, which are shared by all historical queries
+    ccf::ds::Mutex service_endorsement_lock;
+
+    // Endorsements of previous service identities by the current one, keyed
+    // by the endorsed public key and DER-encoded subject name
+    using EndorsedIdentity = std::pair<ccf::crypto::Pem, std::vector<uint8_t>>;
+    std::map<EndorsedIdentity, ccf::crypto::Pem> service_endorsement_cache;
+
+    // Committed writes to the service table, as discovered by
+    // find_previous_service_identity
+    std::map<ccf::SeqNo, ServiceInfo> previous_service_info_cache;
+
+    ccf::crypto::Pem endorse_previous_service_identity(
+      const ccf::crypto::Pem& public_key,
+      const std::vector<uint8_t>& subject_der,
+      const NetworkIdentity& network_identity)
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(service_endorsement_lock);
+
+      // Note: validity period of service certificate may have changed
+      // since we created the cached endorsements.
+      const auto key = std::make_pair(public_key, subject_der);
+      auto it = service_endorsement_cache.find(key);
+      if (it == service_endorsement_cache.end())
+      {
+        auto ncv = ccf::crypto::make_unique_verifier(network_identity.cert);
+        auto endorsement = create_endorsed_cert(
+          public_key,
+          subject_der,
+          {},
+          ncv->validity_period(),
+          network_identity.priv_key,
+          network_identity.cert,
+          true /* CA */);
+        it = service_endorsement_cache.emplace(key, endorsement).first;
+      }
+      return it->second;
+    }
+
+    // Builds the endorsement from the identity history already fetched and
+    // validated by the network identity subsystem, so that no further
+    // historical entries are needed. The service identity which signed the
+    // receipt is named by the issuer of the node certificate. Returns nullopt
+    // if that history does not provide an identity which endorses the node
+    // certificate, for instance because it does not reach back far enough.
+    std::optional<ccf::crypto::Pem> endorse_from_identity_history(
+      ccf::SeqNo seqno,
+      ccf::crypto::Verifier& node_cert_verifier,
+      NetworkIdentitySubsystemInterface& network_identity_subsystem)
+    {
+      const auto fetching =
+        network_identity_subsystem.endorsements_fetching_status();
+      if (fetching != FetchStatus::Done && fetching != FetchStatus::Partial)
+      {
+        return std::nullopt;
+      }
+
+      try
+      {
+        const auto trusted_key =
+          network_identity_subsystem.get_trusted_identity_for(seqno);
+        if (trusted_key == nullptr)
+        {
+          return std::nullopt;
+        }
+
+        const auto& network_identity = network_identity_subsystem.get();
+        auto endorsement = endorse_previous_service_identity(
+          trusted_key->public_key_pem(),
+          node_cert_verifier.issuer_der(),
+          *network_identity);
+
+        // Check the chain which a client verifies, from the node certificate
+        // to the current service identity through the endorsement
+        if (!node_cert_verifier.verify_certificate(
+              {&network_identity->cert},
+              {&endorsement},
+              /* ignore_time */ true))
+        {
+          LOG_DEBUG_FMT(
+            "Trusted service identity at seqno {} does not endorse the node "
+            "certificate of the receipt",
+            seqno);
+          return std::nullopt;
+        }
+
+        return endorsement;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_DEBUG_FMT(
+          "Could not use fetched identity history to endorse the receipt at "
+          "seqno {}: {}",
+          seqno,
+          e.what());
+        return std::nullopt;
+      }
+    }
   }
 
   namespace historical
@@ -76,6 +174,18 @@ namespace ccf
         i = hservice_info->previous_service_identity_version.value_or(i - 1);
         LOG_TRACE_FMT("historical service identity search at: {}", i);
 
+        {
+          // Steps already taken by earlier requests do not need to be fetched
+          // again, so that only the first request pays for a long walk.
+          std::lock_guard<ccf::ds::Mutex> guard(service_endorsement_lock);
+          const auto known = previous_service_info_cache.find(i);
+          if (known != previous_service_info_cache.end())
+          {
+            hservice_info = known->second;
+            continue;
+          }
+        }
+
         const auto system_handle = make_system_handle(i);
         auto* cache_impl =
           dynamic_cast<ccf::historical::StateCacheImpl*>(&state_cache);
@@ -95,6 +205,11 @@ namespace ccf
         auto htx = hstate->store->create_read_only_tx();
         auto* hservice = htx.ro<Service>(Tables::SERVICE);
         hservice_info = hservice->get();
+        if (hservice_info)
+        {
+          std::lock_guard<ccf::ds::Mutex> guard(service_endorsement_lock);
+          previous_service_info_cache.insert_or_assign(i, *hservice_info);
+        }
       } while (i > target_seqno || (i > 1 && !hservice_info));
 
       if (!hservice_info)
@@ -144,43 +259,33 @@ namespace ccf
                   {&network_identity->cert}, {}, /* ignore_time */ true))
             {
               // The current service identity does not endorse the node
-              // certificate in the receipt, so we search for the the most
-              // recent write to the service info table before the historical
-              // transaction ID to get the historical service identity.
+              // certificate in the receipt, so it was signed by a previous
+              // service identity, which needs endorsing.
+              auto endorsement = endorse_from_identity_history(
+                state->transaction_id.seqno, *v, *network_identity_subsystem);
 
-              auto opt_psi =
-                find_previous_service_identity(tx, state, state_cache);
-              if (!opt_psi)
+              if (!endorsement.has_value())
               {
-                return false;
-              }
+                // Otherwise search for the most recent write to the service
+                // info table before the historical transaction ID to get the
+                // historical service identity. This fetches one historical
+                // entry per write to that table since the transaction.
+                auto opt_psi =
+                  find_previous_service_identity(tx, state, state_cache);
+                if (!opt_psi)
+                {
+                  return false;
+                }
 
-              auto hpubkey = ccf::crypto::public_key_pem_from_cert(
-                ccf::crypto::cert_pem_to_der(opt_psi->cert));
-
-              auto eit = service_endorsement_cache.find(hpubkey);
-              if (eit != service_endorsement_cache.end())
-              {
-                // Note: validity period of service certificate may have changed
-                // since we created the cached endorsements.
-                receipt->service_endorsements = eit->second;
-              }
-              else
-              {
-                auto ncv =
-                  ccf::crypto::make_unique_verifier(network_identity->cert);
-                auto endorsement = create_endorsed_cert(
-                  hpubkey,
+                endorsement = endorse_previous_service_identity(
+                  ccf::crypto::public_key_pem_from_cert(
+                    ccf::crypto::cert_pem_to_der(opt_psi->cert)),
                   ccf::crypto::make_unique_verifier(opt_psi->cert)
                     ->subject_der(),
-                  {},
-                  ncv->validity_period(),
-                  network_identity->priv_key,
-                  network_identity->cert,
-                  true /* CA */);
-                service_endorsement_cache[hpubkey] = {endorsement};
-                receipt->service_endorsements = {endorsement};
+                  *network_identity);
               }
+
+              receipt->service_endorsements = {*endorsement};
             }
           }
         }
@@ -240,7 +345,8 @@ namespace ccf
       if (fetching != FetchStatus::Done && fetching != FetchStatus::Partial)
       {
         throw std::runtime_error(std::format(
-          "Unexpected endorsements fetching status: expected Done or Partial; "
+          "Unexpected endorsements fetching status: expected Done or "
+          "Partial; "
           "got {}",
           ccf::to_string(fetching)));
       }

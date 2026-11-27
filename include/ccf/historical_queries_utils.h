@@ -12,13 +12,15 @@ namespace ccf::historical
   // Modifies the receipt stored in state to include historical service
   // endorsements, where required. If the state talks about a different service
   // identity, which is known to be a predecessor of this service (via disaster
-  // recoveries), then an endorsement of the receipt's node certificate will be
-  // created. This may need to use the state_cache to request additional
-  // historical entries to construct this endorsement, and may read from the
-  // current/latest state via tx. Returns true if the operation is complete,
-  // though it may still have failed to produce an endorsement. Returns false if
-  // additional entries have been requested, in which case the caller should
-  // retry later.
+  // recoveries), then an endorsement of that identity by the current one will
+  // be created. The predecessor is taken from the identity history fetched by
+  // the network identity subsystem when that covers the state, which needs no
+  // further historical entries. Otherwise this may need to use the state_cache
+  // to request additional historical entries to construct this endorsement,
+  // and may read from the current/latest state via tx. Returns true if the
+  // operation is complete, though it may still have failed to produce an
+  // endorsement. Returns false if additional entries have been requested, in
+  // which case the caller should retry later.
   bool populate_service_endorsements(
     ccf::kv::ReadOnlyTx& tx,
     ccf::historical::StatePtr& state,
