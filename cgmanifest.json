@@ -65,8 +65,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "0e815792b167a9bd8ace259b95b7da953776c288",
-          "tag": "release/v9.4.3"
+          "commitHash": "816485216511b86459b2e6478190e14c38c14891",
+          "tag": "release/v9.4.4"
         }
       }
     },
