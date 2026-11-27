@@ -66,7 +66,10 @@ namespace ccf::kv
     // Always <= version: rollback() clamps it.
     Version last_committable = 0;
 
-    Version rollback_count = 0;
+    // Advances when map history is invalidated by rollback, installation, or
+    // replacement. Each map records the last store epoch observed by its
+    // history, including subsequent writes.
+    Version validity_epoch CCF_GUARDED_BY(version_lock) = 0;
 
     std::unordered_map<Version, std::tuple<std::unique_ptr<PendingTx>, bool>>
       pending_txs;
@@ -76,8 +79,8 @@ namespace ccf::kv
     {
       // StoreState is only a base of the store, so it cannot name it.
       KV_TRACE(trace::unsupported(nullptr, "store clear"));
-      std::scoped_lock<ccf::ds::Mutex, ccf::ds::Mutex> mguard(
-        maps_lock, version_lock);
+      ccf::ds::MutexGuard mguard(maps_lock);
+      ccf::ds::MutexGuard vguard(version_lock);
 
       maps.clear();
       pending_txs.clear();
@@ -89,7 +92,7 @@ namespace ccf::kv
 
       last_replicated = 0;
       last_committable = 0;
-      rollback_count = 0;
+      validity_epoch = 0;
     }
   };
 
@@ -645,6 +648,8 @@ namespace ccf::kv
       {
         std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
+        // maps_lock serialises epoch allocation; publish it only on apply.
+        const auto snapshot_epoch = current_validity_epoch() + 1;
         OrderedChanges changes;
         MapCollection new_maps;
 
@@ -722,7 +727,7 @@ namespace ccf::kv
                 }
                 deserialised_snapshot_changes =
                   ccf::kv::untyped::Map::make_snapshot_changes(
-                    captured_it->second.state, map_version);
+                    captured_it->second.state, map_version, snapshot_epoch);
                 ++reused_count;
               }
               else
@@ -735,13 +740,13 @@ namespace ccf::kv
                     map_version, state, serialised_digest});
                 deserialised_snapshot_changes =
                   ccf::kv::untyped::Map::make_snapshot_changes(
-                    std::move(state), map_version);
+                    std::move(state), map_version, snapshot_epoch);
               }
             }
             else
             {
               deserialised_snapshot_changes =
-                map->deserialise_snapshot_changes(d);
+                map->deserialise_snapshot_changes(d, snapshot_epoch);
             }
 
             // Take ownership of the produced change set, store it to be
@@ -775,7 +780,11 @@ namespace ccf::kv
         bool track_deletes_on_missing_keys = false;
         auto r = apply_changes(
           changes,
-          []() { return NoVersion; },
+          [&]() {
+            ccf::ds::MutexGuard vguard(version_lock);
+            validity_epoch = snapshot_epoch;
+            return NoVersion;
+          },
           hooks,
           new_maps,
           std::nullopt,
@@ -911,8 +920,9 @@ namespace ccf::kv
 #ifdef CCF_KV_TRACING
       trace::Rollback trace_rollback(this);
 #endif
+      Version rollback_epoch = 0;
       {
-        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        ccf::ds::MutexGuard vguard(version_lock);
         if (tx_id.seqno < compacted)
         {
           KV_TRACE(trace_rollback.rejected(tx_id.seqno, term_of_next_version_));
@@ -961,7 +971,7 @@ namespace ccf::kv
         // underflow.
         last_committable = std::min(last_committable, tx_id.seqno);
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-        rollback_count++;
+        rollback_epoch = ++validity_epoch;
         pending_txs.clear();
         if (snapshotter)
         {
@@ -992,7 +1002,7 @@ namespace ccf::kv
         auto& [map_creation_version, map] = it->second;
         // Rollback this map whether we're forgetting about it or not. Anyone
         // else still holding it should see it has rolled back
-        map->rollback(tx_id.seqno);
+        map->rollback(tx_id.seqno, rollback_epoch);
         if (map_creation_version > tx_id.seqno)
         {
           // Map was created more recently; its creation is being forgotten.
@@ -1147,12 +1157,23 @@ namespace ccf::kv
       return current_txid_unsafe();
     }
 
-    std::pair<TxID, Term> current_txid_and_commit_term() override
+    std::tuple<TxID, Term, Version>
+    current_txid_commit_term_and_validity_epoch() override
     {
       // Must lock in case the version or commit term is being incremented.
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      ccf::ds::MutexGuard vguard(version_lock);
       KV_TRACE(trace::snapshot(this, version, term_of_next_version));
-      return {current_txid_unsafe(), term_of_next_version};
+      return {current_txid_unsafe(), term_of_next_version, validity_epoch};
+    }
+
+    std::tuple<TxID, ccf::crypto::Sha256Hash, Term, Version>
+    get_replicated_state_txid_and_root()
+    {
+      // Rollback takes the store version lock before the history state lock.
+      // Hold both while pairing the history snapshot with the store epoch.
+      ccf::ds::MutexGuard vguard(version_lock);
+      auto [txid, root, term] = history->get_replicated_state_txid_and_root();
+      return {txid, root, term, validity_epoch};
     }
 
     Version compacted_version() override
@@ -1187,7 +1208,7 @@ namespace ccf::kv
       BatchVector batch;
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
-      Version previous_rollback_count = 0;
+      Version previous_validity_epoch = 0;
       ccf::View replication_view = 0;
 
       std::vector<std::tuple<std::unique_ptr<PendingTx>, bool>>
@@ -1195,7 +1216,7 @@ namespace ccf::kv
       auto h = get_history();
 
       {
-        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        ccf::ds::MutexGuard vguard(version_lock);
         if (txid.view != term_of_next_version)
         {
           // This can happen when a transaction started before a view change,
@@ -1240,7 +1261,7 @@ namespace ccf::kv
           pending_txs.erase(search);
         }
 
-        previous_rollback_count = rollback_count;
+        previous_validity_epoch = validity_epoch;
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + contiguous_pending_txs.size();
 
@@ -1293,14 +1314,14 @@ namespace ccf::kv
 
         if (chunker)
         {
-          std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+          ccf::ds::MutexGuard vguard(version_lock);
           // A rollback can only discard this batch's writes by truncating,
           // which requires its target to be below `version` and therefore
-          // increments rollback_count. A rollback that does not truncate
+          // increments validity_epoch. A rollback that does not truncate
           // leaves the writes intact, but may still move the term on, which
           // consensus will reject - so both are checked here.
           if (
-            previous_rollback_count == rollback_count &&
+            previous_validity_epoch == validity_epoch &&
             replication_view == term_of_next_version)
           {
             chunker->append_entry_size(data_shared->size());
@@ -1325,10 +1346,10 @@ namespace ccf::kv
 
       if (c->replicate(batch, replication_view))
       {
-        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        ccf::ds::MutexGuard vguard(version_lock);
         if (
           last_replicated == previous_last_replicated &&
-          previous_rollback_count == rollback_count)
+          previous_validity_epoch == validity_epoch)
         {
           last_replicated = next_last_replicated;
         }
@@ -1352,12 +1373,12 @@ namespace ccf::kv
     std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
       Version version,
       Term expected_term,
-      Version expected_rollback_count) override
+      Version expected_validity_epoch) override
     {
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      ccf::ds::MutexGuard vguard(version_lock);
       if (
         term_of_next_version != expected_term ||
-        rollback_count != expected_rollback_count)
+        validity_epoch != expected_validity_epoch)
       {
         return std::nullopt;
       }
@@ -1413,16 +1434,22 @@ namespace ccf::kv
       maps_lock.unlock();
     }
 
-    bool check_rollback_count(Version count) override
+    bool check_validity_epoch(Version expected_epoch) override
     {
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-      return rollback_count == count;
+      ccf::ds::MutexGuard vguard(version_lock);
+      return validity_epoch == expected_epoch;
+    }
+
+    Version current_validity_epoch() override
+    {
+      ccf::ds::MutexGuard vguard(version_lock);
+      return validity_epoch;
     }
 
     std::optional<std::tuple<Version, Version>> next_version(
       Term expected_commit_term) override
     {
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      ccf::ds::MutexGuard vguard(version_lock);
       // If rollback updates the term before this lock is acquired, reject the
       // transaction before map writes are applied. If version allocation wins
       // the race, rollback observes the new version and truncates those writes.
@@ -1440,7 +1467,7 @@ namespace ccf::kv
       Version v = next_version_unsafe();
       KV_TRACE(trace::apply(this, v, term_of_next_version));
 
-      return std::make_tuple(v, rollback_count);
+      return std::make_tuple(v, validity_epoch);
     }
 
     TxID next_txid() override
@@ -1533,9 +1560,21 @@ namespace ccf::kv
         my_map->lock();
       }
 
-      for (auto& [my_map, their_map] : entries)
+      if (!entries.empty())
       {
-        my_map->swap(*their_map);
+        // Epochs from different stores are not comparable. Allocate a fresh
+        // epoch in each store for the incoming history, invalidating pre-swap
+        // change sets and preventing old transactions from acquiring it.
+        ccf::ds::MutexGuard guard_my_version(version_lock);
+        ++validity_epoch;
+
+        ccf::ds::MutexGuard guard_their_version(store.version_lock);
+        ++store.validity_epoch;
+
+        for (auto& [my_map, their_map] : entries)
+        {
+          my_map->swap(*their_map, validity_epoch, store.validity_epoch);
+        }
       }
 
       for (auto& [my_map, their_map] : entries)
@@ -1619,21 +1658,21 @@ namespace ccf::kv
 
     ReservedTx create_reserved_tx(const TxID& tx_id)
     {
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-      return {this, term_of_last_version, tx_id, rollback_count};
+      ccf::ds::MutexGuard vguard(version_lock);
+      return {this, term_of_last_version, tx_id, validity_epoch};
     }
 
     bool apply_tx_flags(
       Version tx_version,
       Term expected_term,
-      Version expected_rollback_count,
+      Version expected_validity_epoch,
       bool force_ledger_chunk,
       bool snapshot_at_next_signature) override
     {
-      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      ccf::ds::MutexGuard vguard(version_lock);
       if (
         term_of_next_version != expected_term ||
-        rollback_count != expected_rollback_count)
+        validity_epoch != expected_validity_epoch)
       {
         return false;
       }

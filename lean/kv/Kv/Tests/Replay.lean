@@ -146,6 +146,109 @@ private def modelRejection (path : System.FilePath) : IO (Option Nat) := do
         w := { model := next, recording := metadata w.recording record.event output }
   return none
 
+private def acquisition (s : Model.Store) (snap : Snapshot) (map : String)
+    : Option (Model.State × Output) :=
+  Model.execute
+    {
+      stores := [(1, s)]
+      txs := [(1, { store := 1, snapshot := some snap })]
+    }
+    (.acquire 1 1 map)
+
+private def assertAcquisition : IO Unit := do
+  let base := Model.advance {} [(("a", "00"), some "11")]
+  let changed := Model.advance base [(("a", "00"), some "22")]
+  let snap : Snapshot := { current := changed.head, term := 0 }
+  let rolled := Model.rollbackStore changed 1 0
+  let replacement := Model.advance rolled [(("a", "00"), some "22")]
+  for s in [rolled, replacement] do
+    if (acquisition s snap "a").map Prod.snd != some .unavailable then
+      throw
+        (IO.userError "rollback or same-value replacement restored discarded identity")
+  let newBirth :=
+    Model.advance (Model.rollbackStore changed 0 0) [(("b", "00"), some "33")]
+  if (acquisition newBirth snap "b").map Prod.snd != some .unavailable then
+    throw
+      (IO.userError "replacement branch exposed a map absent at the original snapshot")
+  let unrelated := Model.advance base [(("b", "00"), some "22")]
+  let unchanged : Snapshot := { current := unrelated.head, term := 0 }
+  if (acquisition (Model.rollbackStore unrelated 1 0) unchanged "a").map Prod.snd
+      != some (.acquired 1 0) then
+    throw (IO.userError "unrelated rollback blocked an unchanged map")
+  let absent : Snapshot := { current := {}, term := 0 }
+  let bornLater := { base with global := 1 }
+  let some (placeholder, .acquired 0 0) := acquisition bornLater absent "a"
+  | throw (IO.userError "later map creation blocked an original empty placeholder")
+  let some placeholderTx := find placeholder.txs 1
+  | throw (IO.userError "placeholder acquisition lost attempt")
+  if !placeholderTx.data.isEmpty
+      || (find placeholderTx.globalViews "a").map (fun v => v.frame.data) != some [] then
+    throw (IO.userError "originally absent map exposed newer local or global data")
+  let empty := Model.advance {} [(("a", "00"), none)]
+  let recreated := Model.advance (Model.rollbackStore empty 0 0) [(("a", "00"), none)]
+  if (acquisition recreated { current := empty.head, term := 0 } "a").map Prod.snd
+      != some .unavailable then
+    throw (IO.userError "empty-map recreation restored discarded birth identity")
+  let initial : Model.State :=
+    {
+      stores := [(1, changed), (2, changed)]
+      txs :=
+        [
+          (1, { store := 1, snapshot := some { current := base.head, term := 0 } }),
+          (2, { store := 1 })
+        ]
+    }
+  for inputs
+      in [
+        [],
+        [.rollback 1 2 0],
+        [.rollback 1 9 0],
+        [.rollback 2 1 0],
+        [.compact 1 1, .rollback 1 0 0]
+      ] do
+    let some (unchanged, _) := executeActions initial inputs
+    | throw (IO.userError "rollback boundary setup was disabled")
+    let world : World := { model := unchanged }
+    if (Model.execute unchanged (.acquire 1 1 "a" true)).isSome
+        || (guardEvent world (.unavailable 1 1 "a")).isOk then
+      throw (IO.userError "refusal enabled without this attempt crossing a truncation")
+  let some (crossed, _) := Model.execute initial (.rollback 1 1 0)
+  | throw (IO.userError "truncating rollback was disabled")
+  let some (lateSnapshot, _) := Model.execute crossed (.snapshot 1 2)
+  | throw (IO.userError "post-rollback snapshot was disabled")
+  if (Model.execute lateSnapshot (.acquire 1 2 "a" true)).isSome then
+    throw (IO.userError "snapshot captured after rollback inherited refusal permission")
+  let world : World := { model := crossed }
+  let some (refused, .unavailable) :=
+    executeActions crossed (actions world (.unavailable 1 1 "a"))
+  | throw
+      (IO.userError "rollback crossing did not permit conservative acquisition failure")
+  if !(guardEvent world (.unavailable 1 1 "a")).isOk then
+    throw (IO.userError "diagnostics forbade permitted rollback refusal")
+  let some refusedTx := find refused.txs 1
+  | throw (IO.userError "refused acquisition lost attempt")
+  if !refusedTx.unavailable
+      || !refusedTx.globalViews.isEmpty
+      || Model.canApply base refusedTx then
+    throw (IO.userError "refusal pinned a handle or allowed application")
+  let some (committing, _) := Model.execute refused (.commitBegin 1 1)
+  | throw (IO.userError "refused attempt could not begin commit")
+  if (Model.execute committing (.commitResult 1 1 .success)).isSome then
+    throw (IO.userError "refused acquisition allowed successful commit")
+  let some (pinnedState, _) :=
+    executeActions initial [.acquire 1 1 "a", .rollback 1 1 0]
+  | throw (IO.userError "rollback of an attempt with a pinned handle was disabled")
+  let some (_, .committed .success 0) :=
+    executeActions pinnedState
+      [.operation 1 1 (.get "a" "00" false), .commitBegin 1 1, .commitResult 1 1 .success]
+  | throw (IO.userError "rollback crossing invalidated a pinned read-only attempt")
+  let missing : World := { model := { crossed with txs := [(1, { store := 1 })] } }
+  let pinned : World := { model := pinnedState }
+  for w in [missing, pinned] do
+    if (guardEvent w (.unavailable 1 1 "a")).isOk
+        || (executeActions w.model (actions w (.unavailable 1 1 "a"))).isSome then
+      throw (IO.userError "refusal bypassed missing-snapshot or pinned-handle checks")
+
 /-- Checks rejected fixtures without `guardEvent`; callback visitation remains adapter-only. -/
 def checkModelFixtures (directory : System.FilePath) : IO Unit := do
   let mut modelFailures := 0
@@ -176,6 +279,7 @@ def checkModelFixtures (directory : System.FilePath) : IO Unit := do
 
 private def run : IO Unit := do
   assertProjection
+  assertAcquisition
   let _ ←
     assertStutters {}
       [

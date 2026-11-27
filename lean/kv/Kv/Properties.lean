@@ -362,18 +362,20 @@ theorem replay_snapshot_fixed_witness
 
 /-! ## Per-map globally committed views -/
 
-/-- Acquiring a map records its global view and returns the revision versions. -/
+/-- Successful acquisition records its views and preserves the snapshot's map identities. -/
 theorem step_map_capture
     : ∀ (w next : State) (sid tid localVersion globalVersion : Nat) (map : String)
-        (s : Store) (before after : Tx) (snap : Snapshot),
+        (s : Store) (before after : Tx) (snap : Snapshot) (refuse : Bool),
         lookupTx w sid tid = some (s, before)
         → before.snapshot = some snap
-        → execute w (.acquire sid tid map)
+        → execute w (.acquire sid tid map refuse)
           = some (next, .acquired localVersion globalVersion)
         → find next.txs tid = some after
         → find after.globalViews map = some (captureGlobal s snap map)
           ∧ localVersion = (revision (captureLocal s snap map) map).version
-          ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
+          ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version
+          ∧ find (captureLocal s snap map).births map = find snap.current.births map
+          ∧ revision (captureLocal s snap map) map = revision snap.current map := by
   exact Proofs.Safety.step_map_capture
 
 /-- Witness: a map acquisition can be accepted. -/
@@ -386,6 +388,27 @@ theorem step_map_capture_witness
           = some (next, .acquired localVersion globalVersion)
         ∧ find next.txs tid = some after := by
   exact Proofs.Witnesses.step_map_capture_witness
+
+/-- Refusal of a semantically available view requires crossing a truncating rollback. -/
+theorem step_unavailable_requires_rollback
+    : ∀ (w next : State) (sid tid : Nat) (map : String) (s : Store)
+        (t : Tx) (snap : Snapshot) (refuse : Bool),
+        lookupTx w sid tid = some (s, t)
+        → t.snapshot = some snap
+        → available s snap map = true
+        → execute w (.acquire sid tid map refuse) = some (next, .unavailable)
+        → t.crossedRollback = true := by
+  exact Proofs.Safety.step_unavailable_requires_rollback
+
+/-- Witness: an available view can be refused by a rollback-crossing attempt. -/
+theorem step_unavailable_requires_rollback_witness
+    : ∃ (w next : State) (sid tid : Nat) (map : String) (s : Store)
+        (t : Tx) (snap : Snapshot) (refuse : Bool),
+        lookupTx w sid tid = some (s, t)
+        ∧ t.snapshot = some snap
+        ∧ available s snap map = true
+        ∧ execute w (.acquire sid tid map refuse) = some (next, .unavailable) := by
+  exact Proofs.Safety.step_unavailable_requires_rollback_witness
 
 /-- A map's captured local and global views are unchanged by later actions that do not end the attempt. -/
 theorem replay_map_global_fixed
@@ -439,10 +462,10 @@ not end the attempt. -/
 theorem capture_replay_preserves_map
     : ∀ (w captured final : State) (sid tid localVersion globalVersion : Nat)
         (map : String) (s : Store) (before acquired : Tx) (snap : Snapshot)
-        (inputs : List Action),
+        (inputs : List Action) (refuse : Bool),
         lookupTx w sid tid = some (s, before)
         → before.snapshot = some snap
-        → execute w (.acquire sid tid map)
+        → execute w (.acquire sid tid map refuse)
           = some (captured, .acquired localVersion globalVersion)
         → find captured.txs tid = some acquired
         → (∀ a ∈ inputs, AttemptAction tid a)

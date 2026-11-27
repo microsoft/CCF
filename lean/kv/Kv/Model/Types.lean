@@ -259,6 +259,8 @@ structure Tx where
   normal : Normal String String String := {}
   /-- A required lazy acquisition could not retain its snapshot. -/
   unavailable : Bool := false
+  /-- A truncating rollback of this store occurred after snapshot capture. -/
+  crossedRollback : Bool := false
   /-- The commit lifecycle. -/
   phase : Phase := .active
 deriving Repr, DecidableEq

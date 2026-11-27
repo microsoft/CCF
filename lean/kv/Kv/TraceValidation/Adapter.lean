@@ -11,8 +11,9 @@ namespace Kv.TraceValidation
 
 open Kv.Model
 
-/-- Translates inputs, not reported outputs, into model actions.
+/-- Translates inputs and environment choices, not reported outputs, into model actions.
 The omitted initial term is supplied as an environment input before the first snapshot.
+Unavailability selects a refusal input whose rollback cause is checked by the model.
 Trace scopes and individual callback reports stutter; freezing entries is a model scan. -/
 def actions (w : World) : Event → List Model.Action
   | .storeCreate sid => [.storeCreate sid 0]
@@ -25,7 +26,8 @@ def actions (w : World) : Event → List Model.Action
         else
           [])
       ++ [.snapshot sid tid]
-  | .acquire sid tid m _ _ | .unavailable sid tid m => [.acquire sid tid m]
+  | .acquire sid tid m _ _ => [.acquire sid tid m]
+  | .unavailable sid tid m => [.acquire sid tid m true]
   | .get sid tid m k _ global => [.operation sid tid (.get m k global)]
   | .has sid tid m k _ global => [.operation sid tid (.has m k global)]
   | .previous sid tid m k _ => [.operation sid tid (.previous m k)]

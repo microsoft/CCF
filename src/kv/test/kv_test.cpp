@@ -2954,7 +2954,7 @@ namespace
 
     void post_compact() override {}
 
-    void rollback(ccf::kv::Version) override {}
+    void rollback(ccf::kv::Version, ccf::kv::Version) override {}
 
     void lock() override {}
 
@@ -3882,11 +3882,16 @@ TEST_CASE("CommittableTx guards")
     const auto baseline_txid = kv_store.current_txid();
 
     auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
-    reserved.rw(map)->put("k", "from_reserved");
-
-    // Roll the store back, invalidating the rollback_count that `reserved`
-    // captured when it was created.
-    kv_store.rollback(baseline_txid, 3);
+    SUBCASE("Handle acquired before rollback")
+    {
+      reserved.rw(map)->put("k", "from_reserved");
+      kv_store.rollback(baseline_txid, 3);
+    }
+    SUBCASE("Handle acquired after rollback")
+    {
+      kv_store.rollback(baseline_txid, 3);
+      reserved.rw(map)->put("k", "from_reserved");
+    }
 
     const auto info = reserved.commit_reserved();
     REQUIRE(info.success == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
@@ -4836,14 +4841,14 @@ TEST_CASE("Rollback-sensitive transaction flags are not restored")
   }
 
   const auto discarded = store.current_txid();
-  REQUIRE(store.check_rollback_count(0));
+  REQUIRE(store.check_validity_epoch(0));
 
   INFO("Flags from a transaction a rollback discarded are dropped");
   {
     // A view change truncates the transaction's write away, then the
     // transaction reaches the point where it would apply its flags.
     store.rollback({initial_term, discarded.seqno - 1}, initial_term + 1);
-    REQUIRE(store.check_rollback_count(1));
+    REQUIRE(store.check_validity_epoch(1));
 
     CHECK_FALSE(store.apply_tx_flags(
       discarded.seqno,
@@ -4910,7 +4915,7 @@ TEST_CASE("Reserved signature side effects are not applied after a rollback")
   }
 
   const auto reserved = store.current_txid();
-  REQUIRE(store.check_rollback_count(0));
+  REQUIRE(store.check_validity_epoch(0));
 
   INFO("A signature a rollback discarded records no chunk end");
   {
@@ -4919,7 +4924,7 @@ TEST_CASE("Reserved signature side effects are not applied after a rollback")
     store.set_flag(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
     store.rollback({initial_term, reserved.seqno - 1}, initial_term + 1);
-    REQUIRE(store.check_rollback_count(1));
+    REQUIRE(store.check_validity_epoch(1));
 
     CHECK_FALSE(store
                   .should_create_ledger_chunk_for_reserved_tx(
@@ -4941,7 +4946,7 @@ TEST_CASE("Reserved signature side effects are not applied after a rollback")
     // consensus will refuse to replicate this signature. The snapshot flag
     // survives, so without the view check the chunk end would be recorded.
     store.rollback(superseded, superseded.view + 1);
-    REQUIRE(store.check_rollback_count(1));
+    REQUIRE(store.check_validity_epoch(1));
     REQUIRE(store.flag_enabled(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
 

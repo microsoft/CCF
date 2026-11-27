@@ -243,7 +243,7 @@ theorem execute_retains (w next : Model.State) (tid : Nat) (before : Model.Tx)
         refine ⟨rfl, ?_, fun _ _ h => ⟨h, rfl⟩⟩
         intro snap captured
         simp [captured] at enabled
-  | acquire sid actual m =>
+  | acquire sid actual m refuse =>
       dsimp only [execute] at accepted
       obtain ⟨⟨s, t⟩, lookup, accepted⟩ := option_bind_ok accepted
       dsimp only at accepted
@@ -303,14 +303,18 @@ theorem execute_retains (w next : Model.State) (tid : Nat) (before : Model.Tx)
       exact unchanged w _ tid before live rfl
   | rollback sid requested term =>
       dsimp only [execute] at accepted
-      obtain ⟨_, _, accepted⟩ := option_bind_ok accepted
+      obtain ⟨s, _, accepted⟩ := option_bind_ok accepted
       split at accepted
       · cases accepted
         exact unchanged w _ tid before live rfl
       · split at accepted
         · cases accepted
         · cases accepted
-          exact unchanged w _ tid before live rfl
+          refine ⟨markRollback sid (decide
+            ((rollbackStore s requested term).head.version < s.head.version)) before, ?_, ?_⟩
+          · rw [Reachable.find_map_values, live]
+            rfl
+          · exact ⟨rfl, fun _ h => h, fun _ _ h => ⟨h, rfl⟩⟩
 
 /-- Captured-view preservation holds throughout every actual model run in an attempt segment. -/
 theorem run_retains (w final : Model.State) (tid : Nat) (before : Model.Tx)
@@ -391,16 +395,18 @@ theorem step_capture_cut_values
 /-- Map acquisition installs its selected local/global frames and computes their revisions. -/
 theorem step_map_capture
     : ∀ (w next : State) (sid tid localVersion globalVersion : Nat) (map : String)
-        (s : Store) (before after : Tx) (snap : Snapshot),
+        (s : Store) (before after : Tx) (snap : Snapshot) (refuse : Bool),
         lookupTx w sid tid = some (s, before)
         → before.snapshot = some snap
-        → execute w (.acquire sid tid map)
+        → execute w (.acquire sid tid map refuse)
           = some (next, .acquired localVersion globalVersion)
         → find next.txs tid = some after
         → find after.globalViews map = some (captureGlobal s snap map)
           ∧ localVersion = (revision (captureLocal s snap map) map).version
-          ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
-  intro w next sid tid localVersion globalVersion map s before after snap source captured accepted live
+          ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version
+          ∧ find (captureLocal s snap map).births map = find snap.current.births map
+          ∧ revision (captureLocal s snap map) map = revision snap.current map := by
+  intro w next sid tid localVersion globalVersion map s before after snap refuse source captured accepted live
   dsimp only [execute] at accepted
   rw [source] at accepted
   obtain ⟨_, selected, accepted⟩ := option_bind_ok accepted
@@ -412,14 +418,71 @@ theorem step_map_capture
   split at accepted
   · cases accepted
   · split at accepted
-    · cases accepted
+    · rename_i permitted
+      simp only [available, Bool.and_eq_true, decide_eq_true_eq] at permitted
+      cases accepted
       simp only [find_set_same, Option.some.injEq] at live
       subst after
       have current : (captureGlobal s snap map).current = captureLocal s snap map := by
         dsimp only [captureGlobal]
         split <;> rfl
-      exact ⟨find_set_same _ _ _, congrArg (fun f => (revision f map).version) current, rfl⟩
+      exact ⟨find_set_same _ _ _, congrArg (fun f => (revision f map).version) current,
+        rfl, permitted.2.1.1, permitted.2.1.2⟩
     · cases accepted
+
+/-- Refusing a semantically available view requires a rollback-crossing attempt. -/
+theorem step_unavailable_requires_rollback
+    : ∀ (w next : State) (sid tid : Nat) (map : String) (s : Store)
+        (t : Tx) (snap : Snapshot) (refuse : Bool),
+        lookupTx w sid tid = some (s, t)
+        → t.snapshot = some snap
+        → available s snap map = true
+        → execute w (.acquire sid tid map refuse) = some (next, .unavailable)
+        → t.crossedRollback = true := by
+  intro w next sid tid map s t snap refuse source captured retained accepted
+  dsimp only [execute] at accepted
+  rw [source] at accepted
+  obtain ⟨_, selected, accepted⟩ := option_bind_ok accepted
+  cases selected
+  dsimp only at accepted
+  obtain ⟨_, snapshot, accepted⟩ := option_bind_ok accepted
+  cases captured.symm.trans snapshot
+  try dsimp only at accepted
+  split at accepted
+  · cases accepted
+  · rename_i enabled
+    split at accepted
+    · cases accepted
+    · rename_i refused
+      cases crossed : t.crossedRollback
+      · cases refuse <;> simp_all
+      · rfl
+
+/-- A rollback-crossing attempt can conservatively refuse a retained empty view. -/
+theorem step_unavailable_requires_rollback_witness
+    : ∃ (w next : State) (sid tid : Nat) (map : String) (s : Store)
+        (t : Tx) (snap : Snapshot) (refuse : Bool),
+        lookupTx w sid tid = some (s, t)
+        ∧ t.snapshot = some snap
+        ∧ available s snap map = true
+        ∧ execute w (.acquire sid tid map refuse) = some (next, .unavailable) := by
+  let t : Tx :=
+    { store := 1, snapshot := some { current := {}, term := 0 }, crossedRollback := true }
+  exact ⟨
+    { stores := [(1, {})], txs := [(1, t)] },
+    { stores := [(1, {})], txs := [(1, { t with unavailable := true })] },
+    1,
+    1,
+    "a",
+    {},
+    t,
+    { current := {}, term := 0 },
+    true,
+    by decide +kernel,
+    rfl,
+    by decide +kernel,
+    by decide +kernel
+  ⟩
 
 /-- Every attempt-preserving model execution keeps an existing current snapshot fixed. -/
 theorem replay_snapshot_fixed
@@ -486,10 +549,10 @@ theorem capture_replay_preserves_metadata
 theorem capture_replay_preserves_map
     : ∀ (w captured final : State) (sid tid localVersion globalVersion : Nat)
         (map : String) (s : Store) (before acquired : Tx) (snap : Snapshot)
-        (inputs : List Action),
+        (inputs : List Action) (refuse : Bool),
         lookupTx w sid tid = some (s, before)
         → before.snapshot = some snap
-        → execute w (.acquire sid tid map)
+        → execute w (.acquire sid tid map refuse)
           = some (captured, .acquired localVersion globalVersion)
         → find captured.txs tid = some acquired
         → (∀ a ∈ inputs, AttemptAction tid a)
@@ -500,10 +563,10 @@ theorem capture_replay_preserves_map
             ∧ localVersion = (revision (captureLocal s snap map) map).version
             ∧ globalVersion
               = (revision (captureGlobal s snap map).frame map).version := by
-  intro w captured final sid tid localVersion globalVersion map s before acquired snap inputs
+  intro w captured final sid tid localVersion globalVersion map s before acquired snap inputs refuse
     source pinned capture live segment run
-  obtain ⟨view, localCut, globalCut⟩ :=
-    step_map_capture w captured sid tid localVersion globalVersion map s before acquired snap source pinned capture live
+  obtain ⟨view, localCut, globalCut, _⟩ :=
+    step_map_capture w captured sid tid localVersion globalVersion map s before acquired snap refuse source pinned capture live
   obtain ⟨after, finalLive, same⟩ :=
     replay_map_global_fixed captured final tid acquired map _ inputs live view segment run
   exact ⟨after, finalLive, same, localCut, globalCut⟩

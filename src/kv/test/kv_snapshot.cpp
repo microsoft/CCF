@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
 #include "kv/null_encryptor.h"
 #include "kv/store.h"
@@ -834,17 +835,22 @@ TEST_CASE(
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     new_store.rollback(txid_before, new_store.commit_view());
-    REQUIRE(new_store.check_rollback_count(1));
+    REQUIRE(new_store.check_validity_epoch(1));
   }
 
   INFO("Apply snapshot to the rolled back target store");
   {
+    auto waiting = new_store.create_read_only_tx();
+    waiting.ro(num_map);
     ccf::kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
       new_store.deserialise_snapshot(
         serialised_snapshot.data(), serialised_snapshot.size(), hooks),
       ccf::kv::ApplyResult::PASS);
     REQUIRE_EQ(new_store.current_version(), snapshot_version);
+    REQUIRE(new_store.check_validity_epoch(2));
+    REQUIRE_THROWS_AS(
+      waiting.ro(string_map), ccf::kv::CompactedVersionConflict);
 
     auto tx = new_store.create_read_only_tx();
     const auto v = tx.ro(string_map)->get("foo");

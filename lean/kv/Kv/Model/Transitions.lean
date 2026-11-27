@@ -31,9 +31,13 @@ def captureLocal (s : Store) (snap : Snapshot) (m : String) : Frame :=
   else
     {}
 
-/-- Whether a new map handle can still acquire its local snapshot. -/
+/-- Retention and birth/revision identities must agree with the original snapshot. -/
 def available (s : Store) (snap : Snapshot) (m : String) : Bool :=
-  mapAvailable s (captureLocal s snap m) m
+  let current := captureLocal s snap m
+  decide
+    (find current.births m = find snap.current.births m
+      ∧ revision current m = revision snap.current m)
+  && mapAvailable s current m
 
 /-- Computes independent local and global frames for one acquired map. -/
 def captureGlobal (s : Store) (snap : Snapshot) (m : String) : GlobalView :=
@@ -228,6 +232,14 @@ def executeOperation (t : Tx) (op : Operation) : Tx × Output :=
               (fun a b => decide (a.1 ≤ b.1)))
         )
 
+/-- Records rollback crossing without changing an attempt's captured views. -/
+def markRollback (sid : Nat) (truncates : Bool) (t : Tx) : Tx :=
+  {
+    t with
+      crossedRollback :=
+        t.crossedRollback || (truncates && t.store == sid && t.snapshot.isSome)
+  }
+
 /-- Environment and transaction inputs. -/
 inductive Action where
   /-- Create a live store with an explicit initial term. -/
@@ -242,8 +254,8 @@ inductive Action where
   | setTerm (store term : Nat)
   /-- Freeze read metadata. -/
   | snapshot (store tx : Nat)
-  /-- Lazily acquire a map or record its unavailability. -/
-  | acquire (store tx : Nat) (map : String)
+  /-- Acquire a retained map, optionally refusing conservatively after rollback crossing. -/
+  | acquire (store tx : Nat) (map : String) (refuse : Bool := false)
   /-- Execute a KV operation. -/
   | operation (store tx : Nat) (op : Operation)
   /-- Begin a commit. -/
@@ -301,14 +313,15 @@ def execute (w : State) (action : Action) : Option (State × Output) := do
         let next := { t with snapshot := some { current := s.head, term := s.term } }
         some
           ({ w with txs := set w.txs tid next }, .snapshot s.head.version s.global s.term)
-  | .acquire sid tid m =>
+  | .acquire sid tid m refuse =>
       let (s, t) ← lookupTx w sid tid
       let snap ← t.snapshot
       if t.phase != .active
           || (find t.globalViews m).isSome
-          || !t.normal.log.all (fun op => op.map != m) then
+          || !t.normal.log.all (fun op => op.map != m)
+          || (refuse && available s snap m && !t.crossedRollback) then
         none
-      else if available s snap m then
+      else if !refuse && available s snap m then
         let view := captureGlobal s snap m
         let next :=
           {
@@ -381,7 +394,11 @@ def execute (w : State) (action : Action) : Option (State × Output) := do
         none
       else
         let next := rollbackStore s requested term
-        some ({ w with stores := set w.stores sid next }, .rolledBack next.head.version)
+        let txs :=
+          w.txs.map
+            fun (tid, t) =>
+              (tid, markRollback sid (decide (next.head.version < s.head.version)) t)
+        some ({ stores := set w.stores sid next, txs }, .rolledBack next.head.version)
 
 /-- State projection of model execution. -/
 def step (w : State) (action : Action) : Option State :=

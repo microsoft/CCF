@@ -7,6 +7,8 @@
 
 namespace ccf::kv
 {
+  // Also thrown when a map was invalidated after the transaction selected its
+  // read snapshot. Both conditions require retrying the entire transaction.
   class CompactedVersionConflict
   {
   private:
