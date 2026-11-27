@@ -668,7 +668,13 @@ namespace ccf
       // that does not refer to the _current root_. When this occurs
       // version_of_previous_write will not match the version at which we're
       // verifying.
-      const auto cose_signatures = get_cose_signatures_written_at(tx, version);
+      const auto cose_signatures_written =
+        get_cose_signatures_written_at(tx, version);
+      if (!cose_signatures_written.has_value())
+      {
+        return false;
+      }
+      const auto& cose_signatures = cose_signatures_written.value();
       auto root = get_replicated_state_root();
       log_hash(root, VERIFY);
 
@@ -880,35 +886,48 @@ namespace ccf
     }
 
   private:
-    static ccf::CoseSignatureMap get_cose_signatures_written_at(
+    // Returns nullopt if the table cannot be read, for example because it
+    // holds an identity type unknown to this node
+    static std::optional<ccf::CoseSignatureMap> get_cose_signatures_written_at(
       ccf::kv::ReadOnlyTx& tx, ccf::kv::Version version)
     {
-      auto* cose_signatures =
-        tx.template ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-
-      std::vector<ccf::IdentityType> identity_types;
-      cose_signatures->foreach_key(
-        [&identity_types](const ccf::IdentityType& identity_type) {
-          identity_types.push_back(identity_type);
-          return true;
-        });
-
-      ccf::CoseSignatureMap written;
-      for (const auto identity_type : identity_types)
+      try
       {
-        const auto written_at =
-          cose_signatures->get_version_of_previous_write(identity_type);
-        if (!written_at.has_value() || written_at.value() != version)
+        auto* cose_signatures =
+          tx.template ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+
+        std::vector<ccf::IdentityType> identity_types;
+        cose_signatures->foreach_key(
+          [&identity_types](const ccf::IdentityType& identity_type) {
+            identity_types.push_back(identity_type);
+            return true;
+          });
+
+        ccf::CoseSignatureMap written;
+        for (const auto identity_type : identity_types)
         {
-          continue;
+          const auto written_at =
+            cose_signatures->get_version_of_previous_write(identity_type);
+          if (!written_at.has_value() || written_at.value() != version)
+          {
+            continue;
+          }
+          auto cose_signature = cose_signatures->get(identity_type);
+          if (cose_signature.has_value())
+          {
+            written.emplace(identity_type, std::move(cose_signature.value()));
+          }
         }
-        auto cose_signature = cose_signatures->get(identity_type);
-        if (cose_signature.has_value())
-        {
-          written.emplace(identity_type, std::move(cose_signature.value()));
-        }
+        return written;
       }
-      return written;
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Cannot read the COSE signatures of transaction {}: {}",
+          version,
+          e.what());
+        return std::nullopt;
+      }
     }
 
     bool verify_cose_signature(
@@ -964,11 +983,23 @@ namespace ccf
       const ccf::CoseSignatureMap& cose_signatures)
     {
       std::vector<ccf::IdentityType> published;
-      tx.template ro<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
-        ->foreach_key([&published](const ccf::IdentityType& identity_type) {
-          published.push_back(identity_type);
-          return true;
-        });
+      try
+      {
+        tx.template ro<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+          ->foreach_key([&published](const ccf::IdentityType& identity_type) {
+            published.push_back(identity_type);
+            return true;
+          });
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Cannot read the service signing identities to verify transaction "
+          "{}: {}",
+          version,
+          e.what());
+        return false;
+      }
 
       for (const auto identity_type : published)
       {
