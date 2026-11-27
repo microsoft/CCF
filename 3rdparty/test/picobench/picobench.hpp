@@ -1,4 +1,4 @@
-// picobench v2.10.0
+// picobench v2.11.0
 // https://github.com/iboB/picobench
 //
 // A micro microbenchmarking library in a single header file
@@ -30,10 +30,15 @@
 //
 //                  VERSION HISTORY
 //
-//  2.9.1 (2026-07-09) Introduce state inputs
-//                     * PICOBENCH_DEFAULT_INPUTS macro to set default inputs
-//                     * state::input struct to hold input data
-//                     * PICOBENCH_DEFAULT_ITERATIONS macro triggers an error
+//  2.11.0 (2026-xx-xx) * Add iterate type for range-based for loops to avoid
+//                        unused variable warnings
+//                      * Add START/STOP_INSTRUMENTATION macros to allow for
+//                        custom benchmark instrumentation (ie cachegrind)
+//  2.10.0 (2026-07-09) Introduce state inputs
+//                      * PICOBENCH_DEFAULT_INPUTS macro to set default inputs
+//                      * state::input struct to hold input data
+//                      * PICOBENCH_DEFAULT_ITERATIONS macro triggers an error
+//
 //  2.9.0 (2026-04-30) * Completely drop binding benchmarks to a single core
 //                     * Drop custom Windows clock and just use
 //                       std::high_resolution_clock everywhere
@@ -98,8 +103,8 @@
 // static void benchmark_my_function(picobench::state& state)
 // {
 //     // use the state in a range-based for loop to call your code
-//     for (auto _ : state)
-//         my_function();
+//     for (int i : state)
+//         my_function(i);
 // }
 // // create a picobench with your benchmarking code
 // PICOBENCH(benchmark_my_function);
@@ -138,8 +143,8 @@
 #   include <functional>
 #endif
 
-#define PICOBENCH_VERSION 21000
-#define PICOBENCH_VERSION_STR "2.10.0"
+#define PICOBENCH_VERSION 21100
+#define PICOBENCH_VERSION_STR "2.11.0"
 
 #if defined(PICOBENCH_DEBUG)
 #   include <cassert>
@@ -154,6 +159,13 @@
 #   define PICOBENCH_INLINE  __forceinline
 #else
 #   define PICOBENCH_INLINE  inline
+#endif
+
+#if !defined(PICOBENCH_START_INSTRUMENTATION)
+#define PICOBENCH_START_INSTRUMENTATION (void)(0)
+#endif
+#if !defined(PICOBENCH_STOP_INSTRUMENTATION)
+#define PICOBENCH_STOP_INSTRUMENTATION (void)(0)
 #endif
 
 #if !defined(PICOBENCH_NAMESPACE)
@@ -220,11 +232,13 @@ public:
     void start_timer()
     {
         _start = high_res_clock::now();
+        PICOBENCH_START_INSTRUMENTATION;
     }
 
     PICOBENCH_INLINE
     void stop_timer()
     {
+        PICOBENCH_STOP_INSTRUMENTATION;
         auto duration = high_res_clock::now() - _start;
         _duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
     }
@@ -314,6 +328,16 @@ public:
     }
 private:
     state& _state;
+};
+
+// use in range-based for loops to iterate a number of times without using counter
+// this avoids the unused variable warning
+// for (picobench::iterate _ : state) { ... }
+struct iterate {
+    iterate() noexcept = default;
+    iterate(int) noexcept {}
+    ~iterate() noexcept {}
+    void operator=(int) const noexcept {}
 };
 
 #if defined(PICOBENCH_STD_FUNCTION_BENCHMARKS)
