@@ -98,7 +98,11 @@ protected:
         if (d < static_cast<double>(std::numeric_limits<int64_t>::min())) {
             return false;
         }
-        if (d > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+        // INT64_MAX rounds up to 2^63 when converted to double. Use the
+        // exactly representable exclusive upper bound to avoid accepting an
+        // out-of-range value and casting it to int64_t.
+        const double int64UpperBound = -static_cast<double>(std::numeric_limits<int64_t>::min());
+        if (d >= int64UpperBound) {
             return false;
         }
         double intPart = 0.0;

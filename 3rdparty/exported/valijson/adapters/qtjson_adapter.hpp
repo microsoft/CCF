@@ -21,6 +21,8 @@
  * since most of the functionality is inherited from the BasicAdapter class.
  * Most of the classes in this file are provided as template arguments to the
  * inherited BasicAdapter class.
+ *
+ * Note: Support for Qt5 is deprecated, and will be removed in Valijson v1.2.x
  */
 
 #pragma once
@@ -34,6 +36,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QJsonArray>
+#include <QtGlobal>
 
 #include <valijson/internal/adapter.hpp>
 #include <valijson/internal/basic_adapter.hpp>
@@ -343,7 +346,11 @@ public:
             return false;
         }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        result = static_cast<int64_t>(m_value.toInteger());
+#else
         result = static_cast<int64_t>(m_value.toDouble());
+#endif
         return true;
     }
 
@@ -423,14 +430,23 @@ public:
             return false;
         }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // toInteger() preserves the full qint64 precision in Qt 6. Comparing
+        // the round trip distinguishes failed conversions from a valid zero.
+        const qint64 value = m_value.toInteger();
+        return QJsonValue(value) == m_value;
+#else
         // Casting a double outside int64_t's range is undefined behaviour,
         // so range-check in floating point first.
-        // TODO: Replace this with toInteger() when deprecating Qt 5 support
         const double value = m_value.toDouble();
+        // INT64_MAX rounds up to 2^63 when converted to double, so use an
+        // exclusive upper bound instead of comparing against that rounded value.
+        const double int64UpperBound = -static_cast<double>(std::numeric_limits<int64_t>::min());
         return std::isfinite(value) &&
                 value >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
-                value <= static_cast<double>(std::numeric_limits<int64_t>::max()) &&
+                value < int64UpperBound &&
                 std::floor(value) == value;
+#endif
     }
 
     bool isNull() const

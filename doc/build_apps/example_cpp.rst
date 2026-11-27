@@ -169,6 +169,10 @@ Instead of taking and returning `nlohmann::json` objects directly, the endpoint 
 
 This produces validation error messages with a low performance overhead, and ensures the schema and parsing logic stay in sync, but is only suitable for simple schema - an object with some required and some optional fields, each of a supported type.
 
+Applications that explicitly validate JSON Schema can also use the exported `Valijson <https://github.com/tristanpenman/valijson>`_ headers.
+Valijson 1.1.5 adds ``json-pointer``, ``relative-json-pointer``, and ``regex`` formats, fixes nested ``propertyNames``, and rejects non-four-digit years in ``date``/``date-time`` and leading zeros in IPv4 addresses embedded in ``ipv6``.
+The ``regex`` format is enforced only when ``VALIJSON_USE_EXCEPTIONS=1`` is defined before including Valijson headers; otherwise it remains permissive.
+
 Authentication
 ~~~~~~~~~~~~~~
 

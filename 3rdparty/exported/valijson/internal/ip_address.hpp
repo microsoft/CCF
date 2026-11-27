@@ -15,14 +15,21 @@ namespace internal {
  * with a value of at most 255, as in the dotted-quad syntax of RFC 2673,
  * section 3.2.
  *
- * @param  s      string to check, which may contain embedded null bytes
- * @param  begin  index of the first character to check
- * @param  end    index after the last character to check
+ * The dotted-quad syntax permits leading zeros. The dec-octet syntax of
+ * RFC 3986, section 3.2.2, which applies to IPv4 addresses embedded in IPv6
+ * addresses, does not.
+ *
+ * @param  s                  string to check, which may contain embedded null
+ *                            bytes
+ * @param  begin              index of the first character to check
+ * @param  end                index after the last character to check
+ * @param  allowLeadingZeros  whether a part may have leading zeros
  *
  * @return \c true if the characters from \p begin to \p end form an IPv4
  *         address
  */
-inline bool isIpv4DottedQuad(const std::string &s, size_t begin, size_t end)
+inline bool isIpv4DottedQuad(const std::string &s, size_t begin, size_t end,
+                             bool allowLeadingZeros = true)
 {
     size_t i = begin;
     for (int part = 0; part < 4; part++) {
@@ -43,19 +50,25 @@ inline bool isIpv4DottedQuad(const std::string &s, size_t begin, size_t end)
         if (i == digitsBegin || value > 255) {
             return false;
         }
+
+        if (!allowLeadingZeros && s[digitsBegin] == '0' &&
+            i - digitsBegin > 1) {
+            return false;
+        }
     }
 
     return i == end;
 }
 
 /**
- * @brief  Check whether a string is an IPv6 address, as defined in RFC 2373,
+ * @brief  Check whether a string is an IPv6 address, as defined in RFC 4291,
  *         section 2.2
  *
  * An address consists of eight groups of one to four hexadecimal digits,
  * separated by colons. One sequence of one or more groups may be replaced by
  * '::', and the last two groups may be written as an IPv4 address in dotted
- * decimal notation.
+ * decimal notation. As in the IPv6address syntax of RFC 3986, section 3.2.2,
+ * the parts of an embedded IPv4 address must not have leading zeros.
  *
  * @param  s  string to check, which may contain embedded null bytes
  *
@@ -88,7 +101,7 @@ inline bool isIpv6Address(const std::string &s)
 
         // An IPv4 address may only appear at the end, in place of two groups
         if (i < end && s[i] == '.') {
-            if (!isIpv4DottedQuad(s, groupBegin, end)) {
+            if (!isIpv4DottedQuad(s, groupBegin, end, false)) {
                 return false;
             }
             groups += 2;
