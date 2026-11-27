@@ -212,6 +212,9 @@ Network Identity
 .. doxygentypedef:: ccf::TrustedKeys
    :project: CCF
 
+.. doxygentypedef:: ccf::TrustedKeysPQ
+   :project: CCF
+
 .. doxygenclass:: ccf::NetworkIdentitySubsystemInterface
    :project: CCF
    :members:

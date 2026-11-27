@@ -17,21 +17,22 @@ example (config : Properties.ValidConfig)
   exact ⟨state, action, nextState, reachable, enabled⟩
 
 example (config : Properties.ValidConfig)
-    : exists (trace : Properties.GlobalTrace config) (step : Nat) (opener : Location),
-        Properties.Trace.NotificationAt config trace step opener (.opening .quorum)
+    : exists (behaviour : Properties.Behaviour config) (step : Nat) (opener : Location),
+        Properties.Behaviour.NotificationAt config behaviour step opener
+          (.opening .quorum)
         /\ opener = opener := by
-  obtain ⟨trace, step, opener, notified⟩ := Properties.quorum_opener_unique_witness config
-  exact ⟨trace, step, opener, notified,
-    Properties.quorum_opener_unique config trace step step opener opener ⟨notified, notified⟩⟩
+  obtain ⟨behaviour, step, opener, notified⟩ := Properties.quorum_opener_unique_witness config
+  exact ⟨behaviour, step, opener, notified,
+    Properties.quorum_opener_unique config behaviour step step opener opener ⟨notified, notified⟩⟩
 
 example (config : Properties.ValidConfig)
     : exists (opener : Location) (txid : TxID),
         Model.recoveredTxID config opener = some txid
         /\ Properties.UpToDateWithQuorum config txid := by
-  obtain ⟨trace, openedState, opener, openerState, opened, present, kind, own⟩ :=
+  obtain ⟨behaviour, openedState, opener, openerState, opened, present, kind, own⟩ :=
     Properties.quorum_open_preserves_commit_witness config
   obtain ⟨txid, recovered, upToDate⟩ :=
-    Properties.quorum_open_preserves_commit config trace openedState opener openerState
+    Properties.quorum_open_preserves_commit config behaviour openedState opener openerState
       ⟨opened, present, kind, own⟩
   exact ⟨opener, txid, recovered, upToDate⟩
 
@@ -40,10 +41,10 @@ example (config : Properties.ValidConfig)
     : exists (opener : Location) (txid : TxID),
         Model.recoveredTxID config opener = some txid
         /\ Properties.UpToDateWithQuorum config txid := by
-  obtain ⟨trace, gossipedState, openedState, opener, openerState,
+  obtain ⟨behaviour, gossipedState, openedState, opener, openerState,
     gossiped, full, opened, present, kind⟩ := Properties.full_gossip_preserves_commit_witness config multiple
   obtain ⟨txid, recovered, upToDate⟩ :=
-    Properties.full_gossip_preserves_commit config trace gossipedState openedState opener openerState
+    Properties.full_gossip_preserves_commit config behaviour gossipedState openedState opener openerState
       ⟨gossiped, full, opened, present, by simp [kind]⟩
   exact ⟨opener, txid, recovered, upToDate⟩
 

@@ -227,7 +227,10 @@ def assertPending (source target : NodeId) (count : Nat) : IO Unit := do
   unless pending.size == count do
     throw (IO.userError s!"Expected {count} messages {link}, got {pending}")
 
-/-- Sign on the latest primary, reconnect the active nodes and run until they are in sync. -/
+/--
+Sign on the latest primary, reconnect the active nodes which it knows, and run until they
+are in sync.
+-/
 @[extern "cft_loop_until_sync"]
 opaque loopUntilSync : IO Unit
 

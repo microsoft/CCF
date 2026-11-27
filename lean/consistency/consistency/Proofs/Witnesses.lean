@@ -335,16 +335,16 @@ private theorem causal_reachable {state : State}
       exact step_causal before after action ih transition
 
 theorem all_received_is_first_sent
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         -> forall (kind : TxType),
             ∀ response ∈ responsesOf state.history kind,
               ∃ request ∈ requests state.history,
                 request.1 < response.1 /\ request.2 = (kind, response.2.tx) := by
-  intro trace state member kind response listed
+  intro behaviour state member kind response listed
   obtain ⟨kindEq, found⟩ := (mem_responsesOf_iff _ _ _).mp listed
   obtain ⟨requestIndex, earlier, requestFound⟩ :=
-    causal_reachable (trace.reachable member) _ _ _ _ _ found
+    causal_reachable (behaviour.reachable member) _ _ _ _ _ found
   refine ⟨(requestIndex, kind, response.2.tx), ?_, earlier, rfl⟩
   apply (mem_requests_iff _ _ _ _).mpr
   simpa only [kindEq] using requestFound
@@ -435,13 +435,13 @@ private theorem requests_reachable {state : State}
       exact step_requests before after action ih transition
 
 theorem unique_tx_requests
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         -> ∀ left ∈ requests state.history,
             ∀ right ∈ requests state.history,
               left.1 ≠ right.1 -> left.2.2 ≠ right.2.2 := by
-  intro trace state member left first right second distinct same
-  have invariant := requests_reachable (trace.reachable member)
+  intro behaviour state member left first right second distinct same
+  have invariant := requests_reachable (behaviour.reachable member)
   have firstLookup := (mem_requests_iff _ _ _ _).mp first
   have secondLookup := (mem_requests_iff _ _ _ _).mp second
   exact distinct (invariant.2 _ _ _ _ _ _ firstLookup secondLookup same)
@@ -636,23 +636,23 @@ private theorem safe_reachable {state : State}
       exact step_safe before after action ih transition
 
 theorem at_most_once_observed
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ response ∈ responses state.history, response.2.observed.Nodup := by
-  intro trace state member response listed
-  exact ((safe_reachable (trace.reachable member)).2 _ _ _ _ _
+  intro behaviour state member response listed
+  exact ((safe_reachable (behaviour.reachable member)).2 _ _ _ _ _
     ((History.mem_responses_iff _ _).mp listed)).1
 
 theorem only_observe_sent_requests
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         → ∀ response ∈ responses state.history,
           ∀ tx ∈ response.2.observed,
             ∃ request ∈ requests state.history,
               request.1 < response.1 ∧ request.2 = (.rw, tx) := by
-  intro trace state member response listed tx observed
+  intro behaviour state member response listed tx observed
   obtain ⟨index, earlier, found⟩ :=
-    ((safe_reachable (trace.reachable member)).2 _ _ _ _ _
+    ((safe_reachable (behaviour.reachable member)).2 _ _ _ _ _
       ((History.mem_responses_iff _ _).mp listed)).2 tx observed
   exact ⟨(index, .rw, tx), (History.mem_requests_iff _ _ _ _).mpr found, earlier, rfl⟩
 
@@ -670,8 +670,8 @@ private def UniqueResponses (history : List Event) : Prop :=
     → left = right
 
 theorem unique_tx_ids
-    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
-        (state ∈ trace)
+    : forall (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State),
+        (state ∈ behaviour)
         -> ∀ left ∈ responses state.history,
             ∀ right ∈ responses state.history,
               left.2.tx = right.2.tx -> left.2.txid = right.2.txid := by
@@ -776,11 +776,11 @@ theorem unique_tx_ids
     | @step before after action reachable transition ih =>
         exact step_responses before after action ih
           (causal_reachable reachable) (requests_reachable reachable) transition
-  intro trace state member left first right second sameTx
+  intro behaviour state member left first right second sameTx
   have firstLookup := (mem_responses_iff _ _).mp first
   have secondLookup := (mem_responses_iff _ _).mp second
   rw [← sameTx] at secondLookup
-  have sameIndex := responses_reachable (trace.reachable member)
+  have sameIndex := responses_reachable (behaviour.reachable member)
     _ _ _ _ _ _ _ _ _ firstLookup secondLookup
   rw [sameIndex, secondLookup] at firstLookup
   exact (Event.response.inj (Option.some.inj firstLookup)).2.2.2.symm
@@ -803,8 +803,8 @@ private theorem replay_reachable (actions : List Action)
       obtain ⟨next, transition, rest⟩ := Option.bind_eq_some_iff.mp executed
       exact ih (.step reachable transition) rest
 
-private theorem writes_and_reads_trace
-    : ∃ trace : CCF.Execution.Trace transitionSystem,
+private theorem writes_and_reads_behaviour
+    : ∃ behaviour : CCF.Execution.Behaviour transitionSystem,
         ({
             history :=
               [
@@ -822,8 +822,8 @@ private theorem writes_and_reads_trace
             branches := [[], [⟨2, some 0⟩, ⟨2, some 1⟩]]
           }
           : State)
-        ∈ trace :=
-  (CCF.Execution.reachable_iff_trace (system := transitionSystem)).mp
+        ∈ behaviour :=
+  (CCF.Execution.reachable_iff_behaviour (system := transitionSystem)).mp
     (replay_reachable
       [
         .request .rw,
@@ -841,8 +841,8 @@ private theorem writes_and_reads_trace
       ]
       (.initial rfl) (by decide))
 
-private theorem replaced_writes_trace
-    : ∃ trace : CCF.Execution.Trace transitionSystem,
+private theorem replaced_writes_behaviour
+    : ∃ behaviour : CCF.Execution.Behaviour transitionSystem,
         ({
             history :=
               [
@@ -866,8 +866,8 @@ private theorem replaced_writes_trace
             branches := [[], [⟨2, some 0⟩, ⟨2, some 1⟩], [⟨3, some 2⟩, ⟨3, some 3⟩]]
           }
           : State)
-        ∈ trace :=
-  (CCF.Execution.reachable_iff_trace (system := transitionSystem)).mp
+        ∈ behaviour :=
+  (CCF.Execution.reachable_iff_behaviour (system := transitionSystem)).mp
     (replay_reachable
       [
         .request .rw,
@@ -898,8 +898,8 @@ private theorem replaced_writes_trace
 frontier-passed and higher-view-below alternatives of `mayInvalidate`. A leader is
 then elected from a branch whose length equals the commit frontier, and a write
 copied into a newer view commits. -/
-private theorem superseded_writes_trace
-    : ∃ trace : CCF.Execution.Trace transitionSystem,
+private theorem superseded_writes_behaviour
+    : ∃ behaviour : CCF.Execution.Behaviour transitionSystem,
         ({
             history :=
               [
@@ -926,8 +926,8 @@ private theorem superseded_writes_trace
               ]
           }
           : State)
-        ∈ trace :=
-  (CCF.Execution.reachable_iff_trace (system := transitionSystem)).mp
+        ∈ behaviour :=
+  (CCF.Execution.reachable_iff_behaviour (system := transitionSystem)).mp
     (replay_reachable
       [
         .request .rw,
@@ -956,8 +956,8 @@ private theorem superseded_writes_trace
 entry carries no application write, and a former leader keeps responding after an
 election. The former leader's later write shares a sequence number with the new
 leader's committed write and is invalidated. -/
-private theorem reordered_writes_trace
-    : ∃ trace : CCF.Execution.Trace transitionSystem,
+private theorem reordered_writes_behaviour
+    : ∃ behaviour : CCF.Execution.Behaviour transitionSystem,
         ({
             history :=
               [
@@ -985,8 +985,8 @@ private theorem reordered_writes_trace
               ]
           }
           : State)
-        ∈ trace :=
-  (CCF.Execution.reachable_iff_trace (system := transitionSystem)).mp
+        ∈ behaviour :=
+  (CCF.Execution.reachable_iff_behaviour (system := transitionSystem)).mp
     (replay_reachable
       [
         .request .rw,
@@ -1015,14 +1015,14 @@ private theorem reordered_writes_trace
       (.initial rfl) (by decide))
 
 theorem all_received_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (write read : Nat × Response),
-        state ∈ trace
+        state ∈ behaviour
         ∧ write ∈ responsesOf state.history .rw
         ∧ read ∈ responsesOf state.history .ro := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
     (⟨7, ⟨.ro, 2, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response),
@@ -1031,15 +1031,15 @@ theorem all_received_witness
   ⟩
 
 theorem unique_txs_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : Nat × Response),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ responsesOf state.history .rw
         ∧ right ∈ responsesOf state.history .rw
         ∧ left.2.txid = right.2.txid := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
     (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
@@ -1048,15 +1048,15 @@ theorem unique_txs_witness
   ⟩
 
 theorem same_observations_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : Nat × Response),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ responses state.history
         ∧ right ∈ responses state.history
         ∧ left.2.txid = right.2.txid := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨7, ⟨.ro, 2, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response),
     (⟨9, ⟨.ro, 3, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response),
@@ -1065,25 +1065,25 @@ theorem same_observations_witness
   ⟩
 
 theorem unique_tx_requests_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : Nat × (TxType × TxContent)),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ requests state.history
         ∧ right ∈ requests state.history
         ∧ left.1 ≠ right.1 := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
-  exact ⟨trace, _, ⟨0, .rw, 0⟩, ⟨6, .ro, 2⟩, member, by decide⟩
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
+  exact ⟨behaviour, _, ⟨0, .rw, 0⟩, ⟨6, .ro, 2⟩, member, by decide⟩
 
 theorem unique_tx_ids_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : Nat × Response),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ responses state.history
         ∧ right ∈ responses state.history
         ∧ left.2.tx = right.2.tx := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
     (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
@@ -1092,15 +1092,15 @@ theorem unique_tx_ids_witness
   ⟩
 
 theorem unique_seq_nums_committed_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : Nat × Response),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ committedResponses state.history .rw
         ∧ right ∈ committedResponses state.history .rw
         ∧ left.2.txid.seqno = right.2.txid.seqno := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
     (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
@@ -1109,75 +1109,89 @@ theorem unique_seq_nums_committed_witness
   ⟩
 
 theorem committed_or_invalid_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State) (committed : TxID),
-        state ∈ trace ∧ committed ∈ statusIDs state.history .committed := by
-  obtain ⟨trace, member⟩ := replaced_writes_trace
-  exact ⟨trace, _, ⟨3, 1⟩, member, by decide⟩
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
+        (committed : TxID),
+        state ∈ behaviour ∧ committed ∈ statusIDs state.history .committed := by
+  obtain ⟨behaviour, member⟩ := replaced_writes_behaviour
+  exact ⟨behaviour, _, ⟨3, 1⟩, member, by decide⟩
 
 theorem once_committed_prev_committed_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : TxID × Status),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ statuses state.history
         ∧ right ∈ statuses state.history
         ∧ left.2 = .committed
         ∧ left.1.view = right.1.view
         ∧ right.1.seqno ≤ left.1.seqno := by
-  obtain ⟨trace, member⟩ := replaced_writes_trace
-  exact ⟨trace, _, ⟨⟨3, 2⟩, .committed⟩, ⟨⟨3, 1⟩, .committed⟩, member, by decide⟩
+  obtain ⟨behaviour, member⟩ := replaced_writes_behaviour
+  exact ⟨behaviour, _, ⟨⟨3, 2⟩, .committed⟩, ⟨⟨3, 1⟩, .committed⟩, member, by decide⟩
 
 theorem once_committed_next_invalid_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : TxID × Status),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ statuses state.history
         ∧ right ∈ statuses state.history
         ∧ left.2 = .committed
         ∧ left.1.seqno ≤ right.1.seqno
         ∧ right.1.view < left.1.view := by
-  obtain ⟨trace, member⟩ := superseded_writes_trace
-  exact ⟨trace, _, ⟨⟨3, 1⟩, .committed⟩, ⟨⟨2, 2⟩, .invalid⟩, member, by decide⟩
+  obtain ⟨behaviour, member⟩ := superseded_writes_behaviour
+  exact ⟨behaviour, _, ⟨⟨3, 1⟩, .committed⟩, ⟨⟨2, 2⟩, .invalid⟩, member, by decide⟩
 
 theorem once_invalid_next_invalid_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : TxID × Status),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ statuses state.history
         ∧ right ∈ statuses state.history
         ∧ left.2 = .invalid
         ∧ left.1.view = right.1.view
         ∧ left.1.seqno ≤ right.1.seqno := by
-  obtain ⟨trace, member⟩ := replaced_writes_trace
-  exact ⟨trace, _, ⟨⟨2, 1⟩, .invalid⟩, ⟨⟨2, 2⟩, .invalid⟩, member, by decide⟩
+  obtain ⟨behaviour, member⟩ := replaced_writes_behaviour
+  exact ⟨behaviour, _, ⟨⟨2, 1⟩, .invalid⟩, ⟨⟨2, 2⟩, .invalid⟩, member, by decide⟩
 
 theorem only_observe_sent_requests_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (response : Nat × Response) (tx : TxContent),
-        state ∈ trace
+        state ∈ behaviour
         ∧ response ∈ responses state.history
         ∧ tx ∈ response.2.observed := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
-  exact ⟨trace, _, (⟨7, ⟨.ro, 2, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response), 0, member, by decide⟩
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
+  exact ⟨
+    behaviour,
+    _,
+    (⟨7, ⟨.ro, 2, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response),
+    0,
+    member,
+    by decide
+  ⟩
 
 theorem at_most_once_observed_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (response : Nat × Response),
-        state ∈ trace ∧ response ∈ responses state.history := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
-  exact ⟨trace, _, (⟨7, ⟨.ro, 2, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response), member, by decide⟩
+        state ∈ behaviour ∧ response ∈ responses state.history := by
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
+  exact ⟨
+    behaviour,
+    _,
+    (⟨7, ⟨.ro, 2, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response),
+    member,
+    by decide
+  ⟩
 
 theorem real_time_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (earlier later : Nat × Response) (request : Nat × (TxType × TxContent)),
-        state ∈ trace
+        state ∈ behaviour
         ∧ earlier ∈ committedResponses state.history .rw
         ∧ request ∈ committedRequests state.history .rw
         ∧ later ∈ committedResponses state.history .rw
         ∧ later.2.tx = request.2.2
         ∧ earlier.1 < request.1 := by
-  obtain ⟨trace, member⟩ := reordered_writes_trace
+  obtain ⟨behaviour, member⟩ := reordered_writes_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨3, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
     (⟨8, ⟨.rw, 3, [0, 1, 2, 3], ⟨3, 5⟩⟩⟩ : Nat × Response),
@@ -1187,16 +1201,16 @@ theorem real_time_witness
   ⟩
 
 theorem invalid_not_observed_by_committed_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (invalid observer : Nat × Response),
-        state ∈ trace
+        state ∈ behaviour
         ∧ invalid ∈ responsesOf state.history .rw
         ∧ observer ∈ committedResponses state.history .rw
         ∧ invalid.1 ≠ observer.1
         ∧ invalid.2.txid ∈ statusIDs state.history .invalid := by
-  obtain ⟨trace, member⟩ := reordered_writes_trace
+  obtain ⟨behaviour, member⟩ := reordered_writes_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨13, ⟨.rw, 4, [0, 1, 2, 4], ⟨2, 5⟩⟩⟩ : Nat × Response),
     (⟨8, ⟨.rw, 3, [0, 1, 2, 3], ⟨3, 5⟩⟩⟩ : Nat × Response),
@@ -1205,14 +1219,14 @@ theorem invalid_not_observed_by_committed_witness
   ⟩
 
 theorem write_pair_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : Nat × Response),
-        state ∈ trace
+        state ∈ behaviour
         ∧ left ∈ committedResponses state.history .rw
         ∧ right ∈ committedResponses state.history .rw := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
+  obtain ⟨behaviour, member⟩ := writes_and_reads_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
     (⟨3, ⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response),
@@ -1221,9 +1235,9 @@ theorem write_pair_witness
   ⟩
 
 theorem committed_rw_ordered_serializable_witness
-    : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
+    : ∃ (behaviour : CCF.Execution.Behaviour transitionSystem) (state : State)
         (left right : Response),
-        state ∈ trace
+        state ∈ behaviour
         ∧ (left, right)
           ∈ (committedRwResponses state.history).zip
               (committedRwResponses state.history).tail := by
@@ -1268,9 +1282,9 @@ theorem committed_rw_ordered_serializable_witness
     = _
     rw [List.mergeSort_append _ _ (by simp) (by simp)]
     simp [txIDStrictlyLessThan]
-  obtain ⟨trace, member⟩ := reordered_writes_trace
+  obtain ⟨behaviour, member⟩ := reordered_writes_behaviour
   exact ⟨
-    trace,
+    behaviour,
     _,
     (⟨.rw, 0, [0], ⟨2, 1⟩⟩ : Response),
     (⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩ : Response),

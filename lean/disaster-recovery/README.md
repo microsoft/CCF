@@ -5,17 +5,17 @@ The public proof API is `DisasterRecovery.Properties`; its full theorem statemen
 
 ## Contents
 
-| Purpose                               | Location                                        |
-| ------------------------------------- | ----------------------------------------------- |
-| Safety theorems and witness lemmas    | `DisasterRecovery/Properties.lean`              |
-| Single-node protocol                  | `DisasterRecovery/Model/Local.lean`             |
-| Network composition                   | `DisasterRecovery/Model.lean`, `../common/CCF/` |
-| Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`        |
-| Proof implementations                 | `DisasterRecovery/Proofs/`                      |
-| Executable checks and concrete traces | `DisasterRecovery/Tests/`                       |
-| Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`         |
-| Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`             |
-| Replayer executable and test traces   | `replayer/`                                     |
+| Purpose                              | Location                                        |
+| ------------------------------------ | ----------------------------------------------- |
+| Safety theorems and witness lemmas   | `DisasterRecovery/Properties.lean`              |
+| Single-node protocol                 | `DisasterRecovery/Model/Local.lean`             |
+| Network composition                  | `DisasterRecovery/Model.lean`, `../common/CCF/` |
+| Definitions used by the statements   | `DisasterRecovery/Properties/Utils.lean`        |
+| Proof implementations                | `DisasterRecovery/Proofs/`                      |
+| Executable checks and behaviours     | `DisasterRecovery/Tests/`                       |
+| Replay of recorded C++ traces        | `DisasterRecovery/TraceValidation.lean`         |
+| Parsing and ordering of those traces | `DisasterRecovery/TraceValidation/`             |
+| Replayer executable and test traces  | `replayer/`                                     |
 
 Human review covers the model, the full theorem and lemma statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
@@ -47,11 +47,11 @@ The local properties are invariants of `Local.step`.
 They hold for every node state, not only reachable ones.
 Each quantifies a `LocalStep` record and assumes `ValidStep`: re-executing the step yields exactly the recorded after-state and outputs.
 
-The global properties quantify a `GlobalTrace config`, a valid finite or infinite execution recording an initial state and actions paired with their destination states.
-See the [shared trace definitions](../common/README.md#transition-systems) for indexed access and the finite-trace domain convention.
-`Trace.NotificationAt` states that the recorded action at step `i`, taken by `node` between states `i` and `i + 1`, emitted a given notification.
+The global properties quantify a `Behaviour config`, a valid finite or infinite execution recording an initial state and actions paired with their destination states.
+See the [shared behaviour definitions](../common/README.md#transition-systems) for indexed access and the domain convention for finite behaviours.
+`Behaviour.NotificationAt` states that the recorded action at step `i`, taken by `node` between states `i` and `i + 1`, emitted a given notification.
 
-`quorum_opener_unique` states that all `opening quorum` notifications in a trace originate from one node.
+`quorum_opener_unique` states that all `opening quorum` notifications in a behaviour originate from one node.
 
 `deadlock_free` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every recovery configuration.
 Enabled stutters after completion count, so this does not assert eventual recovery or fairness.
@@ -62,7 +62,7 @@ The corresponding witness supplies a reachable initial state for every valid rec
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
-Each safety theorem has a corresponding `_witness` lemma asserting that, for every valid configuration, some valid trace or step satisfies its premises.
+Each safety theorem has a corresponding `_witness` lemma asserting that, for every valid configuration, some valid behaviour or step satisfies its premises.
 `ValidConfig` restricts `Model.Config` to configurations satisfying the existing `Config.Valid` predicate without changing the model configuration type.
 The full-gossip witness includes a failover opening and requires at least two expected locations, since a single vote already forms a quorum in a single-location configuration.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
@@ -120,7 +120,7 @@ Their runner is namespaced, leaving the replayer as the only `main` entrypoint s
 `lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets, then rechecks the export with Lean's kernel.
 It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
 The checked targets include the complete library import root, canonical tests, and replayer, not just the exported property theorems.
-These supplement the executable model and trace tests.
+These supplement the executable model and behaviour tests.
 The `--inadvisably-no-sandbox` flag allows the check to build the shared modules directly from `../common`.
 It disables build isolation, not proof or axiom checking; run it only on code you trust.
 CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.

@@ -32,6 +32,7 @@ Scenarios are ordinary Lean, so they can also use loops, conditions and definiti
 
 After each command which can alter state, the driver asserts that the commit index of every node is safe.
 After the last command, it confirms that the network can still make progress.
+To do so, it signs on the latest primary, and runs until the active nodes which that primary knows are in sync with it.
 
 ## Adding a scenario
 
@@ -57,7 +58,7 @@ build/cft_driver <name>
 ctest --test-dir build -VV -R '^cft_scenario_test$' --no-tests=error
 ```
 
-The runner prints each scenario as a Mermaid sequence diagram, and writes its trace to `consensus/raw/<name>.ndjson` in the build directory.
+The runner prints each scenario as a Mermaid sequence diagram, and writes its trace to `consensus/raw/<name>.msgpack` in the build directory.
 [`consensus-replay`](../../lean/consensus/replay/README.md) validates these traces against the Lean model of the protocol.
 
 ## Diagrams

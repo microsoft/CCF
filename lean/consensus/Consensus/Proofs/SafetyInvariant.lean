@@ -3455,15 +3455,16 @@ private theorem present_after_step {nodes : List NodeID} {before after : Model.S
       obtain ⟨_, _, _, _, _, _, rfl⟩ := step_deliver stepped
       exact present
 
-/-- A node's committed log at one state of a trace is a prefix of the same node's
-committed log at every later state of the trace. -/
+/-- A node's committed log at one state of a behaviour is a prefix of the same node's
+committed log at every later state of the behaviour. -/
 private theorem committed_log_later {nodes : List NodeID}
-    {trace
-      : CCF.Execution.Trace (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
-    {index : Nat} {state : Model.State} (found : trace.stateAt index = some state)
+    {behaviour
+      : CCF.Execution.Behaviour
+          (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
+    {index : Nat} {state : Model.State} (found : behaviour.stateAt index = some state)
     {node : NodeID} {firstState : NodeState} (member : (node, firstState) ∈ state.nodes)
     : forall offset later,
-        trace.stateAt (index + offset) = some later
+        behaviour.stateAt (index + offset) = some later
         -> exists laterState,
             (node, laterState) ∈ later.nodes
             /\ firstState.committedLog <+: laterState.committedLog := by
@@ -3477,14 +3478,14 @@ private theorem committed_log_later {nodes : List NodeID}
   | succ offset ih =>
       intro later atLater
       rw [← Nat.add_assoc] at atLater
-      cases atMiddle : trace.stateAt (index + offset) with
-      | none => simp [trace.states.le_stable (Nat.le_succ _) atMiddle] at atLater
+      cases atMiddle : behaviour.stateAt (index + offset) with
+      | none => simp [behaviour.states.le_stable (Nat.le_succ _) atMiddle] at atLater
       | some middle =>
           obtain ⟨middleState, middleMember, prefixed⟩ := ih middle atMiddle
-          obtain ⟨action, stepped⟩ := trace.step (index + offset) middle later atMiddle atLater
+          obtain ⟨action, stepped⟩ := behaviour.step (index + offset) middle later atMiddle atLater
           obtain ⟨laterState, laterMember⟩ := present_after_step stepped middleMember
           refine ⟨laterState, laterMember, prefixed.trans ?_⟩
-          exact committed_log_step (keys_nodup (trace.reachable (CCF.Execution.Trace.stateAt_mem atMiddle)))
+          exact committed_log_step (keys_nodup (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem atMiddle)))
             stepped middleMember laterMember
 
 end Global
@@ -7701,20 +7702,20 @@ private theorem primary_eq_of_reachable [Config.InitialConfiguration]
 public theorem election_safety
     : forall (config : Finset NodeID),
       forall (nodes : List NodeID)
-              (trace : CCF.Execution.Trace (Model.transitionSystem config nodes))
+              (behaviour : CCF.Execution.Behaviour (Model.transitionSystem config nodes))
               (state : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
-        (state ∈ trace
+        (state ∈ behaviour
           /\ (left, leftState) ∈ state.nodes
           /\ (right, rightState) ∈ state.nodes
           /\ leftState.role = .primary
           /\ rightState.role = .primary
           /\ leftState.currentTerm = rightState.currentTerm)
         -> left = right := by
-  intro config nodes trace state left right leftState rightState
+  intro config nodes behaviour state left right leftState rightState
     ⟨member, leftMember, rightMember, leftLeader, rightLeader, sameTerm⟩
   let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
-  exact Proofs.Election.primary_eq_of_reachable (trace.reachable member)
+  exact Proofs.Election.primary_eq_of_reachable (behaviour.reachable member)
     leftMember rightMember leftLeader rightLeader sameTerm
 
 end Consensus.Proofs.Election
@@ -7727,14 +7728,15 @@ open Consensus.Proofs.Config
 
 private theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
     {nodes : List Model.Node.NodeID}
-    {trace
-      : CCF.Execution.Trace (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
+    {behaviour
+      : CCF.Execution.Behaviour
+          (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
     {earlierIndex laterIndex : Nat} {earlier later : Model.State}
     {earlierNode laterNode : Model.Node.NodeID}
     {earlierState laterState : Model.Node.NodeState}
     (ordered : earlierIndex <= laterIndex)
-    (earlierFound : trace.stateAt earlierIndex = some earlier)
-    (laterFound : trace.stateAt laterIndex = some later)
+    (earlierFound : behaviour.stateAt earlierIndex = some earlier)
+    (laterFound : behaviour.stateAt laterIndex = some later)
     (earlierMember : (earlierNode, earlierState) ∈ earlier.nodes)
     (laterMember : (laterNode, laterState) ∈ later.nodes)
     : earlierState.committedLog <+: laterState.committedLog
@@ -7743,7 +7745,7 @@ private theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
     Direct.committed_log_later earlierFound earlierMember (laterIndex - earlierIndex)
       later (by rwa [Nat.add_sub_cancel' ordered])
   obtain ⟨history, exec⟩ :=
-    Safety.exec_of_reachable (trace.reachable (CCF.Execution.Trace.stateAt_mem laterFound))
+    Safety.exec_of_reachable (behaviour.reachable (CCF.Execution.Behaviour.stateAt_mem laterFound))
   rcases Safety.committed_logs_comparable exec carriedMember laterMember with
     carriedFirst | laterFirst
   · exact Or.inl (grown.trans carriedFirst)
@@ -7752,20 +7754,20 @@ private theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
 public theorem committed_logs_prefix
     : forall (config : Finset NodeID),
       forall (nodes : List NodeID)
-              (trace : CCF.Execution.Trace (Model.transitionSystem config nodes)),
+              (behaviour : CCF.Execution.Behaviour (Model.transitionSystem config nodes)),
       forall (stateA stateB : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
-        (stateA ∈ trace
-          /\ stateB ∈ trace
+        (stateA ∈ behaviour
+          /\ stateB ∈ behaviour
           /\ (left, leftState) ∈ stateA.nodes
           /\ (right, rightState) ∈ stateB.nodes)
         -> leftState.committedLog <+: rightState.committedLog
             \/ rightState.committedLog <+: leftState.committedLog := by
-  intro config nodes trace stateA stateB left right leftState rightState
+  intro config nodes behaviour stateA stateB left right leftState rightState
     ⟨memberA, memberB, leftMember, rightMember⟩
   let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
-  obtain ⟨indexA, foundA⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp memberA
-  obtain ⟨indexB, foundB⟩ := CCF.Execution.Trace.mem_iff_exists_stateAt.mp memberB
+  obtain ⟨indexA, foundA⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp memberA
+  obtain ⟨indexB, foundB⟩ := CCF.Execution.Behaviour.mem_iff_exists_stateAt.mp memberB
   rcases Nat.le_total indexA indexB with ordered | ordered
   · exact Proofs.CommittedLogs.committed_logs_prefix_of_le ordered
       foundA.symm foundB.symm leftMember rightMember

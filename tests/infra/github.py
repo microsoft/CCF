@@ -36,7 +36,7 @@ INSTALL_VERSION_FILE_PATH = "share/VERSION"
 # versions to no longer be run in the recovery LTS compatibility test
 # and corresponding ledgers should be copied to the testdata/ directory
 # instead.
-END_OF_LIFE_MAJOR_VERSIONS = [1, 2, 3, 4, 5]
+END_OF_LIFE_MAJOR_VERSIONS = [1, 2, 3, 4, 5, 6]
 
 # Note: Releases are identified by tag since releases are not necessarily named, but all
 # releases are tagged
@@ -298,7 +298,7 @@ class Repository:
             if is_release_branch(branch)
             else None
         )
-        major_version = 6
+        major_version = 7
         while max_major_version is None or major_version <= max_major_version:
             tag = self.get_latest_tag_for_major_version(major_version)
             if tag is None:
@@ -603,6 +603,18 @@ if __name__ == "__main__":
             env.mut(tag="daily-3.x"),
             exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
         ),  # Latest release tag (3.x)
+        (env.mut(tag="ccf-6.0.0"), exp()),  # 6.0.0, last end-of-life major
+        (env.mut(tag="ccf-7.0.0"), exp(prev="ccf-6.0.0")),  # 7.0.0
+        (
+            env.mut(local="release/7.x"),
+            exp(prev="ccf-6.0.0", same="ccf-7.0.0"),
+        ),  # Dev on rel/7.x, first supported major
+        (env.mut(tag="ccf-7.0.1"), exp(prev="ccf-6.0.0", same="ccf-7.0.0")),  # 7.0.1
+        (env.mut(tag="ccf-8.0.0"), exp(prev="ccf-7.0.1")),  # 8.0.0
+        (
+            env.mut(local="release/8.x"),
+            exp(prev="ccf-7.0.1", same="ccf-8.0.0"),
+        ),  # Dev on rel/8.x
     ]
 
     for e, exp in test_scenario:

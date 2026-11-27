@@ -73,6 +73,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
 
@@ -131,6 +132,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
 
@@ -211,6 +213,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
             build_fuzz/fuzz-artifacts/**
           if-no-files-found: ignore
@@ -270,17 +273,27 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
+
+  # Long LTS tests: live upgrade from the previous LTS, then recovery of the
+  # ledger and snapshots of each supported LTS release in turn. Every node runs
+  # in a container of the distribution its release was built for.
+  cross-platform-lts:
+    if: *check_trigger_conditions
+    name: Long LTS
+    uses: ./.github/workflows/cross-platform-lts.yml
+    with:
+      long: true
 
   # Relatively short-running tests suites combined together to reduce executors
   # required, and to benefit from shared setup.
   # - End-to-end shuffled suite
-  # - Long LTS tests
   # - Ensure snmalloc linkage
   e2e-long-combined:
     if: *check_trigger_conditions
-    name: Long Shuffled/LTS/Snmalloc
+    name: Long Shuffled/Snmalloc
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -309,12 +322,6 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSHUFFLE_SUITE=ON -DWORKER_THREADS=2 ..
           ninja
-
-      - name: "Test Long LTS"
-        run: |
-          set +x
-          cd build
-          ./tests.sh --output-on-failure --timeout 1600 -R "lts"
 
       - name: "Test shuffled"
         run: |
@@ -350,5 +357,6 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*.msgpack
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore

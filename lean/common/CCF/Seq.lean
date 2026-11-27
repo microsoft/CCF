@@ -6,7 +6,7 @@ namespace CCF
 
 /-!
 Possibly infinite sequences, covering the part of Mathlib's `Stream'.Seq` that
-traces use. A sequence is a function from indices to optional elements which
+behaviours use. A sequence is a function from indices to optional elements which
 stays absent once an element is absent.
 -/
 

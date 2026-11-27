@@ -300,7 +300,7 @@ namespace loggingapp
         return;
       }
 
-      const auto& node_data = node_config->get().node_data;
+      const auto& node_data = node_config->get_node_data();
       if (!node_data.is_object())
       {
         return;

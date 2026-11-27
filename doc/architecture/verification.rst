@@ -62,7 +62,7 @@ Each replayer consumes traces produced by existing C++ tests:
 
 * **Consensus**: the ``cft_scenario_test`` test runs :ccf_repo:`tests/cft_scenarios_runner.py`, which executes each scenario in :ccf_repo:`tests/cft_scenarios/Scenarios/` with the ``cft_driver`` binary.
   The scenarios are Lean programs, which drive the implementation through the bindings in :ccf_repo:`tests/cft_scenarios/CftDriver.lean` and :ccf_repo:`src/consensus/aft/test/driver.cpp`; see :ccf_repo:`tests/cft_scenarios/README.md`.
-  The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as NDJSON traces to ``consensus/raw/`` in the build directory.
+  The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as MessagePack traces to ``consensus/raw/`` in the build directory; :ccf_repo:`scripts/dump-trace.py` dumps one as NDJSON.
   The ``cft_model_test`` test, built with ``-DCFT_MODEL_DRIVER=ON``, runs the same scenarios with ``cft_model_driver``, which binds their commands to the model and not to the implementation, and writes what the model did to ``consensus/model/``, as the traces which the implementation would write; see :ccf_repo:`tests/cft_model/README.md`.
 * **KV**: building with ``-DCCF_KV_TRACING=ON`` enables test-only trace capture in ``kv_test``.
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.

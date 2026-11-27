@@ -11,8 +11,8 @@ namespace DisasterRecovery.Properties
 abbrev ValidConfig := { config : Model.Config // config.Valid }
 
 /-- A finite or infinite network execution used to state global recovery properties. -/
-abbrev GlobalTrace (config : Model.Config) :=
-  CCF.Execution.Trace (Model.transitionSystem config)
+abbrev Behaviour (config : Model.Config) :=
+  CCF.Execution.Behaviour (Model.transitionSystem config)
 
 open Model.Local in
 /-- A recorded local step of one DR node: its before and after states, input, and outputs. -/
@@ -33,16 +33,16 @@ def UpToDateWithQuorum (config : Model.Config) (candidate : TxID) : Prop :=
         fun (_, voter) => decide (LogUpToDate candidate voter)).length
 
 open Model.Local in
-/-- The trace contains a state in which the node has accepted gossip from itself. -/
-def ReceivedOwnGossip {config : Model.Config} (trace : GlobalTrace config)
+/-- The behaviour contains a state in which the node has accepted gossip from itself. -/
+def ReceivedOwnGossip {config : Model.Config} (behaviour : Behaviour config)
     (node : Location)
     : Prop :=
   exists globalState,
-    globalState ∈ trace
+    globalState ∈ behaviour
     /\ exists nodeState txid,
         (node, nodeState) ∈ globalState.nodes /\ (node, txid) ∈ nodeState.gossips
 
-namespace Trace
+namespace Behaviour
 
 open Model.Local
 
@@ -57,15 +57,15 @@ def event : Model.Action -> Event
   | .local _ .timeout => .timeout
   | .deliver envelope => Model.receive envelope.source envelope.payload
 
-/-- Step `step` of the trace, from state `step` to state `step + 1`, is taken by
+/-- Step `step` of the behaviour, from state `step` to state `step + 1`, is taken by
 `node`, and that node's local execution in the step emits `notification`. -/
-def NotificationAt (config : Model.Config) (trace : GlobalTrace config) (step : Nat)
+def NotificationAt (config : Model.Config) (behaviour : Behaviour config) (step : Nat)
     (node : Location) (notification : Notification)
     : Prop :=
   exists before after action nodeBefore nodeAfter outputs,
-    trace.stateAt step = some before
-    /\ trace.stateAt (step + 1) = some after
-    /\ trace.actionAt step = some action
+    behaviour.stateAt step = some before
+    /\ behaviour.stateAt (step + 1) = some after
+    /\ behaviour.actionAt step = some action
     /\ actor action = node
     /\ CCF.MultiNodeTransitionSystem.nodeState before node = some nodeBefore
     /\ CCF.MultiNodeTransitionSystem.nodeState after node = some nodeAfter
@@ -75,6 +75,6 @@ def NotificationAt (config : Model.Config) (trace : GlobalTrace config) (step : 
         = some (nodeAfter, outputs)
     /\ notification ∈ outputs.notifications
 
-end Trace
+end Behaviour
 
 end DisasterRecovery.Properties

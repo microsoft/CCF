@@ -85,6 +85,7 @@ For a live service, reconfiguration is materialised in two separate transactions
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines.
 Transactions before an uncommitted reconfiguration transaction do not need acknowledgements from the new configuration it defines: they commit once their signature has a quorum in each active configuration defined at or before that signature.
+A node which rolls back an uncommitted reconfiguration transaction stops tracking the nodes which only that transaction added: they are no longer sent ``AppendEntries`` and no longer appear in :http:GET:`/node/consensus`.
 
 Disaster recovery is an exception to this retirement sequence.
 Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance.

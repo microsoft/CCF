@@ -2271,6 +2271,8 @@ def run_runtime_lifecycle_checks(args):
             with tempfile.TemporaryDirectory(dir=root) as temp:
                 temp = pathlib.Path(temp).resolve()
                 config = copy.deepcopy(original_config)
+                # These nodes are not part of the network, or its trace capture.
+                config.pop("observability", None)
                 config["ledger"]["directory"] = str(temp / "ledger")
                 config["snapshots"]["directory"] = str(temp / "snapshots")
                 config["output_files"]["pid_file"] = str(temp / "node.pid")
@@ -2606,12 +2608,10 @@ def run_pid_file_check(args):
             if node.remote.check_done(timeout=0):
                 break
             time.sleep(0.1)
-        out, _ = node.remote.get_logs()
-        with open(out, "r") as outf:
-            last_line = outf.readlines()[-1].strip()
-        assert last_line.endswith(
+        # The restart truncated the log, and a trace exporter may log after this.
+        assert node.check_log_for_error_message(
             "PID file node.pid already exists. Exiting."
-        ), last_line
+        )
         LOG.info("Node shut down for the right reason")
         network.ignoring_shutdown_errors = True
 

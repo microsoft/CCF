@@ -29,6 +29,8 @@ Results are stored as artifacts and summarized in the workflow run against an EW
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
+The Virtual job runs in an Azure Linux 4 container, while the SNP job runs directly on the `gha-aci-genoa` pool image, which is built from `tests/ci/ccf_caci_ci`.
+Azure Linux 4 does not package the GitHub CLI used to restore previous perf artifacts, so the Virtual job installs a pinned, checksum-verified release with `scripts/install_gh.sh`.
 
 The Basic JS workload disables JavaScript execution metrics logging in its deployed benchmark bundle; other applications retain the enabled default.
 
@@ -37,7 +39,7 @@ Its throughput, latency, and node memory are charted alongside the other benchma
 Received-event counts, exporter drops, and drop rate are logged and saved as `*_fluentd.json` in the network's common directory under `workspace`, then uploaded for validation, not charted.
 
 File: `bencher.yml`
-3rd party dependencies: None
+3rd party dependencies: GitHub CLI
 
 ## Bencher A/B
 
@@ -45,11 +47,12 @@ Builds and runs CCF performance tests on the PR branch, then renders radar chart
 Two nested shaded blue bands show the EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs, using the same seven-run half-life as [Bencher](#bencher) for all benchmarks and metrics.
 Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run.
 Triggered on PRs that have the label `bench-ab`.
+Runs in the same Azure Linux 4 container as the [Bencher](#bencher) Virtual job, so that branch and `main` results are comparable.
 
 Includes the same `FluentD` workload as [Bencher](#bencher), with validation counts uploaded as `fluentd-counts`.
 
 File: `bencher-ab.yml`
-3rd party dependencies: None
+3rd party dependencies: GitHub CLI
 
 ## Copilot Setup Steps
 
@@ -69,8 +72,14 @@ Each Azure Linux 4 job sets `PATH` on its container, because the image does not 
 The `lts_compatibility` test only upgrades from releases built for the distribution it runs on, so on Azure Linux 4 it starts from the latest 8.x release.
 On development branches, where no final release of the version under development exists yet, that is its latest published pre-release.
 Upgrades from 7.x, which is only built for Azure Linux 3, are covered by [Cross-platform LTS](#cross-platform-lts).
+So is recovery from the ledger and snapshots of 7.x, in the `long` runs of the same workflow.
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
+
+End to end tests record each network's trace events, of every tag, and upload the capture with their logs.
+The `Replay e2e consensus traces` job runs after the Virtual jobs complete (unless the workflow is cancelled), builds the Lean replayer, and replays the `ccf.cft` events of every capture from their logs against the Lean model with `tests/cft_trace_validation.py`.
+A capture may be incomplete, for example if a test killed a node, so the job replays with `--lenient`.
+It fails if the model disagrees with a capture, if replay consumes less than 90% of the events of one of a capture's nodes, or if there is no capture.
 
 File: `ci.yml`
 3rd party dependencies: elan
@@ -107,6 +116,10 @@ Separate runtime images install only the required shared-library packages and co
 Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking.
 Runs on PRs, merge queue runs, weekly and manually.
 
+With the `long` input, it also tests recovery with the same two builds: the 7.x release recovers the end-of-life service files, then the commit under test recovers that service, once from its ledger and once from its snapshots.
+[Long Tests](#long-tests) calls this workflow with `long` set, and it can also be set on a manual run.
+The concurrency group is named explicitly rather than after `github.workflow`, which is the name of the caller when the workflow is called and would make the run cancel its caller.
+
 Because the upgrade job runs directly on the runner rather than in a container, it first restores ownership of the workspace with `sudo chown`. VMSS runners are reused across jobs, and `--user root` container jobs, including the Azure Linux 3 build in the same run, can leave root-owned files in the shared workspace that would otherwise make `actions/checkout` fail with permission errors.
 
 Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
@@ -132,6 +145,7 @@ Secondary continuous integration job. Runs more expensive, longer tests, such as
 - Runs daily on week days.
 - Can be manually run on a PR by setting `run-long-test` label, or via workflow dispatch.
 - VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
+- The `Long LTS` job calls [Cross-platform LTS](#cross-platform-lts) with `long` set, to test recovery from the previous LTS as well as the live upgrade.
 
 File: `long-test.yml`
 3rd party dependencies: elan

@@ -21,35 +21,35 @@ namespace Consensus.Properties
 
 open CCF (Finset)
 
-abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.NodeID) :=
-  CCF.Execution.Trace (Model.transitionSystem config nodes)
+abbrev Behaviour (config : Finset Model.Node.NodeID) (nodes : List Model.Node.NodeID) :=
+  CCF.Execution.Behaviour (Model.transitionSystem config nodes)
 
 open Model.Node
 
-/-- Any two committed logs in a valid trace are prefix-comparable: those of
-any two nodes, in any two states of the trace. -/
+/-- Any two committed logs in a valid behaviour are prefix-comparable: those of
+any two nodes, in any two states of the behaviour. -/
 theorem committed_logs_prefix
     : forall (config : Finset NodeID),
-      forall (nodes : List NodeID) (trace : GlobalTrace config nodes),
+      forall (nodes : List NodeID) (behaviour : Behaviour config nodes),
       forall (stateA stateB : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
-        (stateA ∈ trace
-          /\ stateB ∈ trace
+        (stateA ∈ behaviour
+          /\ stateB ∈ behaviour
           /\ (left, leftState) ∈ stateA.nodes
           /\ (right, rightState) ∈ stateB.nodes)
         -> leftState.committedLog <+: rightState.committedLog
             \/ rightState.committedLog <+: leftState.committedLog := by
   exact Proofs.CommittedLogs.committed_logs_prefix
 
-/-- Witness: every valid initial membership admits a trace and node states
+/-- Witness: every valid initial membership admits a behaviour and node states
 satisfying the committed-log theorem's preconditions with nonempty committed logs. -/
 theorem committed_logs_prefix_witness
     : forall (config : ValidConfig),
-        exists (nodes : List NodeID) (trace : GlobalTrace config nodes),
+        exists (nodes : List NodeID) (behaviour : Behaviour config nodes),
         exists (stateA stateB : Model.State),
         exists (left right : NodeID) (leftState rightState : NodeState),
-          stateA ∈ trace
-          /\ stateB ∈ trace
+          stateA ∈ behaviour
+          /\ stateB ∈ behaviour
           /\ (left, leftState) ∈ stateA.nodes
           /\ (right, rightState) ∈ stateB.nodes
           /\ leftState.committedLog ≠ []
@@ -89,10 +89,10 @@ theorem single_node_committed_log_monotonic_witness
 /-- No two distinct nodes are primary in the same term. -/
 theorem election_safety
     : forall (config : Finset NodeID),
-      forall (nodes : List NodeID) (trace : GlobalTrace config nodes)
+      forall (nodes : List NodeID) (behaviour : Behaviour config nodes)
               (state : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
-        (state ∈ trace
+        (state ∈ behaviour
           /\ (left, leftState) ∈ state.nodes
           /\ (right, rightState) ∈ state.nodes
           /\ leftState.role = .primary
@@ -101,14 +101,14 @@ theorem election_safety
         -> left = right := by
   exact Proofs.Election.election_safety
 
-/-- Witness: every valid initial membership admits a trace and primary states
+/-- Witness: every valid initial membership admits a behaviour and primary states
 satisfying the election-safety theorem's preconditions. -/
 theorem election_safety_witness
     : forall (config : ValidConfig),
         exists
-        (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),
+        (nodes : List NodeID) (behaviour : Behaviour config nodes) (state : Model.State),
         exists (left right : NodeID) (leftState rightState : NodeState),
-          state ∈ trace
+          state ∈ behaviour
           /\ (left, leftState) ∈ state.nodes
           /\ (right, rightState) ∈ state.nodes
           /\ leftState.role = .primary
@@ -119,21 +119,23 @@ theorem election_safety_witness
 /-- Every positive commit index points to a signature entry. -/
 theorem committed_frontier_is_signature
     : forall (config : Finset NodeID),
-      forall (nodes : List NodeID) (trace : GlobalTrace config nodes)
+      forall (nodes : List NodeID) (behaviour : Behaviour config nodes)
               (state : Model.State),
       forall (node : NodeID) (nodeState : NodeState),
-        (state ∈ trace /\ (node, nodeState) ∈ state.nodes /\ 0 < nodeState.commitIndex)
+        (state ∈ behaviour
+          /\ (node, nodeState) ∈ state.nodes
+          /\ 0 < nodeState.commitIndex)
         -> isSignatureAt nodeState.log nodeState.commitIndex = true := by
   exact Proofs.Direct.committed_frontier_is_signature
 
-/-- Witness: every valid initial membership admits a valid trace with a positive
+/-- Witness: every valid initial membership admits a valid behaviour with a positive
 commit index. -/
 theorem committed_frontier_is_signature_witness
     : forall (config : ValidConfig),
         exists
-        (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),
+        (nodes : List NodeID) (behaviour : Behaviour config nodes) (state : Model.State),
         exists (node : NodeID) (nodeState : NodeState),
-          state ∈ trace
+          state ∈ behaviour
           /\ (node, nodeState) ∈ state.nodes
           /\ 0 < nodeState.commitIndex := by
   exact Proofs.Witnesses.committed_frontier_is_signature_witness

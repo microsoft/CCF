@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/ec_public_key.h"
+#include "ccf/crypto/mldsa_public_key.h"
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/tx_id.h"
 
@@ -62,6 +63,10 @@ namespace ccf
   /// network identity keys over the history of the service.
   using TrustedKeys = std::map<ccf::SeqNo, ccf::crypto::ECPublicKeyPtr>;
 
+  /// Map from sequence number to ML-DSA public key, representing the trusted
+  /// PQ network identity keys over the history of the service.
+  using TrustedKeysPQ = std::map<ccf::SeqNo, ccf::crypto::MLDSAPublicKeyPtr>;
+
   /// Exception thrown when identity data is requested before the
   /// asynchronous identity-history-fetching process has completed.
   struct IdentityHistoryNotFetched : public std::exception
@@ -103,6 +108,21 @@ namespace ccf
     [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
     get_cose_endorsements_chain(ccf::SeqNo seqno) const = 0;
 
+    /// Returns the COSE endorsements chain of the PQ network identities for
+    /// the given sequence number, newest endorsement first.
+    ///
+    /// The chain is empty for a sequence number of the current service.
+    /// Returns std::nullopt if the service has no PQ identity, or if the
+    /// sequence number precedes the fetched PQ chain. When fetching settled
+    /// as partial, the fetched PQ chain covers only the validated newest
+    /// services, so std::nullopt means that no PQ chain was fetched for the
+    /// sequence number.
+    ///
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
+    /// completed.
+    [[nodiscard]] virtual std::optional<CoseEndorsementsChain>
+    get_cose_endorsements_chain_pq(ccf::SeqNo seqno) const = 0;
+
     /// Returns the trusted EC public key that was active at the given
     /// sequence number, or nullptr if the sequence number precedes the
     /// earliest known trusted key.
@@ -114,11 +134,30 @@ namespace ccf
     [[nodiscard]] virtual ccf::crypto::ECPublicKeyPtr get_trusted_identity_for(
       ccf::SeqNo seqno) const = 0;
 
+    /// Returns the trusted ML-DSA public key that was active at the given
+    /// sequence number.
+    ///
+    /// Returns nullptr if the service has no PQ identity, or if the sequence
+    /// number precedes the fetched PQ chain. When fetching settled as partial,
+    /// nullptr means that no PQ key was fetched for the sequence number.
+    ///
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
+    /// completed.
+    [[nodiscard]] virtual ccf::crypto::MLDSAPublicKeyPtr
+    get_trusted_identity_for_pq(ccf::SeqNo seqno) const = 0;
+
     /// Returns all trusted network identity keys as a map from sequence
     /// number to EC public key.
     ///
     /// @throws IdentityHistoryNotFetched if identity history fetching has not
     /// completed.
     [[nodiscard]] virtual TrustedKeys get_trusted_keys() const = 0;
+    /// Returns all trusted PQ network identity keys as a map from sequence
+    /// number to ML-DSA public key. Empty for a service without a PQ identity.
+    /// When fetching settled as partial, holds only the fetched keys.
+    ///
+    /// @throws IdentityHistoryNotFetched if identity history fetching has not
+    /// completed.
+    [[nodiscard]] virtual TrustedKeysPQ get_trusted_keys_pq() const = 0;
   };
 }
