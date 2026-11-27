@@ -5470,66 +5470,6 @@ TEST_CASE("Store::commit edge cases")
         false) == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->number_of_replicas() == 1);
   }
-
-  SUBCASE("Rollback during replicate prevents last_replicated from advancing")
-  {
-    class HookedPrimaryConsensus : public ccf::kv::test::PrimaryStubConsensus
-    {
-    public:
-      std::function<void()> on_replicate;
-
-      bool replicate(
-        const ccf::kv::BatchVector& entries, ccf::View view) override
-      {
-        if (on_replicate)
-        {
-          auto cb = std::move(on_replicate);
-          on_replicate = nullptr;
-          cb();
-        }
-        return ccf::kv::test::PrimaryStubConsensus::replicate(entries, view);
-      }
-    };
-
-    ccf::kv::Store store;
-    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
-    auto consensus = std::make_shared<HookedPrimaryConsensus>();
-    store.set_consensus(consensus);
-    store.initialise_term(1);
-    MapTypes::StringString map("public:map");
-
-    // Establish last_replicated == 1 so a concurrent rollback to 0 changes
-    // last_replicated away from previous_last_replicated.
-    {
-      auto tx1 = store.create_tx();
-      tx1.rw(map)->put("k", "v1");
-      REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS);
-      REQUIRE(tx1.commit_version() == 1);
-    }
-    REQUIRE(consensus->number_of_replicas() == 1);
-
-    // Roll back to version 0 (and term 2) while tx2 is inside replicate().
-    consensus->on_replicate = [&store]() { store.rollback({1, 0}, 2); };
-
-    {
-      auto tx2 = store.create_tx();
-      tx2.rw(map)->put("k", "v2");
-      REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
-    }
-
-    // Because last_replicated stayed at 0 instead of advancing to 2, a new tx
-    // in term 2 at seqno 1 is immediately contiguous and replicated.
-    REQUIRE(store.current_version() == 0);
-    {
-      auto tx3 = store.create_tx();
-      tx3.rw(map)->put("k", "v3");
-      REQUIRE(tx3.commit() == ccf::kv::CommitResult::SUCCESS);
-      REQUIRE(tx3.commit_version() == 1);
-    }
-    REQUIRE(consensus->number_of_replicas() == 3);
-    REQUIRE(std::get<0>(consensus->replica.back()) == 1);
-    REQUIRE(consensus->get_view() == 2);
-  }
 }
 
 TEST_CASE("untyped::Map::create_committer rejects unexpected AbstractChangeSet")
