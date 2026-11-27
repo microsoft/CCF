@@ -644,151 +644,6 @@ TEST_CASE("Handlers reject missing subsystems and missing protocol config")
   }
 }
 
-TEST_CASE("Handlers reject invalid quotes and changed sender certificates")
-{
-  RecoveryDecisionProtocolFixture fix;
-  fix.commit_service_and_self_node();
-  fix.commit_sm_state(StateMachine::GOSSIPING, StateMachine::GOSSIPING);
-
-  TestNodeContext ctx(fix.node_state->get_node_id());
-  ctx.install_subsystem(std::make_shared<NodeConfigurationSubsystem>(
-    *fix.node_state, NodeConfigurationSubsystem::InterfaceRegexes{}));
-  auto node_op = std::make_shared<ConfigurableNodeOperation>(*fix.node_state);
-  ctx.install_subsystem(node_op);
-  NodeRpcFrontend frontend(fix.network, ctx);
-  frontend.open();
-
-  const auto peer_kp_a = ccf::crypto::make_ec_key_pair();
-  const auto peer_cert_a = make_self_signed_cert(peer_kp_a, "CN=PeerA");
-  const auto peer_kp_b = ccf::crypto::make_ec_key_pair();
-  const auto peer_cert_b = make_self_signed_cert(peer_kp_b, "CN=PeerB");
-
-  const std::vector<std::pair<std::string, nlohmann::json>> wrapped_calls = {
-    {"/recovery_decision_protocol/gossip",
-     nlohmann::json(fix.make_gossip_request("node1"))},
-    {"/recovery_decision_protocol/vote",
-     nlohmann::json(fix.make_vote_request("node1"))},
-    {"/recovery_decision_protocol/iamopen",
-     nlohmann::json(fix.make_iamopen_request("node1"))}};
-
-  INFO("Invalid quote is rejected before recording sender identity");
-  node_op->verify_quote_override =
-    QuoteVerificationResult::FailedInvalidQuotedPublicKey;
-  for (const auto& [path, body] : wrapped_calls)
-  {
-    const auto resp = send_node_request(frontend, path, body, peer_cert_a);
-    CHECK(resp.status == HTTP_STATUS_UNAUTHORIZED);
-    const auto err = parse_error_json(resp)["error"];
-    CHECK(err["code"] == ccf::errors::InvalidQuote);
-  }
-  {
-    auto ro = fix.network.tables->create_read_only_tx();
-    CHECK_FALSE(ro.ro<NodeInfoMap>(Tables::RECOVERY_DECISION_PROTOCOL_NODES)
-                  ->get("node1")
-                  .has_value());
-  }
-
-  INFO("First valid message binds location name to caller public key");
-  node_op->verify_quote_override = QuoteVerificationResult::Verified;
-  {
-    const auto resp = send_node_request(
-      frontend,
-      "/recovery_decision_protocol/gossip",
-      nlohmann::json(fix.make_gossip_request("node1", {2, 10})),
-      peer_cert_a);
-    CHECK(resp.status == HTTP_STATUS_NO_CONTENT);
-  }
-
-  INFO("Same location with the same certificate key is accepted");
-  {
-    const auto resp = send_node_request(
-      frontend,
-      "/recovery_decision_protocol/gossip",
-      nlohmann::json(fix.make_gossip_request("node1", {2, 10})),
-      peer_cert_a);
-    CHECK(resp.status == HTTP_STATUS_NO_CONTENT);
-  }
-
-  INFO("Same location with a different certificate key is rejected");
-  for (const auto& [path, body] : wrapped_calls)
-  {
-    const auto resp = send_node_request(frontend, path, body, peer_cert_b);
-    CHECK(resp.status == HTTP_STATUS_BAD_REQUEST);
-    const auto err = parse_error_json(resp)["error"];
-    CHECK(err["code"] == ccf::errors::NodeAlreadyExists);
-    CHECK(err["message"].get<std::string>().contains(
-      "certificate public key has changed"));
-  }
-}
-
-TEST_CASE("Timeout handler enforces primary origin and catches logic_error")
-{
-  RecoveryDecisionProtocolFixture fix;
-  fix.commit_service_and_self_node();
-
-  const auto primary_kp = ccf::crypto::make_ec_key_pair();
-  const auto primary_cert = make_self_signed_cert(primary_kp, "CN=Primary");
-  const auto primary_id = fix.add_trusted_node(primary_cert);
-
-  const auto backup_kp = ccf::crypto::make_ec_key_pair();
-  const auto backup_cert = make_self_signed_cert(backup_kp, "CN=Backup");
-  const auto backup_id = fix.add_trusted_node(backup_cert);
-
-  TestNodeContext ctx(fix.node_state->get_node_id());
-  ctx.install_subsystem(std::make_shared<NodeConfigurationSubsystem>(
-    *fix.node_state, NodeConfigurationSubsystem::InterfaceRegexes{}));
-  auto node_op = std::make_shared<ConfigurableNodeOperation>(*fix.node_state);
-  ctx.install_subsystem(node_op);
-  NodeRpcFrontend frontend(fix.network, ctx);
-  frontend.open();
-
-  INFO("Unknown primary is rejected with 500 InternalError");
-  node_op->primary_override = std::optional<ccf::NodeId>(std::nullopt);
-  {
-    const auto resp = send_node_request(
-      frontend, "/recovery_decision_protocol/timeout", nullptr, primary_cert);
-    CHECK(resp.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
-    const auto err = parse_error_json(resp)["error"];
-    CHECK(err["code"] == ccf::errors::InternalError);
-    CHECK(err["message"] == "Primary is unknown");
-  }
-
-  INFO("Non-primary caller is rejected with 500 InternalError");
-  node_op->primary_override = std::optional<ccf::NodeId>(primary_id);
-  {
-    const auto resp = send_node_request(
-      frontend, "/recovery_decision_protocol/timeout", nullptr, backup_cert);
-    CHECK(resp.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
-    const auto err = parse_error_json(resp)["error"];
-    CHECK(err["code"] == ccf::errors::InternalError);
-    CHECK(err["message"] == "Request does not originate from primary.");
-  }
-
-  INFO("std::logic_error from advance() is caught and mapped to 500");
-  // SMState is not set, so advance() throws std::logic_error.
-  {
-    const auto resp = send_node_request(
-      frontend, "/recovery_decision_protocol/timeout", nullptr, primary_cert);
-    CHECK(resp.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
-    const auto err = parse_error_json(resp)["error"];
-    CHECK(err["code"] == ccf::errors::InternalError);
-    CHECK(err["message"].get<std::string>().contains(
-      "Failed to advance recovery-decision-protocol state:"));
-  }
-
-  INFO("Primary caller advances protocol on valid timeout");
-  fix.commit_sm_state(StateMachine::OPENING, StateMachine::OPENING);
-  {
-    const auto resp = send_node_request(
-      frontend, "/recovery_decision_protocol/timeout", nullptr, primary_cert);
-    CHECK(resp.status == HTTP_STATUS_OK);
-    auto ro = fix.network.tables->create_read_only_tx();
-    CHECK(
-      ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)->get() ==
-      StateMachine::OPEN);
-  }
-}
-
 TEST_CASE(
   "Wrapped handlers catch advance() logic_error and unset iamopen state")
 {
@@ -855,113 +710,12 @@ TEST_CASE(
     CHECK(err["message"].get<std::string>().contains(
       "Failed to advance recovery-decision-protocol state:"));
   }
-
-  INFO("iamopen rejects requests once the node is already OPENING or OPEN");
-  for (const auto state : {StateMachine::OPENING, StateMachine::OPEN})
-  {
-    fix.commit_sm_state(state, StateMachine::OPENING);
-    const auto resp = send_node_request(
-      frontend,
-      "/recovery_decision_protocol/iamopen",
-      nlohmann::json(fix.make_iamopen_request("node1")),
-      peer_cert);
-    CHECK(resp.status == HTTP_STATUS_BAD_REQUEST);
-    const auto err = parse_error_json(resp)["error"];
-    CHECK(err["code"] == ccf::errors::InvalidNodeState);
-  }
-
-  INFO("iamopen transitions to JOINING and requests restart when not yet open");
-  {
-    fix.commit_sm_state(StateMachine::VOTING, StateMachine::VOTING);
-    const auto before_restarts = fix.runtime_control.restart_count;
-    const auto resp = send_node_request(
-      frontend,
-      "/recovery_decision_protocol/iamopen",
-      nlohmann::json(fix.make_iamopen_request("node1")),
-      peer_cert);
-    CHECK(resp.status == HTTP_STATUS_NO_CONTENT);
-    CHECK(fix.runtime_control.restart_count == before_restarts + 1);
-    auto ro = fix.network.tables->create_read_only_tx();
-    CHECK(
-      ro.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)->get() ==
-      StateMachine::JOINING);
-    CHECK(
-      ro.ro<ChosenNode>(Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
-        ->get() == "node1");
-  }
-
-  INFO("gossip is rejected once chosen node is already set");
-  {
-    const auto resp = send_node_request(
-      frontend,
-      "/recovery_decision_protocol/gossip",
-      nlohmann::json(fix.make_gossip_request("node2")),
-      peer_cert);
-    CHECK(resp.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
-    const auto err = parse_error_json(resp)["error"];
-    CHECK(err["message"].get<std::string>().contains(
-      "This node has already voted for node1"));
-  }
 }
 
-TEST_CASE(
-  "Protocol advance() covers voting safety, open, and timeout transitions")
+TEST_CASE("Protocol advance() non-traced edge cases")
 {
   RecoveryDecisionProtocolFixture fix;
   fix.commit_service_and_self_node();
-
-  SUBCASE("GOSSIPING timeout with empty gossips throws std::logic_error")
-  {
-    fix.commit_sm_state(StateMachine::GOSSIPING, StateMachine::GOSSIPING);
-    auto tx = fix.network.tables->create_tx();
-    AdvanceTrace trace;
-    REQUIRE_THROWS_WITH_AS(
-      fix.rdp().advance(tx, true, trace),
-      "No gossip addresses provided yet",
-      std::logic_error);
-  }
-
-  SUBCASE("GOSSIPING selects lexicographical max <view, seqno, name>")
-  {
-    fix.commit_sm_state(StateMachine::GOSSIPING, StateMachine::GOSSIPING);
-    auto tx = fix.network.tables->create_tx();
-    auto* gossips = tx.rw<Gossips>(Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
-    gossips->put("node0", ccf::TxID{2, 10});
-    gossips->put("node1", ccf::TxID{3, 5});
-    gossips->put("node2", ccf::TxID{3, 5});
-
-    AdvanceTrace trace;
-    fix.rdp().advance(tx, false, trace);
-    CHECK(trace.pre == StateMachine::GOSSIPING);
-    CHECK(trace.post == StateMachine::VOTING);
-    CHECK(trace.chosen == "node2");
-    CHECK(
-      tx.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)->get() ==
-      StateMachine::VOTING);
-  }
-
-  SUBCASE("VOTING timeout with zero votes refuses to failover-open")
-  {
-    fix.commit_sm_state(StateMachine::VOTING, StateMachine::VOTING);
-    auto tx = fix.network.tables->create_tx();
-    AdvanceTrace trace;
-    fix.rdp().advance(tx, true, trace);
-
-    CHECK(trace.pre == StateMachine::VOTING);
-    CHECK(trace.post == StateMachine::VOTING);
-    CHECK(trace.pre_timeout == StateMachine::VOTING);
-    CHECK(trace.post_timeout == StateMachine::VOTING);
-    CHECK_FALSE(trace.open_kind.has_value());
-    CHECK(
-      tx.ro<SMState>(Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)->get() ==
-      StateMachine::VOTING);
-    CHECK(
-      tx.ro<TimeoutSMState>(Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE)
-        ->get() == StateMachine::VOTING);
-    CHECK_FALSE(tx.ro<OpenKind>(Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
-                  ->get()
-                  .has_value());
-  }
 
   SUBCASE("VOTING timeout with quorum still records QUORUM open kind")
   {
@@ -982,64 +736,20 @@ TEST_CASE(
       OpenKinds::QUORUM);
   }
 
-  SUBCASE("VOTING timeout with single non-quorum vote opens via FAILOVER")
+  SUBCASE("Timeout state machine handles JOINING and OPEN states")
   {
-    fix.commit_sm_state(StateMachine::VOTING, StateMachine::VOTING);
-    auto tx = fix.network.tables->create_tx();
-    tx.rw<Votes>(Tables::RECOVERY_DECISION_PROTOCOL_VOTES)->insert("node0");
-
-    AdvanceTrace trace;
-    fix.rdp().advance(tx, true, trace);
-
-    CHECK(trace.post == StateMachine::OPENING);
-    CHECK(trace.open_kind == OpenKinds::FAILOVER);
-    CHECK(
-      tx.ro<OpenKind>(Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)->get() ==
-      OpenKinds::FAILOVER);
-  }
-
-  SUBCASE("OPENING -> OPEN on timeout and OPEN is an idempotent no-op")
-  {
-    fix.commit_sm_state(StateMachine::OPENING, StateMachine::OPENING);
+    for (const auto timeout_state : {StateMachine::JOINING, StateMachine::OPEN})
     {
+      fix.commit_sm_state(StateMachine::OPEN, timeout_state);
       auto tx = fix.network.tables->create_tx();
       AdvanceTrace trace;
       fix.rdp().advance(tx, true, trace);
-      CHECK(trace.pre == StateMachine::OPENING);
-      CHECK(trace.post == StateMachine::OPEN);
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    }
-    for (const bool is_timeout : {false, true})
-    {
-      auto tx = fix.network.tables->create_tx();
-      AdvanceTrace trace;
-      fix.rdp().advance(tx, is_timeout, trace);
-      CHECK(trace.pre == StateMachine::OPEN);
-      CHECK(trace.post == StateMachine::OPEN);
-    }
-  }
-
-  SUBCASE(
-    "Timeout state machine handles GOSSIPING, VOTING, OPENING, JOINING, OPEN")
-  {
-    for (const auto [initial_timeout, expected_timeout] :
-         std::vector<std::pair<StateMachine, StateMachine>>{
-           {StateMachine::GOSSIPING, StateMachine::VOTING},
-           {StateMachine::VOTING, StateMachine::OPENING},
-           {StateMachine::OPENING, StateMachine::OPENING},
-           {StateMachine::JOINING, StateMachine::JOINING},
-           {StateMachine::OPEN, StateMachine::OPEN}})
-    {
-      fix.commit_sm_state(StateMachine::OPEN, initial_timeout);
-      auto tx = fix.network.tables->create_tx();
-      AdvanceTrace trace;
-      fix.rdp().advance(tx, true, trace);
-      CHECK(trace.pre_timeout == initial_timeout);
-      CHECK(trace.post_timeout == expected_timeout);
+      CHECK(trace.pre_timeout == timeout_state);
+      CHECK(trace.post_timeout == timeout_state);
       CHECK(
         tx.ro<TimeoutSMState>(
             Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE)
-          ->get() == expected_timeout);
+          ->get() == timeout_state);
     }
   }
 }
@@ -1135,7 +845,7 @@ TEST_CASE("Protocol advance() defensive guards throw std::logic_error")
   }
 }
 
-TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
+TEST_CASE("try_start skips and background task defensive guards")
 {
   SUBCASE("try_start skips when unconfigured or not recovering")
   {
@@ -1169,76 +879,6 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
                     ->get()
                     .has_value());
     }
-  }
-
-  SUBCASE("JOINING in retry_task stops both retry and failover timers")
-  {
-    RecoveryDecisionProtocolFixture fix(
-      {{"node0", "127.0.0.1:8000"},
-       {"node1", "127.0.0.1:8001"},
-       {"node2", "127.0.0.1:8002"}},
-      "50ms",
-      "500ms");
-    fix.commit_service_and_self_node();
-
-    {
-      auto tx = fix.network.tables->create_tx();
-      fix.rdp().try_start(tx, true);
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-      fix.network.tables->compact(tx.commit_version());
-    }
-
-    // Committing a non-GOSSIPING write exercises the hook false branch on
-    // value.
-    fix.commit_sm_state(StateMachine::JOINING, StateMachine::GOSSIPING);
-
-    ccf::tasks::tick(100ms);
-    auto tasks = collect_ready_tasks();
-    auto retry_task = take_named_task(tasks, "RecoveryDecisionProtocolRetry");
-    REQUIRE(retry_task != nullptr);
-    retry_task->do_task();
-    CHECK(retry_task->is_cancelled());
-
-    // Failover timer should also have been cancelled by stop_timers().
-    ccf::tasks::tick(1000ms);
-    for (auto& task : collect_ready_tasks())
-    {
-      CHECK(task->is_cancelled());
-    }
-
-    // Clearing SMState via reset_state exercises the hook false branch on empty
-    // write.
-    {
-      auto tx = fix.network.tables->create_tx();
-      fix.rdp().reset_state(tx);
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-      fix.network.tables->compact(tx.commit_version());
-    }
-  }
-
-  SUBCASE("stop_timers handles null failover_task when failover_timeout is 0ms")
-  {
-    RecoveryDecisionProtocolFixture fix(
-      {{"node0", "127.0.0.1:8000"}, {"node1", "127.0.0.1:8001"}},
-      "50ms",
-      "0ms");
-    fix.commit_service_and_self_node();
-
-    {
-      auto tx = fix.network.tables->create_tx();
-      fix.rdp().try_start(tx, true);
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-      fix.network.tables->compact(tx.commit_version());
-    }
-
-    fix.commit_sm_state(StateMachine::OPEN, StateMachine::OPENING);
-
-    ccf::tasks::tick(100ms);
-    auto tasks = collect_ready_tasks();
-    auto retry_task = take_named_task(tasks, "RecoveryDecisionProtocolRetry");
-    REQUIRE(retry_task != nullptr);
-    retry_task->do_task();
-    CHECK(retry_task->is_cancelled());
   }
 
   SUBCASE(
@@ -1282,11 +922,12 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       "Recovery-decision-protocol chosen node ghost not found",
       std::logic_error);
 
-    INFO("Missing SMState throws std::logic_error");
+    INFO("Missing SMState throws std::logic_error (and empties SMState hook)");
     {
       auto tx = fix.network.tables->create_tx();
       fix.rdp().reset_state(tx);
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      fix.network.tables->compact(tx.commit_version());
     }
     REQUIRE_THROWS_WITH_AS(
       retry_task->do_task(),
@@ -1307,9 +948,7 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
     retry_task->cancel_task();
   }
 
-  SUBCASE(
-    "failover_task handles missing config, missing state, active send, and "
-    "OPEN")
+  SUBCASE("failover_task throws std::logic_error when SMState is missing")
   {
     RecoveryDecisionProtocolFixture fix(
       {{"node0", "127.0.0.1:1"}, {"node1", "127.0.0.1:1"}}, "500ms", "50ms");
@@ -1328,14 +967,6 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       take_named_task(tasks, "RecoveryDecisionProtocolFailover");
     REQUIRE(failover_task != nullptr);
 
-    INFO("Active GOSSIPING state dispatches timeout request via curl");
-    {
-      ccf::http_client::CurlmLibuvContextSingleton singleton(uv_default_loop());
-      CHECK_NOTHROW(failover_task->do_task());
-    }
-    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-
-    INFO("Missing SMState throws std::logic_error");
     {
       auto tx = fix.network.tables->create_tx();
       fix.rdp().reset_state(tx);
@@ -1346,10 +977,7 @@ TEST_CASE("try_start global hook, retry_task, failover_task, and stop_timers")
       "Recovery-decision-protocol state not set, cannot retry protocol",
       std::logic_error);
 
-    INFO("OPEN stops failover and retry timers");
-    fix.commit_sm_state(StateMachine::OPEN, StateMachine::OPENING);
-    failover_task->do_task();
-    CHECK(failover_task->is_cancelled());
+    failover_task->cancel_task();
   }
 }
 
@@ -1404,18 +1032,6 @@ TEST_CASE("get_iamopen_request and metadata helpers report missing state")
       static_cast<void>(fix.rdp().get_iamopen_request(ro)),
       "Could not find view for last recovered signed seqno 0",
       std::logic_error);
-  }
-
-  SUBCASE("Valid state constructs and caches IAmOpenRequest")
-  {
-    RecoveryDecisionProtocolFixture fix;
-    fix.commit_service_and_self_node();
-    auto ro = fix.network.tables->create_read_only_tx();
-    const auto& first = fix.rdp().get_iamopen_request(ro);
-    CHECK(first.info.location.name == "node0");
-    CHECK(first.txid == ccf::TxID{2, 5});
-    const auto& second = fix.rdp().get_iamopen_request(ro);
-    CHECK(&first == &second);
   }
 }
 
@@ -1697,20 +1313,19 @@ TEST_CASE("Recovery trace quorum open complete")
   // Exercise failover_task firing while GOSSIPING (dispatches timeout via
   // curl).
   n2.run_failover_task();
+  CHECK(n0.receive_gossip(n2).status == HTTP_STATUS_NO_CONTENT);
   CHECK(n0.receive_gossip(n0).status == HTTP_STATUS_NO_CONTENT);
   // Second retry from n0 sends another gossip copy so duplicate delivery is
   // causally justified in the Lean trace model.
   n0.run_retry();
   CHECK(n0.receive_gossip(n0).status == HTTP_STATUS_NO_CONTENT);
+  CHECK(n0.receive_gossip(n1).status == HTTP_STATUS_NO_CONTENT);
+  CHECK(n0.current_sm_state() == StateMachine::VOTING);
 
-  for (auto* receiver : nodes)
+  for (auto* receiver : {&n1, &n2})
   {
     for (auto* sender : nodes)
     {
-      if (receiver == &n0 && sender == &n0)
-      {
-        continue;
-      }
       CHECK(receiver->receive_gossip(*sender).status == HTTP_STATUS_NO_CONTENT);
     }
     CHECK(receiver->current_sm_state() == StateMachine::VOTING);
@@ -1741,7 +1356,8 @@ TEST_CASE("Recovery trace quorum open complete")
   CHECK(n1.retry_task->is_cancelled());
 
   // Round 4: node2 advances timeout lane through OPENING -> OPEN, then hits
-  // the OPEN case in advance() on a subsequent timeout, then stops timers.
+  // the OPEN case in advance() on both a subsequent timeout and a queued
+  // non-timeout vote, then stops timers.
   CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
   CHECK(n2.current_sm_state() == StateMachine::OPENING);
   CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
@@ -1749,6 +1365,8 @@ TEST_CASE("Recovery trace quorum open complete")
   CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
   CHECK(n2.current_sm_state() == StateMachine::OPEN);
   CHECK(n2.receive_timeout().status == HTTP_STATUS_OK);
+  CHECK(n2.current_sm_state() == StateMachine::OPEN);
+  CHECK(n2.receive_vote(n2).status == HTTP_STATUS_NO_CONTENT);
   CHECK(n2.current_sm_state() == StateMachine::OPEN);
 
   n2.run_failover_task();
@@ -1869,13 +1487,21 @@ TEST_CASE("Recovery trace protocol rejections")
   }
 
   // Invalid quote rejections (L70-80) on gossip, vote, and iamopen do not
-  // commit or perturb the trace.
+  // commit, record sender identity, or perturb the trace.
   n0.node_op->verify_quote_override =
     QuoteVerificationResult::FailedInvalidQuotedPublicKey;
   {
-    CHECK(n0.receive_gossip(n1).status == HTTP_STATUS_UNAUTHORIZED);
-    CHECK(n0.receive_vote(n1).status == HTTP_STATUS_UNAUTHORIZED);
-    CHECK(n0.receive_iamopen(n1).status == HTTP_STATUS_UNAUTHORIZED);
+    for (const auto& resp :
+         {n0.receive_gossip(n1), n0.receive_vote(n1), n0.receive_iamopen(n1)})
+    {
+      CHECK(resp.status == HTTP_STATUS_UNAUTHORIZED);
+      CHECK(
+        parse_error_json(resp)["error"]["code"] == ccf::errors::InvalidQuote);
+    }
+    auto ro = n0.fix.network.tables->create_read_only_tx();
+    CHECK_FALSE(ro.ro<NodeInfoMap>(Tables::RECOVERY_DECISION_PROTOCOL_NODES)
+                  ->get("node1")
+                  .has_value());
   }
   n0.node_op->verify_quote_override = QuoteVerificationResult::Verified;
 
@@ -1883,17 +1509,29 @@ TEST_CASE("Recovery trace protocol rejections")
   // do not commit or perturb the trace.
   {
     n0.node_op->primary_override = std::optional<ccf::NodeId>(std::nullopt);
-    CHECK(n0.receive_timeout().status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    const auto unknown_resp = n0.receive_timeout();
+    CHECK(unknown_resp.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK(
+      parse_error_json(unknown_resp)["error"]["code"] ==
+      ccf::errors::InternalError);
+    CHECK(
+      parse_error_json(unknown_resp)["error"]["message"] ==
+      "Primary is unknown");
 
     n0.node_op->primary_override =
       std::optional<ccf::NodeId>(n0.fix.node_state->get_node_id());
+    const auto non_primary_resp = send_node_request(
+      *n0.frontend,
+      "/recovery_decision_protocol/timeout",
+      nullptr,
+      other_trusted_cert);
+    CHECK(non_primary_resp.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
     CHECK(
-      send_node_request(
-        *n0.frontend,
-        "/recovery_decision_protocol/timeout",
-        nullptr,
-        other_trusted_cert)
-        .status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+      parse_error_json(non_primary_resp)["error"]["code"] ==
+      ccf::errors::InternalError);
+    CHECK(
+      parse_error_json(non_primary_resp)["error"]["message"] ==
+      "Request does not originate from primary.");
     CHECK(other_trusted_id != n0.fix.node_state->get_node_id());
   }
 
@@ -1909,33 +1547,25 @@ TEST_CASE("Recovery trace protocol rejections")
     GossipRequest bad_gossip;
     bad_gossip.info = n1.request_info();
     bad_gossip.txid = n1.recovered_txid;
-    CHECK(
-      send_node_request(
-        *n0.frontend,
-        "/recovery_decision_protocol/gossip",
-        nlohmann::json(bad_gossip),
-        rogue_cert)
-        .status == HTTP_STATUS_BAD_REQUEST);
-
     TaggedWithNodeInfo bad_vote;
     bad_vote.info = n1.request_info();
-    CHECK(
-      send_node_request(
-        *n0.frontend,
-        "/recovery_decision_protocol/vote",
-        nlohmann::json(bad_vote),
-        rogue_cert)
-        .status == HTTP_STATUS_BAD_REQUEST);
-
     auto ro = n1.fix.network.tables->create_read_only_tx();
     const auto& bad_iamopen = n1.fix.rdp().get_iamopen_request(ro);
-    CHECK(
-      send_node_request(
-        *n0.frontend,
-        "/recovery_decision_protocol/iamopen",
-        nlohmann::json(bad_iamopen),
-        rogue_cert)
-        .status == HTTP_STATUS_BAD_REQUEST);
+
+    for (const auto& [path, body] :
+         std::vector<std::pair<std::string, nlohmann::json>>{
+           {"/recovery_decision_protocol/gossip", nlohmann::json(bad_gossip)},
+           {"/recovery_decision_protocol/vote", nlohmann::json(bad_vote)},
+           {"/recovery_decision_protocol/iamopen",
+            nlohmann::json(bad_iamopen)}})
+    {
+      const auto resp = send_node_request(*n0.frontend, path, body, rogue_cert);
+      CHECK(resp.status == HTTP_STATUS_BAD_REQUEST);
+      const auto err = parse_error_json(resp)["error"];
+      CHECK(err["code"] == ccf::errors::NodeAlreadyExists);
+      CHECK(err["message"].get<std::string>().contains(
+        "certificate public key has changed"));
+    }
   }
 
   for (auto* receiver : nodes)
