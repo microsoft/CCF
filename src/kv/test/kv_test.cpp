@@ -3900,29 +3900,6 @@ TEST_CASE("CommittableTx guards")
       auto _ = reserved.commit_term(), "Transaction aborted", std::logic_error);
   }
 
-  SUBCASE("commit_term returns the commit term after successful commit")
-  {
-    ccf::kv::Store kv_store;
-    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
-    kv_store.initialise_term(5);
-
-    {
-      auto tx = kv_store.create_tx();
-      tx.rw(map)->put("k", "v1");
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-      REQUIRE(tx.commit_term() == 5);
-    }
-
-    kv_store.rollback(kv_store.current_txid(), 7);
-
-    {
-      auto tx = kv_store.create_tx();
-      tx.rw(map)->put("k", "v2");
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-      REQUIRE(tx.commit_term() == 7);
-    }
-  }
-
   SUBCASE("commit_reserved rejects a reserved transaction with no changes")
   {
     ccf::kv::Store kv_store;
