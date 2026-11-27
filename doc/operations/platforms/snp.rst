@@ -282,7 +282,19 @@ Testing CCF's attestation validation
 
 After installing CCF, the lightweight `verify_uvm_attestation_and_endorsements` binary is available in the CCF installation directory.
 
+To fetch the AMD VCEK endorsements for this check, use ``scripts/fetch_amd_collateral.py``.
+Provide the chip ID and TCB from the SNP attestation report, and select the matching AMD product family.
+The script fetches the leaf certificate and certificate chain from AMD and writes the Base64 encoded endorsement data expected by the verifier:
+
+.. code-block:: bash
+
+    scripts/fetch_amd_collateral.py --chip-id CHIP_ID_HEX --tcb TCB_HEX --product-family Milan --output host-amd-cert-base64
+
+Replace ``CHIP_ID_HEX`` and ``TCB_HEX`` with values from the report; the supported product families are Milan, Genoa, and Turin.
+The output format defaults to Base64, and the script dependencies are listed in ``scripts/requirements.txt``.
+
 When `verify_uvm_attestation_and_endorsements host-amd-cert-base64 reference-info-base64 security-policy-base64` is run, this mirrors the authentication of the attestation and endorsements during a CCF node's startup and join, and will return an error if any of the files are invalid.
+The collateral-fetching script prepares the endorsement file; verification is performed by the CCF binary.
 
 On C-ACI these files are available in the security context directory.
 
