@@ -28,6 +28,7 @@ import Scenarios.matching_partial
 import Scenarios.message_type_summaries
 import Scenarios.multi_election
 import Scenarios.nominate_successor
+import Scenarios.nominate_unconfigured_joiner
 import Scenarios.nominate_without_successor
 import Scenarios.pre_vote
 import Scenarios.pre_vote_double_leader
@@ -52,9 +53,11 @@ import Scenarios.retire_one
 import Scenarios.retired_committed_delayed_nomination
 import Scenarios.retired_node_delayed_responses
 import Scenarios.retirement_commit_below_signature
+import Scenarios.retirement_nominates_latest_config
 import Scenarios.retirement_nominates_most_replicated
 import Scenarios.retirement_nominates_surviving_node
 import Scenarios.retirement_rollback
+import Scenarios.retirement_signed_rollback
 import Scenarios.rollback_forgets_added_node
 import Scenarios.rollback_safety
 import Scenarios.soft_rollback
