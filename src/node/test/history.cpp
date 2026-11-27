@@ -603,6 +603,26 @@ TEST_CASE("Every COSE signature is verified with the identity of its type")
     REQUIRE(f.emit_signature() == ccf::kv::ApplyResult::FAIL);
   }
 
+  SUBCASE("A PQ signature by a rotated key verifies")
+  {
+    // The fixture's first signature cached a verifier for the previous key
+    f.pq_service_kp = ccf::crypto::make_mldsa_key_pair(
+      ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+    const auto rotated_cert =
+      f.pq_service_kp->self_sign("CN=Service", valid_from, valid_to);
+    f.commit([&](ccf::kv::Tx& tx) {
+      tx.wo<ccf::Service>(ccf::Tables::SERVICE)
+        ->put(
+          ccf::ServiceInfo{.cert = f.service_cert, .pq_cert = rotated_cert});
+      tx.wo<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+        ->put(
+          ccf::IdentityType::PQ, ccf::signing_identity_from_cert(rotated_cert));
+    });
+    REQUIRE(f.emit_signature([&](auto& tx, const auto& txid, const auto& root) {
+      sign_with(tx, txid, root, true);
+    }) == ccf::kv::ApplyResult::PASS_SIGNATURE);
+  }
+
   SUBCASE("A published PQ identity requires a PQ signature")
   {
     // The table still holds the PQ signature of the previous signature
