@@ -2583,7 +2583,12 @@ namespace loggingapp
         "/log/private/historical",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
-          get_historical, context, is_tx_committed),
+          get_historical,
+          context,
+          is_tx_committed,
+          ccf::historical::txid_from_header,
+          ccf::historical::default_error_handler,
+          ccf::historical::ReceiptEndorsements::None),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
@@ -2615,7 +2620,12 @@ namespace loggingapp
         "/log/private/historical_receipt",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
-          get_historical_with_receipt, context, is_tx_committed),
+          get_historical_with_receipt,
+          context,
+          is_tx_committed,
+          ccf::historical::txid_from_header,
+          ccf::historical::default_error_handler,
+          ccf::historical::ReceiptEndorsements::X509),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
@@ -2633,7 +2643,12 @@ namespace loggingapp
         "/log/public/historical_receipt",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
-          get_historical_with_receipt_and_claims, context, is_tx_committed),
+          get_historical_with_receipt_and_claims,
+          context,
+          is_tx_committed,
+          ccf::historical::txid_from_header,
+          ccf::historical::default_error_handler,
+          ccf::historical::ReceiptEndorsements::X509),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
@@ -2722,7 +2737,12 @@ namespace loggingapp
         "/log/public/cose_endorsements",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
-          get_cose_endorsements, context, is_tx_committed),
+          get_cose_endorsements,
+          context,
+          is_tx_committed,
+          ccf::historical::txid_from_header,
+          ccf::historical::default_error_handler,
+          ccf::historical::ReceiptEndorsements::COSE),
         auth_policies)
         .set_auto_schema<void, LoggingGetCoseEndorsements::Out>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
@@ -2750,7 +2770,12 @@ namespace loggingapp
         "/log/public/cose_signature",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
-          get_cose_signature, context, is_tx_committed),
+          get_cose_signature,
+          context,
+          is_tx_committed,
+          ccf::historical::txid_from_header,
+          ccf::historical::default_error_handler,
+          ccf::historical::ReceiptEndorsements::None),
         auth_policies)
         .set_auto_schema<void, LoggingGetCoseSignature::Out>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
@@ -2765,7 +2790,12 @@ namespace loggingapp
         "/log/public/cose_receipt",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
-          get_cose_receipt, context, is_tx_committed),
+          get_cose_receipt,
+          context,
+          is_tx_committed,
+          ccf::historical::txid_from_header,
+          ccf::historical::default_error_handler,
+          ccf::historical::ReceiptEndorsements::None),
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
@@ -2818,7 +2848,12 @@ namespace loggingapp
         "/log/transparent_statement",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
-          get_transparent_statement, context, is_tx_committed),
+          get_transparent_statement,
+          context,
+          is_tx_committed,
+          ccf::historical::txid_from_header,
+          ccf::historical::default_error_handler,
+          ccf::historical::ReceiptEndorsements::None),
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)

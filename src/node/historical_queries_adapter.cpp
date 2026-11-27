@@ -469,8 +469,15 @@ namespace ccf::historical
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TTxIDExtractor& extractor,
-    const TErrorHandler& ehandler)
+    const TErrorHandler& ehandler,
+    ReceiptEndorsements endorsements)
   {
+    const auto requested = [endorsements](ReceiptEndorsements kind) {
+      return (std::to_underlying(endorsements) & std::to_underlying(kind)) != 0;
+    };
+    const auto x509_endorsements = requested(ReceiptEndorsements::X509);
+    const auto cose_endorsements = requested(ReceiptEndorsements::COSE);
+
     auto& state_cache = node_context.get_historical_state();
     auto network_identity_subsystem =
       node_context.get_subsystem<NetworkIdentitySubsystemInterface>();
@@ -480,7 +487,9 @@ namespace ccf::historical
             network_identity_subsystem,
             available,
             extractor,
-            ehandler](TEndpointContext& args) {
+            ehandler,
+            x509_endorsements,
+            cose_endorsements](TEndpointContext& args) {
       // Extract the requested transaction ID
       ccf::TxID target_tx_id;
       {
@@ -575,13 +584,15 @@ namespace ccf::historical
       {
         if (
           historical_state == nullptr ||
-          (!populate_service_endorsements(
-            args.tx,
-            historical_state,
-            state_cache,
-            network_identity_subsystem)) ||
-          !populate_cose_service_endorsements(
-            args.tx, historical_state, network_identity_subsystem))
+          (x509_endorsements &&
+           !populate_service_endorsements(
+             args.tx,
+             historical_state,
+             state_cache,
+             network_identity_subsystem)) ||
+          (cose_endorsements &&
+           !populate_cose_service_endorsements(
+             args.tx, historical_state, network_identity_subsystem)))
         {
           auto reason = std::format(
             "Historical transaction {} is not currently available.",
@@ -614,13 +625,14 @@ namespace ccf::historical
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const ReadOnlyTxIDExtractor& extractor,
-    const ReadOnlyErrorHandler& ehandler)
+    const ReadOnlyErrorHandler& ehandler,
+    ReceiptEndorsements endorsements)
   {
     return _adapter_v4<
       HandleReadOnlyHistoricalQuery,
       ccf::endpoints::ReadOnlyEndpointFunction,
       ccf::endpoints::ReadOnlyEndpointContext>(
-      f, node_context, available, extractor, ehandler);
+      f, node_context, available, extractor, ehandler, endorsements);
   }
 
   ccf::endpoints::EndpointFunction read_write_adapter_v4(
@@ -628,12 +640,13 @@ namespace ccf::historical
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor,
-    const ErrorHandler& ehandler)
+    const ErrorHandler& ehandler,
+    ReceiptEndorsements endorsements)
   {
     return _adapter_v4<
       HandleReadWriteHistoricalQuery,
       ccf::endpoints::EndpointFunction,
       ccf::endpoints::EndpointContext>(
-      f, node_context, available, extractor, ehandler);
+      f, node_context, available, extractor, ehandler, endorsements);
   }
 }

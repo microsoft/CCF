@@ -79,17 +79,49 @@ namespace ccf::historical
     ccf::SeqNo seqno,
     std::string& error_reason);
 
+  /// Selects which endorsements of previous service identities an adapter
+  /// attaches to the receipt of the historical state, before calling the
+  /// handler. Each of them can delay or fail the request, so handlers should
+  /// only ask for the ones they serve.
+  enum class ReceiptEndorsements : uint8_t
+  {
+    /// The receipt is left as produced by the historical state cache.
+    None = 0,
+    /// X.509 endorsement of the service identity which signed the
+    /// transaction, exposed as Receipt::service_endorsements.
+    X509 = 1,
+    /// Chain of COSE endorsements, exposed by describe_cose_endorsements_v1().
+    COSE = 2,
+    /// Both of the above.
+    All = X509 | COSE
+  };
+
+  /// Wraps a handler of a historical query in a read-only endpoint function.
+  ///
+  /// @param f Handler called once the historical state is available
+  /// @param node_context Node context, used to access the historical state
+  /// cache and the network identity
+  /// @param available Reports whether the requested transaction can be
+  /// queried
+  /// @param extractor Extracts the requested transaction ID from the request
+  /// @param ehandler Produces the response for requests which cannot be
+  /// served
+  /// @param endorsements Endorsements attached to the receipt before calling
+  /// the handler
   ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
     const HandleReadOnlyHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const ReadOnlyTxIDExtractor& extractor = txid_from_header,
-    const ReadOnlyErrorHandler& ehandler = default_error_handler);
+    const ReadOnlyErrorHandler& ehandler = default_error_handler,
+    ReceiptEndorsements endorsements = ReceiptEndorsements::All);
 
+  /// Read-write counterpart of read_only_adapter_v4().
   ccf::endpoints::EndpointFunction read_write_adapter_v4(
     const HandleReadWriteHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header,
-    const ErrorHandler& ehandler = default_error_handler);
+    const ErrorHandler& ehandler = default_error_handler,
+    ReceiptEndorsements endorsements = ReceiptEndorsements::All);
 }

@@ -3213,7 +3213,7 @@ def run_recovery_partial_when_ledger_gap(args):
         network.start_and_open(args)
 
         # S1 is live. Capture an S1-era txid (after the issue) so we
-        # can later prove a receipt for it cannot be served in
+        # can later prove its endorsement chain cannot be served in
         # Partial mode.
         network.txs.issue(network, number_txs=2)
         _, msg = network.txs.get_last_tx(priv=True)
@@ -3260,7 +3260,7 @@ def run_recovery_partial_when_ledger_gap(args):
         # e_S1 from the moved chunk and settles in Partial. The
         # validated suffix is then exactly three trusted keys -- S2
         # endorsed by e_S2, S3 endorsed by e_S3 (the fresh entry S4
-        # just wrote), and S4 itself -- and a historical receipt for
+        # just wrote), and S4 itself -- and the endorsement chain for
         # any S1-era seqno must return an error from the historical
         # adapter (seqno below the validated suffix).
         writes = _find_endorsement_write_chunks(committed_ledger_dirs)
@@ -3384,25 +3384,63 @@ def run_recovery_partial_when_ledger_gap(args):
                     f"  got: {sorted(got_kids)}"
                 )
 
-                # User-visible Partial-vs-Done discriminator. A
-                # receipt for an S2/S3/S4-era seqno must be served
-                # successfully (the chain reader returns a valid sub-
-                # chain or an empty chain for current-service
-                # seqnos), but a receipt for an S1-era seqno must
-                # fail because the historical adapter cannot
-                # determine the endorsement chain for any seqno below
+                # User-visible Partial-vs-Done discriminator. The
+                # endorsement chain for an S2/S3-era seqno must be
+                # served successfully (the chain reader returns a valid
+                # sub-chain), but the chain for an S1-era seqno must fail
+                # because it cannot be determined for any seqno below
                 # the validated suffix.
-                def poll_receipt(txid, timeout=10):
+                def poll(get, timeout=10):
                     deadline = time.time() + timeout
                     rc = None
                     while time.time() < deadline:
-                        with primary.client() as cli:
-                            rc = cli.get(f"/node/receipt/cose?transaction_id={txid}")
+                        rc = get()
                         if rc.status_code != http.HTTPStatus.ACCEPTED:
                             return rc
                         time.sleep(0.2)
                     return rc
 
+                def poll_receipt(txid):
+                    def get():
+                        with primary.client() as cli:
+                            return cli.get(f"/node/receipt/cose?transaction_id={txid}")
+
+                    return poll(get)
+
+                def poll_endorsements(txid):
+                    def get():
+                        with primary.client("user0") as cli:
+                            return cli.get(
+                                "/log/public/cose_endorsements",
+                                headers={infra.clients.CCF_TX_ID_HEADER: str(txid)},
+                            )
+
+                    return poll(get)
+
+                for label, txid in (
+                    ("S2", s2_era_txid),
+                    ("S3", s3_era_txid),
+                ):
+                    rc = poll_endorsements(txid)
+                    assert rc.status_code == http.HTTPStatus.OK, (
+                        f"Endorsements fetch for {label}-era {txid} failed: "
+                        f"{rc.status_code} {rc.body!r}"
+                    )
+                    LOG.info(f"Endorsements for {label}-era {txid} -> 200 OK")
+
+                rc_s1 = poll_endorsements(s1_era_txid)
+                assert rc_s1.status_code != http.HTTPStatus.OK, (
+                    f"Endorsements fetch for S1-era {s1_era_txid} unexpectedly "
+                    f"succeeded; subsystem appears to be in Done, not "
+                    f"Partial. Response: {rc_s1.status_code} {rc_s1.body!r}"
+                )
+                LOG.info(
+                    f"Endorsements for S1-era {s1_era_txid} -> {rc_s1.status_code} "
+                    "as expected (seqno below validated suffix)"
+                )
+
+                # COSE receipts do not carry the endorsement chain, and
+                # are served for every era whose ledger is available.
                 for label, txid in (
                     ("S2", s2_era_txid),
                     ("S3", s3_era_txid),
@@ -3415,21 +3453,11 @@ def run_recovery_partial_when_ledger_gap(args):
                     )
                     LOG.info(f"Receipt for {label}-era {txid} -> 200 OK")
 
-                rc_s1 = poll_receipt(s1_era_txid)
-                assert rc_s1.status_code != http.HTTPStatus.OK, (
-                    f"Receipt fetch for S1-era {s1_era_txid} unexpectedly "
-                    f"succeeded; subsystem appears to be in Done, not "
-                    f"Partial. Response: {rc_s1.status_code} {rc_s1.body!r}"
-                )
-                LOG.info(
-                    f"Receipt for S1-era {s1_era_txid} -> {rc_s1.status_code} "
-                    "as expected (seqno below validated suffix)"
-                )
-
                 LOG.success(
                     "Subsystem settled in Partial with exactly three "
-                    "validated trusted keys (S2 + S3 + S4); receipts "
-                    "serve for S2/S3/S4 seqnos and fail for S1 seqnos; "
+                    "validated trusted keys (S2 + S3 + S4); endorsement "
+                    "chains serve for S2/S3 seqnos and fail for S1 "
+                    "seqnos, receipts serve for S2/S3/S4 seqnos; "
                     "the missing ledger chunk did not block node "
                     "startup."
                 )
