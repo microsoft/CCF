@@ -13,7 +13,8 @@ public section
 
 /-!
 Checker self-tests that cannot be expressed as trace fixtures, run at build time: agreement
-between the projected serial history and actual replay, and exact uint64 decoding. Accepted,
+between the projected serial history and actual replay, normal-view opacity at every prefix,
+and exact uint64 decoding. Accepted,
 rejected, invalid and unsupported traces are fixtures under `replayer/fixtures/`, checked by
 `replayer/check-fixtures.sh`.
 The fixture runner also checks model-only verdicts without the adapter's diagnostic guards.
@@ -107,6 +108,50 @@ private def assertProjection : IO Unit := do
       || after.head.version != before.head.version + txs.length then
     throw (IO.userError "selected-store serial projection disagrees with actual replay")
 
+private def opaqueSegment : List Event :=
+  start 1 0 0
+  ++ [
+    .acquire 1 1 "a" 0 0,
+    .acquire 1 1 "b" 0 0,
+    .put 1 1 "a" "00" "11",
+    .put 1 1 "b" "00" "11"
+  ]
+  ++ commit 1 1 [(("b", "00"), some "11"), (("a", "00"), some "11")]
+  ++ start 2 1 0
+  ++ [.acquire 1 2 "a" 1 0, .get 1 2 "a" "00" (some "11") false]
+  ++ start 3 1 0
+  ++ [
+    .acquire 1 3 "a" 1 0,
+    .acquire 1 3 "b" 1 0,
+    .put 1 3 "a" "00" "22",
+    .put 1 3 "b" "00" "22"
+  ]
+  ++ commit 3 2 [(("b", "00"), some "22"), (("a", "00"), some "22")]
+  ++ [
+    .acquire 1 2 "b" 1 0,
+    .get 1 2 "b" "00" (some "11") false,
+    .put 1 2 "a" "00" "33",
+    .get 1 2 "a" "00" (some "33") false,
+    .previous 1 2 "a" "00" (some 1),
+    .remove 1 2 "b" "00",
+    .has 1 2 "b" "00" false false,
+    .size 1 2 "a" 1,
+    .size 1 2 "b" 0,
+    .commitBegin 1 2,
+    .commitResult 1 2 .conflict 0,
+    .txEnd 1 2
+  ]
+
+private def assertOpaquePrefixes (events : List Event) : IO Unit := do
+  let mut w : World := {}
+  for (event, index) in events.zipIdx do
+    match step w ⟨index + 1, event⟩ with
+    | .error e => throw (IO.userError s!"opacity replay at {index + 1}: {e.message}")
+    | .ok next => w := next
+    for (tid, t) in w.model.txs do
+      if !decide (OpaqueView t) then
+        throw (IO.userError s!"attempt {tid} has an inconsistent view at {index + 1}")
+
 private def assertStutters (initial : World) (events : List Event) : IO World := do
   let baseline := initial.model
   let records :=
@@ -176,6 +221,8 @@ def checkModelFixtures (directory : System.FilePath) : IO Unit := do
 
 private def run : IO Unit := do
   assertProjection
+  assertOpaquePrefixes (closed interleavedSegment)
+  assertOpaquePrefixes (closed opaqueSegment)
   let _ ←
     assertStutters {}
       [

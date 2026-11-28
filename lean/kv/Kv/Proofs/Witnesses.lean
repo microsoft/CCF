@@ -289,6 +289,72 @@ theorem publication_noninterference_witness
 theorem publish_unique_witness : ∃ db : DB String String String, Unique db :=
   ⟨[], List.nodup_nil⟩
 
+/-- One atomic write changes both maps. A reader pins the first before rollback and the
+second after it, then completes successfully without writes. -/
+private def opacityInputs : List Action :=
+  [
+    .storeCreate 1 0,
+    .txCreate 1 1,
+    .snapshot 1 1,
+    .acquire 1 1 "a",
+    .acquire 1 1 "b",
+    .operation 1 1 (.write "a" "00" (some "11")),
+    .operation 1 1 (.write "b" "00" (some "11")),
+    .commitBegin 1 1,
+    .apply 1 1,
+    .commitResult 1 1 .success,
+    .txEnd 1 1,
+    .txCreate 1 2,
+    .snapshot 1 2,
+    .acquire 1 2 "a",
+    .operation 1 2 (.get "a" "00" false),
+    .rollback 1 0 1,
+    .acquire 1 2 "b",
+    .operation 1 2 (.get "b" "00" false),
+    .commitBegin 1 2,
+    .commitResult 1 2 .success,
+    .txEnd 1 2,
+    .storeEnd 1
+  ]
+
+private def runInputs (w : State) : List Action → Option State
+  | [] => some w
+  | a :: rest => (step w a).bind fun next => runInputs next rest
+
+private def opacityFinal : State :=
+  (runInputs {} opacityInputs).get (by decide +kernel)
+
+private def opacityBeforeEnd : State :=
+  (runInputs {} (opacityInputs.take 20)).get (by decide +kernel)
+
+private def opacityReader : Tx :=
+  (find opacityBeforeEnd.txs 2).get (by decide +kernel)
+
+private theorem inputs_run (w final : State) (actions : List Action)
+    (accepted : runInputs w actions = some final)
+    : CCF.Execution.Run transitionSystem w actions final := by
+  induction actions generalizing w with
+  | nil =>
+      cases accepted
+      exact .nil _
+  | cons a rest ih =>
+      cases one : step w a with
+      | none => simp [runInputs, one] at accepted
+      | some next =>
+          exact .cons one
+            (ih next (by simpa only [runInputs, one, Option.bind_some] using accepted))
+
+theorem transaction_view_opacity_counterexample
+    : ∃ (inputs : List Action) (final : State),
+        CCF.Execution.Run Model.transitionSystem {} inputs final
+        ∧ final = {}
+        ∧ ¬ OpaqueExecution {} inputs := by
+  refine ⟨opacityInputs, opacityFinal, inputs_run _ _ _ rfl, by decide +kernel, ?_⟩
+  intro consistent
+  have view := consistent 20 opacityBeforeEnd (inputs_run _ _ _ rfl)
+    2 opacityReader rfl
+  exact (by decide +kernel : ¬ OpaqueView opacityReader) view
+
 private def inputs : List Action :=
   [
     .storeCreate 1 0,
