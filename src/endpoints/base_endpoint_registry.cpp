@@ -316,14 +316,4 @@ namespace ccf
       return ApiResult::InternalError;
     }
   }
-
-  ApiResult BaseEndpointRegistry::get_untrusted_host_time_v1(::timespec& time)
-  {
-    auto base = ::timespec_get(&time, TIME_UTC);
-    if (base == -1)
-    {
-      return ApiResult::InternalError;
-    }
-    return ApiResult::OK;
-  }
 }

@@ -8,10 +8,10 @@
 #include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/endpoints/authentication/cose_auth.h"
 #include "ccf/endpoints/authentication/empty_auth.h"
-#include "ccf/endpoints/authentication/js.h"
 #include "ccf/endpoints/authentication/jwt_auth.h"
 #include "ccf/js/checks.h"
 #include "ccf/js/core/context.h"
+#include "js/authentication.h"
 
 #include <format>
 #include <quickjs/quickjs.h>

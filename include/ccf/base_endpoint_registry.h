@@ -240,9 +240,5 @@ namespace ccf
       ccf::kv::ReadOnlyTx& tx,
       const MemberId& member_id,
       ccf::crypto::Pem& member_cert_pem);
-
-    /** Get untrusted time from the host of the currently executing node.
-     */
-    ApiResult get_untrusted_host_time_v1(::timespec& time);
   };
 }

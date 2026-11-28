@@ -1,0 +1,2 @@
+Removed deprecated public C++ compatibility headers (`ccf/node/cose_signatures_config.h`, `ccf/service/reconfiguration_type.h`, `ccf/pal/locking.h`, `ccf/pal/mem.h`, and `ccf/endpoints/authentication/js.h`) and deprecated C++ APIs including `BaseEndpointRegistry::get_untrusted_host_time_v1()` and legacy SEV-SNP attestation structs and overloads.
+See the [7.x to 8.x migration guide](doc/releases/migration_7_x_to_8_x.rst#removed-deprecated-c-headers-and-apis) for replacements.
