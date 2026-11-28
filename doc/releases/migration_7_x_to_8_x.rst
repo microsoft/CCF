@@ -100,6 +100,37 @@ Rename ``JS_CHECK_EXC``, ``JS_CHECK_SET`` and ``JS_CHECK_OR_THROW`` to ``CCF_JS_
 Public headers do not depend on private headers.
 If your application or its tests still need a declaration that is only available in a private header, migrate to a public API or open an issue to request a supported replacement.
 
+Removed Deprecated C++ Headers and APIs
+---------------------------------------
+
+The following public C++ headers and compatibility APIs, deprecated in 7.x or earlier, have been removed in 8.0:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Removed in 8.0
+     - Replacement
+   * - ``ccf/node/cose_signatures_config.h``
+     - ``ccf/cose_signatures_config.h``
+   * - ``ccf/service/reconfiguration_type.h``
+     - ``ccf/reconfiguration_type.h``
+   * - ``ccf/pal/locking.h`` (``ccf::pal::Mutex``, ``MutexGuard``, ``ConditionVariable``)
+     - ``ccf/ds/locking.h`` (``ccf::ds::Mutex``, ``MutexGuard``, ``ConditionVariable``)
+   * - ``ccf/pal/mem.h`` (``ccf::pal::safe_memcpy``)
+     - ``std::memcpy`` from ``<cstring>``
+   * - ``ccf/endpoints/authentication/js.h`` (``auth_policies_by_name``, ``get_policy_by_name``, ``get_policy_name_from_ident``, ``instantiate_authn_policies``)
+     - Extensible registries in ``ccf/js/registry.h``
+   * - ``ccf::BaseEndpointRegistry::get_untrusted_host_time_v1()``
+     - Standard C/C++ time APIs (such as ``std::chrono::system_clock::now()`` or ``std::timespec_get()``)
+   * - ``ccf::AttestationProvider::get_snp_attestation()``
+     - ``ccf::AttestationProvider::get_snp_attestation_report()``
+   * - ``ccf::pal::snp::Attestation``, its wire-layout sub-structs (``Signature``, ``SignatureAlgorithm``, ``GuestPolicy``, ``Flags``, ``PlatformInfo``), ``make_endorsement_endpoint_configuration(const Attestation&, ...)``, ``AttestationInterface::get()``, and ``ccf::pal::snp::ioctl6::{AttestationResp, PaddedAttestationResp, GuestRequestAttestation}``
+     - ``ccf::pal::snp::AttestationReport``, ``ccf::pal::snp::parse_attestation_report_unverified()``, ``ccf::pal::snp::AttestationInterface::get_raw()``, and ``make_endorsement_endpoint_configuration(const AttestationReport&, ...)``
+   * - ``ccf::pal::snp::amd_root_signing_keys``, ``AmdRootSigningKey``, and ``amd_{milan,genoa,turin}_root_signing_public_key``
+     - TAV verifies AMD root signing keys internally during ``ccf::pal::verify_snp_attestation_report()`` and ``ccf::pal::verify_snp_attestation_report_and_get()``
+   * - Unused legacy aliases ``ccf::historical::CheckAvailability``, ``ccf::OpenIDJWKMetadataLegacy``, and ``ccf::JwtPublicSigningKeysMetadataLegacy``
+     - ``ccf::historical::CheckHistoricalTxStatus``, ``ccf::OpenIDJWKMetadata``, and ``ccf::JwtPublicSigningKeysMetadata``
+
 ML-DSA Service Identity
 -----------------------
 

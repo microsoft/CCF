@@ -22,7 +22,6 @@
 // Custom Endpoints
 #include "ccf/crypto/sha256.h"
 #include "ccf/ds/hex.h"
-#include "ccf/endpoints/authentication/js.h"
 #include "ccf/endpoints/endpoint.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/js/bundle.h"
@@ -37,6 +36,7 @@
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ds/actors.h"
 #include "endpoints/rpc_context_impl.h"
+#include "js/authentication.h"
 #include "js/modules/chained_module_loader.h"
 #include "js/modules/kv_bytecode_module_loader.h"
 #include "js/modules/kv_module_loader.h"

@@ -15,9 +15,6 @@ namespace ccf::kv
 
 namespace ccf::historical
 {
-  using CheckAvailability = std::function<bool(
-    ccf::View view, ccf::SeqNo seqno, std::string& error_reason)>;
-
   using HandleReadWriteHistoricalQuery =
     std::function<void(ccf::endpoints::EndpointContext& args, StatePtr state)>;
 

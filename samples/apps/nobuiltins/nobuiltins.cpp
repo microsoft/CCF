@@ -9,6 +9,7 @@
 #include "ccf/node_context.h"
 
 #include <charconv>
+#include <ctime>
 #include <format>
 
 namespace nobuiltins
@@ -282,43 +283,40 @@ namespace nobuiltins
         .set_auto_schema<void, TransactionIDResponse>()
         .install();
 
-      auto get_time = [this](
-                        [[maybe_unused]] auto& ctx,
-                        [[maybe_unused]] nlohmann::json&& req) {
-        ::timespec time = {};
-        ccf::ApiResult result = get_untrusted_host_time_v1(time);
-        if (result != ccf::ApiResult::OK)
-        {
-          return ccf::make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            std::format(
-              "Unable to get time: {}", ccf::api_result_to_str(result)));
-        }
+      auto get_time =
+        []([[maybe_unused]] auto& ctx, [[maybe_unused]] nlohmann::json&& req) {
+          ::timespec time = {};
+          if (::timespec_get(&time, TIME_UTC) != TIME_UTC)
+          {
+            return ccf::make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Unable to get time");
+          }
 
-        std::tm calendar_time = {};
-        gmtime_r(&time.tv_sec, &calendar_time);
+          std::tm calendar_time = {};
+          gmtime_r(&time.tv_sec, &calendar_time);
 
-        // 20 characters for a (timezoneless) ISO 8601 datetime, plus a
-        // terminating null
-        constexpr size_t buf_size = 21;
-        char buf[buf_size];
-        if (strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%S", &calendar_time) == 0)
-        {
-          return ccf::make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            std::format("Unable to format timestamp"));
-        }
+          // 20 characters for a (timezoneless) ISO 8601 datetime, plus a
+          // terminating null
+          constexpr size_t buf_size = 21;
+          char buf[buf_size];
+          if (strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%S", &calendar_time) == 0)
+          {
+            return ccf::make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              std::format("Unable to format timestamp"));
+          }
 
-        // Build full time, with 6 decimals of sub-second precision, and a
-        // Python-friendly +00:00 UTC offset
-        TimeResponse response;
-        constexpr size_t usec_per_nsec = 1'000;
-        response.timestamp =
-          std::format("{}.{:06}+00:00", buf, time.tv_nsec / usec_per_nsec);
-        return ccf::make_success(response);
-      };
+          // Build full time, with 6 decimals of sub-second precision, and a
+          // Python-friendly +00:00 UTC offset
+          TimeResponse response;
+          constexpr size_t usec_per_nsec = 1'000;
+          response.timestamp =
+            std::format("{}.{:06}+00:00", buf, time.tv_nsec / usec_per_nsec);
+          return ccf::make_success(response);
+        };
       make_command_endpoint(
         "/current_time",
         HTTP_GET,

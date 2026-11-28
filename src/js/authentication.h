@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_deprecated.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/endpoints/common_auth_policies.h"
 #include "ccf/endpoints/endpoint.h"
@@ -148,39 +147,5 @@ namespace ccf
         }
       }
     }
-  }
-
-  CCF_DEPRECATED(
-    "This JS authentication helper is deprecated and will be removed in 8.0")
-
-  static inline NamedAuthPolicies& auth_policies_by_name()
-  {
-    return detail::js_authentication::auth_policies_by_name();
-  }
-
-  CCF_DEPRECATED(
-    "This JS authentication helper is deprecated and will be removed in 8.0")
-
-  static inline std::shared_ptr<ccf::AuthnPolicy> get_policy_by_name(
-    const std::string& name)
-  {
-    return detail::js_authentication::get_policy_by_name(name);
-  }
-
-  template <typename T>
-  CCF_DEPRECATED(
-    "This JS authentication helper is deprecated and will be removed in 8.0")
-  static constexpr char const* get_policy_name_from_ident(const T* ident)
-  {
-    return detail::js_authentication::get_policy_name_from_ident(ident);
-  }
-
-  CCF_DEPRECATED(
-    "This JS authentication helper is deprecated and will be removed in 8.0")
-
-  static inline void instantiate_authn_policies(
-    ccf::endpoints::EndpointDefinition& endpoint)
-  {
-    detail::js_authentication::instantiate_authn_policies(endpoint);
   }
 }

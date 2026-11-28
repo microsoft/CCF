@@ -8,17 +8,6 @@
 #include <memory>
 #include <vector>
 
-// Forward declarations, can be removed with deprecation
-namespace ccf
-{
-  class RpcFrontend;
-}
-
-namespace ccf::kv
-{
-  class Store;
-}
-
 namespace ccf
 {
   class UserEndpointRegistry : public CommonEndpointRegistry

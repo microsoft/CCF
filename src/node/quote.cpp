@@ -176,35 +176,6 @@ namespace ccf
     }
   }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
-  std::optional<pal::snp::Attestation> AttestationProvider::get_snp_attestation(
-    const QuoteInfo& quote_info)
-  {
-    auto report = get_snp_attestation_report(quote_info);
-    if (!report.has_value())
-    {
-      return std::nullopt;
-    }
-
-    if (quote_info.quote.size() != sizeof(pal::snp::Attestation))
-    {
-      LOG_FAIL_FMT(
-        "Verified SNP report has unexpected size {} (expected {})",
-        quote_info.quote.size(),
-        sizeof(pal::snp::Attestation));
-      return std::nullopt;
-    }
-
-    pal::snp::Attestation legacy_report = {};
-    std::memcpy(
-      &legacy_report, quote_info.quote.data(), sizeof(pal::snp::Attestation));
-    return legacy_report;
-  }
-
-#pragma GCC diagnostic pop
-
   std::optional<HostData> AttestationProvider::get_host_data(
     const QuoteInfo& quote_info)
   {

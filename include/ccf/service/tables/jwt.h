@@ -51,20 +51,6 @@ namespace ccf
   using JwtPublicSigningKeysMetadata =
     ServiceMap<JwtKeyId, std::vector<OpenIDJWKMetadata>>;
 
-  struct OpenIDJWKMetadataLegacy
-  {
-    Cert cert;
-    JwtIssuer issuer;
-    std::optional<JwtIssuer> constraint;
-  };
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(OpenIDJWKMetadataLegacy);
-  DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadataLegacy, issuer, cert);
-  DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadataLegacy, constraint);
-
-  using JwtPublicSigningKeysMetadataLegacy =
-    ServiceMap<JwtKeyId, std::vector<OpenIDJWKMetadataLegacy>>;
-
   using JwtIssuers = ServiceMap<JwtIssuer, JwtIssuerMetadata>;
 
   namespace Tables

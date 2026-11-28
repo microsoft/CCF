@@ -326,17 +326,8 @@ TEST_CASE("SNP request rejects oversized report data before ioctl")
     std::logic_error);
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-
-TEST_CASE("legacy SNP report layout matches the AMD specification")
+TEST_CASE("SNP attestation interface returns raw report bytes")
 {
-  using ccf::pal::snp::Attestation;
-
-  static_assert(
-    std::is_same_v<
-      decltype(std::declval<ccf::pal::snp::AttestationInterface&>().get()),
-      const Attestation&>);
   static_assert(
     std::is_same_v<
       decltype(std::declval<ccf::pal::snp::AttestationInterface&>().get_raw()),
@@ -345,62 +336,7 @@ TEST_CASE("legacy SNP report layout matches the AMD specification")
     std::is_same_v<
       decltype(std::declval<ccf::pal::snp::ioctl6::Attestation&>().get_raw()),
       std::vector<uint8_t>>);
-  static_assert(std::is_same_v<
-                decltype(ccf::AttestationProvider::get_snp_attestation(
-                  std::declval<const ccf::QuoteInfo&>())),
-                std::optional<Attestation>>);
-  static_assert(std::is_same_v<
-                decltype(ccf::pal::snp::ioctl6::AttestationResp::report),
-                Attestation>);
-
-  CHECK(ccf::pal::snp::amd_root_signing_keys.size() == 3);
-  CHECK(
-    ccf::pal::snp::amd_root_signing_keys.at(ccf::pal::snp::ProductName::Milan)
-      .public_key == ccf::pal::snp::amd_milan_root_signing_public_key);
-
-  Attestation report = {};
-  CHECK(sizeof(report) == ccf::pal::snp::attestation_report_size);
-  CHECK(alignof(Attestation) == 1);
-  CHECK(offsetof(Attestation, version) == 0x000);
-  CHECK(offsetof(Attestation, policy) == 0x008);
-  CHECK(offsetof(Attestation, report_data) == 0x050);
-  CHECK(offsetof(Attestation, measurement) == 0x090);
-  CHECK(offsetof(Attestation, reported_tcb) == 0x180);
-  CHECK(offsetof(Attestation, chip_id) == 0x1A0);
-  CHECK(offsetof(Attestation, current_build) == 0x1E8);
-  CHECK(offsetof(Attestation, current_minor) == 0x1E9);
-  CHECK(offsetof(Attestation, current_major) == 0x1EA);
-  CHECK(offsetof(Attestation, signature) == 0x2A0);
-
-  ccf::pal::snp::ioctl6::detail::AttestationResponse response;
-  response.report_size = ccf::pal::snp::attestation_report_size;
-  std::copy(
-    ccf::pal::snp::testing::milan_attestation.begin(),
-    ccf::pal::snp::testing::milan_attestation.end(),
-    response.report_bytes.begin());
-  ccf::pal::snp::ioctl6::PaddedAttestationResp legacy_response;
-  static_assert(std::is_trivially_copyable_v<decltype(legacy_response)>);
-  static_assert(sizeof(legacy_response) == sizeof(response));
-  std::memcpy(&legacy_response, &response, sizeof(legacy_response));
-  CHECK(legacy_response.report_size == response.report_size);
-  REQUIRE(response.report_bytes[0x1E8] != response.report_bytes[0x1E9]);
-  CHECK(legacy_response.report.current_build == response.report_bytes[0x1E8]);
-  CHECK(legacy_response.report.current_minor == response.report_bytes[0x1E9]);
-  CHECK(
-    std::memcmp(
-      &legacy_response.report,
-      response.report_bytes.data(),
-      response.report_bytes.size()) == 0);
-
-  report.version = ccf::pal::snp::minimum_attestation_version;
-  report.cpuid_fam_id = 0x19;
-  report.cpuid_mod_id = 0x01;
-  const auto config =
-    ccf::pal::snp::make_endorsement_endpoint_configuration(report);
-  CHECK(config.servers.size() == 1);
 }
-
-#pragma clang diagnostic pop
 
 TEST_CASE("milan validation")
 {
